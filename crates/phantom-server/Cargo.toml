@@ -1,0 +1,13 @@
+[package]
+name = "phantom-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+phantom-core.workspace = true
+
+[lints]
+workspace = true

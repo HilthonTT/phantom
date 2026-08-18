@@ -1,0 +1,33 @@
+name: go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "cli/**"
+      - ".golangci.yml"
+      - ".github/workflows/go.yml"
+
+concurrency:
+  group: go-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: cli
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: cli
+      - run: go test -race ./...
