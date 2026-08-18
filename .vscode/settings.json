@@ -1,0 +1,19 @@
+{
+  // jemalloc is a C library that will not build under MSVC, so `alloc::je` is
+  // gated on `not(target_env = "msvc")`. Running rust-analyzer under the
+  // GNU-host toolchain makes that cfg true, so the module is analyzed.
+  //
+  // Requires, outside this file:
+  //   - mingw-w64 gcc on PATH   (C:\ProgramData\mingw64\mingw64\bin)
+  //   - a space-free `sh` on PATH (C:\gitsdk\usr\bin, a junction to
+  //     "C:\Program Files\Git"); jemalloc's Makefile uses $(SHELL) unquoted,
+  //     so a path containing a space breaks the build
+  //   - rustup toolchain install 1.97.1-x86_64-pc-windows-gnu
+  "rust-analyzer.cargo.extraEnv": {
+    "RUSTUP_TOOLCHAIN": "1.97.1-x86_64-pc-windows-gnu"
+  },
+  "rust-analyzer.check.extraEnv": {
+    "RUSTUP_TOOLCHAIN": "1.97.1-x86_64-pc-windows-gnu"
+  },
+  "rust-analyzer.cargo.features": ["jemalloc_stats", "jemalloc_conf"]
+}
