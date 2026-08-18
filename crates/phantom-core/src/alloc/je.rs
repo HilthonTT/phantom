@@ -97,10 +97,11 @@ pub fn memory_stats(opts: &str) -> Option<String> {
 
     let mut str = String::new();
     let opaque = std::ptr::from_mut(&mut str).cast::<c_void>();
-    let opts_p: *const c_char = std::ffi::CString::new(opts)
-        .expect("cstring")
-        .into_raw()
-        .cast_const();
+
+    // Borrow the options rather than `into_raw`, which surrenders the allocation
+    // to the caller; nothing ever reclaimed it, so every call leaked the string.
+    let opts = std::ffi::CString::new(opts).expect("cstring");
+    let opts_p: *const c_char = opts.as_ptr();
 
     // Acquire the epoch; ensure latest stats are pulled in
     acq_epoch().ok()?;
@@ -109,7 +110,16 @@ pub fn memory_stats(opts: &str) -> Option<String> {
     // in this frame. https://docs.rs/tikv-jemalloc-sys/latest/tikv_jemalloc_sys/fn.malloc_stats_print.html
     unsafe { ffi::malloc_stats_print(Some(malloc_stats_cb), opaque, opts_p) };
 
-    str.truncate(MAX_LENGTH);
+    // `truncate` panics off a char boundary, and the callback appends via
+    // `from_utf8_lossy`, which can emit multi-byte replacement characters.
+    if str.len() > MAX_LENGTH {
+        let end = (0..=MAX_LENGTH)
+            .rev()
+            .find(|&i| str.is_char_boundary(i))
+            .unwrap_or_default();
+
+        str.truncate(end);
+    }
 
     Some(str)
 }
@@ -222,13 +232,13 @@ pub mod this_thread {
     #[inline]
     #[must_use]
     pub fn allocated() -> u64 {
-        *ALLOCATED_BYTES.with(|once| init_tls_cell(once, "thread.allocatedp"))
+        *ALLOCATED_BYTES.with(|once| init_tls_cell(once, || mallctl!("thread.allocatedp")))
     }
 
     #[inline]
     #[must_use]
     pub fn deallocated() -> u64 {
-        *DEALLOCATED_BYTES.with(|once| init_tls_cell(once, "thread.deallocatedp"))
+        *DEALLOCATED_BYTES.with(|once| init_tls_cell(once, || mallctl!("thread.deallocatedp")))
     }
 
     fn notify(key: Key) -> Result {
@@ -249,9 +259,17 @@ pub mod this_thread {
         super::get_by_arena(Some(arena_id()?), key)
     }
 
-    fn init_tls_cell(cell: &OnceCell<&'static u64>, name: &str) -> &'static u64 {
+    /// `mallctl!` caches the translated mib in a thread-local declared at its
+    /// expansion site, so the key must be produced by the caller's closure.
+    /// Expanding it inside this shared helper gives every counter the single
+    /// key belonging to whichever name was requested first, silently aliasing
+    /// `allocated` and `deallocated` onto the same jemalloc value.
+    fn init_tls_cell<F>(cell: &OnceCell<&'static u64>, key: F) -> &'static u64
+    where
+        F: FnOnce() -> Key,
+    {
         cell.get_or_init(|| {
-            let ptr: *const u64 = super::get(&mallctl!(name)).expect("failed to obtain pointer");
+            let ptr: *const u64 = super::get(&key()).expect("failed to obtain pointer");
 
             // SAFETY: ptr points directly to the internal state of jemalloc for this thread
             unsafe { ptr.as_ref() }.expect("pointer must not be null")

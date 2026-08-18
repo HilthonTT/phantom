@@ -1,19 +1,39 @@
 {
-  // jemalloc is a C library that will not build under MSVC, so `alloc::je` is
-  // gated on `not(target_env = "msvc")`. Running rust-analyzer under the
-  // GNU-host toolchain makes that cfg true, so the module is analyzed.
-  //
-  // Requires, outside this file:
-  //   - mingw-w64 gcc on PATH   (C:\ProgramData\mingw64\mingw64\bin)
-  //   - a space-free `sh` on PATH (C:\gitsdk\usr\bin, a junction to
-  //     "C:\Program Files\Git"); jemalloc's Makefile uses $(SHELL) unquoted,
-  //     so a path containing a space breaks the build
-  //   - rustup toolchain install 1.97.1-x86_64-pc-windows-gnu
-  "rust-analyzer.cargo.extraEnv": {
-    "RUSTUP_TOOLCHAIN": "1.97.1-x86_64-pc-windows-gnu"
+  // Open this folder through the WSL remote ("WSL: Connect to WSL", or `code .`
+  // from the WSL shell) so rust-analyzer runs against the Linux toolchain in
+  // rust-toolchain.toml. `alloc::je` and `alloc::hardened` are gated on
+  // `not(target_env = "msvc")`, which a native linux-gnu host satisfies with no
+  // toolchain override — the mingw-w64 workaround this file used to carry is
+  // only needed when analyzing from a Windows host.
+  // `alloc::je` and `alloc::hardened` each define a #[global_allocator], so
+  // `hardened` is gated on `not(feature = "jemalloc")` and the two can never be
+  // active together. rust-analyzer resolves one cfg set, so whichever backend is
+  // not selected reports "not included in any crates". To work on
+  // alloc/hardened.rs, swap this line for ["hardened_malloc"] and restart the
+  // server; note "all" does NOT cover both, since --all-features enables
+  // jemalloc and thereby excludes hardened.
+  "rust-analyzer.cargo.features": ["jemalloc_stats", "jemalloc_conf"],
+
+  // Match `just check-rust`, so editor diagnostics are the ones CI enforces.
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": ["--workspace", "--all-targets"],
+
+  // Keep rust-analyzer out of ./target; otherwise its checks take the same
+  // cargo lock as a terminal build and the two block each other. Worth it here
+  // because the tree lives on /mnt/d, where crossing the WSL filesystem
+  // boundary makes a redundant rebuild expensive.
+  "rust-analyzer.cargo.targetDir": true,
+
+  // The tree was just normalized to LF; keep editor saves from reintroducing
+  // CRLF now that it is edited from both Windows and WSL.
+  "files.eol": "\n",
+
+  "[rust]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
-  "rust-analyzer.check.extraEnv": {
-    "RUSTUP_TOOLCHAIN": "1.97.1-x86_64-pc-windows-gnu"
-  },
-  "rust-analyzer.cargo.features": ["jemalloc_stats", "jemalloc_conf"]
+
+  "[go]": {
+    "editor.formatOnSave": true
+  }
 }

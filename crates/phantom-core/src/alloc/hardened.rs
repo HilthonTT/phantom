@@ -3,7 +3,7 @@
 #[global_allocator]
 static HMALLOC: hardened_malloc_rs::HardenedMalloc = hardened_malloc_rs::HardenedMalloc;
 
-pub fn trim<I: Into<Option<usize>>>(_: I) -> crate::Result {
+pub fn trim<I: Into<Option<usize>> + Copy>(_: I) -> crate::Result {
     Ok(())
 }
 
