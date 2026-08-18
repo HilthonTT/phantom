@@ -12,10 +12,10 @@ jobs:
   cli:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
       # TODO: goreleaser release --clean (needs .goreleaser.yaml)
@@ -23,5 +23,5 @@ jobs:
   server-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # TODO: build and push image to ghcr.io/hilthontt/phantom
