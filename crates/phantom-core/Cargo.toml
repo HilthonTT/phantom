@@ -30,6 +30,7 @@ jemalloc_stats = [
 hardened_malloc = ["dep:hardened_malloc-rs"]
 
 [dependencies]
+futures = "0.3.34"
 thiserror = "2.0.20"
 tracing = "0.1.44"
 
