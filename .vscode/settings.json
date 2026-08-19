@@ -15,8 +15,10 @@
   "rust-analyzer.cargo.features": ["jemalloc_stats", "jemalloc_conf"],
 
   // Match `just check-rust`, so editor diagnostics are the ones CI enforces.
+  // Do NOT add "--all-targets" to check.extraArgs: rust-analyzer already passes
+  // it (rust-analyzer.check.allTargets defaults to true) and cargo rejects the
+  // flag twice with "cannot be used multiple times", which kills flycheck.
   "rust-analyzer.check.command": "clippy",
-  "rust-analyzer.check.extraArgs": ["--workspace", "--all-targets"],
 
   // Keep rust-analyzer out of ./target; otherwise its checks take the same
   // cargo lock as a terminal build and the two block each other. Worth it here
