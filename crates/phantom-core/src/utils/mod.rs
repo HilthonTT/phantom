@@ -7,6 +7,8 @@
 pub mod arrayvec;
 pub mod bool;
 pub mod bytes;
+pub mod content_disposition;
+pub mod debug;
 pub mod future;
 pub mod hash;
 pub mod json;

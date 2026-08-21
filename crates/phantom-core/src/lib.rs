@@ -7,6 +7,7 @@ pub mod error;
 pub mod log;
 pub mod macros;
 pub mod result;
+pub mod strings;
 pub mod utils;
 
 pub use self::{config::Config, error::Error, result::Result};
