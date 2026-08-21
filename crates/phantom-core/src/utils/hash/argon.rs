@@ -18,9 +18,11 @@ fn init_argon() -> Argon2<'static> {
     // 19456 Kib blocks, iterations = 2, parallelism = 1
     // * <https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id>
 
-    debug_assert!(M_COST == 19_456, "M_COST default changed");
-    debug_assert!(T_COST == 2, "T_COST default changed");
-    debug_assert!(P_COST == 1, "P_COST default changed");
+    const {
+        assert!(M_COST == 19_456, "M_COST default changed");
+        assert!(T_COST == 2, "T_COST default changed");
+        assert!(P_COST == 1, "P_COST default changed");
+    }
 
     let algorithm = Algorithm::Argon2d;
     let version = Version::default();

@@ -19,6 +19,10 @@ unsafe_code = "warn"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+# `result::result` and friends: a module named for the type it defines reads
+# fine inside a parent that groups extensions to that type.
+module_inception = { level = "allow", priority = 1 }
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

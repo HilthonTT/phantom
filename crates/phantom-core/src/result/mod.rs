@@ -1,5 +1,6 @@
-//! Extension traits for [`Result`][crate::Result].
+//! The crate's `Result` alias and extension traits for it.
 
 mod debug_inspect;
+mod result;
 
-pub use self::debug_inspect::DebugInspect;
+pub use self::{debug_inspect::DebugInspect, result::Result};

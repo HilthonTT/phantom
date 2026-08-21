@@ -4,6 +4,9 @@
 //! actually built out of — `config`, `error`, `result` — live at the crate
 //! root instead.
 
+pub mod arrayvec;
+pub mod bool;
+pub mod bytes;
 pub mod future;
 pub mod hash;
 pub mod json;

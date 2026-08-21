@@ -1,10 +1,31 @@
 //! Small helper macros shared across the crate.
+//!
+//! Error construction lives in [`crate::error::err`] instead; `err!` and `Err!`
+//! come from there.
 
-/// Builds an [`Error`][crate::Error] from `format!` arguments.
+/// Formats `$s` only when it actually looks like a format string, so callers
+/// can pass either a plain literal or a format string without paying for a
+/// `format!` on the former.
 #[macro_export]
-macro_rules! err {
-    ($($arg:tt)+) => {
-        $crate::Error::Msg(::std::format!($($arg)+))
+macro_rules! format_maybe {
+    ($s:literal $(,)?) => {
+        if $crate::is_format!($s) { ::std::format!($s).into() } else { $s.into() }
+    };
+
+    ($s:literal, $($args:tt)+) => {
+        ::std::format!($s, $($args)+).into()
+    };
+}
+
+/// Const expression deciding whether a literal is a format string.
+#[macro_export]
+macro_rules! is_format {
+    ($s:literal) => {
+        $crate::macros::has_braces($s)
+    };
+
+    ($($s:tt)+) => {
+        false
     };
 }
 
@@ -28,4 +49,24 @@ macro_rules! is_nonzero {
     ($input:expr) => {
         $input != 0
     };
+}
+
+/// Backs [`is_format!`]. A `const fn` rather than a `const_str::contains!` so
+/// the crate does not need a proc-macro dependency for this one check.
+#[must_use]
+pub const fn has_braces(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    let (mut open, mut close) = (false, false);
+
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => open = true,
+            b'}' => close = true,
+            _ => {}
+        }
+        i = i.saturating_add(1);
+    }
+
+    open && close
 }

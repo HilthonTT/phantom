@@ -1,6 +1,6 @@
 //! Checked arithmetic and fallible numeric conversion.
 
-use crate::{Error, Result};
+use crate::{Error, Result, err};
 
 /// Fallible numeric conversion usable in combinator position, e.g.
 /// `get::<u32>(key).and_then(math::try_into)`.
@@ -13,7 +13,7 @@ where
     Dst::try_from(src).map_err(Into::into)
 }
 
-/// Checked arithmetic yielding [`Error::Overflow`] rather than panicking or
+/// Checked arithmetic yielding [`Error::Arithmetic`] rather than panicking or
 /// wrapping.
 pub trait Tried: Sized {
     fn try_add(self, rhs: Self) -> Result<Self>;
@@ -26,17 +26,17 @@ macro_rules! impl_tried {
         impl Tried for $ty {
             #[inline]
             fn try_add(self, rhs: Self) -> Result<Self> {
-                self.checked_add(rhs).ok_or(Error::Overflow)
+                self.checked_add(rhs).ok_or_else(|| err!(Arithmetic("integer overflow")))
             }
 
             #[inline]
             fn try_sub(self, rhs: Self) -> Result<Self> {
-                self.checked_sub(rhs).ok_or(Error::Overflow)
+                self.checked_sub(rhs).ok_or_else(|| err!(Arithmetic("integer overflow")))
             }
 
             #[inline]
             fn try_mul(self, rhs: Self) -> Result<Self> {
-                self.checked_mul(rhs).ok_or(Error::Overflow)
+                self.checked_mul(rhs).ok_or_else(|| err!(Arithmetic("integer overflow")))
             }
         }
     )+};
