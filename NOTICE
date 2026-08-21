@@ -1,0 +1,23 @@
+phantom
+Copyright 2026 Hilthon
+
+This product includes software developed as part of conduwuit
+(https://github.com/girlbossceo/conduwuit), Copyright 2023 June and the
+conduwuit contributors, licensed under the Apache License, Version 2.0.
+
+Substantial portions of `crates/phantom-core` and `crates/phantom-macros` are
+derived from conduwuit, in places verbatim and in places adapted. The most
+significant are:
+
+  - the configuration layer, including the example-config generator
+    (`config/`, `phantom-macros`)
+  - the error type and its construction macros (`error/`)
+  - the logging and debug helpers (`log.rs`, `debug.rs`)
+  - the allocator integration (`alloc/`)
+  - assorted shared utilities (`utils/`, `result/`)
+
+These files have been modified. Changes include renaming to phantom's
+namespace, adapting to current upstream releases of ruma and tracing whose APIs
+have moved since the versions conduwuit pins, restructuring the module layout,
+omitting subsystems phantom has not yet ported, and adding tests. Modifications
+are noted in comments at the point where they occur.
