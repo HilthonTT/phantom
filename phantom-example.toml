@@ -5,7 +5,7 @@
 ###
 ### You should rename this file before configuring your server. Changes to
 ### documentation and defaults can be contributed in source code at
-### crates/phantom-core/src/utils/config/mod.rs. This file is generated when
+### crates/phantom-core/src/config/mod.rs. This file is generated when
 ### building.
 ###
 ### Any values pre-populated are the default values for said config option.

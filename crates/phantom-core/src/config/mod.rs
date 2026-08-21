@@ -25,7 +25,7 @@ use figment::{
 use phantom_macros::config_example_generator;
 use serde::Deserialize;
 
-pub use self::check::check;
+pub use self::{check::check, manager::Manager, proxy::ProxyConfig};
 use crate::{Result, err};
 
 /// All the config options for phantom.
@@ -41,7 +41,7 @@ use crate::{Result, err};
 ###
 ### You should rename this file before configuring your server. Changes to
 ### documentation and defaults can be contributed in source code at
-### crates/phantom-core/src/utils/config/mod.rs. This file is generated when
+### crates/phantom-core/src/config/mod.rs. This file is generated when
 ### building.
 ###
 ### Any values pre-populated are the default values for said config option.

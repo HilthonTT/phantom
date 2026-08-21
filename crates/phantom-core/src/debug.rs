@@ -9,7 +9,7 @@ pub use phantom_macros::recursion_depth;
 use tracing::Level;
 
 // Export all of the ancillary tools from here as well.
-pub use crate::{Result, utils::result::DebugInspect};
+pub use crate::{Result, result::DebugInspect};
 
 /// Log event at given level in debug-mode (when debug-assertions are enabled).
 /// In release-mode it becomes DEBUG level, and possibly subject to elision.
@@ -136,7 +136,7 @@ pub const fn logging() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::config::Config;
+    use crate::Config;
 
     #[test]
     fn debug_macros_expand() {
