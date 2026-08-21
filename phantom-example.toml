@@ -1,0 +1,52 @@
+### phantom configuration
+###
+### THIS FILE IS GENERATED. CHANGES/CONTRIBUTIONS IN THE REPO WILL BE
+### OVERWRITTEN!
+###
+### You should rename this file before configuring your server. Changes to
+### documentation and defaults can be contributed in source code at
+### crates/phantom-core/src/utils/config/mod.rs. This file is generated when
+### building.
+###
+### Any values pre-populated are the default values for said config option.
+
+[global]
+
+# The server_name is the pretty name of this server. It is used as a
+# suffix for user and room IDs/aliases.
+#
+# YOU NEED TO EDIT THIS. THIS CANNOT BE CHANGED AFTER WITHOUT A DATABASE
+# WIPE.
+#
+# example: "phantom.chat"
+#
+#server_name =
+
+# The default address (IPv4 or IPv6) phantom will listen on.
+#
+# To listen on multiple addresses, specify a vector e.g. ["127.0.0.1",
+# "::1"]
+#
+#address = ["127.0.0.1", "::1"]
+
+# The port(s) phantom will listen on.
+#
+# To listen on multiple ports, specify a vector e.g. [8080, 8448]
+#
+#port = 8008
+
+# Path to the directory holding the database.
+#
+# YOU NEED TO EDIT THIS.
+#
+# example: "/var/lib/phantom"
+#
+#database_path =
+
+# Enable the built-in metrics endpoint.
+#
+#allow_metrics = false
+
+# A shared secret required to register an account.
+#
+#registration_token =

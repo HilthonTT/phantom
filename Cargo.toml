@@ -11,6 +11,7 @@ repository = "https://github.com/HilthonTT/phantom"
 
 [workspace.dependencies]
 phantom-core = { path = "crates/phantom-core" }
+phantom-macros = { path = "crates/phantom-macros" }
 
 [workspace.lints.rust]
 unsafe_code = "warn"

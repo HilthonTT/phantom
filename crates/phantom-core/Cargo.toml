@@ -31,12 +31,25 @@ hardened_malloc = ["dep:hardened_malloc-rs"]
 [dependencies]
 argon2 = "0.5.3"
 arrayvec = "0.7.8"
+checked = "0.5.0"
+either = { version = "1.18.0", features = ["serde"] }
+figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
 futures = "0.3.34"
 hash = "0.3.0"
+phantom-macros.workspace = true
 rand = "0.10.2"
+# rustls rather than the default native-tls so proxying does not drag in a
+# system OpenSSL; `socks` is what makes `socks5h://` proxy URLs work.
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "socks"] }
 ring = "0.17.14"
+ruma = "0.16.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.151"
 thiserror = "2.0.20"
 tracing = "0.1.44"
+
+[dev-dependencies]
+toml = "0.9.9"
 
 [lints]
 workspace = true

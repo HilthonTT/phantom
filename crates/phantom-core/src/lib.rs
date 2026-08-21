@@ -1,8 +1,13 @@
 //! Shared types and logic for the phantom homeserver.
 
 pub mod alloc;
+pub mod debug;
 mod macros;
 pub mod utils;
+
+/// Re-exported so modules can spell the attribute as `#[crate::implement]`,
+/// and `check.rs`-style files can `use crate::implement`.
+pub use phantom_macros::implement;
 
 /// Re-exported so allocator modules can spell the pre-main initializer as
 /// `#[crate::ctor]`.
@@ -19,6 +24,9 @@ pub enum Error {
 
     #[error("{0}")]
     Utf8(#[from] std::str::Utf8Error),
+
+    #[error("{0}")]
+    Reqwest(#[from] reqwest::Error),
 
     #[error("{0}")]
     TryFromInt(#[from] std::num::TryFromIntError),
