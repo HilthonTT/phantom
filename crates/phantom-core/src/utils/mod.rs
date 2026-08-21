@@ -16,6 +16,8 @@ pub mod math;
 pub mod rand;
 pub mod stream;
 
+pub mod sys;
+
 pub use self::{
     json::{deserialize_from_str, to_canonical_object},
     stream::IterStream,

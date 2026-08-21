@@ -31,6 +31,10 @@ impl<'a, 'de: 'a> Deserialize<'de> for &'a Unquoted {
 }
 
 impl<'a> From<&'a str> for &'a Unquoted {
+    #[expect(
+        unsafe_code,
+        reason = "reinterpreting a &str as the transparent newtype wrapping it"
+    )]
     fn from(s: &'a str) -> &'a Unquoted {
         let s: &'a str = s.unquote_infallible();
 
