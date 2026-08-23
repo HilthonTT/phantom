@@ -8,6 +8,14 @@ repository.workspace = true
 
 [dependencies]
 phantom-core.workspace = true
+# The crates.io bindings rather than the fork conduwuit carries. Building them
+# needs libclang, which is what generates the bindings to the bundled RocksDB.
+rocksdb = "0.25.0"
+tracing = "0.1.44"
+
+[dev-dependencies]
+# Building a `Config` in tests the way the server does, from a TOML string.
+figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
 
 [lints]
 workspace = true

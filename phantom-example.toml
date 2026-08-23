@@ -43,6 +43,203 @@
 #
 #database_path =
 
+# Path phantom writes online database backups to. The backups are taken
+# through RocksDB's backup engine, so the server does not have to be
+# stopped to take one.
+#
+# Leave this unset to disable backups.
+#
+# example: "/opt/phantom-db-backups"
+#
+#database_backup_path =
+
+# How many online backups to retain under `database_backup_path` before
+# the oldest is deleted. A negative value retains every backup.
+#
+#database_backups_to_keep = 1
+
+# Megabytes of memory the database engine is told it may use for read
+# caches. Raising this trades memory for fewer disk reads.
+#
+# Like the individual caches, the default scales with the CPU core count.
+#
+#db_cache_capacity_mb = 128.0 + (64.0 * CPU core count)
+
+# Megabytes of memory the database engine is told it may use for write
+# buffers, across all columns.
+#
+#db_write_buffer_capacity_mb = 48.0 + (4.0 * CPU core count)
+
+# Multiplier applied to every cache capacity phantom derives from the
+# options above. Lower it to cut memory use across the board without
+# tuning each cache, raise it to spend more.
+#
+#cache_capacity_modifier = 1.0
+
+# Enables atomic flush in RocksDB. Not intended for general use: it may
+# improve database integrity across an unclean shutdown at the cost of
+# write throughput, and it disables pipelined writes.
+#
+#rocksdb_atomic_flush = false
+
+# Compress the bottommost level, where the oldest and least-read data
+# settles.
+#
+# Costs CPU during compaction and saves storage. Best paired with zstd.
+#
+# See https://github.com/facebook/rocksdb/wiki/Compression for details.
+#
+#rocksdb_bottommost_compression = true
+
+# Compression level for the bottommost level. 32767 is RocksDB's magic
+# number for "the algorithm's own default", which differs per algorithm.
+#
+# Since the bottommost level is the least-read data, a level far more
+# aggressive than the default is often worth the compaction cost. phantom
+# substitutes its own per-column levels while this holds the default.
+#
+#rocksdb_bottommost_compression_level = 32767
+
+# Verify block checksums on read. Checksumming is usually hardware
+# accelerated and cheap; older or slower platforms may gain from
+# disabling it, at the cost of not detecting corruption on read.
+#
+#rocksdb_checksums = true
+
+# Run background compaction.
+#
+# You should never need to turn this off. A database that is not
+# compacted grows without bound, reads slow down as levels pile up, and
+# both startup and shutdown get slower.
+#
+#rocksdb_compaction = true
+
+# Run compaction threads at idle I/O priority, so compaction cannot
+# starve request handling of disk bandwidth.
+#
+#rocksdb_compaction_ioprio_idle = true
+
+# Run compaction threads at idle CPU priority. Off by default: on a busy
+# server it lets compaction fall arbitrarily far behind.
+#
+#rocksdb_compaction_prio_idle = false
+
+# Compression algorithm for the database.
+#
+# One of "zstd", "zlib", "bz2", "lz4", "lz4hc", "snappy", or "none".
+#
+# zstd is the best balance of speed, storage, and CPU. lz4 spends less
+# CPU for less compression. "none" disables compression entirely.
+#
+# See https://github.com/facebook/rocksdb/wiki/Compression for details.
+#
+#rocksdb_compression_algo = "zstd"
+
+# Compression level for `rocksdb_compression_algo`. 32767 is RocksDB's
+# magic number for "the algorithm's own default", which differs per
+# algorithm. phantom substitutes its own per-column levels while this
+# holds the default.
+#
+#rocksdb_compression_level = 32767
+
+# Bypass the system page cache with direct I/O.
+#
+# Set this to false when the database lives on a filesystem that handles
+# direct I/O poorly or not at all, such as FUSE mounts and some ZFS
+# setups.
+#
+# See https://github.com/facebook/rocksdb/wiki/Direct-IO for details.
+#
+#rocksdb_direct_io = true
+
+# Log level for the database engine itself, which is separate from
+# phantom's `log`. These messages land in `LOG` files inside the database
+# directory. Accepts "debug", "info", "warn", "error", or "fatal".
+#
+#rocksdb_log_level = "error"
+
+# Seconds before the database engine rotates its `LOG` file regardless of
+# size. 0 disables time-based rotation.
+#
+#rocksdb_log_time_to_roll = 0
+
+# Size in bytes a `LOG` file may reach before it is rotated.
+#
+#rocksdb_max_log_file_size = 4194304
+
+# How many `LOG` files to keep. Must be at least 1.
+#
+#rocksdb_max_log_files = 3
+
+# Tune the database for rotational storage.
+#
+# This skips the file-size and statistics checks that make opening a
+# database on a hard drive slow, and stops phantom from reading ahead as
+# aggressively as it would on an SSD.
+#
+#rocksdb_optimize_for_spinning_disks = false
+
+# Threads the database engine may use for background work: compaction,
+# flushes, syncs, and cleanup. 0 means one per logical CPU.
+#
+#rocksdb_parallelism_threads = 0
+
+# Run paranoid SST file checks. Catches more corruption at the cost of
+# doing more work on every file the engine touches.
+#
+# See https://github.com/facebook/rocksdb/wiki/Online-Verification for
+# details.
+#
+#rocksdb_paranoid_file_checks = false
+
+# Open the database read-only. Writes fail; useful for inspecting a
+# database without risking it.
+#
+#rocksdb_read_only = false
+
+# How the engine recovers from a corrupt write-ahead log, for when the
+# server reports corruption and refuses to start:
+#
+# 0 = AbsoluteConsistency — never roll anything back; fail instead.
+# 1 = TolerateCorruptedTailRecords — drop a torn trailing record.
+# 2 = PointInTime — resume from the last consistent point, losing the
+#     seconds or minutes before the crash. Use this to recover.
+# 3 = SkipAnyCorruptedRecord — skip past corruption anywhere in the log.
+#     A last resort that can leave the database inconsistent.
+#
+# Mode 1 is the default: a Matrix homeserver can re-fetch what a torn
+# tail record loses over federation. After recovering with mode 2 or 3,
+# set this back to 1 and restart.
+#
+# See https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes.
+#
+#rocksdb_recovery_mode = 1
+
+# Repair the database on startup, for when corruption is reported while
+# running rather than at startup — errors naming SST files, typically.
+# Try `rocksdb_recovery_mode` first if the server will not start at all.
+#
+# Back the database directory up before repairing, and turn this back off
+# once the repair has succeeded.
+#
+#rocksdb_repair = false
+
+# Open the database as a secondary instance of a primary held by another
+# process. The instance is read-only and catches up on demand.
+#
+#rocksdb_secondary = false
+
+# How much statistics the engine collects, from 0 to 6. Some admin
+# commands need this above 0; higher levels cost performance.
+#
+# 0 = none.
+# 1 = none in release builds, all but the detailed timers in debug ones.
+# 2 to 3 = statistics with no measurable impact.
+# 4 to 5 = statistics with a possible impact.
+# 6 = everything.
+#
+#rocksdb_stats_level = 1
+
 # Enable the built-in metrics endpoint.
 #
 #allow_metrics = false
