@@ -9,16 +9,33 @@ pub mod bool;
 pub mod bytes;
 pub mod content_disposition;
 pub mod debug;
+pub mod defer;
 pub mod future;
 pub mod hash;
+pub mod html;
 pub mod json;
 pub mod math;
+pub mod mutex_map;
 pub mod rand;
+pub mod set;
 pub mod stream;
+pub mod time;
 
 pub mod sys;
 
 pub use self::{
+    html::Escape as HtmlEscape,
     json::{deserialize_from_str, to_canonical_object},
+    mutex_map::{Guard as MutexMapGuard, MutexMap},
     stream::IterStream,
+    time::{now_millis as millis_since_unix_epoch, rfc2822_from_seconds},
 };
+
+/// Replaces `state` with `source`, returning the previous value.
+///
+/// Exists as a free function so [`crate::scope_restore!`] can spell it as
+/// `$crate::utils::exchange` without callers importing `std::mem`.
+#[inline]
+pub fn exchange<T>(state: &mut T, source: T) -> T {
+    std::mem::replace(state, source)
+}

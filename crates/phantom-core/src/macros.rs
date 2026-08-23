@@ -39,6 +39,16 @@ macro_rules! is_equal_to {
     };
 }
 
+/// Expands to a closure testing its argument for being less than `$input`.
+///
+/// Handy in combinator position, e.g. `iter.skip_while(is_less_than!(&pivot))`.
+#[macro_export]
+macro_rules! is_less_than {
+    ($input:expr) => {
+        move |x| x < $input
+    };
+}
+
 /// Tests `$input` for being non-zero, or expands to a closure doing so when
 /// called with no argument.
 #[macro_export]
