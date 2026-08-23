@@ -1170,6 +1170,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "phantom-database"
+version = "0.1.0"
+dependencies = [
+ "phantom-core",
+]
+
+[[package]]
 name = "phantom-macros"
 version = "0.1.0"
 dependencies = [
