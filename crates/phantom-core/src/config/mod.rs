@@ -24,9 +24,10 @@ use figment::{
 };
 use phantom_macros::config_example_generator;
 use serde::Deserialize;
+use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 pub use self::{check::check, manager::Manager, proxy::ProxyConfig};
-use crate::{Result, err};
+use crate::{Result, err, log::fmt_span};
 
 /// All the config options for phantom.
 #[derive(Clone, Debug, Deserialize)]
@@ -86,6 +87,51 @@ pub struct Config {
     #[serde(default)]
     pub allow_metrics: bool,
 
+    /// Max log level for phantom. Allows debug, info, warn, or error.
+    ///
+    /// See also:
+    /// https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+    ///
+    /// **Caveat**:
+    /// For release builds, the tracing crate is configured to only implement
+    /// levels higher than error to avoid unnecessary overhead in the compiled
+    /// binary from trace macros. For debug builds, this restriction is not
+    /// applied.
+    ///
+    /// default: "info"
+    #[serde(default = "default_log")]
+    pub log: String,
+
+    /// Output logs with ANSI colours. Colours are omitted regardless of this
+    /// setting when running under systemd, where they would be stored verbatim
+    /// in the journal.
+    ///
+    /// default: true
+    #[serde(default = "true_fn", alias = "log_colours")]
+    pub log_colors: bool,
+
+    /// Configures the span events which will be outputted with the log.
+    ///
+    /// Accepts one or more of "new", "enter", "exit", "close", "active",
+    /// "full" or "none", separated by commas.
+    ///
+    /// default: "none"
+    #[serde(default = "default_log_span_events")]
+    pub log_span_events: String,
+
+    /// Configures whether `log` matches values using regular expressions. See
+    /// the tracing_subscriber documentation on Directives.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub log_filter_regex: bool,
+
+    /// Toggles the display of ThreadId in tracing log output.
+    ///
+    /// default: false
+    #[serde(default)]
+    pub log_thread_ids: bool,
+
     /// A shared secret required to register an account.
     ///
     /// display: sensitive
@@ -128,6 +174,24 @@ impl Config {
 
     pub fn check(&self) -> Result {
         check(self)
+    }
+
+    /// The console layer's filter, built from `log` and `log_filter_regex`.
+    ///
+    /// Lives here rather than at the logging callsite so that [`check`] can
+    /// reject a malformed filter while the config is being loaded, instead of
+    /// the server starting with a filter it silently fell back to.
+    pub fn log_filter(&self) -> Result<EnvFilter> {
+        EnvFilter::builder()
+            .with_regex(self.log_filter_regex)
+            .parse(&self.log)
+            .map_err(|error| err!(Config("log", "{error}")))
+    }
+
+    /// The span lifecycle points to log, from `log_span_events`.
+    pub fn span_events(&self) -> Result<FmtSpan> {
+        fmt_span::from_str(&self.log_span_events)
+            .map_err(|error| err!(Config("log_span_events", "{error}")))
     }
 
     /// Every `address` × `port` pair the server should bind.
@@ -181,6 +245,23 @@ struct ListeningPort {
 /// parsed into `catchall` so that `check` can name them, rather than being
 /// reported as unknown.
 const DEPRECATED_KEYS: &[&str] = &[];
+
+fn true_fn() -> bool {
+    true
+}
+
+fn default_log() -> String {
+    // The tracing crate elides everything below ERROR in release builds, so a
+    // higher level here would only cost overhead without producing output.
+    cfg!(debug_assertions)
+        .then_some("debug")
+        .unwrap_or("info")
+        .to_owned()
+}
+
+fn default_log_span_events() -> String {
+    "none".to_owned()
+}
 
 fn default_address() -> ListeningAddr {
     ListeningAddr {

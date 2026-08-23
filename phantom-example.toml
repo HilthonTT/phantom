@@ -47,6 +47,41 @@
 #
 #allow_metrics = false
 
+# Max log level for phantom. Allows debug, info, warn, or error.
+#
+# See also:
+# https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+#
+# **Caveat**:
+# For release builds, the tracing crate is configured to only implement
+# levels higher than error to avoid unnecessary overhead in the compiled
+# binary from trace macros. For debug builds, this restriction is not
+# applied.
+#
+#log = "info"
+
+# Output logs with ANSI colours. Colours are omitted regardless of this
+# setting when running under systemd, where they would be stored verbatim
+# in the journal.
+#
+#log_colors = true
+
+# Configures the span events which will be outputted with the log.
+#
+# Accepts one or more of "new", "enter", "exit", "close", "active",
+# "full" or "none", separated by commas.
+#
+#log_span_events = "none"
+
+# Configures whether `log` matches values using regular expressions. See
+# the tracing_subscriber documentation on Directives.
+#
+#log_filter_regex = true
+
+# Toggles the display of ThreadId in tracing log output.
+#
+#log_thread_ids = false
+
 # A shared secret required to register an account.
 #
 #registration_token =

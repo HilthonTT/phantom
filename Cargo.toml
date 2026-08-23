@@ -16,6 +16,11 @@ phantom-macros = { path = "crates/phantom-macros" }
 [workspace.lints.rust]
 unsafe_code = "warn"
 
+# `tokio_unstable` comes from RUSTFLAGS rather than a Cargo feature — tokio's
+# unstable runtime metrics are gated on it — so check-cfg has to be told the
+# name is expected, otherwise every `#[cfg(tokio_unstable)]` warns.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 

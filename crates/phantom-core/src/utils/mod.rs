@@ -24,11 +24,20 @@ pub mod time;
 pub mod sys;
 
 pub use self::{
+    arrayvec::ArrayVecExt,
+    bool::BoolExt,
+    debug::slice_truncated as debug_slice_truncated,
+    future::TryExtExt as TryFutureExtExt,
     html::Escape as HtmlEscape,
     json::{deserialize_from_str, to_canonical_object},
     mutex_map::{Guard as MutexMapGuard, MutexMap},
-    stream::IterStream,
-    time::{now_millis as millis_since_unix_epoch, rfc2822_from_seconds},
+    rand::{shuffle, string as random_string},
+    stream::{IterStream, ReadyExt, Tools as StreamTools, TryReadyExt},
+    sys::compute::available_parallelism,
+    time::{
+        now_millis as millis_since_unix_epoch, rfc2822_from_seconds, timepoint_ago,
+        timepoint_from_now,
+    },
 };
 
 /// Replaces `state` with `source`, returning the previous value.

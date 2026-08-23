@@ -4,9 +4,12 @@ pub mod alloc;
 pub mod config;
 pub mod debug;
 pub mod error;
+pub mod info;
 pub mod log;
 pub mod macros;
+pub mod metrics;
 pub mod result;
+pub mod server;
 pub mod strings;
 pub mod utils;
 

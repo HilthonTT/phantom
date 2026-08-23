@@ -1,5 +1,6 @@
 //! Validation applied to a [`Config`] once it has been deserialized.
 
+use ruma::ServerName;
 use tracing::{debug, warn};
 
 use super::{Config, DEPRECATED_KEYS};
@@ -27,11 +28,21 @@ pub fn check(config: &Config) -> Result {
         return Err(err!("`server_name` must be set"));
     }
 
+    if let Err(e) = ServerName::parse(&config.server_name) {
+        return Err(err!("`server_name` is not a valid Matrix server name: {e}"));
+    }
+
     if config.get_bind_addrs().is_empty() {
         return Err(err!(
             "`address` and `port` must each name at least one value"
         ));
     }
+
+    // Built and discarded purely to reject a malformed value here, where it can
+    // be attributed to the option it came from, rather than at logging setup
+    // where the fallback would be silence.
+    config.log_filter()?;
+    config.span_events()?;
 
     warn_deprecated(config);
     warn_unknown_key(config);

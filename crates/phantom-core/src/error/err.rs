@@ -75,9 +75,17 @@ macro_rules! err {
 		)
 	};
 
-	(Config($item:literal, $($args:tt)+)) => {{
+	// The message is normalized into a `message` field here rather than left for
+	// `err_log!` to do: its normalizing arm only fires when the format string is
+	// the first token, and here it follows the `config` field.
+	(Config($item:literal, $fmt:literal $(, $($arg:tt)+)?)) => {{
 		let mut buf = String::new();
-		$crate::error::Error::Config($item, $crate::err_log!(buf, error, config = %$item, $($args)+))
+		$crate::error::Error::Config($item, $crate::err_log!(
+			buf,
+			error,
+			config = %$item,
+			message = ::std::format_args!($fmt $(, $($arg)+)?)
+		))
 	}};
 
 	($variant:ident($level:ident!($($args:tt)+))) => {{

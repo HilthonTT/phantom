@@ -71,6 +71,8 @@ pub enum Error {
     #[error(transparent)]
     TomlSer(#[from] toml::ser::Error),
     #[error(transparent)]
+    TracingReload(#[from] tracing_subscriber::reload::Error),
+    #[error(transparent)]
     TypedHeader(#[from] axum_extra::typed_header::TypedHeaderRejection),
 
     // ruma/conduwuit
