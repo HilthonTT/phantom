@@ -3,7 +3,41 @@
 use std::io;
 
 use phantom_core::{Error, Result};
-use rocksdb::ErrorKind;
+use rocksdb::{Direction, ErrorKind, IteratorMode};
+
+//#[cfg(debug_assertions)]
+macro_rules! unhandled {
+    ($msg:literal) => {
+        unimplemented!($msg)
+    };
+}
+
+// activate when stable; we're not ready for this yet
+#[cfg(disable)] // #[cfg(not(debug_assertions))]
+macro_rules! unhandled {
+    ($msg:literal) => {
+        // SAFETY: Eliminates branches for serializing and deserializing types never
+        // encountered in the codebase. This can promote optimization and reduce
+        // codegen. The developer must verify for every invoking callsite that the
+        // unhandled type is in no way involved and could not possibly be encountered.
+        unsafe {
+            std::hint::unreachable_unchecked();
+        }
+    };
+}
+
+pub(crate) use unhandled;
+
+#[inline]
+pub(crate) fn _into_direction(mode: &IteratorMode<'_>) -> Direction {
+    use Direction::{Forward, Reverse};
+    use IteratorMode::{End, From, Start};
+
+    match mode {
+        Start | From(_, Forward) => Forward,
+        End | From(_, Reverse) => Reverse,
+    }
+}
 
 /// Lifts an engine result into a phantom one.
 #[inline]
@@ -16,6 +50,11 @@ pub(crate) fn result<T>(res: Result<T, rocksdb::Error>) -> Result<T> {
 #[inline]
 pub(crate) fn or_else<T>(e: rocksdb::Error) -> Result<T> {
     Err(map_err(e))
+}
+
+#[inline(always)]
+pub(crate) fn and_then<T>(t: T) -> Result<T, phantom_core::Error> {
+    Ok(t)
 }
 
 /// Translates an engine error into [`Error::Io`].

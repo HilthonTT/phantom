@@ -7,10 +7,13 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+async-channel = "2.5.0"
+futures = "0.3.34"
 phantom-core.workspace = true
 # The crates.io bindings rather than the fork conduwuit carries. Building them
 # needs libclang, which is what generates the bindings to the bundled RocksDB.
 rocksdb = "0.25.0"
+smallvec = "1.15.2"
 tracing = "0.1.44"
 
 [dev-dependencies]
