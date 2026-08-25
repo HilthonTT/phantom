@@ -34,7 +34,7 @@ arrayvec = "0.7.8"
 # axum lands in core because `impl IntoResponse for Error` must live in the
 # crate that defines Error; the orphan rule leaves it no other home.
 axum = { version = "0.8.7", default-features = false }
-axum-extra = { version = "0.10.3", default-features = false, features = ["typed-header"] }
+axum-extra = { version = "0.12.6", default-features = false, features = ["typed-header"] }
 bytes = "1.10.1"
 bytesize = "2.7.0"
 checked = "0.5.0"
