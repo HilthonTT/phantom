@@ -1,0 +1,30 @@
+[package]
+name = "phantom-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# `Service` has async methods and is used behind `dyn`, which the language
+# cannot yet express on its own.
+async-trait = "0.1.92"
+futures = "0.3.34"
+phantom-core.workspace = true
+phantom-database.workspace = true
+# `macros` for `select!` in the manager loop, `rt` for the tasks the workers
+# run in, `sync` for the mutexes the manager's state lives behind, and `time`
+# for the delay before a panicked worker is restarted.
+tokio = { version = "1.49.0", default-features = false, features = [
+    "macros",
+    "rt",
+    "sync",
+    "time",
+] }
+# The `#[instrument]` attribute on the worker frame; the log macros reach
+# tracing through phantom-core's re-export.
+tracing = "0.1.44"
+
+[lints]
+workspace = true

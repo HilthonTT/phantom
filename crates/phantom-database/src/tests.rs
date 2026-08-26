@@ -406,6 +406,39 @@ async fn every_described_column_opens() {
         "an undescribed column is not found rather than panicking"
     );
 }
+
+/// Several databases opening and closing at once must not deadlock.
+///
+/// The environment carrying the engine's background threads is the process's,
+/// not the database's: `Env::new` hands back the one RocksDB keeps for the
+/// process rather than building a new one. Shutting its thread pools down when
+/// a database closes therefore takes them away from every other database still
+/// open — which then waits forever for background work nothing is left to run —
+/// and two closes doing it at once join the same threads twice.
+///
+/// This is what the suite does implicitly, since it runs in parallel and every
+/// test opens its own database; here it is on purpose, so the failure names
+/// itself rather than surfacing as three unrelated tests that never finish.
+#[tokio::test]
+async fn concurrent_databases_close_without_deadlocking() {
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
+                let test = db();
+                let map = &test.db["random"];
+
+                for i in 1_u64..=64 {
+                    map.put(("room", i), (i,)).expect("written");
+                }
+
+                // A flush is background work, so it is the step that hangs
+                // where the thread pools have been taken away.
+                test.db.db.sort().expect("flushed");
+            });
+        }
+    });
+}
+
 /// Why `iter_prefix` bounds the cursor instead of just seeking to the prefix.
 ///
 /// Seeking backwards lands on the last key at or before the target, and every

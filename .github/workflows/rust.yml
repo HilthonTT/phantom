@@ -17,6 +17,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A deadlocked test would otherwise sit here until the job's own limit,
+    # which is six hours.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2

@@ -17,9 +17,9 @@ pub use crate::{Result, result::DebugInspect};
 macro_rules! debug_event {
     ( $level:expr, $($x:tt)+ ) => {
         if $crate::debug::logging() {
-            ::tracing::event!( $level, _debug = true, $($x)+ )
+            $crate::tracing::event!( $level, _debug = true, $($x)+ )
         } else {
-            ::tracing::debug!( $($x)+ )
+            $crate::tracing::debug!( $($x)+ )
         }
     };
 }
@@ -30,7 +30,7 @@ macro_rules! debug_event {
 #[macro_export]
 macro_rules! debug_error {
     ( $($x:tt)+ ) => {
-        $crate::debug_event!(::tracing::Level::ERROR, $($x)+ )
+        $crate::debug_event!($crate::tracing::Level::ERROR, $($x)+ )
     };
 }
 
@@ -40,7 +40,7 @@ macro_rules! debug_error {
 #[macro_export]
 macro_rules! debug_warn {
     ( $($x:tt)+ ) => {
-        $crate::debug_event!(::tracing::Level::WARN, $($x)+ )
+        $crate::debug_event!($crate::tracing::Level::WARN, $($x)+ )
     };
 }
 
@@ -50,7 +50,7 @@ macro_rules! debug_warn {
 #[macro_export]
 macro_rules! debug_info {
     ( $($x:tt)+ ) => {
-        $crate::debug_event!(::tracing::Level::INFO, $($x)+ )
+        $crate::debug_event!($crate::tracing::Level::INFO, $($x)+ )
     };
 }
 

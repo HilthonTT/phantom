@@ -12,14 +12,26 @@ use crate::util::or_else;
 
 /// Some components are constructed prior to opening the database and must
 /// outlive it: the block caches the columns read through, and the environment
-/// owning the engine's background threads. Both are shareable between database
-/// instances, though phantom opens one database per process.
+/// owning the engine's background threads.
 pub struct Context {
     pub(crate) col_cache: Mutex<BTreeMap<String, Cache>>,
     pub(crate) row_cache: Mutex<Cache>,
     pub(crate) env: Mutex<Env>,
     pub(crate) server: Arc<Server>,
 }
+
+/// How many contexts are live.
+///
+/// [`Env::new`] does not build an environment: it hands back the one RocksDB
+/// keeps for the process. Its background threads are therefore shared by every
+/// database open here, and shutting them down is only sound once the last one
+/// has closed — so the teardown in [`Drop`] is driven by this count rather than
+/// by any single context going away. Phantom itself opens one database per
+/// process; the tests open one per test, concurrently.
+///
+/// The count is held across construction as well, so that a context cannot be
+/// built against an environment another is in the middle of tearing down.
+static CONTEXTS: Mutex<usize> = Mutex::new(0);
 
 impl Context {
     /// The name under which the cache shared by most columns is held in
@@ -50,6 +62,8 @@ impl Context {
         let col_cache = Cache::new_lru_cache_opts(&col_cache_opts);
         let col_cache: BTreeMap<_, _> = [(Self::SHARED_CACHE.to_owned(), col_cache)].into();
 
+        let mut contexts = CONTEXTS.lock().expect("locked");
+
         let mut env = Env::new().or_else(or_else)?;
 
         if config.rocksdb_compaction_prio_idle {
@@ -59,6 +73,8 @@ impl Context {
         if config.rocksdb_compaction_ioprio_idle {
             env.lower_thread_pool_io_priority();
         }
+
+        *contexts = contexts.saturating_add(1);
 
         Ok(Arc::new(Self {
             col_cache: col_cache.into(),
@@ -72,6 +88,14 @@ impl Context {
 impl Drop for Context {
     #[cold]
     fn drop(&mut self) {
+        let mut contexts = CONTEXTS.lock().expect("locked");
+        *contexts = contexts.saturating_sub(1);
+
+        if *contexts > 0 {
+            debug!("Leaving background threads to the databases still open");
+            return;
+        }
+
         let mut env = self.env.lock().expect("locked");
 
         debug!("Shutting down background threads");
