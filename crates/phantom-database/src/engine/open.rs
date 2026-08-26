@@ -16,7 +16,7 @@ use super::{
     descriptor::{self, Descriptor},
     repair::repair,
 };
-use crate::util::or_else;
+use crate::{pool::Pool, util::or_else};
 
 /// Opens the database at the configured path, creating it if it is not there,
 /// with one column per entry in `desc`.
@@ -26,6 +26,11 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
     let server = &ctx.server;
     let config = &server.config;
     let path = &config.database_path;
+
+    // Spawned before the database is opened so that a failure to size the
+    // pool — which reads the storage topology — is reported before anything
+    // has been touched on disk.
+    let pool = Pool::new(server)?;
 
     let db_opts = db_options(
         config,
@@ -61,6 +66,7 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
 
     Ok(Arc::new(Self {
         db,
+        pool,
         ctx: ctx.clone(),
         read_only: config.rocksdb_read_only,
         secondary: config.rocksdb_secondary,

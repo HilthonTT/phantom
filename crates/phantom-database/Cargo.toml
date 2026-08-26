@@ -6,19 +6,45 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# Passes through to the allocator phantom-core selects, so that the pool
+# workers can be put on the arena of the core they are pinned to.
+jemalloc = ["phantom-core/jemalloc"]
+
 [dependencies]
+arrayvec = "0.7.8"
 async-channel = "2.5.0"
+checked = "0.5.0"
 futures = "0.3.34"
+# CBOR is what `ser::Cbor` writes values with, for the columns whose values are
+# a struct rather than a key-shaped tuple. `std` is what supplies the adapter
+# that lets minicbor encode straight into an `io::Write`.
+minicbor = { version = "2.3.0", features = ["std"] }
+minicbor-serde = { version = "0.7.1", features = ["std"] }
 phantom-core.workspace = true
 # The crates.io bindings rather than the fork conduwuit carries. Building them
 # needs libclang, which is what generates the bindings to the bundled RocksDB.
 rocksdb = "0.25.0"
-smallvec = "1.15.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+# `write` supplies the `io::Write` impl the serializer writes keys and values
+# through.
+smallvec = { version = "1.15.2", features = ["write"] }
+# `sync` for the watch channels behind `watch_prefix`; `rt` for the cooperative
+# budget the cached read paths yield to so they cannot starve a tokio worker.
+tokio = { version = "1.49.0", default-features = false, features = ["rt", "sync"] }
 tracing = "0.1.44"
 
 [dev-dependencies]
 # Building a `Config` in tests the way the server does, from a TOML string.
 figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
+# A real database is opened under a temporary directory for the map tests.
+tempfile = "3.15.0"
+tokio = { version = "1.49.0", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+    "time",
+] }
 
 [lints]
 workspace = true

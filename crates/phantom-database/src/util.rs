@@ -52,9 +52,22 @@ pub(crate) fn or_else<T>(e: rocksdb::Error) -> Result<T> {
     Err(map_err(e))
 }
 
+/// [`or_else`]'s counterpart, for the `.map_or_else(or_else, and_then)` that
+/// lifts an engine result whose `Ok` needs no adaptation.
 #[inline(always)]
-pub(crate) fn and_then<T>(t: T) -> Result<T, phantom_core::Error> {
+pub(crate) fn _and_then<T>(t: T) -> Result<T> {
     Ok(t)
+}
+
+/// Whether the engine gave up rather than failed.
+///
+/// The read paths ask the engine for cache-only reads first, and a miss comes
+/// back as this rather than as an error: the data is not absent, it just was
+/// not reachable without going to disk. Callers take it as the signal to
+/// re-issue the read on the pool, where blocking is allowed.
+#[inline]
+pub(crate) fn is_incomplete(e: &rocksdb::Error) -> bool {
+    e.kind() == ErrorKind::Incomplete
 }
 
 /// Translates an engine error into [`Error::Io`].
@@ -91,6 +104,17 @@ fn io_error_kind(e: &ErrorKind) -> io::ErrorKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The cache-only read paths key off this and would otherwise treat a
+    /// cache miss as a hard failure.
+    #[test]
+    fn incomplete_is_distinguished_from_other_kinds() {
+        assert_eq!(
+            io_error_kind(&ErrorKind::Incomplete),
+            io::ErrorKind::WouldBlock,
+            "an incomplete read is a retry, not a failure"
+        );
+    }
 
     #[test]
     fn engine_error_kinds_map_onto_io_kinds() {

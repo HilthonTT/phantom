@@ -2,7 +2,18 @@
 
 use std::cmp;
 
+pub use checked_ops::checked_ops;
+
 use crate::{Err, Error, Result, debug::type_name, err};
+
+/// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
+#[macro_export]
+macro_rules! checked {
+	($($input:tt)+) => {
+		$crate::utils::math::checked_ops!($($input)+)
+			.ok_or_else(|| $crate::err!(Arithmetic("operation overflowed or result invalid")))
+	};
+}
 
 /// Fallible numeric conversion usable in combinator position, e.g.
 /// `get::<u32>(key).and_then(math::try_into)`.

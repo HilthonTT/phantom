@@ -29,10 +29,16 @@ use rocksdb::{
 };
 
 pub use self::context::Context;
-use crate::util::result;
+use crate::{pool::Pool, util::result};
 
 pub struct Engine {
     pub(crate) db: Db,
+
+    /// The threads blocking reads are offloaded to. Owned by the engine so
+    /// that it outlives them: a worker holds column handles into this
+    /// database and must be joined before it closes.
+    pub(crate) pool: Arc<Pool>,
+
     pub(crate) ctx: Arc<Context>,
     read_only: bool,
     secondary: bool,
@@ -188,6 +194,11 @@ impl Drop for Engine {
     #[cold]
     fn drop(&mut self) {
         const BLOCKING: bool = true;
+
+        // Before anything else: the workers hold column handles into this
+        // database, so they have to be gone before it closes.
+        debug!("Waiting for database workers to finish...");
+        self.pool.close();
 
         debug!("Waiting for background tasks to finish...");
         self.db.cancel_all_background_work(BLOCKING);

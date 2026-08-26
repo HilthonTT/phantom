@@ -76,6 +76,55 @@
 #
 #cache_capacity_modifier = 1.0
 
+# Number of database read workers to spawn per hardware queue, where
+# phantom could not learn the queue's own depth from the operating
+# system.
+#
+# These are operating-system threads, not tokio tasks: a read that misses
+# the block cache blocks until the storage answers, and doing that on a
+# tokio worker would stall every other task sharing it.
+#
+#db_pool_workers = 32
+
+# Ceiling on the workers derived for one hardware queue, per CPU core
+# that queue serves.
+#
+# Only bites where the storage reports a queue depth far above what the
+# cores feeding it could keep busy.
+#
+#db_pool_workers_limit = 64
+
+# Requests a queue accepts per worker servicing it, before submitting
+# blocks.
+#
+# The queue is the handoff between the tokio workers producing requests
+# and the pool workers draining them. Backpressure here is deliberate: it
+# is what stops a burst of requests from being read off the network
+# faster than the storage can answer them.
+#
+#db_pool_queue_mult = 4
+
+# Pin each pool worker to the cores its hardware queue is served by.
+#
+# Keeps a request, its worker, and the queue that will carry it to the
+# device on the same node. Has no effect where there is one queue.
+#
+#db_pool_affinity = true
+
+# Scales the concurrency the stream combinators run at, which phantom
+# derives from the pool topology once the database is open.
+#
+# Zero leaves the built-in defaults alone.
+#
+#stream_width_scale = 1.0
+
+# Requests a stream gathers before handing a batch to the database.
+#
+# Batching is what lets one queue submission cover many keys; the cost is
+# latency for the first key in a batch.
+#
+#stream_amplification = 1024
+
 # Enables atomic flush in RocksDB. Not intended for general use: it may
 # improve database integrity across an unclean shutdown at the cost of
 # write throughput, and it disables pipelined writes.

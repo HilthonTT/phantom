@@ -17,10 +17,18 @@ phantom-macros = { path = "crates/phantom-macros" }
 [workspace.lints.rust]
 unsafe_code = "warn"
 
-# `tokio_unstable` comes from RUSTFLAGS rather than a Cargo feature — tokio's
-# unstable runtime metrics are gated on it — so check-cfg has to be told the
-# name is expected, otherwise every `#[cfg(tokio_unstable)]` warns.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+# These cfg names come from RUSTFLAGS rather than Cargo features, so check-cfg
+# has to be told they are expected or every use of one warns.
+#
+# `tokio_unstable` gates tokio's unstable runtime metrics. `unabridged` opts
+# into the tracing instrumentation that is too noisy to carry by default.
+# `disable` is deliberately never set: it parks an alternative definition next
+# to the one in use without compiling it.
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(tokio_unstable)',
+    'cfg(unabridged)',
+    'cfg(disable)',
+] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

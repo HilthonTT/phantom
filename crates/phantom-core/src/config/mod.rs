@@ -123,6 +123,65 @@ pub struct Config {
     #[serde(default = "default_cache_capacity_modifier")]
     pub cache_capacity_modifier: f64,
 
+    /// Number of database read workers to spawn per hardware queue, where
+    /// phantom could not learn the queue's own depth from the operating
+    /// system.
+    ///
+    /// These are operating-system threads, not tokio tasks: a read that misses
+    /// the block cache blocks until the storage answers, and doing that on a
+    /// tokio worker would stall every other task sharing it.
+    ///
+    /// default: 32
+    #[serde(default = "default_db_pool_workers")]
+    pub db_pool_workers: usize,
+
+    /// Ceiling on the workers derived for one hardware queue, per CPU core
+    /// that queue serves.
+    ///
+    /// Only bites where the storage reports a queue depth far above what the
+    /// cores feeding it could keep busy.
+    ///
+    /// default: 64
+    #[serde(default = "default_db_pool_workers_limit")]
+    pub db_pool_workers_limit: usize,
+
+    /// Requests a queue accepts per worker servicing it, before submitting
+    /// blocks.
+    ///
+    /// The queue is the handoff between the tokio workers producing requests
+    /// and the pool workers draining them. Backpressure here is deliberate: it
+    /// is what stops a burst of requests from being read off the network
+    /// faster than the storage can answer them.
+    ///
+    /// default: 4
+    #[serde(default = "default_db_pool_queue_mult")]
+    pub db_pool_queue_mult: usize,
+
+    /// Pin each pool worker to the cores its hardware queue is served by.
+    ///
+    /// Keeps a request, its worker, and the queue that will carry it to the
+    /// device on the same node. Has no effect where there is one queue.
+    #[serde(default = "true_fn")]
+    pub db_pool_affinity: bool,
+
+    /// Scales the concurrency the stream combinators run at, which phantom
+    /// derives from the pool topology once the database is open.
+    ///
+    /// Zero leaves the built-in defaults alone.
+    ///
+    /// default: 1.0
+    #[serde(default = "default_stream_width_scale")]
+    pub stream_width_scale: f32,
+
+    /// Requests a stream gathers before handing a batch to the database.
+    ///
+    /// Batching is what lets one queue submission cover many keys; the cost is
+    /// latency for the first key in a batch.
+    ///
+    /// default: 1024
+    #[serde(default = "default_stream_amplification")]
+    pub stream_amplification: usize,
+
     /// Enables atomic flush in RocksDB. Not intended for general use: it may
     /// improve database integrity across an unclean shutdown at the cost of
     /// write throughput, and it disables pipelined writes.
@@ -521,6 +580,26 @@ fn default_db_write_buffer_capacity_mb() -> f64 {
 
 fn default_cache_capacity_modifier() -> f64 {
     1.0
+}
+
+fn default_db_pool_workers() -> usize {
+    32
+}
+
+fn default_db_pool_workers_limit() -> usize {
+    64
+}
+
+fn default_db_pool_queue_mult() -> usize {
+    4
+}
+
+fn default_stream_width_scale() -> f32 {
+    1.0
+}
+
+fn default_stream_amplification() -> usize {
+    1024
 }
 
 /// RocksDB reads 32767 as "use whatever this algorithm calls its default
