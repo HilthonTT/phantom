@@ -14,8 +14,8 @@ use phantom_core::{Result, implement};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    cursor::{FORWARD, REVERSE},
     keyval::{KeyVal, result_deserialize, serialize_key},
-    stream::{FORWARD, REVERSE},
 };
 
 /// Every entry in the column, in key order.

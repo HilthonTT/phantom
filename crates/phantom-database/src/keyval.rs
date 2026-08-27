@@ -9,7 +9,7 @@ use phantom_core::Result;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::{de, ser};
+use crate::codec::{deserialize::from_slice, serialize::serialize_to};
 
 /// One entry: the key it is filed under and the value stored there.
 ///
@@ -56,13 +56,13 @@ pub const DEF_STACK_CAP: usize = KEY_STACK_CAP;
 /// Serializes a value into a fresh key buffer.
 #[inline]
 pub fn serialize_key<T: Serialize>(val: T) -> Result<KeyBuf> {
-    ser::serialize_to::<KeyBuf, _>(val)
+    serialize_to::<KeyBuf, _>(val)
 }
 
 /// Serializes a value into a fresh value buffer.
 #[inline]
 pub fn serialize_val<T: Serialize>(val: T) -> Result<ValBuf> {
-    ser::serialize_to::<ValBuf, _>(val)
+    serialize_to::<ValBuf, _>(val)
 }
 
 /// Deserializes both halves of an entry.
@@ -80,7 +80,7 @@ pub(crate) fn deserialize_key<'a, K>(key: Key<'a>) -> Result<Key<'a, K>>
 where
     K: Deserialize<'a>,
 {
-    de::from_slice::<K>(key)
+    from_slice::<K>(key)
 }
 
 #[inline]
@@ -88,7 +88,7 @@ pub(crate) fn deserialize_val<'a, V>(val: Val<'a>) -> Result<Val<'a, V>>
 where
     V: Deserialize<'a>,
 {
-    de::from_slice::<V>(val)
+    from_slice::<V>(val)
 }
 
 /// Deserializes an entry in combinator position, passing failures through

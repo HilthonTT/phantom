@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt};
-use phantom_core::{Result, implement, utils::stream::TryReadyExt};
+use phantom_core::{Result, implement, stream::TryReadyExt};
 
 use crate::keyval::Key;
 

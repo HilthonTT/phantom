@@ -6,7 +6,7 @@ use phantom_core::{Result, implement};
 use rocksdb::perf::MemoryUsageBuilder;
 
 use super::Engine;
-use crate::util::or_else;
+use crate::engine::error::or_else;
 
 /// A human-readable breakdown of the engine's memory, for the admin command
 /// that reports it.

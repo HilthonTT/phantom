@@ -16,7 +16,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Error, ItemFn, Meta, Path};
 
-use crate::{Result, utils::get_named_generics};
+use crate::{Result, attribute::get_named_generics};
 
 pub(crate) fn implement(item: ItemFn, args: &[Meta]) -> Result<TokenStream> {
     let generics = get_named_generics(args, "generics")?;

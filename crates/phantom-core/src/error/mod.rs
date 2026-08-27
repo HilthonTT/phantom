@@ -1,12 +1,20 @@
-mod err;
-mod log;
+//! The crate's error type.
+//!
+//! One enum for the whole server. Most variants are `#[from]` conversions of
+//! somebody else's error, which is what lets `?` work across the layers
+//! without a per-module error type; the rest are phantom's own, and are built
+//! through the `err!` and `Err!` macros in [`construct`] rather than by naming
+//! the variant.
+
+mod construct;
+mod logging;
 mod panic;
 mod response;
 mod serde;
 
 use std::{any::Any, borrow::Cow, convert::Infallible, sync::PoisonError};
 
-pub use self::{err::visit, log::*};
+pub use self::{construct::visit, logging::*, panic::panic_str};
 
 #[derive(thiserror::Error)]
 pub enum Error {

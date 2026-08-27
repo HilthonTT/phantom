@@ -3,10 +3,12 @@
 pub mod capture;
 pub mod color;
 pub mod console;
+pub mod debug;
 pub mod fmt;
 pub mod fmt_span;
 mod reload;
 mod suppress;
+pub mod truncate;
 
 use std::sync::Arc;
 
@@ -18,8 +20,10 @@ use tracing_subscriber::{Layer as _, Registry, layer::SubscriberExt};
 pub use self::{
     capture::Capture,
     console::{ConsoleFormat, ConsoleWriter, is_systemd_mode},
+    debug::INFO_SPAN_LEVEL,
     reload::{LogLevelReloadHandles, ReloadHandle},
     suppress::Suppress,
+    truncate::{TruncatedSlice, slice_truncated},
 };
 use crate::{Config, Result};
 
@@ -66,8 +70,8 @@ pub fn init(config: &Config) -> Result<(Log, impl Subscriber + Send + Sync + 'st
 
 // Wrappers for the logging macros. Use these rather than the `tracing` or `log`
 // crates directly in project code: the indirection is what lets the level or
-// the backend change in one place. The `debug_*` variants in `crate::debug` are
-// exported to the crate namespace alongside these.
+// the backend change in one place. The `debug_*` variants in `crate::log::debug`
+// are exported to the crate namespace alongside these.
 
 #[macro_export]
 macro_rules! event {

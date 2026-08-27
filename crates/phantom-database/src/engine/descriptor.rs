@@ -8,7 +8,7 @@
 
 use rocksdb::{DBCompactionStyle as CompactionStyle, DBCompressionType as CompressionType};
 
-use super::cf_opts::SENTINEL_COMPRESSION_LEVEL;
+use super::column_options::SENTINEL_COMPRESSION_LEVEL;
 
 /// Column descriptor.
 #[derive(Debug, Clone, Copy)]
@@ -184,7 +184,7 @@ pub static RANDOM_SMALL_CACHE: Descriptor = Descriptor {
 mod tests {
     use super::*;
 
-    /// `cf_opts` derives the cache's shard count from the base-2 logarithm of
+    /// `column_options` derives the cache's shard count from the base-2 logarithm of
     /// this figure, and the engine rejects more than 2^10 shards.
     #[test]
     fn cache_shards_are_powers_of_two_within_range() {

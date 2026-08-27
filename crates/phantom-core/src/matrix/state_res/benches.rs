@@ -8,7 +8,7 @@
 //! RUSTFLAGS='--cfg phantom_bench' cargo +nightly bench -p phantom-core
 //! ```
 //!
-//! The fixtures come from [`super::test_utils`] rather than being restated
+//! The fixtures come from [`super::fixtures`] rather than being restated
 //! here, so the benches and the tests exercise the same graphs.
 
 extern crate test;
@@ -26,11 +26,12 @@ use ruma::{
 use serde_json::{json, value::to_raw_value as to_raw_json_value};
 
 use super::{
-    StateMap, lexicographical_topological_sort, resolve,
-    test_utils::{
+    StateMap,
+    fixtures::{
         INITIAL_EVENTS, PduEvent, TestStore, alice, bob, ella, event_id, member_content_ban,
         member_content_join, room_id, to_pdu_event,
     },
+    lexicographical_topological_sort, resolve,
 };
 use crate::matrix::{Event, EventTypeExt};
 

@@ -1,5 +1,5 @@
 use super::{Count, RawId};
-use crate::utils::bytes::u64_from_u8x8;
+use crate::bytes::u64_from_u8x8;
 
 pub type ShortRoomId = ShortId;
 pub type ShortEventId = ShortId;

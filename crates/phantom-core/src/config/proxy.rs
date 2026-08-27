@@ -34,7 +34,7 @@ pub enum ProxyConfig {
     #[default]
     None,
     Global {
-        #[serde(deserialize_with = "crate::utils::deserialize_from_str")]
+        #[serde(deserialize_with = "crate::json::deserialize_from_str")]
         url: Url,
     },
     ByDomain(Vec<PartialProxyConfig>),
@@ -54,7 +54,7 @@ impl ProxyConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct PartialProxyConfig {
-    #[serde(deserialize_with = "crate::utils::deserialize_from_str")]
+    #[serde(deserialize_with = "crate::json::deserialize_from_str")]
     url: Url,
     #[serde(default)]
     include: Vec<WildCardedDomain>,
@@ -144,7 +144,7 @@ impl<'de> Deserialize<'de> for WildCardedDomain {
     where
         D: serde::de::Deserializer<'de>,
     {
-        crate::utils::deserialize_from_str(deserializer)
+        crate::json::deserialize_from_str(deserializer)
     }
 }
 

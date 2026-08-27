@@ -5,7 +5,7 @@
 //! settings and the `dns_*` config options. [`Hooked`] wraps it with a lookup
 //! in [`super::cache`] first, and is what the federation clients resolve
 //! through: by the time a federation request is made, the spec procedure in
-//! [`super::actual`] has already decided which address the connection belongs
+//! [`super::lookup`] has already decided which address the connection belongs
 //! to, and asking DNS again could answer differently.
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};

@@ -1,3 +1,6 @@
+//! Remembering what a transaction id was answered with, so that a client
+//! retrying a request gets the original response rather than a second effect.
+
 use std::sync::Arc;
 
 use phantom_core::{Result, implement};
@@ -22,7 +25,7 @@ impl crate::Service for Service {
     }
 
     fn name(&self) -> &str {
-        crate::service::make_name(std::module_path!())
+        crate::make_name(std::module_path!())
     }
 }
 

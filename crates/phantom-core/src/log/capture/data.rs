@@ -4,7 +4,7 @@ use tracing::Level;
 use tracing_core::{Event, span::Current};
 
 use super::{Layer, layer::Value};
-use crate::{info, strings::EMPTY};
+use crate::{info, text::EMPTY};
 
 /// One captured event, with the fields and span scope already recorded.
 ///

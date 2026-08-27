@@ -21,17 +21,15 @@
 //! - Behind all of it is a thread pool a read is offloaded to when the
 //!   block cache cannot answer it without blocking.
 
+mod codec;
 mod cork;
-mod de;
+mod cursor;
 mod engine;
 mod handle;
 pub mod keyval;
 mod map;
-mod maps;
 mod pool;
-mod ser;
-mod stream;
-mod util;
+mod schema;
 mod watchers;
 
 use std::{ops::Index, sync::Arc};
@@ -39,17 +37,21 @@ use std::{ops::Index, sync::Arc};
 use phantom_core::{Result, err, server::Server};
 
 pub use self::{
+    codec::{
+        deserialize::{Ignore, IgnoreAll},
+        serialize::{
+            Cbor, Interfix, Json, SEP, Separator, serialize, serialize_to, serialize_to_vec,
+        },
+    },
     cork::Cork,
-    de::{Ignore, IgnoreAll},
     engine::{Context, Engine, descriptor},
     handle::{Deserialized, Handle},
     keyval::{Key, KeyVal, Slice, Val, serialize_key, serialize_val},
     map::{Map, compact},
-    ser::{Cbor, Interfix, Json, SEP, Separator, serialize, serialize_to, serialize_to_vec},
 };
 use self::{
     engine::descriptor::Descriptor,
-    maps::{Maps, MapsKey, MapsVal},
+    schema::{Maps, MapsKey, MapsVal},
 };
 
 /// The open database, and every column on it.
@@ -69,7 +71,7 @@ impl Database {
     /// Opens the database at the configured path, creating it and any column
     /// it is missing.
     pub fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
-        Self::open_list(server, maps::MAPS)
+        Self::open_list(server, schema::MAPS)
     }
 
     /// [`Self::open`] with the columns given rather than the schema's, for
@@ -79,7 +81,7 @@ impl Database {
         let db = Engine::open(ctx.clone(), desc)?;
 
         Ok(Arc::new(Self {
-            maps: maps::open_list(&db, desc)?,
+            maps: schema::open_list(&db, desc)?,
             db,
             _ctx: ctx,
         }))

@@ -16,15 +16,12 @@ use std::{net::IpAddr, sync::Arc, time::SystemTime};
 
 use arrayvec::ArrayVec;
 use futures::{Stream, StreamExt, future::join};
-use phantom_core::{
-    Result, at, err, implement,
-    utils::{math::Expected, rand, stream::TryIgnore},
-};
+use phantom_core::{Result, at, err, implement, math::Expected, rand, stream::TryIgnore};
 use phantom_database::{Cbor, Deserialized, Map};
 use ruma::ServerName;
 use serde::{Deserialize, Serialize};
 
-use super::fed::FedDest;
+use super::destination::Destination;
 
 pub struct Cache {
     destinations: Arc<Map>,
@@ -34,7 +31,7 @@ pub struct Cache {
 /// What a server name resolved to, and the `Host` header that goes with it.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CachedDest {
-    pub dest: FedDest,
+    pub dest: Destination,
     pub host: String,
     pub expire: SystemTime,
 }

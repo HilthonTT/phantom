@@ -9,8 +9,8 @@
 mod data;
 mod guard;
 mod layer;
+mod sink;
 mod state;
-mod util;
 
 use std::sync::{Arc, Mutex};
 
@@ -18,8 +18,8 @@ pub use self::{
     data::Data,
     guard::Guard,
     layer::{Layer, Value},
+    sink::{fmt, fmt_html, fmt_markdown},
     state::State,
-    util::{fmt, fmt_html, fmt_markdown},
 };
 
 /// Decides whether a captured event is one the consumer asked for.

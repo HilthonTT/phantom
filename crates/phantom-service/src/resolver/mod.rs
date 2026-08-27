@@ -4,7 +4,7 @@
 //! [the spec][spec]: an IP literal is used as-is, a name carrying a port is
 //! used as-is, and otherwise the name's `.well-known/matrix/server` is asked
 //! first, its SRV records second, and only then is the name itself resolved.
-//! [`actual`] walks those steps in order and is the entry point for it.
+//! [`lookup`] walks those steps in order and is the entry point for it.
 //!
 //! What comes out is cached in the database rather than only in memory: the
 //! well-known and SRV lookups are several round trips before the first byte
@@ -14,10 +14,10 @@
 //!
 //! [spec]: https://spec.matrix.org/latest/server-server-api/#resolving-server-names
 
-pub mod actual;
 pub mod cache;
+pub mod destination;
 pub mod dns;
-pub mod fed;
+pub mod lookup;
 #[cfg(test)]
 mod tests;
 mod well_known;
@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use arrayvec::ArrayString;
 use async_trait::async_trait;
-use phantom_core::{Result, server::Server, utils::MutexMap};
+use phantom_core::{Result, server::Server, sync::MutexMap};
 
 use self::{cache::Cache, dns::Resolver};
 use crate::{Dep, client};
@@ -76,6 +76,6 @@ impl crate::Service for Service {
     }
 
     fn name(&self) -> &str {
-        crate::service::make_name(std::module_path!())
+        crate::make_name(std::module_path!())
     }
 }

@@ -13,8 +13,8 @@ use phantom_core::implement;
 use serde::Serialize;
 
 use crate::{
+    cursor::FORWARD,
     keyval::{Key, serialize_key},
-    stream::FORWARD,
 };
 
 /// Entries in the column.

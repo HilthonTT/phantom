@@ -9,7 +9,7 @@
 use std::fmt::Write;
 
 use super::{Level, color};
-use crate::{Result, utils::HtmlEscape};
+use crate::{Result, text::HtmlEscape};
 
 /// Renders one record as a line of HTML, as sent to a Matrix room.
 pub fn html<S>(out: &mut S, level: &Level, span: &str, msg: &str) -> Result<()>

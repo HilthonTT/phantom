@@ -1182,7 +1182,7 @@ mod tests {
     use crate::matrix::state_res::{
         Event, EventTypeExt, RoomVersion, StateMap,
         event_auth::valid_membership_change,
-        test_utils::{
+        fixtures::{
             INITIAL_EVENTS, INITIAL_EVENTS_CREATE_ROOM, PduEvent, alice, charlie, ella, event_id,
             member_content_ban, member_content_join, room_id, to_pdu_event,
         },

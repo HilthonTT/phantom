@@ -5,9 +5,9 @@
 //! `phantom-example.toml` at the workspace root on every `cargo build`. Edit
 //! the docs here, never that file — it is regenerated and overwritten.
 
-pub mod check;
 pub mod manager;
 pub mod proxy;
+pub mod validate;
 
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
@@ -28,7 +28,7 @@ use ruma::OwnedServerName;
 use serde::Deserialize;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
-pub use self::{check::check, manager::Manager, proxy::ProxyConfig};
+pub use self::{manager::Manager, proxy::ProxyConfig, validate::validate};
 use crate::{Result, err, log::fmt_span};
 
 /// All the config options for phantom.
@@ -791,7 +791,7 @@ pub struct Config {
     ///
     /// There is no safe use of this outside a lab: it hands anyone who can
     /// intercept the connection everything that goes over it, federation
-    /// traffic included. `check` refuses to let it pass quietly.
+    /// traffic included. `validate` refuses to let it pass quietly.
     #[serde(default)]
     pub allow_invalid_tls_certificates: bool,
 
@@ -927,18 +927,14 @@ impl Config {
             .extract::<Self>()
             .map_err(|error| err!("There was a problem with your configuration file: {error}"))?;
 
-        config.check()?;
+        validate(&config)?;
 
         Ok(config)
     }
 
-    pub fn check(&self) -> Result {
-        check(self)
-    }
-
     /// The console layer's filter, built from `log` and `log_filter_regex`.
     ///
-    /// Lives here rather than at the logging callsite so that [`check`] can
+    /// Lives here rather than at the logging callsite so that [`validate`] can
     /// reject a malformed filter while the config is being loaded, instead of
     /// the server starting with a filter it silently fell back to.
     pub fn log_filter(&self) -> Result<EnvFilter> {
@@ -1027,7 +1023,7 @@ struct ListeningPort {
 }
 
 /// Config options that older versions of phantom accepted. They are still
-/// parsed into `catchall` so that `check` can name them, rather than being
+/// parsed into `catchall` so that `validate` can name them, rather than being
 /// reported as unknown.
 const DEPRECATED_KEYS: &[&str] = &[];
 
@@ -1256,7 +1252,7 @@ fn default_dns_timeout() -> u64 {
 /// process, which is what the memory defaults above are expressed in.
 fn parallelism_scaled_f64(val: f64) -> f64 {
     #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
-    let cores = crate::utils::available_parallelism() as f64;
+    let cores = crate::sys::compute::available_parallelism() as f64;
 
     val * cores
 }

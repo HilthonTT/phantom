@@ -11,12 +11,12 @@ use rocksdb::{ColumnFamilyDescriptor, Options};
 
 use super::{
     Context, Db, Engine,
-    cf_opts::cf_options,
-    db_opts::db_options,
+    column_options::cf_options,
+    database_options::db_options,
     descriptor::{self, Descriptor},
     repair::repair,
 };
-use crate::{pool::Pool, util::or_else};
+use crate::{engine::error::or_else, pool::Pool};
 
 /// Opens the database at the configured path, creating it if it is not there,
 /// with one column per entry in `desc`.

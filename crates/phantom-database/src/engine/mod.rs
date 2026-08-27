@@ -5,10 +5,11 @@
 //! queries it for. The typed per-column surface is layered on top of this.
 
 mod backup;
-mod cf_opts;
+mod column_options;
 pub mod context;
-mod db_opts;
+mod database_options;
 pub mod descriptor;
+pub(crate) mod error;
 mod files;
 mod memory_usage;
 mod open;
@@ -29,7 +30,7 @@ use rocksdb::{
 };
 
 pub use self::context::Context;
-use crate::{pool::Pool, util::result};
+use crate::{engine::error::result, pool::Pool};
 
 pub struct Engine {
     pub(crate) db: Db,

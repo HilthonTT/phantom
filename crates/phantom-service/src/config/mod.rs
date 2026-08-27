@@ -1,9 +1,15 @@
+//! Re-reading the config file while the server is running.
+//!
+//! The service holds no config of its own — it derefs to the server's — and
+//! exists for the reload: on `SIGUSR1` it loads the file again, checks the new
+//! config against the running one, and swaps it in.
+
 use std::{iter, ops::Deref, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use phantom_core::{
     Result,
-    config::{Config, check},
+    config::{Config, validate},
     error, implement,
     server::Server,
 };
@@ -35,7 +41,7 @@ impl crate::Service for Service {
     }
 
     fn name(&self) -> &str {
-        crate::service::make_name(std::module_path!())
+        crate::make_name(std::module_path!())
     }
 }
 
@@ -73,6 +79,6 @@ where
     let old = self.server.config.clone();
     let new = Config::load(paths).and_then(|raw| Config::new(&raw))?;
 
-    check::reload(&old, &new)?;
+    validate::validate_reload(&old, &new)?;
     self.server.config.update(new)
 }

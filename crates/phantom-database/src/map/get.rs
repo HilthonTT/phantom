@@ -12,10 +12,7 @@ use futures::{Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt, 
 use phantom_core::{
     Err, Result, err, implement,
     result::MapExpect,
-    utils::{
-        IterStream,
-        stream::{WidebandExt, automatic_amplification, automatic_width},
-    },
+    stream::{IterStream, WidebandExt, automatic_amplification, automatic_width},
 };
 use rocksdb::{DBPinnableSlice, ReadOptions};
 use serde::Serialize;
@@ -23,9 +20,10 @@ use tokio::task;
 
 use crate::{
     Handle,
+    codec::serialize::{serialize, serialize_to},
+    engine::error::{is_incomplete, map_err, or_else},
     keyval::KeyBuf,
-    pool, ser,
-    util::{is_incomplete, map_err, or_else},
+    pool,
 };
 
 /// Reads the value at `key`, which is used as-is.
@@ -109,7 +107,7 @@ where
     K: Serialize + ?Sized + Debug,
     B: Write + AsRef<[u8]>,
 {
-    let key = ser::serialize(buf, key).expect("failed to serialize query key");
+    let key = serialize(buf, key).expect("failed to serialize query key");
 
     self.get(key)
 }
@@ -118,7 +116,7 @@ where
 ///
 /// Keys are gathered into batches so that one submission to the pool covers
 /// many of them, and the batches run concurrently. Both figures come from
-/// [`the stream tuning`](phantom_core::utils::stream), which the pool sets
+/// [`the stream tuning`](phantom_core::stream), which the pool sets
 /// from the storage topology at startup.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
@@ -157,7 +155,7 @@ where
         .widen_then(automatic_width(), |chunk| {
             let keys = chunk
                 .iter()
-                .map(ser::serialize_to::<KeyBuf, _>)
+                .map(serialize_to::<KeyBuf, _>)
                 .map(|result| result.expect("failed to serialize query key"))
                 .collect();
 

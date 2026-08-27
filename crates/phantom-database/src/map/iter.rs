@@ -20,9 +20,9 @@ use rocksdb::{Direction, ReadOptions};
 use tokio::task;
 
 use crate::{
+    cursor::{Cursor, Fetch, State},
     keyval::{Key, KeyVal},
     pool::{self, Seek},
-    stream::{Cursor, Fetch, State},
 };
 
 /// Streams from `from`, or from the near end of the column when there is no

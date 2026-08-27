@@ -5,10 +5,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use phantom_core::{Result, debug, server::Server, utils::math::usize_from_f64};
+use phantom_core::{Result, debug, math::usize_from_f64, server::Server};
 use rocksdb::{Cache, Env, LruCacheOptions};
 
-use crate::util::or_else;
+use crate::engine::error::or_else;
 
 /// Some components are constructed prior to opening the database and must
 /// outlive it: the block caches the columns read through, and the environment

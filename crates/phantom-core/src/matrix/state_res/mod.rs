@@ -6,7 +6,7 @@ mod power_levels;
 mod room_version;
 
 #[cfg(test)]
-mod test_utils;
+mod fixtures;
 
 // `#[bench]` is nightly-only; see the module docs for how to run these.
 #[cfg(all(test, phantom_bench))]
@@ -892,13 +892,14 @@ mod tests {
     use serde_json::{json, value::to_raw_value as to_raw_json_value};
 
     use super::{
-        Event, EventTypeExt, StateMap, is_power_event,
-        room_version::RoomVersion,
-        test_utils::{
+        Event, EventTypeExt, StateMap,
+        fixtures::{
             INITIAL_EVENTS, PduEvent, TestStore, alice, bob, charlie, do_check, ella, event_id,
             member_content_ban, member_content_join, room_id, to_init_pdu_event, to_pdu_event,
             zara,
         },
+        is_power_event,
+        room_version::RoomVersion,
     };
     use crate::debug;
 

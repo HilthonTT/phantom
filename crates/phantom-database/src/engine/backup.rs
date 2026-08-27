@@ -2,12 +2,12 @@
 
 use std::fmt::Write;
 
-use phantom_core::{Result, error, implement, info, utils::time::rfc2822_from_seconds};
+use phantom_core::{Result, error, implement, info, time::rfc2822_from_seconds};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions};
 
 use crate::{
     Engine,
-    util::{map_err, or_else},
+    engine::error::{map_err, or_else},
 };
 
 /// Takes a backup into `database_backup_path`, then deletes the oldest until

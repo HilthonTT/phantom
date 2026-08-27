@@ -17,7 +17,7 @@ use tikv_jemallocator as jemalloc;
 
 use crate::{
     Result, err, is_equal_to, is_nonzero,
-    utils::{math, math::Tried},
+    math::{self, Tried},
 };
 
 #[cfg(feature = "jemalloc_conf")]

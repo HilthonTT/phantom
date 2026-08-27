@@ -8,7 +8,7 @@
 //! Requests are resolved through [`crate::resolver`] rather than through
 //! reqwest's own DNS: the federation clients get the resolver's hooked
 //! variant, which answers from the destination cache that
-//! [`resolver::Service::resolve_actual_dest`] fills in, so the address a
+//! [`resolver::Service::resolve_destination`] fills in, so the address a
 //! server name resolved to is the address the connection is made to.
 
 use std::{sync::Arc, time::Duration};
@@ -153,7 +153,7 @@ impl crate::Service for Service {
     }
 
     fn name(&self) -> &str {
-        crate::service::make_name(std::module_path!())
+        crate::make_name(std::module_path!())
     }
 }
 

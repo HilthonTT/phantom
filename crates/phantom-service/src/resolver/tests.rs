@@ -1,16 +1,16 @@
-use super::fed::{FedDest, PortString, add_port_to_hostname, get_ip_with_port};
+use super::destination::{Destination, PortString, add_port_to_hostname, get_ip_with_port};
 
 #[test]
 fn ips_get_default_ports() {
     assert_eq!(
         get_ip_with_port("1.1.1.1"),
-        Some(FedDest::Literal(
+        Some(Destination::Literal(
             "1.1.1.1:8448".parse().expect("valid addr")
         ))
     );
     assert_eq!(
         get_ip_with_port("dead:beef::"),
-        Some(FedDest::Literal(
+        Some(Destination::Literal(
             "[dead:beef::]:8448".parse().expect("valid addr")
         ))
     );
@@ -20,13 +20,13 @@ fn ips_get_default_ports() {
 fn ips_keep_custom_ports() {
     assert_eq!(
         get_ip_with_port("1.1.1.1:1234"),
-        Some(FedDest::Literal(
+        Some(Destination::Literal(
             "1.1.1.1:1234".parse().expect("valid addr")
         ))
     );
     assert_eq!(
         get_ip_with_port("[dead::beef]:8933"),
-        Some(FedDest::Literal(
+        Some(Destination::Literal(
             "[dead::beef]:8933".parse().expect("valid addr")
         ))
     );
@@ -42,7 +42,7 @@ fn a_hostname_is_not_an_address() {
 fn hostnames_get_default_ports() {
     assert_eq!(
         add_port_to_hostname("example.com"),
-        FedDest::Named(String::from("example.com"), FedDest::default_port())
+        Destination::Named(String::from("example.com"), Destination::default_port())
     );
 }
 
@@ -50,7 +50,7 @@ fn hostnames_get_default_ports() {
 fn hostnames_keep_custom_ports() {
     assert_eq!(
         add_port_to_hostname("example.com:1337"),
-        FedDest::Named(
+        Destination::Named(
             String::from("example.com"),
             PortString::from(":1337").expect("fits")
         )
@@ -71,7 +71,7 @@ fn the_port_is_read_back_off_a_destination() {
 fn a_malformed_port_reads_as_none_rather_than_panicking() {
     // Only reachable through a record written by something other than the
     // resolution path, but it must not take the process down when it is.
-    let dest = FedDest::Named(
+    let dest = Destination::Named(
         String::from("example.com"),
         PortString::from("").expect("fits"),
     );

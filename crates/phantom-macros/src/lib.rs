@@ -3,10 +3,11 @@
 //! Proc macros must live in their own `proc-macro = true` crate, so this sits
 //! next to `phantom-core` rather than inside it.
 
+mod attribute;
 mod config;
 mod debug;
 mod implement;
-mod utils;
+mod rustc;
 
 use proc_macro::TokenStream;
 use syn::{

@@ -19,9 +19,9 @@ use rocksdb::WriteBatchWithTransaction;
 use serde::Serialize;
 
 use crate::{
+    codec::serialize::serialize,
+    engine::error::result,
     keyval::{KeyBuf, ValBuf},
-    ser,
-    util::result,
 };
 
 /// Writes `val` at `key`, serializing both.
@@ -114,7 +114,7 @@ where
     Bk: Write + AsRef<[u8]>,
     Bv: Write + AsRef<[u8]>,
 {
-    let val = ser::serialize(&mut buf.1, val)?;
+    let val = serialize(&mut buf.1, val)?;
 
     self.bput_raw(key, val, &mut buf.0)
 }
@@ -128,7 +128,7 @@ where
     V: AsRef<[u8]>,
     Bk: Write + AsRef<[u8]>,
 {
-    let key = ser::serialize(&mut buf, key)?;
+    let key = serialize(&mut buf, key)?;
 
     self.insert(&key, val)
 }
@@ -141,7 +141,7 @@ where
     V: Serialize,
     Bv: Write + AsRef<[u8]>,
 {
-    let val = ser::serialize(&mut buf, val)?;
+    let val = serialize(&mut buf, val)?;
 
     self.insert(&key, val)
 }
@@ -233,7 +233,7 @@ where
     K: Serialize + Debug,
     B: Write + AsRef<[u8]>,
 {
-    let key = ser::serialize(buf, key)?;
+    let key = serialize(buf, key)?;
 
     self.remove(key)
 }

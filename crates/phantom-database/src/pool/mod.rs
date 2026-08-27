@@ -27,14 +27,14 @@ use phantom_core::{
     Error, Result, debug, err, error, implement,
     result::DebugInspect,
     server::Server,
+    sys::compute::{get_affinity, nth_core_available, set_affinity},
     trace,
-    utils::sys::compute::{get_affinity, nth_core_available, set_affinity},
 };
 use rocksdb::Direction;
 use smallvec::SmallVec;
 
 use self::configure::configure;
-use crate::{Handle, keyval::KeyBuf, map::Map, stream};
+use crate::{Handle, cursor, keyval::KeyBuf, map::Map};
 
 /// Frontend to the worker threads.
 pub(crate) struct Pool {
@@ -84,10 +84,10 @@ pub(crate) struct Get {
 /// queue round trip per entry.
 pub(crate) struct Seek {
     pub(crate) map: Arc<Map>,
-    pub(crate) state: stream::State<'static>,
+    pub(crate) state: cursor::State<'static>,
     pub(crate) dir: Direction,
     pub(crate) key: Option<KeyBuf>,
-    pub(crate) res: Option<ResultSender<stream::State<'static>>>,
+    pub(crate) res: Option<ResultSender<cursor::State<'static>>>,
 }
 
 type ResultSender<T> = oneshot::Sender<T>;
@@ -222,7 +222,7 @@ pub(crate) async fn execute_get(self: &Arc<Self>, mut cmd: Get) -> Result<BatchR
 /// Positions a cursor on a worker and awaits it.
 #[implement(Pool)]
 #[tracing::instrument(level = "trace", name = "iter", skip(self, cmd))]
-pub(crate) async fn execute_iter(self: &Arc<Self>, mut cmd: Seek) -> Result<stream::State<'_>> {
+pub(crate) async fn execute_iter(self: &Arc<Self>, mut cmd: Seek) -> Result<cursor::State<'_>> {
     let (send, recv) = oneshot::channel();
     _ = cmd.res.insert(send);
 
@@ -406,8 +406,8 @@ fn handle_iter(&self, mut cmd: Seek) {
 
     let from = cmd.key.as_deref();
     let state = match cmd.dir {
-        Direction::Forward => cmd.state.init::<{ stream::FORWARD }>(from),
-        Direction::Reverse => cmd.state.init::<{ stream::REVERSE }>(from),
+        Direction::Forward => cmd.state.init::<{ cursor::FORWARD }>(from),
+        Direction::Reverse => cmd.state.init::<{ cursor::REVERSE }>(from),
     };
 
     chan.send(send_seek(state)).ok();
@@ -446,14 +446,14 @@ fn recv_get<'a>(result: BatchResult<'static>) -> BatchResult<'a> {
 
 #[inline]
 #[allow(unsafe_code)]
-pub(crate) fn send_seek(state: stream::State<'_>) -> stream::State<'static> {
+pub(crate) fn send_seek(state: cursor::State<'_>) -> cursor::State<'static> {
     // SAFETY: see above.
     unsafe { std::mem::transmute(state) }
 }
 
 #[inline]
 #[allow(unsafe_code)]
-fn recv_seek<'a>(state: stream::State<'static>) -> stream::State<'a> {
+fn recv_seek<'a>(state: cursor::State<'static>) -> cursor::State<'a> {
     // SAFETY: see above.
     unsafe { std::mem::transmute(state) }
 }

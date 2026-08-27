@@ -628,7 +628,7 @@
 #
 # There is no safe use of this outside a lab: it hands anyone who can
 # intercept the connection everything that goes over it, federation
-# traffic included. `check` refuses to let it pass quietly.
+# traffic included. `validate` refuses to let it pass quietly.
 #
 #allow_invalid_tls_certificates = false
 

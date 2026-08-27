@@ -8,18 +8,16 @@
 //! Services reach one another by name through a map of weak references rather
 //! than by holding each other directly, which is what lets two of them depend
 //! on each other without a reference cycle that never drops. See [`Dep`].
+//!
+//! [`runtime`] holds all of that machinery; every other module here is one
+//! service.
 
 pub mod client;
 pub mod config;
-pub mod globals;
-pub mod manager;
 pub mod resolver;
 pub mod rooms;
-pub mod service;
-pub mod services;
+pub mod runtime;
+pub mod server_state;
 pub mod transaction_id;
 
-pub use self::{
-    service::{Args, Dep, Map, Service, add, get, make_name, try_get},
-    services::Services,
-};
+pub use self::runtime::{Args, Dep, Map, Service, Services, add, get, make_name, try_get};

@@ -10,7 +10,8 @@ use syn::{
 
 use crate::{
     Result,
-    utils::{get_simple_settings, is_cargo_build, is_cargo_test},
+    attribute::get_simple_settings,
+    rustc::{is_cargo_build, is_cargo_test},
 };
 
 const UNDOCUMENTED: &str = "# This item is undocumented. Please contribute documentation for it.";

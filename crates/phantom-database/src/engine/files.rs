@@ -4,7 +4,7 @@ use phantom_core::{Result, implement};
 use rocksdb::LiveFile as SstFile;
 
 use super::Engine;
-use crate::util::result;
+use crate::engine::error::result;
 
 /// Every SST file the database is currently built from, for the admin commands
 /// that report on storage.

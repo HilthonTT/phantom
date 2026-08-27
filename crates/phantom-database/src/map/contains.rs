@@ -4,10 +4,10 @@ use std::{convert::AsRef, fmt::Debug, future::Future, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
 use futures::FutureExt;
-use phantom_core::{Result, err, implement, result::FlatOk, utils::future::TryExtExt};
+use phantom_core::{Result, err, future::TryExt, implement, result::FlatOk};
 use serde::Serialize;
 
-use crate::{keyval::KeyBuf, ser};
+use crate::{codec::serialize::serialize, keyval::KeyBuf};
 
 /// Whether the column holds a key built from `key`.
 #[implement(super::Map)]
@@ -49,7 +49,7 @@ where
     K: Serialize + ?Sized + Debug,
     B: Write + AsRef<[u8]>,
 {
-    let key = ser::serialize(buf, key).expect("failed to serialize query key");
+    let key = serialize(buf, key).expect("failed to serialize query key");
 
     self.exists(key).is_ok()
 }
