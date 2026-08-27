@@ -9,12 +9,19 @@ use phantom_database::Database;
 use tokio::sync::Mutex;
 
 use crate::{
+    Args, client, config, globals,
     manager::Manager,
-    service::{Map, Service},
+    resolver,
+    service::{self, Map, Service},
 };
 
 /// Every service the server is built out of, and the database they share.
 pub struct Services {
+    pub client: Arc<client::Service>,
+    pub config: Arc<config::Service>,
+    pub globals: Arc<globals::Service>,
+    pub resolver: Arc<resolver::Service>,
+
     manager: Mutex<Option<Arc<Manager>>>,
     pub(crate) service: Arc<Map>,
     pub server: Arc<Server>,
@@ -27,11 +34,34 @@ impl Services {
     /// Nothing is running yet when this returns: a service's worker is only
     /// spawned by [`Self::start`], so that a service built early can depend on
     /// one built after it.
+    ///
+    /// Build order only matters where one service reaches another during its
+    /// own construction rather than through a [`Dep`](crate::Dep) — the
+    /// resolver is built before the client for that reason, since every
+    /// client is built against it.
     pub fn build(server: Arc<Server>) -> Result<Arc<Self>> {
         let db = Database::open(&server)?;
         let service: Arc<Map> = Arc::new(RwLock::new(BTreeMap::new()));
 
+        macro_rules! build {
+            ($tyname:ty) => {{
+                let built = <$tyname>::build(Args {
+                    db: &db,
+                    server: &server,
+                    service: &service,
+                })?;
+
+                service::add(&service, built.clone(), built.clone());
+                built
+            }};
+        }
+
         Ok(Arc::new(Self {
+            resolver: build!(resolver::Service),
+            client: build!(client::Service),
+            config: build!(config::Service),
+            globals: build!(globals::Service),
+
             manager: Mutex::new(None),
             service,
             server,

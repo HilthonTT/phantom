@@ -9,9 +9,11 @@
 //! than by holding each other directly, which is what lets two of them depend
 //! on each other without a reference cycle that never drops. See [`Dep`].
 
+pub mod client;
 pub mod config;
 pub mod globals;
-mod manager;
+pub mod manager;
+pub mod resolver;
 pub mod service;
 pub mod services;
 

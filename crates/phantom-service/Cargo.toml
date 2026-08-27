@@ -15,15 +15,38 @@ default = []
 systemd = ["dep:sd-notify"]
 
 [dependencies]
+# `serde` so a resolved destination's port string is stored as it stands.
+arrayvec = { version = "0.7.8", features = ["serde"] }
 # `Service` has async methods and is used behind `dyn`, which the language
 # cannot yet express on its own.
 async-trait = "0.1.92"
+either = "1.18.0"
 futures = "0.3.34"
+# The resolver drives hickory directly rather than through reqwest's own
+# integration: resolving a Matrix server name is not a plain A/AAAA lookup,
+# and the SRV and well-known steps need the resolver on their own terms.
+hickory-resolver = { version = "0.25.2", default-features = false, features = [
+    "system-config",
+    "tokio",
+] }
+# CIDR containment, for `ip_range_denylist`.
+ipaddress = "0.1.3"
 phantom-core.workspace = true
 phantom-database.workspace = true
 regex = "1.13.1"
+# `rustls-tls` for the same reason as phantom-core's copy: no system OpenSSL.
+# The three codecs are what the `*_compression` config options switch on.
+reqwest = { version = "0.12.28", default-features = false, features = [
+    "brotli",
+    "gzip",
+    "rustls-tls",
+    "socks",
+    "zstd",
+] }
 ruma = "0.16.0"
 sd-notify = { version = "0.4.5", optional = true, default-features = false }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 # `macros` for `select!` in the manager loop, `rt` for the tasks the workers
 # run in, `sync` for the mutexes the manager's state lives behind, and `time`
 # for the delay before a panicked worker is restarted.

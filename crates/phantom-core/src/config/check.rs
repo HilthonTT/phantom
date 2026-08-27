@@ -48,6 +48,7 @@ pub fn check(config: &Config) -> Result {
     check_registration(config)?;
 
     warn_url_previews(config);
+    warn_insecure(config);
     warn_deprecated(config);
     warn_unknown_key(config);
 
@@ -158,6 +159,27 @@ fn warn_url_previews(config: &Config) {
         warn!(
             "Config parameter \"{option}\" is \"*\", which allows a URL preview to be fetched \
              from any host this server can reach."
+        );
+    }
+}
+
+/// Options that give up a guarantee the rest of the server is built on. None
+/// of them is an error — each has a legitimate use while developing — but
+/// none should ever be quiet.
+fn warn_insecure(config: &Config) {
+    if config.allow_invalid_tls_certificates {
+        warn!(
+            "Config parameter \"allow_invalid_tls_certificates\" is set. Every outbound \
+             connection, federation included, will accept any certificate presented to it. \
+             Anyone able to intercept one can read and rewrite it."
+        );
+    }
+
+    if config.federation_loopback {
+        warn!(
+            "Config parameter \"federation_loopback\" is set. This server will send federation \
+             requests to itself, which outside a development setup is a bug rather than a \
+             configuration."
         );
     }
 }

@@ -1,5 +1,6 @@
 //! Checked arithmetic and fallible numeric conversion.
 
+use num_traits::ops::checked::{CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub};
 use std::cmp;
 
 pub use checked_ops::checked_ops;
@@ -12,6 +13,21 @@ macro_rules! checked {
 	($($input:tt)+) => {
 		$crate::utils::math::checked_ops!($($input)+)
 			.ok_or_else(|| $crate::err!(Arithmetic("operation overflowed or result invalid")))
+	};
+}
+
+/// Checked arithmetic expression which panics on failure. This is for
+/// expressions which do not meet the threshold for validated! but the caller
+/// has no realistic expectation for error and no interest in cluttering the
+/// callsite with result handling from checked!.
+#[macro_export]
+macro_rules! expected {
+	($msg:literal, $($input:tt)+) => {
+		$crate::checked!($($input)+).expect($msg)
+	};
+
+	($($input:tt)+) => {
+		$crate::expected!("arithmetic expression expectation failure", $($input)+)
 	};
 }
 
@@ -118,3 +134,52 @@ macro_rules! impl_tried {
 impl_tried!(
     u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
 );
+
+pub trait Expected {
+    #[inline]
+    #[must_use]
+    fn expected_add(self, rhs: Self) -> Self
+    where
+        Self: CheckedAdd + Sized,
+    {
+        expected!(self + rhs)
+    }
+
+    #[inline]
+    #[must_use]
+    fn expected_sub(self, rhs: Self) -> Self
+    where
+        Self: CheckedSub + Sized,
+    {
+        expected!(self - rhs)
+    }
+
+    #[inline]
+    #[must_use]
+    fn expected_mul(self, rhs: Self) -> Self
+    where
+        Self: CheckedMul + Sized,
+    {
+        expected!(self * rhs)
+    }
+
+    #[inline]
+    #[must_use]
+    fn expected_div(self, rhs: Self) -> Self
+    where
+        Self: CheckedDiv + Sized,
+    {
+        expected!(self / rhs)
+    }
+
+    #[inline]
+    #[must_use]
+    fn expected_rem(self, rhs: Self) -> Self
+    where
+        Self: CheckedRem + Sized,
+    {
+        expected!(self % rhs)
+    }
+}
+
+impl<T> Expected for T {}
