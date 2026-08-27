@@ -7,6 +7,7 @@ pub mod error;
 pub mod info;
 pub mod log;
 pub mod macros;
+pub mod matrix;
 pub mod metrics;
 pub mod result;
 pub mod server;

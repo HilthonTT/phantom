@@ -116,8 +116,10 @@ pub enum Error {
     SignaturesJson(#[from] ruma::signatures::JsonError),
     #[error(transparent)]
     SignaturesVerification(#[from] ruma::signatures::VerificationError),
+    // This crate carries its own state-resolution implementation in
+    // `matrix::state_res`; ruma's is not built.
     #[error(transparent)]
-    StateRes(#[from] ruma::state_res::Error),
+    StateRes(#[from] crate::matrix::state_res::Error),
     #[error("uiaa")]
     Uiaa(Box<ruma::api::client::uiaa::UiaaInfo>),
 

@@ -14,8 +14,10 @@ pub mod config;
 pub mod globals;
 pub mod manager;
 pub mod resolver;
+pub mod rooms;
 pub mod service;
 pub mod services;
+pub mod transaction_id;
 
 pub use self::{
     service::{Args, Dep, Map, Service, add, get, make_name, try_get},

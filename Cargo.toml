@@ -22,11 +22,13 @@ unsafe_code = "warn"
 #
 # `tokio_unstable` gates tokio's unstable runtime metrics. `unabridged` opts
 # into the tracing instrumentation that is too noisy to carry by default.
+# `phantom_bench` gates the `#[bench]` suites, which need a nightly compiler.
 # `disable` is deliberately never set: it parks an alternative definition next
 # to the one in use without compiling it.
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(tokio_unstable)',
     'cfg(unabridged)',
+    'cfg(phantom_bench)',
     'cfg(disable)',
 ] }
 

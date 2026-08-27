@@ -58,17 +58,19 @@ regex = "1.13.1"
 # system OpenSSL; `socks` is what makes `socks5h://` proxy URLs work.
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "socks"] }
 ring = "0.17.14"
+# No `state-res`: `matrix::state_res` is this crate's own implementation, so
+# ruma's would only be dead weight.
 ruma = { version = "0.16.0", features = [
     "api",
     "client-api",
     "events",
     "signatures",
-    "state-res",
 ] }
 sanitize-filename = "0.6.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.151"
 serde_regex = "1.1.0"
+smallstr = { version = "0.3.1", features = ["serde"] }
 thiserror = "2.0.20"
 tokio = { version = "1.49.0", default-features = false, features = ["rt"] }
 tokio-metrics = "0.5.1"
@@ -78,6 +80,9 @@ tracing-core = "0.1.36"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
+# `hashmap!` / `hashset!` for the state-resolution fixtures, which are dense
+# enough that the literals read better than chained inserts.
+maplit = "1.0.2"
 # `#[tokio::test]` and a runtime to drive the async tests; `time` for the tests
 # that need two futures to finish out of order, and `rt-multi-thread` for the
 # ones that hand work to the blocking pool. The library itself only needs the
