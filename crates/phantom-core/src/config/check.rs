@@ -45,7 +45,9 @@ pub fn check(config: &Config) -> Result {
     config.span_events()?;
 
     check_database(config)?;
+    check_registration(config)?;
 
+    warn_url_previews(config);
     warn_deprecated(config);
     warn_unknown_key(config);
 
@@ -99,6 +101,66 @@ fn check_database(config: &Config) -> Result {
 /// Compression algorithms the engine can be asked for, in the spelling the
 /// config takes.
 const COMPRESSION_ALGOS: &[&str] = &["zstd", "zlib", "bz2", "lz4", "lz4hc", "snappy", "none"];
+
+/// The registration secrets, which are worth rejecting here rather than at
+/// first use: an empty token is almost always a half-finished config, and it
+/// would otherwise be discovered by someone registering an account with it.
+fn check_registration(config: &Config) -> Result {
+    if config.registration_token.as_deref() == Some("") {
+        return Err(err!(Config(
+            "registration_token",
+            "was set to the empty string; unset it instead to require no token"
+        )));
+    }
+
+    let Some(path) = config.registration_token_file.as_ref() else {
+        return Ok(());
+    };
+
+    // Read rather than stat'd: the service reads this file at startup and
+    // falls back to `registration_token` on failure, so a file that is
+    // unreadable or blank would silently not be the token in use.
+    let token = std::fs::read_to_string(path).map_err(|error| {
+        err!(Config(
+            "registration_token_file",
+            "{path:?} could not be read: {error}"
+        ))
+    })?;
+
+    if token.trim().is_empty() {
+        return Err(err!(Config("registration_token_file", "{path:?} is empty")));
+    }
+
+    Ok(())
+}
+
+/// `"*"` in a URL preview allowlist turns this server into an open fetcher for
+/// any URL a user can put in a message, including hosts only it can reach.
+fn warn_url_previews(config: &Config) {
+    let wildcarded = [
+        (
+            "url_preview_domain_contains_allowlist",
+            &config.url_preview_domain_contains_allowlist,
+        ),
+        (
+            "url_preview_domain_explicit_allowlist",
+            &config.url_preview_domain_explicit_allowlist,
+        ),
+        (
+            "url_preview_url_contains_allowlist",
+            &config.url_preview_url_contains_allowlist,
+        ),
+    ]
+    .into_iter()
+    .filter(|(_, list)| list.iter().any(|entry| entry == "*"));
+
+    for (option, _) in wildcarded {
+        warn!(
+            "Config parameter \"{option}\" is \"*\", which allows a URL preview to be fetched \
+             from any host this server can reach."
+        );
+    }
+}
 
 /// Iterates over all the keys in the config file and warns if there is a
 /// deprecated key specified

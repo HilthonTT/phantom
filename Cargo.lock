@@ -1399,12 +1399,14 @@ dependencies = [
  "libc",
  "phantom-macros",
  "rand",
+ "regex",
  "reqwest",
  "ring",
  "ruma",
  "sanitize-filename",
  "serde",
  "serde_json",
+ "serde_regex",
  "thiserror",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
@@ -1462,6 +1464,9 @@ dependencies = [
  "futures",
  "phantom-core",
  "phantom-database",
+ "regex",
+ "ruma",
+ "sd-notify",
  "tokio",
  "tracing",
 ]
@@ -1973,6 +1978,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sd-notify"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b943eadf71d8b69e661330cb0e2656e31040acf21ee7708e2c238a0ec6af2bf4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2032,6 +2046,16 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_regex"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bafc8d0c5330cecff10f16b459b479fd9acaa5b4acd7167301414e21b0057012"
+dependencies = [
+ "regex",
+ "serde",
 ]
 
 [[package]]

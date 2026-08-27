@@ -331,3 +331,171 @@
 # A shared secret required to register an account.
 #
 #registration_token =
+
+# Path to a file holding the registration token instead of writing it
+# into the config. The contents are read once at startup, with
+# surrounding whitespace trimmed, and take priority over
+# `registration_token`.
+#
+# example: "/etc/phantom/.reg_token"
+#
+#registration_token_file =
+
+# Text appended to a user's displayname when they register, after a
+# space. Leave it empty to append nothing.
+#
+# example: "🏳️‍⚧️"
+#
+#new_user_displayname_suffix = ""
+
+# Allow ordinary users to create rooms. Admins and appservices may
+# always create them regardless of this.
+#
+#allow_room_creation = true
+
+# Serve this server's public room directory to other servers over
+# federation.
+#
+# Leaving this off keeps the directory from being crawled by remote
+# spiders, at the cost of your rooms not appearing in other servers'
+# directory searches.
+#
+#allow_public_room_directory_over_federation = false
+
+# Send device display names to other servers, so remote users see what a
+# local user named their session.
+#
+# Off by default: the names are frequently identifying, and nothing in
+# the protocol needs them.
+#
+#allow_device_name_federation = false
+
+# Notary servers to gather other servers' public keys from, when this
+# server does not already hold a key it needs.
+#
+# example: ["matrix.org", "tchncs.de"]
+#
+#trusted_servers = ["matrix.org"]
+
+# Periodically fetch phantom's announcement feed, which carries security
+# and release notices. Despite the name this checks for announcements,
+# not for a newer version to install.
+#
+#allow_check_for_updates = false
+
+# Static TURN username handed to clients, for a TURN server that
+# authenticates with fixed credentials rather than `turn_secret`.
+#
+#turn_username = ""
+
+# Static TURN password handed to clients. See `turn_username`.
+#
+#turn_password = ""
+
+# TURN servers to hand to clients, as URIs. Use the `turns:` scheme
+# rather than `turn:` for TURN over TLS.
+#
+# example: ["turn:example.turn.uri?transport=udp",
+# "turn:example.turn.uri?transport=tcp"]
+#
+#turn_uris = []
+
+# Shared secret the TURN server is configured with, from which phantom
+# derives the time-limited credentials it hands each client.
+#
+# Preferred over the static `turn_username`/`turn_password` pair, since
+# a credential phantom derives expires on its own.
+#
+#turn_secret = ""
+
+# Path to a file holding the TURN shared secret instead of writing it
+# into the config. The contents are read once at startup, with
+# surrounding whitespace trimmed, and take priority over `turn_secret`;
+# a file that cannot be read falls back to it.
+#
+# example: "/etc/phantom/.turn_secret"
+#
+#turn_secret_file =
+
+# How long, in seconds, a TURN credential phantom derives stays valid.
+#
+#turn_ttl = 86400
+
+# Path a push gateway is expected to serve its notify endpoint at. Only
+# the appservice-style pushers that do not carry their own URL use it.
+#
+#notification_push_path = "/_matrix/push/v1/notify"
+
+# Domains phantom may fetch URL previews from, matched as a substring of
+# the URL's host.
+#
+# "google.com" matches `https://google.com` and also
+# `http://notgoogle.com.example`, so prefer
+# `url_preview_domain_explicit_allowlist` where you can. "*" allows
+# every domain, which lets any user aim this server at any host on its
+# network.
+#
+#url_preview_domain_contains_allowlist = []
+
+# Domains phantom may fetch URL previews from, matched exactly.
+#
+# "google.com" matches `https://google.com` but not
+# `https://notgoogle.com.example`. See
+# `url_preview_check_root_domain` for matching subdomains too.
+#
+#url_preview_domain_explicit_allowlist = []
+
+# Domains phantom may never fetch URL previews from, matched exactly.
+# Checked before either allowlist, so it always wins.
+#
+#url_preview_domain_explicit_denylist = []
+
+# URLs phantom may fetch previews from, matched as a substring of the
+# whole URL rather than of its host.
+#
+# This matches anywhere in the URL, so "google.com" also matches
+# `https://example.invalid/google.com`. "*" allows every URL.
+#
+#url_preview_url_contains_allowlist = []
+
+# Bytes of a page phantom reads before giving up on finding its preview
+# metadata.
+#
+#url_preview_max_spider_size = 256000
+
+# Apply the domain allowlists to a URL's root domain rather than to the
+# host it names, so that allowing "wikipedia.org" also allows
+# "en.m.wikipedia.org". Does not affect
+# `url_preview_url_contains_allowlist`.
+#
+#url_preview_check_root_domain = false
+
+# Room aliases and room IDs that may not be created, as regular
+# expressions. A plain word is a valid pattern, and matches anywhere in
+# the alias.
+#
+# Checked when an alias or a custom room ID is created, and at startup
+# against the aliases already in the database, which are reported as
+# warnings rather than removed.
+#
+# example: ["19dollarfortnitecards", "b[4a]droom", "badphrase"]
+#
+#forbidden_alias_names = []
+
+# Usernames that may not be registered, as regular expressions. A plain
+# word is a valid pattern, and matches anywhere in the username.
+#
+# Checked on the availability request and on registration, and at
+# startup against the users already in the database, which are reported
+# as warnings rather than removed.
+#
+# example: ["administrator", "b[a4]dusernam[3e]", "badphrase"]
+#
+#forbidden_usernames = []
+
+# Reload the configuration when the server is sent SIGUSR1.
+#
+# Only `server_name` is fixed for the life of the process; every other
+# option is re-read. Has no effect where the platform has no SIGUSR1.
+#
+#config_reload_signal = true

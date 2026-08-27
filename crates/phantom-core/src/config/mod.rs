@@ -23,6 +23,8 @@ use figment::{
     providers::{Env, Format, Toml},
 };
 use phantom_macros::config_example_generator;
+use regex::RegexSet;
+use ruma::OwnedServerName;
 use serde::Deserialize;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
@@ -430,6 +432,208 @@ pub struct Config {
     /// display: sensitive
     pub registration_token: Option<String>,
 
+    /// Path to a file holding the registration token instead of writing it
+    /// into the config. The contents are read once at startup, with
+    /// surrounding whitespace trimmed, and take priority over
+    /// `registration_token`.
+    ///
+    /// example: "/etc/phantom/.reg_token"
+    pub registration_token_file: Option<PathBuf>,
+
+    /// Text appended to a user's displayname when they register, after a
+    /// space. Leave it empty to append nothing.
+    ///
+    /// example: "🏳️‍⚧️"
+    ///
+    /// default: ""
+    #[serde(default)]
+    pub new_user_displayname_suffix: String,
+
+    /// Allow ordinary users to create rooms. Admins and appservices may
+    /// always create them regardless of this.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub allow_room_creation: bool,
+
+    /// Serve this server's public room directory to other servers over
+    /// federation.
+    ///
+    /// Leaving this off keeps the directory from being crawled by remote
+    /// spiders, at the cost of your rooms not appearing in other servers'
+    /// directory searches.
+    #[serde(default)]
+    pub allow_public_room_directory_over_federation: bool,
+
+    /// Send device display names to other servers, so remote users see what a
+    /// local user named their session.
+    ///
+    /// Off by default: the names are frequently identifying, and nothing in
+    /// the protocol needs them.
+    #[serde(default)]
+    pub allow_device_name_federation: bool,
+
+    /// Notary servers to gather other servers' public keys from, when this
+    /// server does not already hold a key it needs.
+    ///
+    /// example: ["matrix.org", "tchncs.de"]
+    ///
+    /// default: ["matrix.org"]
+    #[serde(default = "default_trusted_servers")]
+    pub trusted_servers: Vec<OwnedServerName>,
+
+    /// Periodically fetch phantom's announcement feed, which carries security
+    /// and release notices. Despite the name this checks for announcements,
+    /// not for a newer version to install.
+    #[serde(default)]
+    pub allow_check_for_updates: bool,
+
+    /// Static TURN username handed to clients, for a TURN server that
+    /// authenticates with fixed credentials rather than `turn_secret`.
+    ///
+    /// default: ""
+    #[serde(default)]
+    pub turn_username: String,
+
+    /// Static TURN password handed to clients. See `turn_username`.
+    ///
+    /// display: sensitive
+    /// default: ""
+    #[serde(default)]
+    pub turn_password: String,
+
+    /// TURN servers to hand to clients, as URIs. Use the `turns:` scheme
+    /// rather than `turn:` for TURN over TLS.
+    ///
+    /// example: ["turn:example.turn.uri?transport=udp",
+    /// "turn:example.turn.uri?transport=tcp"]
+    ///
+    /// default: []
+    #[serde(default)]
+    pub turn_uris: Vec<String>,
+
+    /// Shared secret the TURN server is configured with, from which phantom
+    /// derives the time-limited credentials it hands each client.
+    ///
+    /// Preferred over the static `turn_username`/`turn_password` pair, since
+    /// a credential phantom derives expires on its own.
+    ///
+    /// display: sensitive
+    /// default: ""
+    #[serde(default)]
+    pub turn_secret: String,
+
+    /// Path to a file holding the TURN shared secret instead of writing it
+    /// into the config. The contents are read once at startup, with
+    /// surrounding whitespace trimmed, and take priority over `turn_secret`;
+    /// a file that cannot be read falls back to it.
+    ///
+    /// example: "/etc/phantom/.turn_secret"
+    pub turn_secret_file: Option<PathBuf>,
+
+    /// How long, in seconds, a TURN credential phantom derives stays valid.
+    ///
+    /// default: 86400
+    #[serde(default = "default_turn_ttl")]
+    pub turn_ttl: u64,
+
+    /// Path a push gateway is expected to serve its notify endpoint at. Only
+    /// the appservice-style pushers that do not carry their own URL use it.
+    ///
+    /// default: "/_matrix/push/v1/notify"
+    #[serde(default = "default_notification_push_path")]
+    pub notification_push_path: String,
+
+    /// Domains phantom may fetch URL previews from, matched as a substring of
+    /// the URL's host.
+    ///
+    /// "google.com" matches `https://google.com` and also
+    /// `http://notgoogle.com.example`, so prefer
+    /// `url_preview_domain_explicit_allowlist` where you can. "*" allows
+    /// every domain, which lets any user aim this server at any host on its
+    /// network.
+    ///
+    /// default: []
+    #[serde(default)]
+    pub url_preview_domain_contains_allowlist: Vec<String>,
+
+    /// Domains phantom may fetch URL previews from, matched exactly.
+    ///
+    /// "google.com" matches `https://google.com` but not
+    /// `https://notgoogle.com.example`. See
+    /// `url_preview_check_root_domain` for matching subdomains too.
+    ///
+    /// default: []
+    #[serde(default)]
+    pub url_preview_domain_explicit_allowlist: Vec<String>,
+
+    /// Domains phantom may never fetch URL previews from, matched exactly.
+    /// Checked before either allowlist, so it always wins.
+    ///
+    /// default: []
+    #[serde(default)]
+    pub url_preview_domain_explicit_denylist: Vec<String>,
+
+    /// URLs phantom may fetch previews from, matched as a substring of the
+    /// whole URL rather than of its host.
+    ///
+    /// This matches anywhere in the URL, so "google.com" also matches
+    /// `https://example.invalid/google.com`. "*" allows every URL.
+    ///
+    /// default: []
+    #[serde(default)]
+    pub url_preview_url_contains_allowlist: Vec<String>,
+
+    /// Bytes of a page phantom reads before giving up on finding its preview
+    /// metadata.
+    ///
+    /// default: 256000
+    #[serde(default = "default_url_preview_max_spider_size")]
+    pub url_preview_max_spider_size: usize,
+
+    /// Apply the domain allowlists to a URL's root domain rather than to the
+    /// host it names, so that allowing "wikipedia.org" also allows
+    /// "en.m.wikipedia.org". Does not affect
+    /// `url_preview_url_contains_allowlist`.
+    #[serde(default)]
+    pub url_preview_check_root_domain: bool,
+
+    /// Room aliases and room IDs that may not be created, as regular
+    /// expressions. A plain word is a valid pattern, and matches anywhere in
+    /// the alias.
+    ///
+    /// Checked when an alias or a custom room ID is created, and at startup
+    /// against the aliases already in the database, which are reported as
+    /// warnings rather than removed.
+    ///
+    /// example: ["19dollarfortnitecards", "b[4a]droom", "badphrase"]
+    ///
+    /// default: []
+    #[serde(default, with = "serde_regex")]
+    pub forbidden_alias_names: RegexSet,
+
+    /// Usernames that may not be registered, as regular expressions. A plain
+    /// word is a valid pattern, and matches anywhere in the username.
+    ///
+    /// Checked on the availability request and on registration, and at
+    /// startup against the users already in the database, which are reported
+    /// as warnings rather than removed.
+    ///
+    /// example: ["administrator", "b[a4]dusernam[3e]", "badphrase"]
+    ///
+    /// default: []
+    #[serde(default, with = "serde_regex")]
+    pub forbidden_usernames: RegexSet,
+
+    /// Reload the configuration when the server is sent SIGUSR1.
+    ///
+    /// Only `server_name` is fixed for the life of the process; every other
+    /// option is re-read. Has no effect where the platform has no SIGUSR1.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub config_reload_signal: bool,
+
     /// Any TOML key phantom does not recognise lands here rather than failing
     /// deserialization, so unknown options can be reported rather than
     /// silently ignored.
@@ -634,6 +838,22 @@ fn default_rocksdb_stats_level() -> u8 {
     1
 }
 
+fn default_trusted_servers() -> Vec<OwnedServerName> {
+    vec![OwnedServerName::try_from("matrix.org").expect("matrix.org is a valid server name")]
+}
+
+fn default_turn_ttl() -> u64 {
+    60 * 60 * 24
+}
+
+fn default_notification_push_path() -> String {
+    "/_matrix/push/v1/notify".to_owned()
+}
+
+fn default_url_preview_max_spider_size() -> usize {
+    256_000
+}
+
 /// Scales a per-core figure by the parallelism actually available to this
 /// process, which is what the memory defaults above are expressed in.
 fn parallelism_scaled_f64(val: f64) -> f64 {
@@ -696,6 +916,7 @@ mod tests {
             server_name = "phantom.chat"
             database_path = "/var/lib/phantom"
             registration_token = "hunter2"
+            turn_secret = "swordfish"
             "#,
         )
         .expect("config is valid");
@@ -703,10 +924,82 @@ mod tests {
         let rendered = config.to_string();
         assert!(rendered.contains("| server_name | \"phantom.chat\" |"));
         assert!(rendered.contains("| registration_token | *********** |"));
+        assert!(rendered.contains("| turn_secret | *********** |"));
         assert!(!rendered.contains("hunter2"), "secret must not be rendered");
+        assert!(
+            !rendered.contains("swordfish"),
+            "secret must not be rendered"
+        );
         assert!(
             !rendered.contains("catchall"),
             "ignored field is not a config option"
+        );
+    }
+
+    #[test]
+    fn regex_options_are_compiled_while_the_config_loads() {
+        let config = config(
+            r#"
+            [global]
+            server_name = "phantom.chat"
+            database_path = "/var/lib/phantom"
+            forbidden_usernames = ["b[a4]dusernam[3e]", "badphrase"]
+            "#,
+        )
+        .expect("config is valid");
+
+        assert!(config.forbidden_usernames.is_match("b4dusername"));
+        assert!(!config.forbidden_usernames.is_match("goodusername"));
+        assert!(
+            config.forbidden_alias_names.is_empty(),
+            "an unset regex option is an empty set, not a set matching everything"
+        );
+    }
+
+    #[test]
+    fn a_malformed_regex_is_an_error() {
+        assert!(
+            config(
+                r#"
+                [global]
+                server_name = "phantom.chat"
+                database_path = "/var/lib/phantom"
+                forbidden_usernames = ["b[adusername"]
+                "#,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn an_empty_registration_token_is_an_error() {
+        assert!(
+            config(
+                r#"
+                [global]
+                server_name = "phantom.chat"
+                database_path = "/var/lib/phantom"
+                registration_token = ""
+                "#,
+            )
+            .is_err(),
+            "an empty token is a half-written config, not a token"
+        );
+    }
+
+    #[test]
+    fn an_unreadable_registration_token_file_is_an_error() {
+        assert!(
+            config(
+                r#"
+                [global]
+                server_name = "phantom.chat"
+                database_path = "/var/lib/phantom"
+                registration_token_file = "/nonexistent/phantom/.reg_token"
+                "#,
+            )
+            .is_err(),
+            "the service would silently fall back to no token at all"
         );
     }
 

@@ -6,6 +6,14 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+
+# Tells the service manager to notify systemd when the server is reloading its
+# config and when it is ready again, so a `Type=notify` unit does not consider
+# the reload finished before it is.
+systemd = ["dep:sd-notify"]
+
 [dependencies]
 # `Service` has async methods and is used behind `dyn`, which the language
 # cannot yet express on its own.
@@ -13,6 +21,9 @@ async-trait = "0.1.92"
 futures = "0.3.34"
 phantom-core.workspace = true
 phantom-database.workspace = true
+regex = "1.13.1"
+ruma = "0.16.0"
+sd-notify = { version = "0.4.5", optional = true, default-features = false }
 # `macros` for `select!` in the manager loop, `rt` for the tasks the workers
 # run in, `sync` for the mutexes the manager's state lives behind, and `time`
 # for the delay before a panicked worker is restarted.
