@@ -1,0 +1,34 @@
+# Normalize all text files to LF in the repository and in the working tree.
+# Prevents CRLF from Windows/WSL checkouts showing every file as modified.
+* text=auto eol=lf
+
+# Files that must stay LF regardless of platform.
+*.sh        text eol=lf
+*.rs        text eol=lf
+*.go        text eol=lf
+*.toml      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.md        text eol=lf
+Justfile    text eol=lf
+
+# Windows scripts require CRLF.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Generated lockfiles: keep diffs but do not mark as merge conflicts to resolve by hand.
+Cargo.lock  text eol=lf -diff
+go.sum      text eol=lf -diff
+
+# Binary files: never touch line endings.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.woff      binary
+*.woff2     binary

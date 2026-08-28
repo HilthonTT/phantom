@@ -27,15 +27,79 @@
   "rust-analyzer.cargo.targetDir": true,
 
   // The tree was just normalized to LF; keep editor saves from reintroducing
-  // CRLF now that it is edited from both Windows and WSL.
+  // CRLF now that it is edited from both Windows and WSL. .gitattributes is the
+  // real enforcement — this only stops the editor fighting it.
   "files.eol": "\n",
 
+  // ---------------------------------------------------------------------------
+  // Formatting.
+  //
+  // Format on save is on globally; each language below names its own formatter,
+  // so VS Code picks the right one from the file type and there is nothing to
+  // switch by hand. A language with no block here falls back to
+  // editor.defaultFormatter, which is deliberately left unset: an unconfigured
+  // file type should prompt rather than be reformatted by an arbitrary
+  // extension.
+  // ---------------------------------------------------------------------------
+  "editor.formatOnSave": true,
+
+  // Only act on imports where the language server actually manages them (Go,
+  // Python). "explicit" means on an invoked save, not on autosave.
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+
   "[rust]": {
-    "editor.formatOnSave": true,
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
 
+  // gopls runs gofmt; golangci-lint in .golangci.yml stays the source of truth
+  // for lint. gofmt is not configurable, so there is no width/indent setting.
   "[go]": {
-    "editor.formatOnSave": true
-  }
+    "editor.defaultFormatter": "golang.go"
+  },
+  "[go.mod]": {
+    "editor.defaultFormatter": "golang.go"
+  },
+  "[go.sum]": {
+    "editor.defaultFormatter": "golang.go"
+  },
+
+  // Prettier for the whole web/config family.
+  "[javascript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[javascriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[html]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[css]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[scss]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[less]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[markdown]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+
+  // YAML has its own extension with schema validation; it formats via Prettier
+  // internally, so this avoids the two extensions competing for the same files.
+  "[yaml]": { "editor.defaultFormatter": "redhat.vscode-yaml" },
+
+  // Ruff covers both format and import sorting, replacing black + isort.
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+
+  // clang-format. It reads a .clang-format file from the nearest parent
+  // directory; with none present it uses the fallback style below.
+  "[c]": { "editor.defaultFormatter": "ms-vscode.cpptools" },
+  "[cpp]": { "editor.defaultFormatter": "ms-vscode.cpptools" },
+  "C_Cpp.formatting": "clangFormat",
+  "C_Cpp.clang_format_fallbackStyle": "LLVM",
+
+  // TOML: this repo has several (Cargo.toml, deny.toml, rustfmt.toml,
+  // phantom-example.toml), so it is worth pinning rather than leaving to prompt.
+  "[toml]": { "editor.defaultFormatter": "tamasfe.even-better-toml" },
+
+  "[shellscript]": { "editor.defaultFormatter": "foxundermoon.shell-format" }
 }

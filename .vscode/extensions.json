@@ -1,0 +1,18 @@
+{
+  // The per-language "editor.defaultFormatter" entries in settings.json name
+  // these extension IDs. If an extension is missing, VS Code silently does
+  // nothing on save for that language rather than reporting an error, so this
+  // list is what makes that config actually work on a fresh checkout.
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml",
+    "golang.go",
+    "esbenp.prettier-vscode",
+    "redhat.vscode-yaml",
+    "charliermarsh.ruff",
+    "ms-python.python",
+    "ms-vscode.cpptools",
+    "foxundermoon.shell-format",
+    "ms-vscode-remote.remote-wsl"
+  ]
+}
