@@ -47,7 +47,7 @@ pub use self::{
     engine::{Context, Engine, descriptor},
     handle::{Deserialized, Handle},
     keyval::{Key, KeyVal, Slice, Val, serialize_key, serialize_val},
-    map::{Map, compact},
+    map::{Map, Qry, compact},
 };
 use self::{
     engine::descriptor::Descriptor,

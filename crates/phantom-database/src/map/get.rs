@@ -1,13 +1,16 @@
-//! Reading values by key.
+//! Reading values by key, as bytes the caller already has.
+//!
+//! Keys that have to be built from a typed value go through
+//! [`qry`](super::qry) and [`qry_batch`](super::qry_batch), which serialize
+//! and then come back here.
 //!
 //! Every read here tries the block cache on the calling thread first. A hit
 //! costs a lock and a memcmp; a miss comes back as `Incomplete` rather than as
 //! an error, and is re-issued on [`the pool`](crate::pool), where blocking
 //! until the storage answers is allowed.
 
-use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
+use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use arrayvec::ArrayVec;
 use futures::{Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt, future::ready};
 use phantom_core::{
     Err, Result, err, implement,
@@ -15,14 +18,11 @@ use phantom_core::{
     stream::{IterStream, WidebandExt, automatic_amplification, automatic_width},
 };
 use rocksdb::{DBPinnableSlice, ReadOptions};
-use serde::Serialize;
 use tokio::task;
 
 use crate::{
     Handle,
-    codec::serialize::{serialize, serialize_to},
     engine::error::{is_incomplete, map_err, or_else},
-    keyval::KeyBuf,
     pool,
 };
 
@@ -59,59 +59,6 @@ where
         .boxed()
 }
 
-/// Reads the value at a key built from `key`.
-#[implement(super::Map)]
-#[inline]
-pub fn qry<K>(
-    self: &Arc<Self>,
-    key: &K,
-) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, K>
-where
-    K: Serialize + ?Sized + Debug,
-{
-    let mut buf = KeyBuf::new();
-
-    self.bqry(key, &mut buf)
-}
-
-/// [`Self::qry`], serializing into a stack buffer of `MAX` bytes.
-///
-/// # Panics
-///
-/// If the serialized key does not fit. Use where the key's size is fixed by
-/// its type — a pair of integers, say — and `MAX` can be read off it.
-#[implement(super::Map)]
-#[inline]
-pub fn aqry<const MAX: usize, K>(
-    self: &Arc<Self>,
-    key: &K,
-) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, MAX, K>
-where
-    K: Serialize + ?Sized + Debug,
-{
-    let mut buf = ArrayVec::<u8, MAX>::new();
-
-    self.bqry(key, &mut buf)
-}
-
-/// [`Self::qry`], serializing into a buffer the caller supplies, for a caller
-/// reusing one across a run of queries.
-#[implement(super::Map)]
-#[tracing::instrument(skip(self, buf), level = "trace")]
-pub fn bqry<K, B>(
-    self: &Arc<Self>,
-    key: &K,
-    buf: &mut B,
-) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, K, B>
-where
-    K: Serialize + ?Sized + Debug,
-    B: Write + AsRef<[u8]>,
-{
-    let key = serialize(buf, key).expect("failed to serialize query key");
-
-    self.get(key)
-}
-
 /// Reads the values at each of `keys`, in order.
 ///
 /// Keys are gathered into batches so that one submission to the pool covers
@@ -133,35 +80,6 @@ where
             self.db.pool.execute_get(pool::Get {
                 map: self.clone(),
                 key: chunk.iter().map(AsRef::as_ref).map(Into::into).collect(),
-                res: None,
-            })
-        })
-        .map_ok(|results| results.into_iter().stream())
-        .try_flatten()
-}
-
-/// [`Self::get_batch`] over keys that are serialized first.
-#[implement(super::Map)]
-#[tracing::instrument(skip(self, keys), level = "trace")]
-pub fn qry_batch<'a, S, K>(
-    self: &'a Arc<Self>,
-    keys: S,
-) -> impl Stream<Item = Result<Handle<'a>>> + Send + 'a
-where
-    S: Stream<Item = K> + Send + 'a,
-    K: Serialize + Debug + 'a,
-{
-    keys.ready_chunks(automatic_amplification())
-        .widen_then(automatic_width(), |chunk| {
-            let keys = chunk
-                .iter()
-                .map(serialize_to::<KeyBuf, _>)
-                .map(|result| result.expect("failed to serialize query key"))
-                .collect();
-
-            self.db.pool.execute_get(pool::Get {
-                map: self.clone(),
-                key: keys,
                 res: None,
             })
         })

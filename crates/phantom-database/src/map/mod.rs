@@ -13,7 +13,11 @@ mod insert;
 mod iter;
 mod keys;
 mod open;
+mod qry;
+mod qry_batch;
 mod stream;
+
+pub use self::qry_batch::Qry;
 
 use std::{
     ffi::CStr,
