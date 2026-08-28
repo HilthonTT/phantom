@@ -9,6 +9,11 @@ repository.workspace = true
 [features]
 default = []
 
+# Widens lazy-loading to resend membership events the client has already been
+# told about. Element relies on being sent them again where the spec says it
+# need not be; off by default, since it costs bandwidth on every sync.
+element_hacks = []
+
 # Tells the service manager to notify systemd when the server is reloading its
 # config and when it is ready again, so a `Type=notify` unit does not consider
 # the reload finished before it is.
