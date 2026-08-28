@@ -1,31 +1,63 @@
 # phantom
 
-A [Matrix](https://matrix.org) homeserver written in Rust.
+A [Matrix](https://matrix.org) homeserver written in Rust, with a terminal
+admin console written in Go.
 
 > **Status: early development.** There is no running server yet — the binary is
-> a stub. What exists today is the foundation: configuration, error handling,
-> allocator integration, and shared utilities. Don't deploy this.
+> a stub whose `main` is a `todo!()`. What exists is the foundation:
+> configuration, error handling, logging, the Matrix event types and state
+> resolution, the RocksDB storage layer, and the service runtime the server
+> will be built out of. The admin console runs, but draws placeholder data.
+> **Don't deploy this.**
 
-## Requirements
+## What's here
 
-- **Rust 1.97.1** — pinned by `rust-toolchain.toml`, so `rustup` selects it for you
-- **Go 1.26** — for the `phantom` admin CLI
-- **[`just`](https://github.com/casey/just)** — optional, but the recipes below assume it
+| | State |
+| :--- | :--- |
+| **`phantom-core`** — config, errors, logging, allocators, Matrix events and state resolution | usable |
+| **`phantom-database`** — RocksDB engine, 88 typed columns, codecs, the read pool | usable |
+| **`phantom-service`** — the service runtime, plus the resolver, HTTP clients, config reload, server state and transaction ids | partial |
+| **`phantom-macros`** — the config-example generator and friends | usable |
+| **`phantom-server`** — the binary | a stub |
+| **`cli/`** — the `phantom` admin console | runs on placeholder data |
 
-## Building
+[docs/architecture.md](docs/architecture.md) has the full picture.
+
+## Getting started
+
+You need **Rust 1.97.1** (pinned by `rust-toolchain.toml`, so `rustup` selects
+it for you), **Go 1.26+** for the CLI, and a **C/C++ compiler with `libclang`**
+— `phantom-database` compiles a bundled RocksDB. [`just`](https://github.com/casey/just)
+is optional but every recipe below assumes it.
 
 ```sh
+# Debian/Ubuntu; other platforms are in the install guide
+sudo apt install -y build-essential clang libclang-dev pkg-config git curl
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+git clone https://github.com/HilthonTT/phantom.git
+cd phantom
 just build          # cargo build --release, then the Go CLI into target/phantom
+./target/phantom    # the admin console
+```
+
+**[docs/installation.md](docs/installation.md)** is the full guide: packages for
+Debian, Fedora, Arch, Alpine, macOS and Windows/WSL, optional build features,
+and what to do when the build fails.
+
+## Building and checking
+
+```sh
+just build          # release build of both halves
 just check          # everything CI runs: fmt, clippy, and tests for both languages
 ```
 
-The individual recipes are `check-rust` (`cargo fmt --check`, `cargo clippy
---workspace --all-targets -- -D warnings`, `cargo test --workspace`) and
-`check-go` (`go vet`, `go test -race`). Run `just check` before opening a pull
-request.
+`just check-rust` is `cargo fmt --check`, `cargo clippy --workspace
+--all-targets -- -D warnings` and `cargo test --workspace`; `just check-go` is
+`go vet` and `go test -race`. Clippy runs with `-D warnings`, so a warning
+fails the build — the workspace is warning-free and is meant to stay that way.
 
-Clippy runs with `-D warnings`, so a warning fails the build. The workspace is
-currently warning-free — please keep it that way.
+Run `just check` before opening a pull request.
 
 ## Configuration
 
@@ -47,31 +79,33 @@ database_path = "/var/lib/phantom"
 Unknown keys are collected rather than rejected, and logged as a warning at
 startup so a typo is visible instead of silently ignored.
 
-### `phantom-example.toml` is generated — don't edit it
+**`phantom-example.toml` is generated — don't edit it.** It is written to the
+repository root on every real `cargo build`, derived from the `Config` struct by
+the `#[config_example_generator]` proc macro: each field's doc comment becomes
+that option's documentation. To document or add an option, edit
+`crates/phantom-core/src/config/mod.rs`; changes made to the example file are
+overwritten by the next build.
 
-A documented example config is written to the repository root on every
-`cargo build`. It is generated from the `Config` struct by the
-`#[config_example_generator]` proc macro: each field's doc comment becomes that
-option's documentation, and its `#[serde(default = "...")]` becomes the value
-shown.
+[docs/configuration.md](docs/configuration.md) covers the rest, including the
+doc-comment directives (`default:`, `display: hidden`, `display: sensitive`) and
+what validation rejects versus warns about.
 
-**To document or add a config option, edit `crates/phantom-core/src/config/mod.rs`.**
-Changes made directly to `phantom-example.toml` are overwritten by the next
-build.
+## The admin console
 
-Doc comments understand three directives on a line of their own:
+`./target/phantom` opens a terminal interface modelled on
+[superfile](https://github.com/yorukot/superfile): a section navigator down the
+left, listings across the middle, a detail panel on the right, and a row of
+boxes along the bottom for running tasks, the current selection and the
+connection. Press `?` for the keys, `q` to quit.
 
-| Directive | Effect |
-| :--- | :--- |
-| `default: <text>` | overrides the value shown in the example file |
-| `display: hidden` | omits the option when a running server prints its config |
-| `display: sensitive` | masks the value as `***********` instead of printing it |
+Nothing behind it is real yet — it reads no config and opens no socket.
+[docs/cli.md](docs/cli.md) describes it.
 
 ## Allocators
 
-`phantom-core` builds against the system allocator by default. Two alternatives
-are available as Cargo features, both no-ops on MSVC targets, where their C
-libraries do not build:
+`phantom-core` builds against the system allocator by default. Alternatives are
+Cargo features, all of them no-ops on MSVC targets where their C libraries do
+not build:
 
 | Feature | Effect |
 | :--- | :--- |
@@ -86,20 +120,32 @@ libraries do not build:
 phantom began as, and still tracks, a port of
 [conduwuit](https://github.com/girlbossceo/conduwuit). Substantial portions of
 the codebase are derived from it, sometimes verbatim and sometimes adapted —
-most visibly the configuration, error, and macro layers.
+most visibly the configuration, error, macro and database layers.
 
 Where phantom diverges, it is usually for one of two reasons: conduwuit pins an
 older fork of [ruma](https://github.com/ruma/ruma) whose API has since moved on,
 or a subsystem phantom hasn't ported yet has been trimmed rather than stubbed.
-Divergences are commented at the site where they occur.
+Divergences are commented at the site where they occur — see
+[docs/upstream-sync.md](docs/upstream-sync.md).
 
 conduwuit is licensed under the Apache License 2.0, which is why phantom is too.
 Attribution and a summary of what has been changed are in [NOTICE](NOTICE).
 
 ## Documentation
 
-Further documentation lives in [`docs/`](docs/) — currently a set of
-placeholders.
+| | |
+| :--- | :--- |
+| [installation.md](docs/installation.md) | toolchains, building, troubleshooting |
+| [architecture.md](docs/architecture.md) | the crates and how they layer |
+| [configuration.md](docs/configuration.md) | settings, and adding an option |
+| [cli.md](docs/cli.md) | the admin console |
+| [development.md](docs/development.md) | checks, CI, tests, conventions |
+| [deployment.md](docs/deployment.md) | what's decided so far — you cannot deploy yet |
+| [upstream-sync.md](docs/upstream-sync.md) | tracking conduwuit |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security
 
