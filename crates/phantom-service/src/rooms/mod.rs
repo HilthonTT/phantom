@@ -13,6 +13,7 @@
 
 pub mod directory;
 pub mod lazy_loading;
+pub mod metadata;
 pub mod outlier;
 pub mod short;
 
