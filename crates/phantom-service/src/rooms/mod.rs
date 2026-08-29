@@ -16,6 +16,7 @@ pub mod lazy_loading;
 pub mod metadata;
 pub mod outlier;
 pub mod short;
+pub mod user;
 
 use std::sync::Arc;
 
