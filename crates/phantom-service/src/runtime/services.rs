@@ -15,7 +15,7 @@ use super::{
     manager::Manager,
     registry::{self, Map},
 };
-use crate::{client, config, resolver, rooms, server_state, transaction_id};
+use crate::{account_data, client, config, resolver, rooms, server_state, transaction_id};
 
 /// Every service the server is built out of, and the database they share.
 pub struct Services {
@@ -25,6 +25,7 @@ pub struct Services {
     pub rooms: rooms::Service,
     pub server_state: Arc<server_state::Service>,
     pub transaction_id: Arc<transaction_id::Service>,
+    pub account_data: Arc<account_data::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
     pub(crate) service: Arc<Map>,
@@ -69,6 +70,7 @@ impl Services {
             },
             server_state: build!(server_state::Service),
             transaction_id: build!(transaction_id::Service),
+            account_data: build!(account_data::Service),
 
             manager: Mutex::new(None),
             service,

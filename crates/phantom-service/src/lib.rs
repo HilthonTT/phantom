@@ -12,6 +12,7 @@
 //! [`runtime`] holds all of that machinery; every other module here is one
 //! service.
 
+pub mod account_data;
 pub mod client;
 pub mod config;
 pub mod resolver;
