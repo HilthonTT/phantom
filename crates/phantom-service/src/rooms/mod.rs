@@ -16,6 +16,7 @@ pub mod directory;
 pub mod lazy_loading;
 pub mod metadata;
 pub mod outlier;
+pub mod pdu_metadata;
 pub mod short;
 pub mod timeline;
 pub mod user;
@@ -27,4 +28,10 @@ pub struct Services {
     pub directory: Arc<directory::Service>,
     pub short: Arc<short::Service>,
     pub timeline: Arc<timeline::Service>,
+    pub outlier: Arc<outlier::Service>,
+    pub metadata: Arc<metadata::Service>,
+    pub auth_chain: Arc<auth_chain::Service>,
+    pub pdu_metadata: Arc<pdu_metadata::Service>,
+    pub lazy_loading: Arc<lazy_loading::Service>,
+    pub user: Arc<user::Service>,
 }

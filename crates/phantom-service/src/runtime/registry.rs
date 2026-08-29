@@ -31,13 +31,21 @@ pub type MapKey = String;
 /// graph — every service holding `Dep`s on services that hold `Dep`s back —
 /// and that can exhaust the recursion limit. If it ever does here,
 /// `#![recursion_limit = "192"]` on this crate is the answer; unsafety is not.
-pub struct Dep<T: Service + Send + Sync> {
+///
+/// For the same reason the bound here is `T: Service` and not
+/// `T: Service + Send + Sync`. [`Service`] already carries both as
+/// supertraits, so the longer spelling tells rustc nothing new, but it does
+/// ask every user of the bound to prove the auto traits structurally over
+/// that whole graph. rust-analyzer's solver gives up on that sooner than
+/// rustc's, and when it does the [`Deref`] below stops applying: no method
+/// reached through any `Dep` field completes in the editor.
+pub struct Dep<T: Service> {
     dep: OnceLock<Arc<T>>,
     service: Weak<Map>,
     name: &'static str,
 }
 
-impl<T: Service + Send + Sync> Dep<T> {
+impl<T: Service> Dep<T> {
     /// A lazy handle on the service registered under `name`. Nothing is looked
     /// up until the handle is first dereferenced, which is what lets a service
     /// take one on a service built after it.
@@ -61,7 +69,7 @@ impl<T: Service + Send + Sync> Dep<T> {
     }
 }
 
-impl<T: Service + Send + Sync> Deref for Dep<T> {
+impl<T: Service> Deref for Dep<T> {
     type Target = Arc<T>;
 
     /// Dereference a dependency. The dependency must be ready or panics.
