@@ -15,6 +15,7 @@
 pub mod account_data;
 pub mod client;
 pub mod config;
+pub mod key_backups;
 pub mod resolver;
 pub mod rooms;
 pub mod runtime;
