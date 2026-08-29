@@ -14,6 +14,7 @@
 pub mod directory;
 pub mod lazy_loading;
 pub mod outlier;
+pub mod short;
 
 use std::sync::Arc;
 
