@@ -298,23 +298,15 @@ pub async fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &
         .await;
 }
 
+/// Deletes one session's key. Deleting one that was never backed up is not an
+/// error.
+///
+/// Deleted by the key itself rather than by scanning for it as a prefix: the
+/// key is already complete, and a prefix scan would take the sessions whose
+/// ids merely start with this one along with it.
 #[implement(Service)]
-pub async fn delete_room_key(
-    &self,
-    user_id: &UserId,
-    version: &str,
-    room_id: &RoomId,
-    session_id: &str,
-) {
-    let prefix = serialize_to_vec((user_id, version, room_id, session_id))
-        .expect("failed to serialize prefix");
+pub fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) {
+    let key = (user_id, version, room_id, session_id);
 
-    self.db
-        .backupkeyid_backup
-        .raw_keys_prefix(&prefix)
-        .ignore_err()
-        .ready_for_each(|outdated_key| {
-            self.db.backupkeyid_backup.remove(outdated_key).ok();
-        })
-        .await;
+    self.db.backupkeyid_backup.del(key).ok();
 }
