@@ -1,3 +1,11 @@
+//! The server-side room key backups a client uploads.
+//!
+//! The server never reads what is in a backup — the keys arrive already
+//! encrypted under a key only the user holds. What it keeps is the structure
+//! around them: which backup version is current, an etag that changes on every
+//! write so a client can tell whether it is behind, and the keys themselves
+//! filed under (user, version, room, session).
+
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::StreamExt;
@@ -26,7 +34,7 @@ struct Data {
 }
 
 struct Services {
-    globals: Dep<server_state::Service>,
+    server_state: Dep<server_state::Service>,
 }
 
 impl crate::Service for Service {
@@ -41,7 +49,7 @@ impl crate::Service for Service {
                 backupkeyid_backup: args.db["backupkeyid_backup"].clone(),
             },
             services: Services {
-                globals: args.depend::<server_state::Service>("globals"),
+                server_state: args.depend::<server_state::Service>("server_state"),
             },
         }))
     }
@@ -57,8 +65,8 @@ pub fn create_backup(
     user_id: &UserId,
     backup_metadata: &Raw<BackupAlgorithm>,
 ) -> Result<String> {
-    let version = self.services.globals.next_count()?.to_string();
-    let count = self.services.globals.next_count()?;
+    let version = self.services.server_state.next_count()?.to_string();
+    let count = self.services.server_state.next_count()?;
 
     let key = (user_id, &version);
     self.db.backupid_algorithm.put(key, Json(backup_metadata))?;
@@ -98,7 +106,7 @@ pub async fn update_backup<'a>(
         return Err!(Request(NotFound("Tried to update nonexistent backup.")));
     }
 
-    let count = self.services.globals.next_count()?;
+    let count = self.services.server_state.next_count()?;
     self.db.backupid_etag.put(key, count)?;
     self.db
         .backupid_algorithm
@@ -163,7 +171,7 @@ pub async fn add_key(
         return Err!(Request(NotFound("Tried to update nonexistent backup.")));
     }
 
-    let count = self.services.globals.next_count()?;
+    let count = self.services.server_state.next_count()?;
     self.db.backupid_etag.put(key, count)?;
 
     let key = (user_id, version, room_id, session_id);

@@ -1,3 +1,10 @@
+//! What the server knows about a room as a whole.
+//!
+//! Whether it exists at all — which is a question about its timeline, not
+//! about a record here — and the two administrative flags an operator sets on
+//! it: banned, which refuses the room outright, and disabled, which stops
+//! federating it without forgetting it.
+
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt};
@@ -64,15 +71,13 @@ pub async fn exists(&self, room_id: &RoomId) -> bool {
         .is_some()
 }
 
+/// Every room the server has a record of.
 #[implement(Service)]
 pub fn iter_ids(&self) -> impl Stream<Item = &RoomId> + Send + '_ {
-    self.db
-        .roomid_shortroomid
-        .keys::<&str>()
-        .ignore_err()
-        .map(|s| <&RoomId>::try_from(s).expect("valid room id in db"))
+    room_ids(&self.db.roomid_shortroomid)
 }
 
+/// Bans the room, or lifts the ban.
 #[implement(Service)]
 #[inline]
 pub fn ban_room(&self, room_id: &RoomId, banned: bool) {
@@ -83,13 +88,17 @@ pub fn ban_room(&self, room_id: &RoomId, banned: bool) {
     }
 }
 
+/// Every room an operator has banned.
 #[implement(Service)]
 pub fn list_banned_rooms(&self) -> impl Stream<Item = &RoomId> + Send + '_ {
-    self.db
-        .bannedroomids
-        .keys::<&str>()
+    room_ids(&self.db.bannedroomids)
+}
+
+/// The keys of a column keyed by room id, as room ids.
+fn room_ids(map: &Arc<Map>) -> impl Stream<Item = &RoomId> + Send + '_ {
+    map.keys::<&str>()
         .ignore_err()
-        .map(|s| <&RoomId>::try_from(s).expect("valid room id in db"))
+        .map(|room_id| <&RoomId>::try_from(room_id).expect("valid room id in db"))
 }
 
 #[implement(Service)]

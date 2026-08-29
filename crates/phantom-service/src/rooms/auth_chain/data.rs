@@ -11,7 +11,7 @@ use crate::rooms::short::ShortEventId;
 
 pub(super) struct Data {
     shorteventid_authchain: Arc<Map>,
-    pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[ShortEventId]>>>,
+    pub(super) auth_chain_cache: Mutex<LruCache<Vec<ShortEventId>, Arc<[ShortEventId]>>>,
 }
 
 impl Data {
@@ -27,9 +27,11 @@ impl Data {
         }
     }
 
-    pub(super) async fn get_cached_eventid_authchain(
+    /// The cached chain for these starting events, from memory or, for a
+    /// single event, from the column behind it.
+    pub(super) async fn cached_auth_chain(
         &self,
-        key: &[u64],
+        key: &[ShortEventId],
     ) -> Result<Arc<[ShortEventId]>> {
         debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
@@ -58,7 +60,7 @@ impl Data {
         let chain = chain
             .chunks_exact(size_of::<u64>())
             .map(u64_from_u8)
-            .collect::<Arc<[u64]>>();
+            .collect::<Arc<[ShortEventId]>>();
 
         // Cache in RAM
         self.auth_chain_cache
@@ -69,7 +71,8 @@ impl Data {
         Ok(chain)
     }
 
-    pub(super) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[ShortEventId]>) {
+    /// Caches the chain in memory, and in the database if it is one event's.
+    pub(super) fn cache_auth_chain(&self, key: Vec<ShortEventId>, auth_chain: Arc<[ShortEventId]>) {
         debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
         // Only persist single events in db

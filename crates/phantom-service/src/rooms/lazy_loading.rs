@@ -1,3 +1,11 @@
+//! Which members a device has already been told about, per room.
+//!
+//! Lazy loading lets a sync send only the membership events for senders the
+//! client actually needs, but that only works if the server remembers what it
+//! has already sent: the second sync must not re-send what the first did, and
+//! must still send a member the client has never seen. This records that, per
+//! (user, device, room, member).
+
 use std::{collections::HashSet, sync::Arc};
 
 use futures::{Stream, StreamExt, pin_mut};
@@ -5,7 +13,7 @@ use phantom_core::{
     Result, implement,
     stream::{IterStream, ReadyExt, TryIgnore},
 };
-use phantom_database::{Database, Deserialized, Handle, Interfix, Map, Qry, serialize_to_vec};
+use phantom_database::{Deserialized, Engine, Handle, Interfix, Map, Qry, serialize_to_vec};
 use ruma::{DeviceId, OwnedUserId, RoomId, UserId, api::client::filter::LazyLoadOptions};
 
 pub struct Service {
@@ -14,7 +22,7 @@ pub struct Service {
 
 struct Data {
     lazyloadedids: Arc<Map>,
-    db: Arc<Database>,
+    engine: Arc<Engine>,
 }
 
 pub trait Options: Send + Sync {
@@ -48,7 +56,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             db: Data {
                 lazyloadedids: args.db["lazyloadedids"].clone(),
-                db: args.db.clone(),
+                engine: args.db.engine.clone(),
             },
         }))
     }
@@ -90,7 +98,7 @@ pub async fn witness_retain(&self, senders: Witness, ctx: &Context<'_>) -> Witne
         .zip(senders.iter().stream());
 
     pin_mut!(witness);
-    let _cork = self.db.db.db.cork_guard();
+    let _cork = self.db.engine.cork_guard();
     let mut senders = Witness::with_capacity(senders.len());
     while let Some((status, sender)) = witness.next().await {
         if include_redundant || status == Status::Unseen {

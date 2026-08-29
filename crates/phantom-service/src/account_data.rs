@@ -1,3 +1,10 @@
+//! The account data a user has set, global or per-room.
+//!
+//! One event per (user, room, type), where the global scope is the room-less
+//! one. Each write is stamped with a number from the server counter and
+//! indexed by it, so that a sync can ask for everything a user changed since
+//! the token it last saw rather than re-reading the whole account.
+
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt, TryFutureExt};
@@ -30,7 +37,7 @@ struct Data {
 }
 
 struct Services {
-    globals: Dep<server_state::Service>,
+    server_state: Dep<server_state::Service>,
 }
 
 /// One account data event still in the form it was stored in.
@@ -50,7 +57,7 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             services: Services {
-                globals: args.depend::<server_state::Service>("globals"),
+                server_state: args.depend::<server_state::Service>("server_state"),
             },
             db: Data {
                 roomuserdataid_accountdata: args.db["roomuserdataid_accountdata"].clone(),
@@ -81,7 +88,11 @@ pub async fn update(
         )));
     }
 
-    let count = self.services.globals.next_count().unwrap();
+    let count = self
+        .services
+        .server_state
+        .next_count()
+        .expect("the counter is available");
     let roomuserdataid = (room_id, user_id, count, &event_type);
     let _ = self
         .db

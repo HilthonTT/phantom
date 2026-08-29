@@ -60,7 +60,7 @@ pub struct Database {
 
     /// The engine the columns live in. Public because the whole-database
     /// operations an operator drives are on it rather than here.
-    pub db: Arc<Engine>,
+    pub engine: Arc<Engine>,
 
     /// Held so that the caches and the environment's background threads
     /// outlive the database that was opened against them.
@@ -78,11 +78,11 @@ impl Database {
     /// tests that want a database of two columns instead of ninety.
     pub(crate) fn open_list(server: &Arc<Server>, desc: &[Descriptor]) -> Result<Arc<Self>> {
         let ctx = Context::new(server)?;
-        let db = Engine::open(ctx.clone(), desc)?;
+        let engine = Engine::open(ctx.clone(), desc)?;
 
         Ok(Arc::new(Self {
-            maps: schema::open_list(&db, desc)?,
-            db,
+            maps: schema::open_list(&engine, desc)?,
+            engine,
             _ctx: ctx,
         }))
     }
@@ -113,13 +113,13 @@ impl Database {
     #[inline]
     #[must_use]
     pub fn is_read_only(&self) -> bool {
-        self.db.is_read_only()
+        self.engine.is_read_only()
     }
 
     #[inline]
     #[must_use]
     pub fn is_secondary(&self) -> bool {
-        self.db.is_secondary()
+        self.engine.is_secondary()
     }
 }
 

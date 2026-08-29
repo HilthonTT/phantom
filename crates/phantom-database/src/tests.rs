@@ -383,15 +383,15 @@ async fn a_cork_holds_the_flush_until_it_drops() {
     let map = &test.db["random"];
 
     {
-        let _cork = test.db.db.cork_and_flush();
-        assert!(test.db.db.corked());
+        let _cork = test.db.engine.cork_and_flush();
+        assert!(test.db.engine.corked());
 
         for i in 1_u64..=8 {
             map.put(("room", i), (i,)).expect("written");
         }
     }
 
-    assert!(!test.db.db.corked(), "the cork released on drop");
+    assert!(!test.db.engine.corked(), "the cork released on drop");
     assert_eq!(map.count().await, 8, "the writes landed either way");
 }
 
@@ -433,7 +433,7 @@ async fn concurrent_databases_close_without_deadlocking() {
 
                 // A flush is background work, so it is the step that hangs
                 // where the thread pools have been taken away.
-                test.db.db.sort().expect("flushed");
+                test.db.engine.sort().expect("flushed");
             });
         }
     });

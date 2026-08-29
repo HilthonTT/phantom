@@ -1,3 +1,11 @@
+//! Events accepted but not yet placed in a room's timeline.
+//!
+//! An outlier is an event the server has validated and stored without knowing
+//! where it belongs: it arrived referencing state the server has not caught up
+//! to, usually as part of an auth chain fetched over federation. It stays here
+//! until the timeline it belongs to reaches it, at which point the timeline
+//! takes ownership and this copy is dropped.
+
 use std::sync::Arc;
 
 use phantom_core::{Result, implement, matrix::pdu::PduEvent};
@@ -43,5 +51,5 @@ pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
 #[implement(Service)]
 #[tracing::instrument(skip(self, pdu), level = "debug")]
 pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) {
-    let _ = self.db.eventid_outlierpdu.raw_put(event_id, Json(pdu));
+    self.db.eventid_outlierpdu.raw_put(event_id, Json(pdu)).ok();
 }

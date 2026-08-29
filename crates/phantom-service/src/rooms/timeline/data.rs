@@ -7,7 +7,7 @@ use phantom_core::{
     result::{LogErr, NotFound},
     stream::TryReadyExt,
 };
-use phantom_database::{Database, Deserialized, Json, KeyVal, Map};
+use phantom_database::{Deserialized, Engine, Json, KeyVal, Map};
 use ruma::{CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId, api::Direction};
 
 use super::{PduId, RawPduId};
@@ -19,7 +19,7 @@ pub(super) struct Data {
     pduid_pdu: Arc<Map>,
     userroomid_highlightcount: Arc<Map>,
     userroomid_notificationcount: Arc<Map>,
-    pub(super) db: Arc<Database>,
+    pub(super) engine: Arc<Engine>,
     services: Services,
 }
 
@@ -38,7 +38,7 @@ impl Data {
             pduid_pdu: db["pduid_pdu"].clone(),
             userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
             userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
-            db: args.db.clone(),
+            engine: args.db.engine.clone(),
             services: Services {
                 short: args.depend::<rooms::short::Service>("rooms::short"),
             },
@@ -280,7 +280,7 @@ impl Data {
         notifies: Vec<OwnedUserId>,
         highlights: Vec<OwnedUserId>,
     ) {
-        let _cork = self.db.db.cork_guard();
+        let _cork = self.engine.cork_guard();
 
         for user in notifies {
             let mut userroom_id = user.as_bytes().to_vec();

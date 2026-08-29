@@ -1,3 +1,11 @@
+//! The auth chain of an event: every event authorizing it, transitively.
+//!
+//! State resolution asks for this constantly and walking it hits the database
+//! once per event, so the answers are cached twice over: per event, and per
+//! bucket of events resolved together. Chains are held as short ids rather
+//! than event ids because that is what state resolution compares, and because
+//! eight bytes per entry is what makes a cache of this size affordable.
+
 mod data;
 
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
@@ -27,7 +35,8 @@ struct Services {
     timeline: Dep<rooms::timeline::Service>,
 }
 
-type Bucket<'a> = BTreeSet<(u64, &'a EventId)>;
+/// Starting events sharing a cache entry, as (short id, event id).
+type Bucket<'a> = BTreeSet<(ShortEventId, &'a EventId)>;
 
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -101,7 +110,7 @@ where
     let full_auth_chain: Vec<ShortEventId> = buckets
         .into_iter()
         .try_stream()
-        .broad_and_then(|chunk| self.get_auth_chain_outer(room_id, started, chunk))
+        .broad_and_then(|bucket| self.auth_chain_for_bucket(room_id, started, bucket))
         .try_collect()
         .map_ok(|auth_chain: Vec<_>| auth_chain.into_iter().flatten().collect())
         .map_ok(|mut full_auth_chain: Vec<_>| {
@@ -122,32 +131,32 @@ where
 }
 
 #[implement(Service)]
-async fn get_auth_chain_outer(
+async fn auth_chain_for_bucket(
     &self,
     room_id: &RoomId,
     started: Instant,
-    chunk: Bucket<'_>,
+    bucket: Bucket<'_>,
 ) -> Result<Vec<ShortEventId>> {
-    let chunk_key: Vec<ShortEventId> = chunk.iter().map(at!(0)).collect();
+    let bucket_key: Vec<ShortEventId> = bucket.iter().map(at!(0)).collect();
 
-    if chunk_key.is_empty() {
+    if bucket_key.is_empty() {
         return Ok(Vec::new());
     }
 
-    if let Ok(cached) = self.get_cached_eventid_authchain(&chunk_key).await {
+    if let Ok(cached) = self.cached_auth_chain(&bucket_key).await {
         return Ok(cached.to_vec());
     }
 
-    let chunk_cache: Vec<_> = chunk
+    let bucket_cache: Vec<_> = bucket
         .into_iter()
         .try_stream()
         .broad_and_then(|(shortid, event_id)| async move {
-            if let Ok(cached) = self.get_cached_eventid_authchain(&[shortid]).await {
+            if let Ok(cached) = self.cached_auth_chain(&[shortid]).await {
                 return Ok(cached.to_vec());
             }
 
-            let auth_chain = self.get_auth_chain_inner(room_id, event_id).await?;
-            self.cache_auth_chain_vec(vec![shortid], auth_chain.as_slice());
+            let auth_chain = self.auth_chain_for_event(room_id, event_id).await?;
+            self.cache_auth_chain(vec![shortid], auth_chain.iter().copied());
             debug!(
                 ?event_id,
                 elapsed = ?started.elapsed(),
@@ -157,27 +166,27 @@ async fn get_auth_chain_outer(
             Ok(auth_chain)
         })
         .try_collect()
-        .map_ok(|chunk_cache: Vec<_>| chunk_cache.into_iter().flatten().collect())
-        .map_ok(|mut chunk_cache: Vec<_>| {
-            chunk_cache.sort_unstable();
-            chunk_cache.dedup();
-            chunk_cache
+        .map_ok(|bucket_cache: Vec<_>| bucket_cache.into_iter().flatten().collect())
+        .map_ok(|mut bucket_cache: Vec<_>| {
+            bucket_cache.sort_unstable();
+            bucket_cache.dedup();
+            bucket_cache
         })
         .await?;
 
-    self.cache_auth_chain_vec(chunk_key, chunk_cache.as_slice());
+    self.cache_auth_chain(bucket_key, bucket_cache.iter().copied());
     debug!(
-        chunk_cache_length = ?chunk_cache.len(),
+        bucket_cache_length = ?bucket_cache.len(),
         elapsed = ?started.elapsed(),
-        "Cache missed chunk",
+        "Cache missed bucket",
     );
 
-    Ok(chunk_cache)
+    Ok(bucket_cache)
 }
 
 #[implement(Service)]
-#[tracing::instrument(name = "inner", level = "trace", skip(self, room_id))]
-async fn get_auth_chain_inner(
+#[tracing::instrument(name = "event", level = "trace", skip(self, room_id))]
+async fn auth_chain_for_event(
     &self,
     room_id: &RoomId,
     event_id: &EventId,
@@ -226,26 +235,22 @@ async fn get_auth_chain_inner(
     Ok(found.into_iter().collect())
 }
 
+/// The cached chain for these starting events, if one is cached.
 #[implement(Service)]
 #[inline]
-pub async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[ShortEventId]>> {
-    self.db.get_cached_eventid_authchain(key).await
+pub async fn cached_auth_chain(&self, key: &[ShortEventId]) -> Result<Arc<[ShortEventId]>> {
+    self.db.cached_auth_chain(key).await
 }
 
+/// Caches the chain these starting events resolved to.
 #[implement(Service)]
 #[tracing::instrument(skip_all, level = "debug")]
-pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<ShortEventId>) {
-    let val: Arc<[ShortEventId]> = auth_chain.iter().copied().collect();
-
-    self.db.cache_auth_chain(key, val);
-}
-
-#[implement(Service)]
-#[tracing::instrument(skip_all, level = "debug")]
-pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &[ShortEventId]) {
-    let val: Arc<[ShortEventId]> = auth_chain.iter().copied().collect();
-
-    self.db.cache_auth_chain(key, val);
+pub fn cache_auth_chain<I>(&self, key: Vec<ShortEventId>, auth_chain: I)
+where
+    I: IntoIterator<Item = ShortEventId>,
+{
+    self.db
+        .cache_auth_chain(key, auth_chain.into_iter().collect());
 }
 
 #[implement(Service)]

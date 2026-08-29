@@ -1,3 +1,11 @@
+//! Long identifiers mapped to compact ones.
+//!
+//! Event ids, room ids and state keys are strings, and the database stores
+//! them in keys that are read constantly and compared byte by byte. Each is
+//! given a `u64` the first time it is seen, and it is those that the hot
+//! columns are keyed on; the mapping back is kept alongside so a stored id can
+//! be spelled out again.
+
 use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
 use futures::{Stream, StreamExt};
@@ -26,7 +34,7 @@ struct Data {
 }
 
 struct Services {
-    globals: Dep<server_state::Service>,
+    server_state: Dep<server_state::Service>,
 }
 
 pub type ShortStateHash = ShortId;
@@ -43,7 +51,7 @@ impl crate::Service for Service {
                 statehash_shortstatehash: args.db["statehash_shortstatehash"].clone(),
             },
             services: Services {
-                globals: args.depend::<server_state::Service>("globals"),
+                server_state: args.depend::<server_state::Service>("server_state"),
             },
         }))
     }
@@ -75,7 +83,11 @@ pub async fn get_shorteventid(&self, event_id: &EventId) -> Result<ShortEventId>
 fn create_shorteventid(&self, event_id: &EventId) -> ShortEventId {
     const BUFSIZE: usize = size_of::<ShortEventId>();
 
-    let short = self.services.globals.next_count().unwrap();
+    let short = self
+        .services
+        .server_state
+        .next_count()
+        .expect("the counter is available");
 
     self.db
         .eventid_shorteventid
@@ -119,7 +131,11 @@ pub async fn get_or_create_shortstatekey(
     }
 
     let key = (event_type, state_key);
-    let shortstatekey = self.services.globals.next_count().unwrap();
+    let shortstatekey = self
+        .services
+        .server_state
+        .next_count()
+        .expect("the counter is available");
 
     self.db.statekey_shortstatekey.put(key, shortstatekey).ok();
 
@@ -224,7 +240,11 @@ pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (ShortSta
         return (shortstatehash, true);
     }
 
-    let shortstatehash = self.services.globals.next_count().unwrap();
+    let shortstatehash = self
+        .services
+        .server_state
+        .next_count()
+        .expect("the counter is available");
     debug_assert!(
         size_of_val(&shortstatehash) == BUFSIZE,
         "buffer requirement changed"
@@ -253,7 +273,11 @@ pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> ShortRoomId {
         .unwrap_or_else(|_| {
             const BUFSIZE: usize = size_of::<ShortRoomId>();
 
-            let short = self.services.globals.next_count().unwrap();
+            let short = self
+                .services
+                .server_state
+                .next_count()
+                .expect("the counter is available");
             debug_assert!(size_of_val(&short) == BUFSIZE, "buffer requirement changed");
 
             self.db

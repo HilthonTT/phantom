@@ -1,7 +1,7 @@
 //! Everything the server knows about rooms.
 //!
 //! One area of room state per submodule, each its own service registered
-//! under its own name. [`Service`] here is not one of them: it owns no state
+//! under its own name. [`Services`] here is not one of them: it owns no state
 //! and has no worker, it is only the handle that groups them, so that a
 //! caller reaches the room directory as `services.rooms.directory` rather
 //! than having `rooms_directory` sit at the top of [`crate::Services`]
@@ -23,7 +23,7 @@ pub mod user;
 use std::sync::Arc;
 
 /// The room services, grouped.
-pub struct Service {
+pub struct Services {
     pub directory: Arc<directory::Service>,
     pub short: Arc<short::Service>,
     pub timeline: Arc<timeline::Service>,

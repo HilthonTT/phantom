@@ -9,7 +9,7 @@
 use std::sync::{Arc, RwLock};
 
 use phantom_core::{Result, bytes};
-use phantom_database::{Database, Map};
+use phantom_database::{Engine, Map};
 
 /// The key the count is stored under in the `global` column.
 const COUNTER: &[u8] = b"c";
@@ -17,7 +17,7 @@ const COUNTER: &[u8] = b"c";
 pub struct Counter {
     global: Arc<Map>,
     count: RwLock<u64>,
-    db: Arc<Database>,
+    engine: Arc<Engine>,
 }
 
 impl Counter {
@@ -27,14 +27,14 @@ impl Counter {
         Self {
             count: RwLock::new(Self::stored_count(&global).expect("initialized global counter")),
             global,
-            db: args.db.clone(),
+            engine: args.db.engine.clone(),
         }
     }
 
     /// The next number in the sequence, written through before it is handed
     /// out so that a crash cannot reissue it.
     pub fn next(&self) -> Result<u64> {
-        let _cork = self.db.db.cork_guard();
+        let _cork = self.engine.cork_guard();
         let mut lock = self.count.write().expect("locked");
         let counter: &mut u64 = &mut lock;
         debug_assert!(

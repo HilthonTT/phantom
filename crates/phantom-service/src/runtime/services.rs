@@ -24,7 +24,7 @@ pub struct Services {
     pub client: Arc<client::Service>,
     pub config: Arc<config::Service>,
     pub resolver: Arc<resolver::Service>,
-    pub rooms: rooms::Service,
+    pub rooms: rooms::Services,
     pub server_state: Arc<server_state::Service>,
     pub transaction_id: Arc<transaction_id::Service>,
     pub account_data: Arc<account_data::Service>,
@@ -68,7 +68,7 @@ impl Services {
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
-            rooms: rooms::Service {
+            rooms: rooms::Services {
                 directory: build!(rooms::directory::Service),
                 short: build!(rooms::short::Service),
                 timeline: build!(rooms::timeline::Service),
@@ -140,7 +140,7 @@ impl Services {
             service.memory_usage(&mut out).await?;
         }
 
-        write!(out, "\n{}", self.db.db.memory_usage()?)?;
+        write!(out, "\n{}", self.db.engine.memory_usage()?)?;
 
         Ok(out)
     }
