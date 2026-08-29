@@ -125,6 +125,18 @@ pub struct Config {
     #[serde(default = "default_cache_capacity_modifier")]
     pub cache_capacity_modifier: f64,
 
+    /// Entries kept in the in-memory auth chain cache.
+    ///
+    /// An auth chain is the set of events authorizing one event, and
+    /// recomputing it walks the room's state; caching them is what keeps state
+    /// resolution off the database. Entries are small, so the default is
+    /// generous, and cache_capacity_modifier scales it along with every other
+    /// cache.
+    ///
+    /// default: 100000 + (10000 * CPU core count)
+    #[serde(default = "default_auth_chain_cache_capacity")]
+    pub auth_chain_cache_capacity: u32,
+
     /// Number of database read workers to spawn per hardware queue, where
     /// phantom could not learn the queue's own depth from the operating
     /// system.
@@ -1070,6 +1082,10 @@ fn default_cache_capacity_modifier() -> f64 {
     1.0
 }
 
+fn default_auth_chain_cache_capacity() -> u32 {
+    parallelism_scaled_u32(10_000).saturating_add(100_000)
+}
+
 fn default_db_pool_workers() -> usize {
     32
 }
@@ -1255,6 +1271,16 @@ fn parallelism_scaled_f64(val: f64) -> f64 {
     let cores = crate::sys::compute::available_parallelism() as f64;
 
     val * cores
+}
+
+/// [`parallelism_scaled_f64`] for the cache capacities, which are counts of
+/// entries rather than megabytes.
+fn parallelism_scaled_u32(val: u32) -> u32 {
+    let cores = crate::sys::compute::available_parallelism();
+
+    usize::try_from(val)
+        .map(|val| val.saturating_mul(cores))
+        .map_or(u32::MAX, |val| u32::try_from(val).unwrap_or(u32::MAX))
 }
 
 #[cfg(test)]

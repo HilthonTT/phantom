@@ -11,11 +11,13 @@
 //! submodules are, individually, and a [`Dep`](crate::Dep) is taken on one of
 //! those rather than on the group.
 
+pub mod auth_chain;
 pub mod directory;
 pub mod lazy_loading;
 pub mod metadata;
 pub mod outlier;
 pub mod short;
+pub mod timeline;
 pub mod user;
 
 use std::sync::Arc;
@@ -23,4 +25,6 @@ use std::sync::Arc;
 /// The room services, grouped.
 pub struct Service {
     pub directory: Arc<directory::Service>,
+    pub short: Arc<short::Service>,
+    pub timeline: Arc<timeline::Service>,
 }

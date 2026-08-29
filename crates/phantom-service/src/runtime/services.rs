@@ -70,6 +70,8 @@ impl Services {
             config: build!(config::Service),
             rooms: rooms::Service {
                 directory: build!(rooms::directory::Service),
+                short: build!(rooms::short::Service),
+                timeline: build!(rooms::timeline::Service),
             },
             server_state: build!(server_state::Service),
             transaction_id: build!(transaction_id::Service),

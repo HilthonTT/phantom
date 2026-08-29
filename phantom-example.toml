@@ -76,6 +76,16 @@
 #
 #cache_capacity_modifier = 1.0
 
+# Entries kept in the in-memory auth chain cache.
+#
+# An auth chain is the set of events authorizing one event, and
+# recomputing it walks the room's state; caching them is what keeps state
+# resolution off the database. Entries are small, so the default is
+# generous, and cache_capacity_modifier scales it along with every other
+# cache.
+#
+#auth_chain_cache_capacity = 100000 + (10000 * CPU core count)
+
 # Number of database read workers to spawn per hardware queue, where
 # phantom could not learn the queue's own depth from the operating
 # system.
