@@ -18,6 +18,10 @@ pub mod metadata;
 pub mod outlier;
 pub mod pdu_metadata;
 pub mod short;
+pub mod state;
+pub mod state_accessor;
+pub mod state_cache;
+pub mod state_compressor;
 pub mod threads;
 pub mod timeline;
 pub mod user;
@@ -28,6 +32,10 @@ use std::sync::Arc;
 pub struct Services {
     pub directory: Arc<directory::Service>,
     pub short: Arc<short::Service>,
+    pub state: Arc<state::Service>,
+    pub state_accessor: Arc<state_accessor::Service>,
+    pub state_cache: Arc<state_cache::Service>,
+    pub state_compressor: Arc<state_compressor::Service>,
     pub timeline: Arc<timeline::Service>,
     pub outlier: Arc<outlier::Service>,
     pub metadata: Arc<metadata::Service>,

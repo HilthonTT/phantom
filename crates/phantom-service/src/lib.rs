@@ -16,6 +16,7 @@ pub mod account_data;
 pub mod appservice;
 pub mod client;
 pub mod config;
+pub mod emergency;
 pub mod federation;
 pub mod key_backups;
 pub mod resolver;
@@ -25,5 +26,6 @@ pub mod sending;
 pub mod server_keys;
 pub mod server_state;
 pub mod transaction_id;
+pub mod users;
 
 pub use self::runtime::{Args, Dep, Map, Service, Services, add, get, make_name, try_get};

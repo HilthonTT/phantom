@@ -137,6 +137,19 @@ pub struct Config {
     #[serde(default = "default_auth_chain_cache_capacity")]
     pub auth_chain_cache_capacity: u32,
 
+    /// Entries kept in the in-memory state-info cache.
+    ///
+    /// One entry is the stack of compressed-state layers behind a single
+    /// shortstatehash, so an entry is far larger than an auth chain's and the
+    /// default is correspondingly smaller. Every read of a room's state goes
+    /// through it, so a miss costs a walk down the diff layers to the full
+    /// state at the bottom. cache_capacity_modifier scales it along with every
+    /// other cache.
+    ///
+    /// default: 100 + (10 * CPU core count)
+    #[serde(default = "default_stateinfo_cache_capacity")]
+    pub stateinfo_cache_capacity: u32,
+
     /// Number of database read workers to spawn per hardware queue, where
     /// phantom could not learn the queue's own depth from the operating
     /// system.
@@ -451,6 +464,44 @@ pub struct Config {
     ///
     /// example: "/etc/phantom/.reg_token"
     pub registration_token_file: Option<PathBuf>,
+
+    /// Password set on the server's own user account so an operator locked out
+    /// of every admin account can log in as it and recover one.
+    ///
+    /// While this is set the server user is a usable account with the default
+    /// push ruleset. Unset it once recovery is done: clearing it deactivates
+    /// the account again and logs out every session that was opened with it.
+    ///
+    /// display: sensitive
+    pub emergency_password: Option<String>,
+
+    /// Makes leaving a room also forget it, rather than leaving it in the
+    /// user's `leave` section of sync until they forget it themselves.
+    ///
+    /// Banned and admin-disabled rooms are forgotten on leave either way.
+    ///
+    /// default: false
+    #[serde(default)]
+    pub forget_forced_upon_leave: bool,
+
+    /// Seconds an OpenID token stays valid for.
+    ///
+    /// The token proves to an integration that the bearer holds the account it
+    /// names, so it wants to be long enough to be exchanged and no longer.
+    ///
+    /// default: 3600
+    #[serde(default = "default_openid_token_ttl")]
+    pub openid_token_ttl: u64,
+
+    /// Milliseconds a login token stays valid for.
+    ///
+    /// This is the `m.login.token` handed out to complete a login started
+    /// elsewhere, so it is spent within seconds of being issued; the spec caps
+    /// it at five minutes.
+    ///
+    /// default: 120000
+    #[serde(default = "default_login_token_ttl")]
+    pub login_token_ttl: u64,
 
     /// Text appended to a user's displayname when they register, after a
     /// space. Leave it empty to append nothing.
@@ -1136,6 +1187,18 @@ fn default_cache_capacity_modifier() -> f64 {
 
 fn default_auth_chain_cache_capacity() -> u32 {
     parallelism_scaled_u32(10_000).saturating_add(100_000)
+}
+
+fn default_stateinfo_cache_capacity() -> u32 {
+    parallelism_scaled_u32(10).saturating_add(100)
+}
+
+fn default_openid_token_ttl() -> u64 {
+    60 * 60
+}
+
+fn default_login_token_ttl() -> u64 {
+    2 * 60 * 1000
 }
 
 fn default_db_pool_workers() -> usize {

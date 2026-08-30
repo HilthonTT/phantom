@@ -21,7 +21,8 @@ use std::{
 
 use async_trait::async_trait;
 use phantom_core::{Result, bytes::pretty, error, server::Server};
-use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedUserId, ServerName, UserId};
+use phantom_database::{Deserialized, Map};
+use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, ServerName, UserId};
 
 use self::counter::Counter;
 
@@ -36,6 +37,8 @@ pub struct Service {
     pub admin_alias: OwnedRoomAliasId,
     pub turn_secret: String,
     pub registration_token: Option<String>,
+
+    alias_roomid: Arc<Map>,
 }
 
 /// When a server last failed to serve an event, and how many times running.
@@ -65,6 +68,7 @@ impl crate::Service for Service {
                 .expect("@phantom:server_name is valid"),
             turn_secret,
             registration_token,
+            alias_roomid: args.db["alias_roomid"].clone(),
         }))
     }
 
@@ -143,5 +147,19 @@ impl Service {
     #[must_use]
     pub fn server_is_ours(&self, server_name: &ServerName) -> bool {
         server_name == self.server_name()
+    }
+
+    /// The room [`admin_alias`](Self::admin_alias) points at, if it exists.
+    ///
+    /// The alias column is read directly here rather than through a room
+    /// alias service, which phantom does not have yet. This belongs there
+    /// once it does; what keeps it here in the meantime is that the alias
+    /// itself is part of the server's own identity, which is what this
+    /// service owns.
+    pub async fn admin_room_id(&self) -> Result<OwnedRoomId> {
+        self.alias_roomid
+            .get(self.admin_alias.alias())
+            .await
+            .deserialized()
     }
 }
