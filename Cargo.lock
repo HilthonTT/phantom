@@ -1001,6 +1001,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "http-auth"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "150fa4a9462ef926824cf4519c84ed652ca8f4fbae34cb8af045b5cbcaf98822"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "http-body"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1835,6 +1844,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "async-trait",
+ "bytes",
  "either",
  "futures",
  "hickory-resolver",
@@ -2195,6 +2205,7 @@ dependencies = [
  "ruma-client-api",
  "ruma-common",
  "ruma-events",
+ "ruma-federation-api",
  "ruma-signatures",
  "web-time",
 ]
@@ -2285,6 +2296,30 @@ dependencies = [
  "web-time",
  "wildmatch",
  "zeroize",
+]
+
+[[package]]
+name = "ruma-federation-api"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4c9638f18d8da3183ebdf034a552ba6d7e86d217e6e680eebaa97c4e8d13d1a"
+dependencies = [
+ "bytes",
+ "headers",
+ "http",
+ "http-auth",
+ "httparse",
+ "js_int",
+ "memchr",
+ "mime",
+ "rand 0.10.2",
+ "ruma-common",
+ "ruma-events",
+ "ruma-signatures",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

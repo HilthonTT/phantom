@@ -16,8 +16,8 @@ use super::{
     registry::{self, Map},
 };
 use crate::{
-    account_data, appservice, client, config, key_backups, resolver, rooms, server_state,
-    transaction_id,
+    account_data, appservice, client, config, federation, key_backups, resolver, rooms,
+    server_keys, server_state, transaction_id,
 };
 
 /// Every service the server is built out of, and the database they share.
@@ -25,7 +25,9 @@ pub struct Services {
     pub client: Arc<client::Service>,
     pub config: Arc<config::Service>,
     pub resolver: Arc<resolver::Service>,
+    pub federation: Arc<federation::Service>,
     pub rooms: rooms::Services,
+    pub server_keys: Arc<server_keys::Service>,
     pub server_state: Arc<server_state::Service>,
     pub transaction_id: Arc<transaction_id::Service>,
     pub account_data: Arc<account_data::Service>,
@@ -70,6 +72,7 @@ impl Services {
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
+            federation: build!(federation::Service),
             rooms: rooms::Services {
                 directory: build!(rooms::directory::Service),
                 short: build!(rooms::short::Service),
@@ -82,6 +85,7 @@ impl Services {
                 threads: build!(rooms::threads::Service),
                 user: build!(rooms::user::Service),
             },
+            server_keys: build!(server_keys::Service),
             server_state: build!(server_state::Service),
             transaction_id: build!(transaction_id::Service),
             account_data: build!(account_data::Service),

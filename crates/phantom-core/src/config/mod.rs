@@ -494,6 +494,58 @@ pub struct Config {
     #[serde(default = "default_trusted_servers")]
     pub trusted_servers: Vec<OwnedServerName>,
 
+    /// Ask the notaries in `trusted_servers` for a key before asking the
+    /// server the key belongs to.
+    ///
+    /// Asking the origin first is the safer order: a notary that has been
+    /// compromised can only answer for keys it was asked about, and it is
+    /// only asked once the origin has failed to answer. Asking the notaries
+    /// first is faster, since one notary can answer for many servers at once.
+    #[serde(default)]
+    pub query_trusted_key_servers_first: bool,
+
+    /// Ask the notaries first, but only while joining a room.
+    ///
+    /// A join gathers keys from every server in the room, which is where the
+    /// per-origin round trips are most noticeable; this bounds the exposure
+    /// to a compromised notary to that one operation. Ignored where
+    /// `query_trusted_key_servers_first` is already on.
+    #[serde(default = "true_fn")]
+    pub query_trusted_key_servers_first_on_join: bool,
+
+    /// Only ever ask the notaries in `trusted_servers` for keys, and never
+    /// the server a key belongs to.
+    ///
+    /// For a cluster behind a notary it operates itself. With no reachable
+    /// notary holding a key, that key is simply never acquired.
+    #[serde(default)]
+    pub only_query_trusted_key_servers: bool,
+
+    /// Servers to ask a notary about in one batched request.
+    ///
+    /// default: 256
+    #[serde(default = "default_trusted_server_batch_size")]
+    pub trusted_server_batch_size: usize,
+
+    /// Send federation requests to other servers.
+    ///
+    /// With this off the server still answers what arrives, but never
+    /// initiates a request of its own, which includes fetching the signing
+    /// keys needed to verify a remote event.
+    #[serde(default = "true_fn")]
+    pub allow_federation: bool,
+
+    /// Servers this server refuses to send federation requests to, as regular
+    /// expressions matched against the server name.
+    ///
+    /// A plain word is a valid pattern, and matches anywhere in the name.
+    ///
+    /// example: ["badserver\\.tld$", "badphrase", "19dollarfortnitecards"]
+    ///
+    /// default: []
+    #[serde(default, with = "serde_regex")]
+    pub forbidden_remote_server_names: RegexSet,
+
     /// Periodically fetch phantom's announcement feed, which carries security
     /// and release notices. Despite the name this checks for announcements,
     /// not for a newer version to install.
@@ -1140,6 +1192,10 @@ fn default_rocksdb_stats_level() -> u8 {
 
 fn default_trusted_servers() -> Vec<OwnedServerName> {
     vec![OwnedServerName::try_from("matrix.org").expect("matrix.org is a valid server name")]
+}
+
+fn default_trusted_server_batch_size() -> usize {
+    256
 }
 
 fn default_turn_ttl() -> u64 {

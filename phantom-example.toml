@@ -387,6 +387,54 @@
 #
 #trusted_servers = ["matrix.org"]
 
+# Ask the notaries in `trusted_servers` for a key before asking the
+# server the key belongs to.
+#
+# Asking the origin first is the safer order: a notary that has been
+# compromised can only answer for keys it was asked about, and it is
+# only asked once the origin has failed to answer. Asking the notaries
+# first is faster, since one notary can answer for many servers at once.
+#
+#query_trusted_key_servers_first = false
+
+# Ask the notaries first, but only while joining a room.
+#
+# A join gathers keys from every server in the room, which is where the
+# per-origin round trips are most noticeable; this bounds the exposure
+# to a compromised notary to that one operation. Ignored where
+# `query_trusted_key_servers_first` is already on.
+#
+#query_trusted_key_servers_first_on_join = true
+
+# Only ever ask the notaries in `trusted_servers` for keys, and never
+# the server a key belongs to.
+#
+# For a cluster behind a notary it operates itself. With no reachable
+# notary holding a key, that key is simply never acquired.
+#
+#only_query_trusted_key_servers = false
+
+# Servers to ask a notary about in one batched request.
+#
+#trusted_server_batch_size = 256
+
+# Send federation requests to other servers.
+#
+# With this off the server still answers what arrives, but never
+# initiates a request of its own, which includes fetching the signing
+# keys needed to verify a remote event.
+#
+#allow_federation = true
+
+# Servers this server refuses to send federation requests to, as regular
+# expressions matched against the server name.
+#
+# A plain word is a valid pattern, and matches anywhere in the name.
+#
+# example: ["badserver\\.tld$", "badphrase", "19dollarfortnitecards"]
+#
+#forbidden_remote_server_names = []
+
 # Periodically fetch phantom's announcement feed, which carries security
 # and release notices. Despite the name this checks for announcements,
 # not for a newer version to install.
