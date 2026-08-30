@@ -5,7 +5,7 @@
 //! see while they were there, and a room that is world-readable today does not
 //! retroactively open what it hid yesterday.
 
-use phantom_core::{Err, Result, implement};
+use phantom_core::{Err, Result, error, implement};
 use ruma::{
     EventId, OwnedUserId, RoomId, UserId,
     events::{
@@ -130,7 +130,19 @@ pub async fn user_can_see_event(
         HistoryVisibility::Invited => self.user_was_invited(shortstatehash, user_id).await,
         HistoryVisibility::Joined => self.user_was_joined(shortstatehash, user_id).await,
         HistoryVisibility::WorldReadable => true,
-        HistoryVisibility::Shared | _ => currently_member,
+        HistoryVisibility::Shared => currently_member,
+        // Non-exhaustive: a room may name a visibility this server has no
+        // rule for, and the safe reading of one is to show nothing.
+        _ => {
+            error!(
+                %room_id,
+                %user_id,
+                ?history_visibility,
+                "Unknown history visibility; hiding the event",
+            );
+
+            false
+        }
     }
 }
 

@@ -5,7 +5,7 @@
 //! them has reached that server anyway.
 
 use futures::StreamExt;
-use phantom_core::{implement, stream::ReadyExt};
+use phantom_core::{error, implement, stream::ReadyExt};
 use ruma::{
     EventId, RoomId, ServerName,
     events::{
@@ -57,6 +57,19 @@ pub async fn server_can_see_event(
                 .any(|member| self.user_was_joined(shortstatehash, member))
                 .await
         }
-        HistoryVisibility::WorldReadable | HistoryVisibility::Shared | _ => true,
+        HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
+        // `HistoryVisibility` is non-exhaustive, so a room can put a value
+        // here that this server has no rule for. Withholding the event is the
+        // safe reading of one: sending it cannot be taken back.
+        _ => {
+            error!(
+                %room_id,
+                %origin,
+                ?history_visibility,
+                "Unknown history visibility; refusing to share the event",
+            );
+
+            false
+        }
     }
 }

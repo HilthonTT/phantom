@@ -417,7 +417,7 @@ impl Service {
     /// later join from a first one.
     #[tracing::instrument(level = "debug", skip(self))]
     fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) {
-        let key = (user_id, room_id);
+        let key = once_joined_key(room_id, user_id);
         self.db.roomuseroncejoinedids.put_raw(key, []).ok();
     }
 
@@ -588,7 +588,7 @@ impl Service {
         &'a self,
         room_id: &'a RoomId,
     ) -> impl Stream<Item = &'a UserId> + Send + 'a {
-        let prefix = (room_id, Interfix);
+        let prefix = once_joined_prefix(room_id);
         self.db
             .roomuseroncejoinedids
             .keys_prefix(&prefix)
@@ -762,7 +762,7 @@ impl Service {
 
     #[tracing::instrument(skip(self), level = "debug")]
     pub async fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> bool {
-        let key = (user_id, room_id);
+        let key = once_joined_key(room_id, user_id);
         self.db.roomuseroncejoinedids.qry(&key).await.is_ok()
     }
 
@@ -1021,6 +1021,22 @@ enum Membership {
     Left,
 }
 
+/// The key one `roomuseroncejoinedids` entry is written under.
+///
+/// Spelled once rather than at each of the three uses, so that the writer,
+/// the point read and the prefix scan cannot drift apart. Building it the
+/// other way round is not an error anywhere: the scan in
+/// [`Service::room_useroncejoined`] would simply return nothing forever,
+/// since a user id can never fall under a room id's prefix.
+fn once_joined_key<'a>(room_id: &'a RoomId, user_id: &'a UserId) -> (&'a RoomId, &'a UserId) {
+    (room_id, user_id)
+}
+
+/// The prefix every [`once_joined_key`] for one room falls under.
+fn once_joined_prefix(room_id: &RoomId) -> (&RoomId, Interfix) {
+    (room_id, Interfix)
+}
+
 /// The rooms in a column of stripped state keyed by (user, room), with that
 /// state deserialized.
 fn stripped_rooms<'a>(
@@ -1037,4 +1053,34 @@ fn stripped_rooms<'a>(
             Ok((room_id.to_owned(), state.deserialize()?))
         })
         .ignore_err()
+}
+
+#[cfg(test)]
+mod tests {
+    use phantom_database::serialize_to_vec;
+    use ruma::{RoomId, UserId};
+
+    use super::{once_joined_key, once_joined_prefix};
+
+    /// `roomuseroncejoinedids` is written a key at a time by
+    /// [`Service::mark_as_once_joined`] and read a room at a time by
+    /// [`Service::room_useroncejoined`], so the key one builds has to fall
+    /// inside the prefix the other scans. Swapping the halves is not an error
+    /// anywhere — the scan just comes back empty forever.
+    ///
+    /// [`Service::mark_as_once_joined`]: super::Service::mark_as_once_joined
+    /// [`Service::room_useroncejoined`]: super::Service::room_useroncejoined
+    #[test]
+    fn once_joined_keys_fall_under_the_room_prefix() {
+        let user_id = UserId::parse("@alice:phantom.test").expect("valid user id");
+        let room_id = RoomId::parse("!room:phantom.test").expect("valid room id");
+
+        let key = serialize_to_vec(once_joined_key(&room_id, &user_id)).expect("serialized");
+        let prefix = serialize_to_vec(once_joined_prefix(&room_id)).expect("serialized");
+
+        assert!(
+            key.starts_with(&prefix),
+            "a once-joined key must be reachable from the room prefix",
+        );
+    }
 }

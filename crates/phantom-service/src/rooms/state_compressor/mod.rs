@@ -510,11 +510,20 @@ async fn get_statediff(&self, shortstatehash: ShortStateHash) -> Result<StateDif
 /// The write half of [`get_statediff`](Service::get_statediff).
 #[implement(Service)]
 fn save_statediff(&self, shortstatehash: ShortStateHash, diff: &StateDiff) {
-    let mut value = Vec::<u8>::with_capacity(
-        2_usize
-            .saturating_add(diff.added.len())
-            .saturating_add(diff.removed.len()),
-    );
+    // In bytes, not entries: the parent word, then one compressed event per
+    // addition, then the separator word and one per removal.
+    const WORD: usize = size_of::<ShortStateHash>();
+    const ENTRY: usize = size_of::<CompressedStateEvent>();
+
+    let separator = usize::from(!diff.removed.is_empty()).saturating_mul(WORD);
+    let entries = diff
+        .added
+        .len()
+        .saturating_add(diff.removed.len())
+        .saturating_mul(ENTRY);
+
+    let mut value =
+        Vec::<u8>::with_capacity(WORD.saturating_add(separator).saturating_add(entries));
 
     let parent = diff.parent.unwrap_or(0_u64);
     value.extend_from_slice(&parent.to_be_bytes());

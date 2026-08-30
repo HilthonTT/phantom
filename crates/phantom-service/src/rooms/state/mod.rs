@@ -46,7 +46,7 @@ use crate::{
     Dep, rooms,
     rooms::{
         short::{ShortEventId, ShortStateHash},
-        state_compressor::{CompressedState, parse_compressed_state_event},
+        state_compressor::{CompressedState, compress_state_event, parse_compressed_state_event},
     },
     server_state,
 };
@@ -319,15 +319,14 @@ impl Service {
             .await;
 
         // The compressed form sorts by state key, so what this event replaces
-        // is whatever already sits at that key.
+        // is the first entry in the range that key spans. A range query rather
+        // than a scan: this runs for every state event, and the alternative
+        // walks the room's entire state each time.
+        let start = compress_state_event(shortstatekey, 0);
+        let end = compress_state_event(shortstatekey, ShortEventId::MAX);
         let replaces = states_parents
             .last()
-            .map(|info| {
-                info.full_state
-                    .iter()
-                    .find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
-            })
-            .unwrap_or_default();
+            .and_then(|info| info.full_state.range(start..=end).next());
 
         if Some(&new) == replaces {
             return previous_shortstatehash.map_err(|e| {

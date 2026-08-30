@@ -555,75 +555,39 @@ impl Service {
         notify: bool,
     ) -> Result<()> {
         // TODO: Check signatures
-        let mut prefix = user_id.as_bytes().to_vec();
-        prefix.push(0xFF);
+        let keys = [
+            (master_key, &self.db.userid_masterkeyid, "Master"),
+            (
+                self_signing_key,
+                &self.db.userid_selfsigningkeyid,
+                "Self signing",
+            ),
+            (
+                user_signing_key,
+                &self.db.userid_usersigningkeyid,
+                "User signing",
+            ),
+        ];
 
-        if let Some(master_key) = master_key {
-            let (master_key_key, _) = parse_master_key(user_id, master_key)?;
+        for (key, index, what) in keys {
+            let Some(key) = key else {
+                continue;
+            };
 
-            self.db
-                .keyid_key
-                .insert(&master_key_key, master_key.json().get().as_bytes())
-                .ok();
+            let (public_key, _) = parse_cross_signing_key(key, what)?;
 
-            self.db
-                .userid_masterkeyid
-                .insert(user_id.as_bytes(), &master_key_key)
-                .ok();
-        }
-
-        // Self-signing key
-        if let Some(self_signing_key) = self_signing_key {
-            let mut self_signing_key_ids = self_signing_key
-                .deserialize()
-                .map_err(|e| err!(Request(InvalidParam("Invalid self signing key: {e:?}"))))?
-                .keys
-                .into_values();
-
-            let self_signing_key_id = self_signing_key_ids
-                .next()
-                .ok_or_else(|| err!(Request(InvalidParam("Self signing key contained no key."))))?;
-
-            if self_signing_key_ids.next().is_some() {
-                return Err!(Request(InvalidParam(
-                    "Self signing key contained more than one key."
-                )));
-            }
-
-            let mut self_signing_key_key = prefix.clone();
-            self_signing_key_key.extend_from_slice(self_signing_key_id.as_bytes());
+            // The same (user, public key) pair both ways round: the id column
+            // stores the key this one is written under, and is read back as
+            // the key to `keyid_key`.
+            let keyid = serialize_to_vec((user_id, &public_key))
+                .expect("failed to serialize cross-signing key id");
 
             self.db
                 .keyid_key
-                .insert(
-                    &self_signing_key_key,
-                    self_signing_key.json().get().as_bytes(),
-                )
+                .insert(&keyid, key.json().get().as_bytes())
                 .ok();
 
-            self.db
-                .userid_selfsigningkeyid
-                .insert(user_id.as_bytes(), &self_signing_key_key)
-                .ok();
-        }
-
-        // User-signing key
-        if let Some(user_signing_key) = user_signing_key {
-            let user_signing_key_id = parse_user_signing_key(user_signing_key)?;
-
-            let user_signing_key_key = (user_id, &user_signing_key_id);
-            self.db
-                .keyid_key
-                .put_raw(
-                    user_signing_key_key,
-                    user_signing_key.json().get().as_bytes(),
-                )
-                .ok();
-
-            self.db
-                .userid_usersigningkeyid
-                .put(user_id, user_signing_key_key)
-                .ok();
+            index.insert(user_id.as_bytes(), &keyid).ok();
         }
 
         if notify {
@@ -1113,52 +1077,51 @@ impl Service {
     }
 }
 
+/// The one public key a cross-signing key carries, with the key itself.
+///
+/// The spec allows exactly one, and the column layout depends on it: the
+/// public key is what the key is stored under, so a second one would be
+/// silently dropped rather than stored beside the first.
+///
+/// `what` names the key in the errors — "Master", "Self signing", "User
+/// signing" — since all three are parsed through here.
+pub fn parse_cross_signing_key(
+    key: &Raw<CrossSigningKey>,
+    what: &str,
+) -> Result<(String, CrossSigningKey)> {
+    let key: CrossSigningKey = key
+        .deserialize()
+        .map_err(|e| err!(Request(InvalidParam("Invalid {what} key: {e}"))))?;
+
+    let mut public_keys = key.keys.values();
+    let public_key = public_keys
+        .next()
+        .ok_or_else(|| err!(Request(InvalidParam("{what} key contained no key."))))?
+        .clone();
+
+    if public_keys.next().is_some() {
+        return Err!(Request(InvalidParam(
+            "{what} key contained more than one key."
+        )));
+    }
+
+    Ok((public_key, key))
+}
+
+/// The key `master_key` is stored under, with the key itself.
 pub fn parse_master_key(
     user_id: &UserId,
     master_key: &Raw<CrossSigningKey>,
 ) -> Result<(Vec<u8>, CrossSigningKey)> {
-    let mut prefix = user_id.as_bytes().to_vec();
-    prefix.push(0xFF);
+    let (public_key, master_key) = parse_cross_signing_key(master_key, "Master")?;
+    let keyid = serialize_to_vec((user_id, &public_key))?;
 
-    let master_key = master_key
-        .deserialize()
-        .map_err(|_| err!(Request(InvalidParam("Invalid master key"))))?;
-
-    let mut master_key_ids = master_key.keys.values();
-    let master_key_id = master_key_ids
-        .next()
-        .ok_or_else(|| err!(Request(InvalidParam("Master key contained no key."))))?;
-
-    if master_key_ids.next().is_some() {
-        return Err!(Request(InvalidParam(
-            "Master key contained more than one key."
-        )));
-    }
-    let mut master_key_key = prefix.clone();
-    master_key_key.extend_from_slice(master_key_id.as_bytes());
-    Ok((master_key_key, master_key))
+    Ok((keyid, master_key))
 }
 
+/// The public key of `user_signing_key`.
 pub fn parse_user_signing_key(user_signing_key: &Raw<CrossSigningKey>) -> Result<String> {
-    let mut user_signing_key_ids = user_signing_key
-        .deserialize()
-        .map_err(|_| err!(Request(InvalidParam("Invalid user signing key"))))?
-        .keys
-        .into_values();
-
-    let user_signing_key_id = user_signing_key_ids
-        .next()
-        .ok_or(err!(Request(InvalidParam(
-            "User signing key contained no key."
-        ))))?;
-
-    if user_signing_key_ids.next().is_some() {
-        return Err!(Request(InvalidParam(
-            "User signing key contained more than one key."
-        )));
-    }
-
-    Ok(user_signing_key_id)
+    parse_cross_signing_key(user_signing_key, "User signing").map(at!(0))
 }
 
 /// Ensure that a user only sees signatures from themselves and the target user
