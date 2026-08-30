@@ -2191,11 +2191,25 @@ dependencies = [
  "assign",
  "js_int",
  "js_option",
+ "ruma-appservice-api",
  "ruma-client-api",
  "ruma-common",
  "ruma-events",
  "ruma-signatures",
  "web-time",
+]
+
+[[package]]
+name = "ruma-appservice-api"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97235ed48b607dbe12a7871ce0e9223a2b5a2cff4523bd68985d69b613c5b981"
+dependencies = [
+ "js_int",
+ "ruma-common",
+ "ruma-events",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

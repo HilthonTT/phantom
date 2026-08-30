@@ -13,6 +13,7 @@
 //! service.
 
 pub mod account_data;
+pub mod appservice;
 pub mod client;
 pub mod config;
 pub mod key_backups;
