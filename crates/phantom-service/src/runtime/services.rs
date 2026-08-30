@@ -77,6 +77,7 @@ impl Services {
                 metadata: build!(rooms::metadata::Service),
                 outlier: build!(rooms::outlier::Service),
                 pdu_metadata: build!(rooms::pdu_metadata::Service),
+                threads: build!(rooms::threads::Service),
                 user: build!(rooms::user::Service),
             },
             server_state: build!(server_state::Service),

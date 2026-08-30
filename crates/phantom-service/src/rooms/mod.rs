@@ -18,6 +18,7 @@ pub mod metadata;
 pub mod outlier;
 pub mod pdu_metadata;
 pub mod short;
+pub mod threads;
 pub mod timeline;
 pub mod user;
 
@@ -33,5 +34,6 @@ pub struct Services {
     pub auth_chain: Arc<auth_chain::Service>,
     pub pdu_metadata: Arc<pdu_metadata::Service>,
     pub lazy_loading: Arc<lazy_loading::Service>,
+    pub threads: Arc<threads::Service>,
     pub user: Arc<user::Service>,
 }

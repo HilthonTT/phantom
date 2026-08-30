@@ -1,8 +1,8 @@
 use ruma::{
     events::{
-        AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent, AnySyncStateEvent,
-        AnySyncTimelineEvent, AnyTimelineEvent, StateEvent, room::member::RoomMemberEventContent,
-        space::child::HierarchySpaceChildEvent,
+        AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent, AnySyncMessageLikeEvent,
+        AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent, StateEvent,
+        room::member::RoomMemberEventContent, space::child::HierarchySpaceChildEvent,
     },
     serde::Raw,
 };
@@ -118,6 +118,43 @@ pub fn to_message_like_event_value(&self) -> JsonValue {
     }
     if let Some(state_key) = &self.state_key {
         json["state_key"] = json!(state_key);
+    }
+    if let Some(redacts) = &redacts {
+        json["redacts"] = json!(redacts);
+    }
+
+    json
+}
+
+#[implement(super::Pdu)]
+#[must_use]
+#[inline]
+pub fn into_sync_message_like_event(self) -> Raw<AnySyncMessageLikeEvent> {
+    self.to_sync_message_like_event()
+}
+
+#[implement(super::Pdu)]
+#[must_use]
+pub fn to_sync_message_like_event(&self) -> Raw<AnySyncMessageLikeEvent> {
+    serde_json::from_value(self.to_sync_message_like_event_value())
+        .expect("Raw::from_value always works")
+}
+
+#[implement(super::Pdu)]
+#[must_use]
+#[inline]
+pub fn to_sync_message_like_event_value(&self) -> JsonValue {
+    let (redacts, content) = self.copy_redacts();
+    let mut json = json!({
+        "content": content,
+        "type": self.kind,
+        "event_id": self.event_id,
+        "sender": self.sender,
+        "origin_server_ts": self.origin_server_ts,
+    });
+
+    if let Some(unsigned) = &self.unsigned {
+        json["unsigned"] = json!(unsigned);
     }
     if let Some(redacts) = &redacts {
         json["redacts"] = json!(redacts);
