@@ -422,6 +422,32 @@
 #
 #allow_device_name_federation = false
 
+# Seconds a user may be idle before their presence is moved from
+# "online" to "unavailable".
+#
+# The clock starts at the last presence update the user's client sent,
+# so a client that pings while a person is away keeps them online.
+#
+#presence_idle_timeout_s = 300
+
+# Seconds a user may stay "unavailable" before their presence is moved
+# to "offline".
+#
+# Measured from the same last update as `presence_idle_timeout_s`
+# rather than from the move to "unavailable", so it wants to be the
+# larger of the two.
+#
+#presence_offline_timeout_s = 1800
+
+# Time out remote users' presence as well as local users'.
+#
+# A remote server sends presence for its own users and stops sending
+# when they go quiet, which leaves them showing as online here forever.
+# Timing them out locally is what clears that, at the cost of a timer
+# per remote user this server has heard about.
+#
+#presence_timeout_remote_users = true
+
 # Notary servers to gather other servers' public keys from, when this
 # server does not already hold a key it needs.
 #

@@ -536,6 +536,38 @@ pub struct Config {
     #[serde(default)]
     pub allow_device_name_federation: bool,
 
+    /// Seconds a user may be idle before their presence is moved from
+    /// "online" to "unavailable".
+    ///
+    /// The clock starts at the last presence update the user's client sent,
+    /// so a client that pings while a person is away keeps them online.
+    ///
+    /// default: 300
+    #[serde(default = "default_presence_idle_timeout_s")]
+    pub presence_idle_timeout_s: u64,
+
+    /// Seconds a user may stay "unavailable" before their presence is moved
+    /// to "offline".
+    ///
+    /// Measured from the same last update as `presence_idle_timeout_s`
+    /// rather than from the move to "unavailable", so it wants to be the
+    /// larger of the two.
+    ///
+    /// default: 1800
+    #[serde(default = "default_presence_offline_timeout_s")]
+    pub presence_offline_timeout_s: u64,
+
+    /// Time out remote users' presence as well as local users'.
+    ///
+    /// A remote server sends presence for its own users and stops sending
+    /// when they go quiet, which leaves them showing as online here forever.
+    /// Timing them out locally is what clears that, at the cost of a timer
+    /// per remote user this server has heard about.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub presence_timeout_remote_users: bool,
+
     /// Notary servers to gather other servers' public keys from, when this
     /// server does not already hold a key it needs.
     ///
@@ -1199,6 +1231,14 @@ fn default_openid_token_ttl() -> u64 {
 
 fn default_login_token_ttl() -> u64 {
     2 * 60 * 1000
+}
+
+fn default_presence_idle_timeout_s() -> u64 {
+    5 * 60
+}
+
+fn default_presence_offline_timeout_s() -> u64 {
+    30 * 60
 }
 
 fn default_db_pool_workers() -> usize {
