@@ -134,6 +134,7 @@ Currently built:
 | `transaction_id` | what a transaction id was answered with, so a retry gets the original response |
 | `rooms` | a placeholder tree — only `rooms::outlier` exists, and it is unimplemented |
 | `admin` | the admin room, who counts as an admin, and the command queue |
+| `pusher` | the push gateways a client registered, and the notifications sent through them |
 
 The interesting parts of the runtime are the three problems it solves.
 

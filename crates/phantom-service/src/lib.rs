@@ -21,6 +21,7 @@ pub mod emergency;
 pub mod federation;
 pub mod key_backups;
 pub mod presence;
+pub mod pusher;
 pub mod resolver;
 pub mod rooms;
 pub mod runtime;

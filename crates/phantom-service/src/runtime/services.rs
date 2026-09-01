@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     account_data, admin, appservice, client, config, emergency, federation, key_backups, presence,
-    resolver, rooms, server_keys, server_state, transaction_id, users,
+    pusher, resolver, rooms, server_keys, server_state, transaction_id, users,
 };
 
 /// Every service the server is built out of, and the database they share.
@@ -36,6 +36,7 @@ pub struct Services {
     pub users: Arc<users::Service>,
     pub emergency: Arc<emergency::Service>,
     pub presence: Arc<presence::Service>,
+    pub pusher: Arc<pusher::Service>,
     pub admin: Arc<admin::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
@@ -84,6 +85,8 @@ impl Services {
                 state_accessor: build!(rooms::state_accessor::Service),
                 state_cache: build!(rooms::state_cache::Service),
                 state_compressor: build!(rooms::state_compressor::Service),
+                search: build!(rooms::search::Service),
+                read_receipt: build!(rooms::read_receipt::Service),
                 timeline: build!(rooms::timeline::Service),
                 auth_chain: build!(rooms::auth_chain::Service),
                 lazy_loading: build!(rooms::lazy_loading::Service),
@@ -102,6 +105,7 @@ impl Services {
             users: build!(users::Service),
             emergency: build!(emergency::Service),
             presence: build!(presence::Service),
+            pusher: build!(pusher::Service),
             admin: build!(admin::Service),
 
             manager: Mutex::new(None),

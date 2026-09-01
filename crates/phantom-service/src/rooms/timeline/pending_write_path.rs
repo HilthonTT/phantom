@@ -21,6 +21,10 @@
 //!   `rooms::event_handler`, `sending`, `server_keys`
 //! - `check_pdu_for_admin_room`: `admin`, `rooms::state_cache`
 //!
+//! Of those, `admin`, `pusher`, `rooms::search` and `rooms::read_receipt` have
+//! since landed. What the write path is still missing is `sending`,
+//! `rooms::alias`, `rooms::spaces` and `rooms::event_handler`.
+//!
 //! The imports the parked code needs are conduwuit's, not phantom's, and are
 //! left alone for the same reason the bodies are:
 //!

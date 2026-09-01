@@ -180,7 +180,10 @@ pub async fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId
 /// no creators, which grants nothing: an unreadable room is not one where
 /// everyone is privileged.
 #[implement(super::Service)]
-async fn power_level_context(&self, room_id: &RoomId) -> (AuthorizationRules, Vec<OwnedUserId>) {
+pub async fn power_level_context(
+    &self,
+    room_id: &RoomId,
+) -> (AuthorizationRules, Vec<OwnedUserId>) {
     let Ok(create) = self
         .room_state_get(room_id, &StateEventType::RoomCreate, "")
         .await
