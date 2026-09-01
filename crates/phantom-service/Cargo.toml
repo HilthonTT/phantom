@@ -33,7 +33,7 @@ futures = "0.3.34"
 # The resolver drives hickory directly rather than through reqwest's own
 # integration: resolving a Matrix server name is not a plain A/AAAA lookup,
 # and the SRV and well-known steps need the resolver on their own terms.
-hickory-resolver = { version = "0.25.2", default-features = false, features = [
+hickory-resolver = { version = "0.26.1", default-features = false, features = [
     "system-config",
     "tokio",
 ] }
