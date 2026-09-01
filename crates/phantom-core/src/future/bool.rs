@@ -40,10 +40,6 @@ where
     I: Iterator<Item = F> + Send,
     F: Future<Output = bool> + Send,
 {
-    // `select_ok` panics on an empty iterator, while `FuturesUnordered` yields
-    // `false` for it, matching `Iterator::any`. It also polls concurrently and
-    // short-circuits on the first `true`, so it costs nothing over `select_ok`
-    // and drops the `Unpin` bound the latter requires.
     args.collect::<FuturesUnordered<_>>().any(ready)
 }
 
@@ -115,7 +111,6 @@ mod tests {
     fn free_and() {
         assert!(block_on(and([ready(true), ready(true)].into_iter())));
         assert!(!block_on(and([ready(true), ready(false)].into_iter())));
-        // An empty iterator is vacuously true, matching `Iterator::all`.
         let empty = std::iter::empty::<Ready<bool>>();
         assert!(block_on(and(empty)));
     }
@@ -124,7 +119,6 @@ mod tests {
     fn free_or() {
         assert!(block_on(or([ready(false), ready(true)].into_iter())));
         assert!(!block_on(or([ready(false), ready(false)].into_iter())));
-        // An empty iterator is vacuously false, matching `Iterator::any`.
         let empty = std::iter::empty::<Ready<bool>>();
         assert!(!block_on(or(empty)));
     }

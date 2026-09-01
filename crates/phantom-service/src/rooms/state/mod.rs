@@ -140,9 +140,6 @@ impl Service {
             })
             .ignore_err();
 
-        // Only membership needs following through: it is the state the
-        // indexes in `state_cache` duplicate, so it is the state that goes
-        // stale if the new version is written without them.
         pin_mut!(event_ids);
         while let Some(event_id) = event_ids.next().await {
             let Ok(pdu) = self.services.timeline.get_pdu(&event_id).await else {
@@ -246,9 +243,6 @@ impl Service {
                 shortstatehash,
                 statediffnew,
                 statediffremoved,
-                // Deliberately large: nothing will be layered on top of a
-                // state recorded for one event, so there is no sibling for
-                // this diff to be judged against.
                 1_000_000,
                 states_parents,
             )?;
@@ -281,8 +275,6 @@ impl Service {
 
         let previous_shortstatehash = self.get_room_shortstatehash(&new_pdu.room_id).await;
 
-        // The state the event was accepted against is the state *before* it,
-        // which is the room's current version at this point.
         if let Ok(p) = previous_shortstatehash {
             self.db
                 .shorteventid_shortstatehash
@@ -291,7 +283,6 @@ impl Service {
         }
 
         let Some(state_key) = &new_pdu.state_key else {
-            // Not a state event, so the state is unchanged.
             return previous_shortstatehash
                 .map_err(|e| err!(Database("first event in room must be a state event: {e}")));
         };
@@ -318,10 +309,6 @@ impl Service {
             .compress_state_event(shortstatekey, &new_pdu.event_id)
             .await;
 
-        // The compressed form sorts by state key, so what this event replaces
-        // is the first entry in the range that key spans. A range query rather
-        // than a scan: this runs for every state event, and the alternative
-        // walks the room's entire state each time.
         let start = compress_state_event(shortstatekey, 0);
         let end = compress_state_event(shortstatekey, ShortEventId::MAX);
         let replaces = states_parents
@@ -336,8 +323,6 @@ impl Service {
             });
         }
 
-        // TODO: derive the version from the state, as `set_event_state` does,
-        // so that two servers reaching the same state agree on its short id.
         let shortstatehash = self.services.server_state.next_count()?;
 
         let mut statediffnew = CompressedState::new();
@@ -369,7 +354,6 @@ impl Service {
             (&StateEventType::RoomCanonicalAlias, ""),
             (&StateEventType::RoomName, ""),
             (&StateEventType::RoomAvatar, ""),
-            // So the invitee can see who invited them.
             (&StateEventType::RoomMember, event.sender.as_str()),
             (&StateEventType::RoomEncryption, ""),
             (&StateEventType::RoomTopic, ""),
@@ -489,15 +473,11 @@ impl Service {
         content: &serde_json::value::RawValue,
     ) -> Result<StateMap<PduEvent>> {
         let Ok(shortstatehash) = self.get_room_shortstatehash(room_id).await else {
-            // A room with no state is a room being created, whose first event
-            // has nothing to be authorized against.
             return Ok(HashMap::new());
         };
 
         let auth_types = state_res::auth_types_for_event(kind, sender, state_key, content)?;
 
-        // Matching on short ids rather than on (type, state key) pairs: the
-        // state is walked once, and each entry is one integer comparison.
         let sauthevents: HashMap<_, _> = auth_types
             .iter()
             .stream()

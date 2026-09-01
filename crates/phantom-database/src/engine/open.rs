@@ -27,9 +27,6 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
     let config = &server.config;
     let path = &config.database_path;
 
-    // Spawned before the database is opened so that a failure to size the
-    // pool — which reads the storage topology — is reported before anything
-    // has been touched on disk.
     let pool = Pool::new(server)?;
 
     let db_opts = db_options(

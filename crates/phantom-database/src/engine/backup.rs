@@ -25,8 +25,6 @@ pub fn backup(&self) -> Result {
     let options = BackupEngineOptions::new(path).map_err(map_err)?;
     let mut engine = BackupEngine::open(&options, &*self.ctx.env.lock()?).map_err(map_err)?;
     if config.database_backups_to_keep > 0 {
-        // A read-only or secondary instance cannot flush, and asking it to
-        // fails the backup outright.
         let flush = !self.is_read_only();
         engine
             .create_new_backup_flush(&self.db, flush)

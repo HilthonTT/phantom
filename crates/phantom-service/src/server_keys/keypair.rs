@@ -22,9 +22,6 @@ pub(super) fn init(db: &Arc<Database>) -> Result<(Box<Ed25519KeyPair>, VerifyKey
 
 fn load(db: &Arc<Database>) -> Result<Box<Ed25519KeyPair>> {
     let (version, der) = match db["global"].get_blocking(b"keypair") {
-        // The DER document is the trailing record, so it is read as a borrow
-        // and copied out here; deserializing it as a `Vec<u8>` would nest a
-        // sequence inside the tuple, which the codec does not do.
         Ok(handle) => {
             let (version, der): (&str, &[u8]) = handle.de()?;
             (version.to_owned(), der.to_vec())

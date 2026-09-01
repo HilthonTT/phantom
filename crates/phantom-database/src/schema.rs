@@ -71,8 +71,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "disabledroomids",
         ..descriptor::RANDOM_SMALL
     },
-    // Events that arrived without their place in a room's history. Held with
-    // the room's own events, which is what they are compared against.
     Descriptor {
         name: "eventid_outlierpdu",
         cache_disp: CacheDisp::SharedWith("pduid_pdu"),
@@ -80,8 +78,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
         index_size: 512,
         ..descriptor::RANDOM
     },
-    // Read on the way into nearly every request that names an event, so it
-    // gets a cache of its own rather than competing for the shared one.
     Descriptor {
         name: "eventid_pduid",
         cache_disp: CacheDisp::Unique,
@@ -136,9 +132,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "openidtoken_expiresatuserid",
         ..descriptor::RANDOM_SMALL
     },
-    // The events themselves, and the largest column by far. Keys are ordered
-    // by room and then by position in it, so writes land at the end of each
-    // room's range rather than across the keyspace.
     Descriptor {
         name: "pduid_pdu",
         cache_disp: CacheDisp::SharedWith("eventid_outlierpdu"),
@@ -194,8 +187,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "roomserverids",
         ..descriptor::RANDOM_SMALL
     },
-    // Written once per sync token per room and never updated, so it compacts
-    // hard: the data is cold the moment the next token is issued.
     Descriptor {
         name: "roomsynctoken_shortstatehash",
         file_shape: 3,
@@ -252,8 +243,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "servercurrentevent_data",
         ..descriptor::RANDOM_SMALL
     },
-    // Resolution results for remote servers, which go stale on their own; the
-    // cache archetype drops the oldest entries once the column fills.
     Descriptor {
         name: "servername_destination",
         ..descriptor::RANDOM_SMALL_CACHE
@@ -382,8 +371,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "userid_masterkeyid",
         ..descriptor::RANDOM_SMALL
     },
-    // Password hashes are read on every login and nowhere else, so this is
-    // sized for reads that miss rather than for a working set.
     Descriptor {
         name: "userid_password",
         ..descriptor::RANDOM

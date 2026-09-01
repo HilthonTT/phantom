@@ -41,7 +41,7 @@ fn lexico_topo_sort(c: &mut test::Bencher) {
         event_id("l") => hashset![event_id("o")],
         event_id("m") => hashset![event_id("n"), event_id("o")],
         event_id("n") => hashset![event_id("o")],
-        event_id("o") => hashset![], // "o" has zero outgoing edges but 4 incoming edges
+        event_id("o") => hashset![],
         event_id("p") => hashset![event_id("o")],
     };
 
@@ -57,7 +57,6 @@ fn resolution_shallow_auth_chain(c: &mut test::Bencher) {
     let parallel_fetches = 32;
     let mut store = TestStore(hashmap! {});
 
-    // build up the DAG
     let (state_at_bob, state_at_charlie, _) = store.set_up();
 
     c.iter(|| async {
@@ -163,8 +162,8 @@ fn BAN_STATE_SET() -> HashMap<OwnedEventId, Arc<PduEvent>> {
             TimelineEventType::RoomPowerLevels,
             Some(""),
             to_raw_json_value(&json!({ "users": { alice(): 100, bob(): 50 } })).unwrap(),
-            &["CREATE", "IMA", "IPOWER"], // auth_events
-            &["START"],                   // prev_events
+            &["CREATE", "IMA", "IPOWER"],
+            &["START"],
         ),
         to_pdu_event(
             "PB",

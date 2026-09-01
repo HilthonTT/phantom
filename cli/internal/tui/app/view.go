@@ -41,9 +41,6 @@ func (m Model) render() string {
 // renderMain is the sidebar, the workspace and — where the terminal is wide
 // enough — the inspector.
 func (m Model) renderMain() string {
-	// The sidebar marks the section the workspace is showing, except while the
-	// sidebar itself has the keyboard, when it marks where its own cursor is —
-	// so that walking it previews what opening would do.
 	open := m.workspace.Section()
 	if m.focus == focusSidebar {
 		if selected, ok := m.sidebar.Selected(); ok {

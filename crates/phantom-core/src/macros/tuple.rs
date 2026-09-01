@@ -106,8 +106,6 @@ mod tests {
             .collect();
         assert_eq!(pairs, [("a".to_owned(), "b".to_owned())]);
 
-        // The reference implementation's four-element arm applied `$f + 4` to
-        // the last element, which only compiled for a numeric `$f`.
         let quads: Vec<_> = [("1", "2", "3", "4")]
             .into_iter()
             .map(apply!(4, str::parse::<u8>))

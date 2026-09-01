@@ -66,8 +66,6 @@ fn a_non_exclusive_namespace_is_matched_but_not_claimed() {
 
 #[test]
 fn an_appservice_always_matches_its_own_sender() {
-    // No namespace covers it: the sender is the appservice's own user whether
-    // or not the registration says so.
     let info = registration("irc", "irc_bot", "irc", exclusive_users("@irc_.*"));
     let sender = UserId::parse("@irc_bot:phantom.test").expect("valid user id");
 
@@ -107,12 +105,10 @@ fn a_shared_token_collides() {
 fn a_sender_inside_another_exclusive_namespace_collides() {
     let irc = registration("irc", "irc_bot", "irc", exclusive_users("@irc_.*"));
 
-    // Sends as a user the registered appservice claims for itself.
     let squatter = registration("squatter", "irc_squatter", "squatter", vec![]);
     check_collisions(&registered([irc.clone()]), &squatter, &server_name())
         .expect_err("the sender is claimed by irc");
 
-    // And the other way round: claims the user the registered one sends as.
     let claimer = registration("claimer", "claimer", "claimer", exclusive_users("@irc_bot"));
     check_collisions(&registered([irc]), &claimer, &server_name())
         .expect_err("irc's sender is claimed");

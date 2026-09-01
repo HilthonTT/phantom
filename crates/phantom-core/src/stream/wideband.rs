@@ -91,8 +91,6 @@ mod tests {
 
     #[tokio::test]
     async fn results_keep_the_input_order() {
-        // The same workload the broadband test uses, where the futures finish
-        // in reverse; here that must not show up in the output.
         let out: Vec<u8> = (1_u8..=4)
             .stream()
             .wide_then(|item| async move {

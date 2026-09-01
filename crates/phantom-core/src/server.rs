@@ -117,9 +117,6 @@ impl Server {
     /// Resolves once the server is shutting down.
     #[inline]
     pub async fn until_shutdown(self: &Arc<Self>) {
-        // Subscribed before the first check, so a signal sent between the two
-        // is queued rather than missed. Re-subscribing inside the loop, as the
-        // reference did, reopens that window on every iteration.
         let mut signal = self.signal.subscribe();
 
         while self.running() {
@@ -263,8 +260,6 @@ mod tests {
     fn a_failed_shutdown_does_not_leave_the_server_marked_stopping() {
         let server = server();
 
-        // With no subscriber the broadcast has nowhere to send, which is what
-        // the rollback in `shutdown` is for.
         server.shutdown().expect_err("no receivers");
 
         assert!(server.running(), "the stopping flag was rolled back");
@@ -283,7 +278,6 @@ mod tests {
         let waiter = server.clone();
         let waiting = tokio::spawn(async move { waiter.until_shutdown().await });
 
-        // Yield until the task has subscribed, then signal it.
         tokio::task::yield_now().await;
         while server.shutdown().is_err() {
             tokio::task::yield_now().await;

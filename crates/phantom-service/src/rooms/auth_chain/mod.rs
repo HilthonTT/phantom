@@ -83,7 +83,7 @@ pub async fn get_auth_chain<'a, I>(
 where
     I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 {
-    const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
+    const NUM_BUCKETS: usize = 50;
     const BUCKET: Bucket<'_> = BTreeSet::new();
 
     let started = Instant::now();

@@ -67,10 +67,6 @@ pub async fn readreceipt_update(
     event: &ReceiptEvent,
 ) -> Result {
     self.db.readreceipt_update(user_id, room_id, event).await
-
-    // Upstream then flushes the room's outbound queue, so the receipt reaches
-    // the other servers now rather than with whatever is sent next. phantom
-    // has no sending service yet; that call belongs here when it does.
 }
 
 /// The user's own private read receipt, as a sync event.
@@ -108,9 +104,6 @@ pub async fn private_read_get(
     let event_id: OwnedEventId = pdu.event_id;
     let user_id: OwnedUserId = user_id.to_owned();
 
-    // The default is an unthreaded receipt with no timestamp, which is what
-    // this is: the timestamp is not stored, and a receipt without one is
-    // valid where inventing one would not be.
     let receipt = Receipt::default();
 
     let content = ReceiptEventContent(BTreeMap::from_iter([(

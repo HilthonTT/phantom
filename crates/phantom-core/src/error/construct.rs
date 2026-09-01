@@ -75,9 +75,6 @@ macro_rules! err {
 		)
 	};
 
-	// The message is normalized into a `message` field here rather than left for
-	// `err_log!` to do: its normalizing arm only fires when the format string is
-	// the first token, and here it follows the `config` field.
 	(Config($item:literal, $fmt:literal $(, $($arg:tt)+)?)) => {{
 		let mut buf = String::new();
 		$crate::error::Error::Config($item, $crate::err_log!(
@@ -118,9 +115,6 @@ macro_rules! err {
 /// associated logging and tracing event dispatches.
 #[macro_export]
 macro_rules! err_log {
-	// A bare format string is normalized into a `message` field first, exactly
-	// as tracing's own `event!` does before handing off to `fieldset!` and
-	// `valueset!` — neither of those accepts loose format args.
 	($out:ident, $level:ident, $fmt:literal $(, $($arg:tt)+)?) => {
 		$crate::err_log!(@fields $out, $level, message = ::std::format_args!($fmt $(, $($arg)+)?))
 	};

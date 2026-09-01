@@ -44,8 +44,6 @@ func widths(cols []resource.Column, available int) []int {
 		visible = append(visible, i)
 	}
 
-	// The flexible column is never the one dropped: it carries the identity of
-	// the row, and a listing of everything but the name is no listing.
 	for len(visible) > 1 && required(cols, visible, flex) > available {
 		drop := len(visible) - 1
 		if visible[drop] == flex {

@@ -32,17 +32,12 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
     let device_name = storage::name_from_path(path).log_debug_err().ok();
     let device = storage::parallelism(path);
 
-    // Only consulted where the device told us nothing, in which case it is
-    // also the entire worker count.
     let fallback = device.mq.is_empty().then_some(config.db_pool_workers);
 
     let worker_counts = worker_counts(&device, config.db_pool_workers_limit)
         .chain(fallback)
         .collect::<Vec<_>>();
 
-    // The software queue between a tokio worker and a pool worker. Sized off
-    // the workers draining it, since a queue deeper than its workers can serve
-    // only converts a bounded wait into an unbounded one.
     let queue_sizes: Vec<_> = worker_counts
         .iter()
         .map(|workers| {
@@ -54,8 +49,6 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
 
     let topology = topology(&device);
 
-    // The device's total tag count is the real ceiling: workers past it would
-    // queue inside the kernel instead of here, where the backpressure is.
     let max_workers = device
         .mq
         .iter()
@@ -70,8 +63,6 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
         .fold(0_usize, usize::saturating_add)
         .clamp(WORKER_LIMIT.0, max_workers);
 
-    // Now that the shape of the pool is known, the stream combinators can be
-    // told how much concurrency it will actually absorb.
     if config.stream_width_scale > 0.0 {
         update_stream_width(server, queue_sizes.len().max(1), total_workers);
     }
@@ -258,8 +249,6 @@ mod tests {
 
         let topology = topology(&device);
 
-        // Only the cores actually available to the test process were mapped,
-        // so check the ones that were rather than asserting on both.
         for (core, &queue) in topology.iter().enumerate().take(2) {
             if is_core_available(core) {
                 assert_eq!(queue, core, "core {core} should map to queue {core}");

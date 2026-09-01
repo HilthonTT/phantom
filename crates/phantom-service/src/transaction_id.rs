@@ -46,7 +46,6 @@ pub fn add_txnid(
     let _ = self.db.userdevicetxnid_response.insert(&key, data);
 }
 
-// If there's no entry, this is a new transaction
 #[implement(Service)]
 pub async fn existing_txnid(
     &self,

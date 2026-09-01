@@ -50,8 +50,6 @@ impl ConsoleWriter {
         Self {
             stdout: io::stdout(),
             stderr: io::stderr(),
-            // Under systemd both streams reach the journal, but stderr is
-            // where a unit's diagnostics are conventionally read from.
             use_stderr: journal_stream().is_some(),
         }
     }
@@ -99,8 +97,6 @@ pub struct ConsoleFormat {
 impl ConsoleFormat {
     #[must_use]
     pub fn new(config: &Config) -> Self {
-        // ANSI escapes are noise in the journal, which stores the bytes as they
-        // arrive and has its own colouring on playback.
         let ansi = config.log_colors && !is_systemd_mode();
 
         Self {
@@ -175,9 +171,6 @@ impl Visit for ConsoleVisitor<'_> {
         self.visitor.record_debug(field, value);
     }
 
-    // The remaining `record_*` methods default to `record_debug`, but these two
-    // are specialised by `DefaultVisitor` — an unquoted message, and an error's
-    // source chain — so they are forwarded rather than flattened.
     fn record_str(&mut self, field: &Field, value: &str) {
         if is_internal(field) {
             return;
@@ -229,9 +222,6 @@ mod tests {
 
     #[test]
     fn journal_stream_rejects_anything_else() {
-        // A malformed value must not be read as "connected to the journal";
-        // the reference parsed it as (0, 0) and drew the same conclusion as it
-        // did for an absent variable, only after already deciding it was set.
         assert_eq!(parse_journal_stream(""), None);
         assert_eq!(parse_journal_stream("8"), None);
         assert_eq!(parse_journal_stream("8:"), None);

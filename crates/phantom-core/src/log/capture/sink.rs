@@ -34,10 +34,6 @@ where
     Box::new(move |data: Data<'_>| {
         let mut out = out.lock().expect("locked for writing");
 
-        // A capture runs inside the log layer, so a failed write is dropped
-        // rather than raised: panicking here would unwind through whatever
-        // happened to be logging, and reporting it would log from inside the
-        // log layer.
         _ = fun(&mut out, &data.level(), data.span_name(), data.message());
     })
 }

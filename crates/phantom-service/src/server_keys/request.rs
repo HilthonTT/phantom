@@ -58,8 +58,6 @@ where
         .next_back()
         .cloned()
     {
-        // `split_off` leaves everything before `batch` behind and takes the
-        // tail, so each pass sends the last chunk and shortens what remains.
         let request = Request::new(server_keys.split_off(&batch));
 
         debug!(
@@ -123,8 +121,6 @@ pub async fn server_request(&self, target: &ServerName) -> Result<ServerSigningK
         .map(|response| response.server_key)
         .and_then(|key| key.deserialize().map_err(Into::into))?;
 
-    // A server answers only for itself. Storing what it said under the name
-    // it named would let any server we contact publish keys for any other.
     if server_signing_key.server_name != target {
         return Err!(BadServerResponse(debug_warn!(
             "Asked {target:?} for its keys and it answered for {:?}",

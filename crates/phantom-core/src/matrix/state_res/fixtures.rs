@@ -39,8 +39,6 @@ pub(crate) async fn do_check(
     edges: Vec<Vec<OwnedEventId>>,
     expected_state_ids: Vec<OwnedEventId>,
 ) {
-    // To activate logging use `RUST_LOG=debug cargo t`
-
     let init_events = INITIAL_EVENTS();
 
     let mut store = TestStore(
@@ -51,13 +49,9 @@ pub(crate) async fn do_check(
             .collect(),
     );
 
-    // This will be lexi_topo_sorted for resolution
     let mut graph = HashMap::new();
-    // This is the same as in `resolve` event_id -> OriginalStateEvent
     let mut fake_event_map = HashMap::new();
 
-    // Create the DB of events that led up to this point
-    // TODO maybe clean up some of these clones it is just tests but...
     for ev in init_events.values().chain(events) {
         graph.insert(ev.event_id().to_owned(), HashSet::new());
         fake_event_map.insert(ev.event_id().to_owned(), ev.clone());
@@ -83,13 +77,9 @@ pub(crate) async fn do_check(
         }
     }
 
-    // event_id -> PduEvent
     let mut event_map: HashMap<OwnedEventId, Arc<PduEvent>> = HashMap::new();
-    // event_id -> StateMap<OwnedEventId>
     let mut state_at_event: HashMap<OwnedEventId, StateMap<OwnedEventId>> = HashMap::new();
 
-    // Resolve the current state and add it to the state_at_event map then continue
-    // on in "time"
     for node in super::lexicographical_topological_sort(&graph, &|_id| async {
         Ok((int!(0), MilliSecondsSinceUnixEpoch(uint!(0))))
     })
@@ -174,8 +164,6 @@ pub(crate) async fn do_check(
             }
         }
 
-        // TODO The event is just remade, adding the auth_events and prev_events here
-        // the `to_pdu_event` was split into `init` and the fn below, could be better
         let e = fake_event;
         let ev_id = e.event_id();
         let event = to_pdu_event(
@@ -188,8 +176,6 @@ pub(crate) async fn do_check(
             &prev_events.iter().cloned().collect::<Vec<_>>(),
         );
 
-        // We have to update our store, an actual user of this lib would
-        // be giving us state from a DB.
         store.0.insert(ev_id.to_owned(), event.clone());
 
         state_at_event.insert(node, state_after);
@@ -222,10 +208,7 @@ pub(crate) async fn do_check(
         .filter(|(k, v)| {
             expected_state.contains_key(k)
                 || start_state.get(k) != Some(*v)
-                // Filter out the dummy messages events.
-                // These act as points in time where there should be a known state to
-                // test against.
-                && **k != ("m.room.message".into(), "dummy".into())
+                    && **k != ("m.room.message".into(), "dummy".into())
         })
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect::<StateMap<OwnedEventId>>();
@@ -254,7 +237,6 @@ impl<E: Event> TestStore<E> {
         let mut result = HashSet::new();
         let mut stack = event_ids;
 
-        // DFS for auth event chain
         while let Some(ev_id) = stack.pop() {
             if result.contains(&ev_id) {
                 continue;
@@ -271,7 +253,6 @@ impl<E: Event> TestStore<E> {
     }
 }
 
-// A StateStore implementation for testing
 #[allow(clippy::type_complexity)]
 impl TestStore<PduEvent> {
     pub(crate) fn set_up(
@@ -317,8 +298,6 @@ impl TestStore<PduEvent> {
         self.0
             .insert(join_rules.event_id().to_owned(), join_rules.clone());
 
-        // Bob and Charlie join at the same time, so there is a fork
-        // this will be represented in the state_sets when we resolve
         let bob_mem = to_pdu_event(
             "IMB",
             bob(),
@@ -508,7 +487,6 @@ where
     })
 }
 
-// all graphs start with these input events
 #[allow(non_snake_case)]
 pub(crate) fn INITIAL_EVENTS() -> HashMap<OwnedEventId, Arc<PduEvent>> {
     vec![
@@ -590,7 +568,6 @@ pub(crate) fn INITIAL_EVENTS() -> HashMap<OwnedEventId, Arc<PduEvent>> {
     .collect()
 }
 
-// all graphs start with these input events
 #[allow(non_snake_case)]
 pub(crate) fn INITIAL_EVENTS_CREATE_ROOM() -> HashMap<OwnedEventId, Arc<PduEvent>> {
     vec![to_pdu_event::<&EventId>(

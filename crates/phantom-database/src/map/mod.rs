@@ -150,9 +150,6 @@ impl Map {
 pub(crate) fn read_options_default(db: &Arc<Engine>) -> ReadOptions {
     let mut options = ReadOptions::default();
 
-    // The columns are not opened with a prefix extractor, so a seek that is
-    // not told to order across the whole keyspace could skip entries outside
-    // whichever prefix it landed in.
     options.set_total_order_seek(true);
 
     if !db.checksums() {
@@ -169,9 +166,6 @@ pub(crate) fn cache_read_options_default(db: &Arc<Engine>) -> ReadOptions {
     let mut options = read_options_default(db);
     options.set_read_tier(ReadTier::BlockCache);
 
-    // A miss is going to be re-read through the pool, which will populate the
-    // cache then; doing it here would evict a block to hold one we are about
-    // to fetch again anyway.
     options.fill_cache(false);
 
     options
@@ -182,9 +176,6 @@ pub(crate) fn cache_read_options_default(db: &Arc<Engine>) -> ReadOptions {
 pub(crate) fn iter_options_default(db: &Arc<Engine>) -> ReadOptions {
     let mut options = read_options_default(db);
 
-    // An iterator holds pinned blocks and, where the column is being
-    // compacted, obsolete files. Releasing those on a background thread keeps
-    // the cost off whichever thread happened to drop the stream.
     options.set_background_purge_on_iterator_cleanup(true);
 
     options

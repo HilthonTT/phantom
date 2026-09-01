@@ -57,8 +57,6 @@ fn matches_sender(&self, filter: &RoomEventFilter) -> bool {
 
 #[implement(super::Pdu)]
 fn matches_type(&self, filter: &RoomEventFilter) -> bool {
-    // `TimelineEventType` keeps its string form private; `Display` is the only
-    // way out of the enum.
     let event_type = &self.kind.to_string();
     if filter.not_types.iter().any(is_equal_to!(event_type)) {
         return false;
@@ -79,7 +77,6 @@ fn matches_url(&self, filter: &RoomEventFilter) -> bool {
         return true;
     };
 
-    //TODO: might be better to use Ruma's Raw rather than serde here
     let url = serde_json::from_str::<Value>(self.content.get())
         .expect("parsing content JSON failed")
         .get("url")

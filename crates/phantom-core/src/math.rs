@@ -70,8 +70,6 @@ pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T {
 #[inline]
 #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 pub fn usize_from_f64(val: f64) -> Result<usize> {
-    // NaN is spelled out rather than left to a negated comparison, so that it
-    // takes this branch instead of falling through to the cast.
     if val.is_nan() || val < 0.0 {
         return Err!(Arithmetic(
             "converting negative or NaN float to unsigned integer"

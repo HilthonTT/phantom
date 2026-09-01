@@ -1,6 +1,5 @@
 //! jemalloc allocator
 
-// The mallctl interface is entirely FFI; unsafe is unavoidable here.
 #![allow(unsafe_code)]
 
 use std::{
@@ -70,7 +69,6 @@ pub fn memory_usage() -> Option<String> {
         kibs / 1024.0
     };
 
-    // Acquire the epoch; ensure latest stats are pulled in
     acq_epoch().ok()?;
 
     let allocated = mibs(stats::allocated::read());
@@ -98,20 +96,13 @@ pub fn memory_stats(opts: &str) -> Option<String> {
     let mut str = String::new();
     let opaque = std::ptr::from_mut(&mut str).cast::<c_void>();
 
-    // Borrow the options rather than `into_raw`, which surrenders the allocation
-    // to the caller; nothing ever reclaimed it, so every call leaked the string.
     let opts = std::ffi::CString::new(opts).expect("cstring");
     let opts_p: *const c_char = opts.as_ptr();
 
-    // Acquire the epoch; ensure latest stats are pulled in
     acq_epoch().ok()?;
 
-    // SAFETY: calls malloc_stats_print() with our string instance which must remain
-    // in this frame. https://docs.rs/tikv-jemalloc-sys/latest/tikv_jemalloc_sys/fn.malloc_stats_print.html
     unsafe { ffi::malloc_stats_print(Some(malloc_stats_cb), opaque, opts_p) };
 
-    // `truncate` panics off a char boundary, and the callback appends via
-    // `from_utf8_lossy`, which can emit multi-byte replacement characters.
     if str.len() > MAX_LENGTH {
         let end = (0..=MAX_LENGTH)
             .rev()
@@ -125,7 +116,6 @@ pub fn memory_stats(opts: &str) -> Option<String> {
 }
 
 unsafe extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
-    // SAFETY: we have to trust the opaque points to our String
     let res: &mut String = unsafe {
         opaque
             .cast::<String>()
@@ -133,7 +123,6 @@ unsafe extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
             .expect("failed to cast void* to &mut String")
     };
 
-    // SAFETY: we have to trust the string is null terminated.
     let msg = unsafe { CStr::from_ptr(msg) };
 
     let msg = String::from_utf8_lossy(msg.to_bytes());
@@ -271,7 +260,6 @@ pub mod this_thread {
         cell.get_or_init(|| {
             let ptr: *const u64 = super::get(&key()).expect("failed to obtain pointer");
 
-            // SAFETY: ptr points directly to the internal state of jemalloc for this thread
             unsafe { ptr.as_ref() }.expect("pointer must not be null")
         })
     }
@@ -339,7 +327,6 @@ pub fn is_phycpu_arena() -> bool {
 
 pub fn percpu_arenas() -> Result<&'static str> {
     let ptr = get::<*const c_char>(&mallctl!("opt.percpu_arena"))?;
-    //SAFETY: ptr points to a null-terminated string returned for opt.percpu_arena.
     let cstr = unsafe { CStr::from_ptr(ptr) };
     cstr.to_str().map_err(Into::into)
 }
@@ -405,7 +392,6 @@ where
     acq_epoch()?;
     acq_epoch()?;
 
-    // SAFETY: T must be perfectly valid to receive value.
     unsafe { mallctl::raw::read_mib(key.as_slice()) }.map_err(map_err)
 }
 
@@ -419,13 +405,10 @@ fn xchg<T>(key: &Key, val: T) -> Result<T>
 where
     T: Copy + Debug,
 {
-    // SAFETY: T must be the exact expected type.
     unsafe { mallctl::raw::update_mib(key.as_slice(), val) }.map_err(map_err)
 }
 
 fn key(name: &str) -> Result<Key> {
-    // tikv asserts the output buffer length is tight to the number of required mibs
-    // so we slice that down here.
     let segs = name.chars().filter(is_equal_to!(&'.')).count().try_add(1)?;
 
     let name = self::name(name)?;

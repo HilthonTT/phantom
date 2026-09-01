@@ -9,8 +9,6 @@ pub struct Escape<'a>(pub &'a str);
 #[allow(clippy::string_slice)]
 impl fmt::Display for Escape<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Because the internet is always right, turns out there's not that many
-        // characters to escape: http://stackoverflow.com/questions/7381974
         let Escape(s) = *self;
         let pile_o_bits = s;
         let mut last = 0;
@@ -25,8 +23,6 @@ impl fmt::Display for Escape<'_> {
             };
             fmt.write_str(&pile_o_bits[last..i])?;
             fmt.write_str(s)?;
-            // NOTE: we only expect single byte characters here - which is fine as long as
-            // we only match single byte characters
             last = i.saturating_add(1);
         }
 

@@ -191,8 +191,6 @@ where
     result(self.db.db.write_opt(batch, &self.write_options))?;
     self.flush_if_uncorked()?;
 
-    // Only once the batch is durable: a waiter woken by a write that then
-    // failed would read state that never existed.
     for key in &keys {
         self.watchers.wake(key.as_ref());
     }

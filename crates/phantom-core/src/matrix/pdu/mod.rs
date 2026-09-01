@@ -57,7 +57,6 @@ pub struct Pdu {
     pub unsigned: Option<Box<RawJsonValue>>,
     pub hashes: EventHash,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    // BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, String>>
     pub signatures: Option<Box<RawJsonValue>>,
 }
 

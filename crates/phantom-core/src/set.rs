@@ -42,13 +42,9 @@ pub fn intersection_sorted<Item, Iter, Iters>(mut input: Iters) -> impl Iterator
 where
     Iters: Iterator<Item = Iter> + Clone + Send,
     Iter: Iterator<Item = Item> + Send,
-    // `Send` because the peeked element is buffered in the returned iterator.
     Item: Eq + Ord + Send,
 {
     input.next().into_iter().flat_map(move |first| {
-        // The peekables have to outlive the closure: advancing one past the
-        // elements below `targ` is only sound because whatever it stops on is
-        // still there for the next, larger, `targ`.
         let mut input = input.clone().map(Iterator::peekable).collect::<Vec<_>>();
         first.filter(move |targ| {
             input.iter_mut().all(|it| {

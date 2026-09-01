@@ -135,8 +135,6 @@ impl crate::Service for Service {
         let mut receiver = self.receiver.lock().await;
         let mut signals = self.services.server.signal.subscribe();
 
-        // Before the loop rather than in it: these are the commands the
-        // operator configured, and an error in one of them is a startup error.
         self.startup_execute().await?;
 
         loop {
@@ -148,9 +146,6 @@ impl crate::Service for Service {
                 },
                 signal = signals.recv() => match signal {
                     Ok(signal) => self.handle_signal(signal).await,
-                    // Signals are announcements, so a slow worker that missed
-                    // one has nothing to recover; the channel closing means
-                    // the server is going away.
                     Err(RecvError::Lagged(_)) => continue,
                     Err(RecvError::Closed) => break,
                 },
@@ -161,9 +156,6 @@ impl crate::Service for Service {
     }
 
     fn interrupt(&self) {
-        // `notify_one` rather than `notify_waiters`: the worker may not be
-        // parked on the notification yet, and a permit it picks up on its next
-        // pass is what keeps the interrupt from being missed.
         self.interrupt.notify_one();
     }
 
@@ -228,23 +220,14 @@ pub(crate) fn set_services(&self, services: Option<&Arc<crate::Services>>) {
 
 #[implement(Service)]
 async fn process_command(&self, command: CommandInput) -> ProcessorResult {
-    // Read the pointer out and drop the guard here: the command is awaited
-    // below, and a std lock guard cannot be held across that.
     let processor = *self.processor.read().expect("locked for reading");
 
     let Some(processor) = processor else {
-        // Upstream panics here, on the grounds that its admin module is always
-        // loaded. phantom has no command module to load yet, so this is an
-        // ordinary outcome, and killing the worker over it would only have the
-        // manager restart it into the same state.
         return Err(CommandOutput::text_plain(
             "No admin command processor is registered; this build defines no admin commands.",
         ));
     };
 
-    // Set for as long as the services are running, so this is only empty
-    // either side of that — a command dispatched by something outracing
-    // startup or shutdown, which is told so rather than panicked at.
     let services = self
         .services
         .services
@@ -375,12 +358,8 @@ pub async fn is_admin_command(&self, pdu: &PduEvent, body: &str) -> bool {
     let in_admin_room = admin_room == pdu.room_id;
 
     match invocation {
-        // Unescaped, `!admin` is a command only in the admin room. Elsewhere
-        // it is someone typing about the server rather than to it.
         Invocation::Direct if !in_admin_room => return false,
 
-        // The escape runs a command in a room the server was not addressed in,
-        // so it is ours to switch off and never a remote user's to use.
         Invocation::Escaped
             if !self.services.server_state.user_is_local(&pdu.sender)
                 || !self.services.server.config.admin_escape_commands =>
@@ -400,10 +379,6 @@ pub async fn is_admin_command(&self, pdu: &PduEvent, body: &str) -> bool {
         return false;
     }
 
-    // The server's own messages in the admin room are command *output*, and
-    // running that as a command is a loop. The exception is an operator logged
-    // in as the server user to recover an admin account: while that password
-    // is set, it is the only account they have.
     let is_recovery = self.services.server.config.emergency_password.is_some();
     if in_admin_room && pdu.sender == *server_user && !is_recovery {
         return false;

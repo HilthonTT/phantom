@@ -66,7 +66,6 @@
     where
         Leafs: Iterator<Item = &'a EventId> + Send + 'a,
     {
-        // Coalesce database writes for the remainder of this scope.
         let _cork = self.db.db.cork_and_flush();
 
         let shortroomid = self
@@ -76,9 +75,6 @@
             .await
             .map_err(|_| err!(Database("Room does not exist")))?;
 
-        // Make unsigned fields correct. This is not properly documented in the spec,
-        // but state events need to have previous content in the unsigned field, so
-        // clients can easily interpret things like membership changes
         if let Some(state_key) = &pdu.state_key {
             if let CanonicalJsonValue::Object(unsigned) = pdu_json
                 .entry("unsigned".to_owned())
@@ -126,7 +122,6 @@
             }
         }
 
-        // We must keep track of all events that have been referenced.
         self.services
             .pdu_metadata
             .mark_as_referenced(&pdu.room_id, pdu.prev_events.iter().map(AsRef::as_ref));
@@ -139,8 +134,6 @@
         let insert_lock = self.mutex_insert.lock(&pdu.room_id).await;
 
         let count1 = self.services.globals.next_count().unwrap();
-        // Mark as read first so the sending client doesn't get a notification even if
-        // appending fails
         self.services
             .read_receipt
             .private_read_set(&pdu.room_id, &pdu.sender, count1);
@@ -155,12 +148,10 @@
         }
         .into();
 
-        // Insert pdu
         self.db.append_pdu(&pdu_id, pdu, &pdu_json, count2).await;
 
         drop(insert_lock);
 
-        // See if the event matches any known pushers via power level
         let power_levels: RoomPowerLevelsEventContent = self
             .services
             .state_accessor
@@ -175,7 +166,6 @@
             .state_cache
             .active_local_users_in_room(&pdu.room_id)
             .map(ToOwned::to_owned)
-            // Don't notify the sender of their own events, and dont send from ignored users
             .ready_filter(|user| *user != pdu.sender)
             .filter_map(|recipient_user| async move {
                 (!self
@@ -235,7 +225,6 @@
                     _ => {}
                 }
 
-                // Break early if both conditions are true
                 if notify && highlight {
                     break;
                 }
@@ -309,7 +298,6 @@
             }
             TimelineEventType::RoomMember => {
                 if let Some(state_key) = &pdu.state_key {
-                    // if the state_key fails
                     let target_user_id =
                         UserId::parse(state_key).expect("This state_key was previously validated");
 
@@ -321,9 +309,6 @@
                         _ => None,
                     };
 
-                    // Update our membership info, we do this here incase a user is invited or
-                    // knocked and immediately leaves we need the DB to record the invite or
-                    // knock event for auth
                     self.services
                         .state_cache
                         .update_membership(
@@ -364,8 +349,6 @@
         if let Ok(content) = pdu.get_content::<ExtractRelatesTo>() {
             match content.relates_to {
                 Relation::Reply { in_reply_to } => {
-                    // We need to do it again here, because replies don't have
-                    // event_id as a top level field
                     if let Ok(related_pducount) = self.get_pdu_count(&in_reply_to.event_id).await {
                         self.services
                             .pdu_metadata
@@ -378,7 +361,7 @@
                         .add_to_thread(&thread.event_id, pdu)
                         .await?;
                 }
-                _ => {} // TODO: Aggregate other types
+                _ => {}
             }
         }
 
@@ -395,8 +378,6 @@
                 continue;
             }
 
-            // If the RoomMember event has a non-empty state_key, it is targeted at someone.
-            // If it is our appservice user, we send this PDU to it.
             if pdu.kind == TimelineEventType::RoomMember {
                 if let Some(state_key_uid) = &pdu
                     .state_key
@@ -446,8 +427,7 @@
         pdu_builder: PduBuilder,
         sender: &UserId,
         room_id: &RoomId,
-        _mutex_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room
-                                       * state mutex */
+        _mutex_lock: &RoomMutexGuard,
     ) -> Result<(PduEvent, CanonicalJsonObject)> {
         let PduBuilder {
             event_type,
@@ -467,7 +447,6 @@
             .collect()
             .await;
 
-        // If there was no create event yet, assume we are creating a room
         let room_version_id = self
             .services
             .state
@@ -493,7 +472,6 @@
             .get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)
             .await?;
 
-        // Our depth is the maximum depth of prev_events + 1
         let depth = prev_events
             .iter()
             .stream()
@@ -568,7 +546,7 @@
         let auth_check = state_res::auth_check(
             &room_version,
             &pdu,
-            None, // TODO: third_party_invite
+            None,
             auth_fetch,
         )
         .await
@@ -578,14 +556,12 @@
             return Err!(Request(Forbidden("Event is not authorized.")));
         }
 
-        // Hash and sign
         let mut pdu_json = utils::to_canonical_object(&pdu).map_err(|e| {
             err!(Request(BadJson(warn!(
                 "Failed to convert PDU to canonical JSON: {e}"
             ))))
         })?;
 
-        // room v3 and above removed the "event_id" field from remote PDU format
         match room_version_id {
             RoomVersionId::V1 | RoomVersionId::V2 => {}
             _ => {
@@ -593,7 +569,6 @@
             }
         }
 
-        // Add origin because synapse likes that (and it's required in the spec)
         pdu_json.insert(
             "origin".to_owned(),
             to_canonical_value(self.services.globals.server_name())
@@ -615,7 +590,6 @@
             };
         }
 
-        // Generate event id
         pdu.event_id = gen_event_id(&pdu_json, &room_version_id)?;
 
         pdu_json.insert(
@@ -623,7 +597,6 @@
             CanonicalJsonValue::String(pdu.event_id.clone().into()),
         );
 
-        // Generate short event id
         let _shorteventid = self
             .services
             .short
@@ -652,7 +625,6 @@
             self.check_pdu_for_admin_room(&pdu, sender).boxed().await?;
         }
 
-        // If redaction event is not authorized, do not append it to the timeline
         if pdu.kind == TimelineEventType::RoomRedaction {
             use RoomVersionId::*;
             match self.services.state.get_room_version(&pdu.room_id).await? {
@@ -708,25 +680,18 @@
             }
         }
 
-        // We append to state before appending the pdu, so we don't have a moment in
-        // time with the pdu without it's state. This is okay because append_pdu can't
-        // fail.
         let statehashid = self.services.state.append_to_state(&pdu).await?;
 
         let pdu_id = self
             .append_pdu(
                 &pdu,
                 pdu_json,
-                // Since this PDU references all pdu_leaves we can update the leaves
-                // of the room
                 once(pdu.event_id.borrow()),
                 state_lock,
             )
             .boxed()
             .await?;
 
-        // We set the room state after inserting the pdu, so that we never have a moment
-        // in time where events in the current room state do not exist
         self.services
             .state
             .set_room_state(&pdu.room_id, statehashid, state_lock);
@@ -739,8 +704,6 @@
             .collect()
             .await;
 
-        // In case we are kicking or banning a user, we need to inform their server of
-        // the change
         if pdu.kind == TimelineEventType::RoomMember {
             if let Some(state_key_uid) = &pdu
                 .state_key
@@ -751,8 +714,6 @@
             }
         }
 
-        // Remove our server from the server list since it will be added to it by
-        // room_servers() and/or the if statement above
         servers.remove(self.services.globals.server_name());
 
         self.services
@@ -778,9 +739,6 @@
     where
         Leafs: Iterator<Item = &'a EventId> + Send + 'a,
     {
-        // We append to state before appending the pdu, so we don't have a moment in
-        // time with the pdu without it's state. This is okay because append_pdu can't
-        // fail.
         self.services
             .state
             .set_event_state(&pdu.event_id, &pdu.room_id, state_ids_compressed)
@@ -815,9 +773,7 @@
         reason: &PduEvent,
         shortroomid: ShortRoomId,
     ) -> Result {
-        // TODO: Don't reserialize, keep original json
         let Ok(pdu_id) = self.get_pdu_id(event_id).await else {
-            // If event does not exist, just noop
             return Ok(());
         };
 
@@ -867,7 +823,6 @@
                 .is_world_readable(room_id)
                 .await
         {
-            // Room is empty (1 user or none), there is no one that can backfill
             return Ok(());
         }
 
@@ -877,7 +832,6 @@
             .expect("Room is not empty");
 
         if first_pdu.0 < from {
-            // No backfill required, there are still events between them
             return Ok(());
         }
 
@@ -968,7 +922,6 @@
         let (room_id, event_id, value) =
             self.services.event_handler.parse_incoming_pdu(&pdu).await?;
 
-        // Lock so we cannot backfill the same pdu twice at the same time
         let mutex_lock = self
             .services
             .event_handler
@@ -976,7 +929,6 @@
             .lock(&room_id)
             .await;
 
-        // Skip the PDU if we already have it as a timeline event
         if let Ok(pdu_id) = self.get_pdu_id(&event_id).await {
             debug!("We already know {event_id} at {pdu_id:?}");
             return Ok(());
@@ -1004,7 +956,6 @@
         }
         .into();
 
-        // Insert pdu
         self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value);
 
         drop(insert_lock);

@@ -24,8 +24,6 @@ pub async fn server_can_see_event(
     room_id: &RoomId,
     event_id: &EventId,
 ) -> bool {
-    // See the matching note in `user_can_see_event`: an event with no
-    // recorded state is not judged.
     let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
         return true;
     };
@@ -38,8 +36,6 @@ pub async fn server_can_see_event(
             |c: RoomHistoryVisibilityEventContent| c.history_visibility,
         );
 
-    // Current members rather than members at that state: a server that has a
-    // user in the room now is one this server is already talking to about it.
     let current_server_members = self
         .services
         .state_cache
@@ -58,9 +54,6 @@ pub async fn server_can_see_event(
                 .await
         }
         HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
-        // `HistoryVisibility` is non-exhaustive, so a room can put a value
-        // here that this server has no rule for. Withholding the event is the
-        // safe reading of one: sending it cannot be taken back.
         _ => {
             error!(
                 %room_id,

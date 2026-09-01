@@ -8,7 +8,6 @@ pub fn trim<I: Into<Option<usize>> + Copy>(_: I) -> crate::Result {
 }
 
 #[must_use]
-//TODO: get usage
 pub fn memory_usage() -> Option<String> {
     None
 }

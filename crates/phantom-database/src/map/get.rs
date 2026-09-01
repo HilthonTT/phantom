@@ -38,9 +38,6 @@ where
 {
     let cached = self.get_cached(key);
     if matches!(cached, Err(_) | Ok(Some(_))) {
-        // Answered without I/O, so nothing here will await. Yielding the
-        // cooperative budget is what keeps a long run of cache hits from
-        // monopolising the tokio worker it is running on.
         return task::consume_budget()
             .map(move |()| cached.map_expect("a cached read was already resolved"))
             .boxed();
@@ -179,13 +176,10 @@ pub(super) fn cached_handle_from(
     result: Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>,
 ) -> Result<Option<Handle<'_>>> {
     match result {
-        // Hit, and the key is not there.
         Ok(None) => Err!(Request(NotFound("Not found in database"))),
 
-        // Hit.
         Ok(Some(result)) => Ok(Some(Handle::from(result))),
 
-        // Miss: the cache declined to answer, so the caller must go to disk.
         Err(ref error) if is_incomplete(error) => Ok(None),
 
         Err(error) => or_else(error),

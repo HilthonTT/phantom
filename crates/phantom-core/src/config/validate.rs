@@ -38,9 +38,6 @@ pub fn validate(config: &Config) -> Result {
         ));
     }
 
-    // Built and discarded purely to reject a malformed value here, where it can
-    // be attributed to the option it came from, rather than at logging setup
-    // where the fallback would be silence.
     config.log_filter()?;
     config.span_events()?;
 
@@ -67,8 +64,6 @@ fn check_database(config: &Config) -> Result {
         )));
     }
 
-    // The engine matches this against four recovery modes and has nothing to
-    // map a fifth onto.
     if config.rocksdb_recovery_mode > 3 {
         return Err(err!(Config(
             "rocksdb_recovery_mode",
@@ -77,8 +72,6 @@ fn check_database(config: &Config) -> Result {
         )));
     }
 
-    // The reference implementation treats an unrecognized algorithm as zstd,
-    // so a typo silently gets a database compressed differently than asked.
     if !COMPRESSION_ALGOS.contains(&config.rocksdb_compression_algo.as_str()) {
         return Err(err!(Config(
             "rocksdb_compression_algo",
@@ -118,9 +111,6 @@ fn check_registration(config: &Config) -> Result {
         return Ok(());
     };
 
-    // Read rather than stat'd: the service reads this file at startup and
-    // falls back to `registration_token` on failure, so a file that is
-    // unreadable or blank would silently not be the token in use.
     let token = std::fs::read_to_string(path).map_err(|error| {
         err!(Config(
             "registration_token_file",

@@ -50,13 +50,13 @@ func press(t *testing.T, m Model, keys ...string) Model {
 // the whole render has to come out exactly the size of the terminal.
 func TestLayoutFillsTheTerminalExactly(t *testing.T) {
 	sizes := []struct{ width, height int }{
-		{80, 24},  // the smallest the interface is drawn at
-		{96, 26},  // too narrow for the inspector
-		{110, 30}, // the inspector's first size
-		{140, 40}, // roomy
-		{240, 60}, // very wide
-		{81, 25},  // odd numbers, where a halved width does not divide
-		{131, 41}, //
+		{80, 24},
+		{96, 26},
+		{110, 30},
+		{140, 40},
+		{240, 60},
+		{81, 25},
+		{131, 41},
 	}
 
 	for _, s := range sizes {

@@ -117,9 +117,6 @@ pub async fn update_backup<'a>(
 
 #[implement(Service)]
 pub async fn get_latest_backup_version(&self, user_id: &UserId) -> Result<String> {
-    // The user id comes back out of the key as the string it was written as:
-    // the database layer knows nothing of ruma's types, and re-parsing it only
-    // to compare it would cost more than comparing the bytes.
     type Key<'a> = (&'a str, &'a str);
 
     let last_possible_key = (user_id, u64::MAX);
@@ -184,8 +181,6 @@ pub async fn add_key(
 
 #[implement(Service)]
 pub async fn count_keys(&self, user_id: &UserId, version: &str) -> usize {
-    // `Interfix` so version "12" does not also count the keys of version
-    // "123": both are counts, so one really can be a prefix of the other.
     let prefix =
         serialize_to_vec((user_id, version, Interfix)).expect("failed to serialize prefix");
 
@@ -215,8 +210,6 @@ pub async fn get_all(
     user_id: &UserId,
     version: &str,
 ) -> BTreeMap<OwnedRoomId, RoomKeyBackup> {
-    // `OwnedRoomId` rather than a borrow: `&RoomId` cannot be deserialized,
-    // and the room id is the owned key of the map being built anyway.
     type Key<'a> = (Ignore, Ignore, OwnedRoomId, &'a str);
     type KeyVal<'a> = (Key<'a>, Raw<KeyBackupData>);
 

@@ -136,15 +136,9 @@ pub fn cores_available() -> impl Iterator<Item = Id> {
 pub fn getcpu() -> Result<usize> {
     use crate::{Error, math};
 
-    // SAFETY: This is part of an interface with many low-level calls taking many
-    // raw params, but it's unclear why this specific call is unsafe. Nevertheless
-    // the value obtained here is semantically unsafe because it can change on the
-    // instruction boundary trailing its own acquisition and also any other time.
     let ret: i32 = unsafe { libc::sched_getcpu() };
 
     #[cfg(target_os = "linux")]
-    // SAFETY: On modern linux systems with a vdso if we can optimize away the branch checking
-    // for error (see getcpu(2)) then this system call becomes a memory access.
     unsafe {
         std::hint::assert_unchecked(ret >= 0);
     };
@@ -173,8 +167,6 @@ fn set_each_for_current<I>(ids: I) -> bool
 where
     I: Iterator<Item = Id>,
 {
-    // SAFETY: cpu_set_t is a plain bitmask of CPU_SETSIZE bits; all-zero is the
-    // valid empty set, which is what CPU_SET() builds upon below.
     let mut set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
 
     for id in ids {
@@ -183,12 +175,9 @@ where
             "core ID must be < CPU_SETSIZE"
         );
 
-        // SAFETY: sets one bit of the mask; id is bounds-checked above.
         unsafe { libc::CPU_SET(id, &mut set) };
     }
 
-    // SAFETY: a pid of zero denotes the calling thread; the length and pointer
-    // describe the set constructed above, which outlives the call.
     let ret = unsafe { libc::sched_setaffinity(0, size_of::<libc::cpu_set_t>(), &set) };
 
     debug_assert!(

@@ -43,13 +43,11 @@ pub fn panic_handler(info: &panic::PanicHookInfo<'_>, next: &dyn Fn(&panic::Pani
 #[allow(unsafe_code)]
 pub fn trap() {
     #[cfg(target_arch = "x86_64")]
-    // SAFETY: embeds instruction for hardware breakpoint
     unsafe {
         std::arch::asm!("int3");
     }
 
     #[cfg(target_arch = "aarch64")]
-    // SAFETY: embeds instruction for hardware breakpoint
     unsafe {
         std::arch::asm!("brk #0xf000");
     }

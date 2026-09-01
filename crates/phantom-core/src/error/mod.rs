@@ -23,7 +23,6 @@ pub enum Error {
     #[error("PANIC! {0}")]
     Panic(&'static str, Box<dyn Any + Send + 'static>),
 
-    // std
     #[error(transparent)]
     Fmt(#[from] std::fmt::Error),
     #[error(transparent)]
@@ -45,7 +44,6 @@ pub enum Error {
     #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
 
-    // third-party
     #[error(transparent)]
     CapacityError(#[from] arrayvec::CapacityError),
     #[error(transparent)]
@@ -83,11 +81,10 @@ pub enum Error {
     #[error(transparent)]
     TypedHeader(#[from] axum_extra::typed_header::TypedHeaderRejection),
 
-    // ruma/conduwuit
     #[error("Arithmetic operation failed: {0}")]
     Arithmetic(Cow<'static, str>),
     #[error("{code}: {msg}", code = .0.errcode(), msg = .1)]
-    BadRequest(ruma::api::error::ErrorKind, &'static str), //TODO: remove
+    BadRequest(ruma::api::error::ErrorKind, &'static str),
     #[error("{0}")]
     BadServerResponse(Cow<'static, str>),
     #[error(transparent)]
@@ -95,7 +92,7 @@ pub enum Error {
     #[error("There was a problem with the '{0}' directive in your configuration: {1}")]
     Config(&'static str, Cow<'static, str>),
     #[error("{0}")]
-    Conflict(Cow<'static, str>), // This is only needed for when a room alias already exists
+    Conflict(Cow<'static, str>),
     #[error(transparent)]
     ContentDisposition(#[from] ruma::http_headers::ContentDispositionParseError),
     #[error("{0}")]
@@ -124,14 +121,11 @@ pub enum Error {
     SignaturesJson(#[from] ruma::signatures::JsonError),
     #[error(transparent)]
     SignaturesVerification(#[from] ruma::signatures::VerificationError),
-    // This crate carries its own state-resolution implementation in
-    // `matrix::state_res`; ruma's is not built.
     #[error(transparent)]
     StateRes(#[from] crate::matrix::state_res::Error),
     #[error("uiaa")]
     Uiaa(Box<ruma::api::client::uiaa::UiaaInfo>),
 
-    // unique / untyped
     #[error("{0}")]
     Err(Cow<'static, str>),
 }
@@ -143,7 +137,6 @@ impl Error {
         Self::Io(std::io::Error::last_os_error())
     }
 
-    //#[deprecated]
     pub fn bad_database(message: &'static str) -> Self {
         crate::err!(Database(error!("{message}")))
     }
@@ -176,8 +169,6 @@ impl Error {
                 response::ruma_error_kind(error).clone()
             }
             Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
-            // ruma 0.16 dropped `ErrorKind::FeatureDisabled`; M_UNRECOGNIZED is
-            // the spec's code for an endpoint this server does not offer.
             Self::FeatureDisabled(..) => Unrecognized,
             _ => Unknown,
         }
@@ -216,8 +207,6 @@ impl std::fmt::Debug for Error {
     }
 }
 
-// Boxed above to keep `Error` small, so `?` needs these by hand — `#[from]`
-// would demand the caller box it first.
 impl From<figment::error::Error> for Error {
     #[cold]
     #[inline(never)]
@@ -300,8 +289,6 @@ mod tests {
 
     #[test]
     fn err_macro_logs_and_keeps_the_message() {
-        // The `error!` form dispatches a tracing event *and* carries the same
-        // string into the Error, which is the whole point of `err_log!`.
         let error = crate::err!(Database(error!("bad row {}", 7)));
         assert_eq!(error.message(), "bad row 7");
     }

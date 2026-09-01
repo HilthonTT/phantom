@@ -27,8 +27,6 @@ pub fn gen_event_id(
     value: &CanonicalJsonObject,
     room_version_id: &RoomVersionId,
 ) -> Result<OwnedEventId> {
-    // ruma keys the hash off the version's rule set rather than its id; an
-    // unknown version has no rules and so no way to derive an event id.
     let rules = room_version_id.rules().ok_or_else(|| {
         err!(Request(UnsupportedRoomVersion(
             "Unsupported room version {room_version_id}"

@@ -410,7 +410,6 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         unhandled!("deserialize Unit not implemented")
     }
 
-    // this only used for $serde_json::private::RawValue at this time; see MapAccess
     #[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
     fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         let input = "$serde_json::private::RawValue";
@@ -462,8 +461,6 @@ impl<'a, 'de: 'a> de::SeqAccess<'de> for &'a mut Deserializer<'de> {
     }
 }
 
-// this only used for $serde_json::private::RawValue at this time. our db
-// schema doesn't have its own map format; we use json for that anyway
 impl<'a, 'de: 'a> de::MapAccess<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
@@ -484,19 +481,13 @@ impl<'a, 'de: 'a> de::MapAccess<'de> for &'a mut Deserializer<'de> {
     }
 }
 
-// activate when stable; too soon now
-//#[cfg(debug_assertions)]
 #[inline]
 fn deserialize_str(input: &[u8]) -> Result<&str> {
     text::str_from_bytes(input)
 }
 
-//#[cfg(not(debug_assertions))]
 #[cfg(disable)]
 #[inline]
 fn deserialize_str(input: &[u8]) -> Result<&str> {
-    // SAFETY: Strings were written by the serializer to the database. Assuming no
-    // database corruption, the string will be valid. Database corruption is
-    // detected via rocksdb checksums.
     unsafe { std::str::from_utf8_unchecked(input) }
 }

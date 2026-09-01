@@ -10,8 +10,6 @@
 /// The example file is only written on real builds so that editors re-checking
 /// the crate on every keystroke do not keep rewriting it.
 pub(crate) fn is_cargo_build() -> bool {
-    // rustc accepts both `--emit=a,b` and `--emit a,b`, and each kind may carry
-    // an `=path` suffix, so unpick all three shapes before looking for `link`.
     let mut args = std::env::args();
 
     while let Some(arg) = args.next() {

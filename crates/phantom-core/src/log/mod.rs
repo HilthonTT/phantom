@@ -47,8 +47,6 @@ pub struct Log {
 pub fn init(config: &Config) -> Result<(Log, impl Subscriber + Send + Sync + 'static)> {
     let reload = LogLevelReloadHandles::default();
 
-    // One format, used for both the event and its fields, so the two cannot
-    // drift apart in configuration.
     let format = ConsoleFormat::new(config);
     let console = tracing_subscriber::fmt::Layer::new()
         .with_span_events(config.span_events()?)
@@ -67,11 +65,6 @@ pub fn init(config: &Config) -> Result<(Log, impl Subscriber + Send + Sync + 'st
 
     Ok((Log { reload, capture }, subscriber))
 }
-
-// Wrappers for the logging macros. Use these rather than the `tracing` or `log`
-// crates directly in project code: the indirection is what lets the level or
-// the backend change in one place. The `debug_*` variants in `crate::log::debug`
-// are exported to the crate namespace alongside these.
 
 #[macro_export]
 macro_rules! event {
@@ -151,8 +144,6 @@ mod tests {
 
     #[test]
     fn malformed_log_options_are_rejected_when_the_config_loads() {
-        // `Config::check` builds both of these, so a value the logging setup
-        // could not use never reaches `init` in the first place.
         let cases = [
             ("log = \"phantom=notalevel\"", "log"),
             ("log_span_events = \"cloze\"", "log_span_events"),

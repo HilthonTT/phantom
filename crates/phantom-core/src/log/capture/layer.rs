@@ -51,9 +51,6 @@ where
             return;
         }
 
-        // Recorded once and shared by every capture's filter and closure. The
-        // reference implementation recorded twice — fields for the closure and
-        // scope names for the filter — so each saw an empty half of the event.
         let mut visitor = Visitor {
             values: Values::new(),
         };

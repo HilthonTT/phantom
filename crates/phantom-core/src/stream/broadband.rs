@@ -177,8 +177,6 @@ mod tests {
 
     #[tokio::test]
     async fn results_are_yielded_as_they_finish() {
-        // Later items sleep for less, so a concurrent run reverses them and a
-        // sequential one would not.
         let out: Vec<u8> = (1_u8..=4)
             .stream()
             .broad_then(|item| async move {
@@ -218,8 +216,6 @@ mod tests {
 
     #[tokio::test]
     async fn a_zero_width_still_makes_progress() {
-        // `buffer_unordered(0)` never polls anything; a caller passing a
-        // computed zero should not deadlock the stream.
         let out: Vec<u8> = (1_u8..=3).stream().broadn_then(0, ready).collect().await;
 
         assert_eq!(out.len(), 3);

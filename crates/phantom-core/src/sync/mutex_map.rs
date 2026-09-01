@@ -166,7 +166,6 @@ mod tests {
         let guard = block_on(map.lock("foo"));
 
         assert!(map.try_lock("foo").is_err());
-        // A different key is unaffected.
         assert!(map.try_lock("bar").is_ok());
 
         drop(guard);

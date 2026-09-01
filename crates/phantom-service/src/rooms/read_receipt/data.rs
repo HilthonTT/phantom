@@ -55,8 +55,6 @@ impl Data {
         room_id: &RoomId,
         event: &ReceiptEvent,
     ) -> Result {
-        // The identifiers come back out of the key as the strings they were
-        // written as: the database layer knows nothing of ruma's types.
         type Key<'a> = (&'a str, u64, &'a str);
 
         let last_possible_key = (room_id, u64::MAX);
@@ -67,9 +65,6 @@ impl Data {
             .ready_take_while(|(room, ..): &Key<'_>| *room == room_id.as_str())
             .ready_filter(|(_, _, user): &Key<'_>| *user == user_id.as_str())
             .ready_for_each(|key: Key<'_>| {
-                // A failed delete would leave the old receipt to be sent
-                // again, which is noise rather than corruption, so the loop
-                // is not worth aborting for one.
                 self.readreceiptid_readreceipt.del(key).ok();
             })
             .await;
@@ -89,7 +84,6 @@ impl Data {
         type Key<'a> = (&'a str, u64, &'a str);
         type KeyVal<'a> = (Key<'a>, CanonicalJsonObject);
 
-        // +1 so the receipt exactly at `since` is not sent again.
         let after_since = since.saturating_add(1);
         let first_possible_edu = (room_id, after_since);
 
@@ -98,8 +92,6 @@ impl Data {
             .ignore_err()
             .ready_take_while(move |((room, ..), _): &KeyVal<'_>| *room == room_id.as_str())
             .map(move |((_, count, user_id), mut json): KeyVal<'_>| {
-                // The room id is in the key already, and a sync response
-                // carries it in the room it is nested under.
                 json.remove("room_id");
 
                 let user_id = <&UserId>::try_from(user_id)

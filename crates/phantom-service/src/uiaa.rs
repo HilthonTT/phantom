@@ -101,8 +101,6 @@ pub fn create(
     uiaainfo: &UiaaInfo,
     json_body: &CanonicalJsonValue,
 ) -> Result<()> {
-    // TODO: better session error handling (why is uiaainfo.session optional in
-    // ruma?)
     self.set_uiaa_request(
         user_id,
         device_id,
@@ -137,7 +135,6 @@ pub async fn try_auth(
     }
 
     match auth {
-        // Find out what the user completed
         AuthData::Password(Password {
             identifier,
             password,
@@ -154,13 +151,11 @@ pub async fn try_auth(
             )
             .map_err(|_| err!(Request(InvalidParam("User ID is invalid."))))?;
 
-            // Check if the access token being used matches the credentials used for UIAA
             if user_id.localpart() != user_id_from_username.localpart() {
                 return Err!(Request(Forbidden("User ID and access token mismatch.")));
             }
             let user_id = user_id_from_username;
 
-            // Check if password is correct
             if let Ok(hash) = self.services.users.password_hash(&user_id).await {
                 let hash_matches = hash::verify_password(password, &hash).is_ok();
                 if !hash_matches {
@@ -172,7 +167,6 @@ pub async fn try_auth(
                 }
             }
 
-            // Password was correct! Let's add it to `completed`
             uiaainfo.completed.push(AuthType::Password);
         }
         AuthData::RegistrationToken(t) => {
@@ -193,7 +187,6 @@ pub async fn try_auth(
         k => error!("type not supported: {k:?}"),
     }
 
-    // Check if a flow now succeeds
     let mut completed = false;
     'flows: for flow in &uiaainfo.flows {
         for stage in &flow.stages {
@@ -201,7 +194,6 @@ pub async fn try_auth(
                 continue 'flows;
             }
         }
-        // We didn't break, so this flow succeeded!
         completed = true;
         break;
     }
@@ -217,7 +209,6 @@ pub async fn try_auth(
         return Ok((false, uiaainfo));
     }
 
-    // UIAA was successful! Remove this session and return true
     self.update_uiaa_session(
         user_id,
         device_id,

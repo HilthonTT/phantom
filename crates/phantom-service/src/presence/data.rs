@@ -103,7 +103,6 @@ impl Data {
             Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
         };
 
-        // TODO: tighten for state flicker?
         if !status_msg_changed && !state_changed && last_active_ts < last_last_active_ts {
             debug_warn!(
                 "presence spam {user_id:?} last_active_ts:{last_active_ts:?} < \
@@ -131,8 +130,6 @@ impl Data {
         self.presenceid_presence.raw_put(key, Json(presence))?;
         self.userid_presenceid.raw_put(user_id, count)?;
 
-        // Only once the new record is the one the user points at, so a crash
-        // between the two leaves a stale record rather than none at all.
         if let Ok((last_count, _)) = last_presence {
             let key = presenceid_key(last_count, user_id);
             self.presenceid_presence.remove(&key)?;

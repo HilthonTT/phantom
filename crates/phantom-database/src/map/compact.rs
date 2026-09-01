@@ -49,9 +49,6 @@ pub fn compact_blocking(&self, opts: Options) -> Result {
     co.set_bottommost_level_compaction(if opts.exhaustive {
         BottommostLevelCompaction::Force
     } else {
-        // Skips the bottommost level where compacting it would not actually
-        // drop anything, which is the usual case and by far the expensive
-        // part of the job.
         BottommostLevelCompaction::ForceOptimized
     });
 

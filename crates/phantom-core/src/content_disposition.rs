@@ -14,7 +14,6 @@ use crate::debug_info;
 
 /// as defined by MSC2702
 const ALLOWED_INLINE_CONTENT_TYPES: [&str; 26] = [
-    // keep sorted
     "application/json",
     "application/ld+json",
     "audio/aac",
@@ -125,7 +124,6 @@ mod tests {
             replacement: "",
         };
 
-        // cargo test -- --nocapture
         println!("{SAMPLE}");
         println!(
             "{}",

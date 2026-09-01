@@ -82,8 +82,6 @@ pub async fn user_can_redact(
                         _ => false,
                     })
         }
-        // A room with no power levels is one where the creator holds all of
-        // them, so fall back on who created it.
         _ => match self
             .room_state_get(room_id, &StateEventType::RoomCreate, "")
             .await
@@ -109,9 +107,6 @@ pub async fn user_can_see_event(
     room_id: &RoomId,
     event_id: &EventId,
 ) -> bool {
-    // An event whose state this server never recorded cannot be judged, and
-    // is left visible rather than hidden: it is reachable only to a caller
-    // that already had the event id.
     let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
         return true;
     };
@@ -131,8 +126,6 @@ pub async fn user_can_see_event(
         HistoryVisibility::Joined => self.user_was_joined(shortstatehash, user_id).await,
         HistoryVisibility::WorldReadable => true,
         HistoryVisibility::Shared => currently_member,
-        // Non-exhaustive: a room may name a visibility this server has no
-        // rule for, and the safe reading of one is to show nothing.
         _ => {
             error!(
                 %room_id,
@@ -200,8 +193,6 @@ pub async fn power_level_context(
         .rules()
         .map_or(AuthorizationRules::V1, |rules| rules.authorization);
 
-    // The sender rather than the deprecated `creator` field: it is the
-    // creator in every room version, and is the only spelling from v11 on.
     let mut creators = Vec::with_capacity(1 + content.additional_creators.len());
     creators.push(create.sender.clone());
     creators.extend(content.additional_creators.iter().cloned());

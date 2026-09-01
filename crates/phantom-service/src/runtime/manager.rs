@@ -61,8 +61,6 @@ impl Manager {
                 .spawn(async move { self_.worker().await }),
         );
 
-        // we can't hold the lock during the iteration with start_worker so the values
-        // are snapshotted here
         let services: Vec<Arc<dyn Service>> = self
             .service
             .read()
@@ -106,7 +104,6 @@ impl Manager {
     }
 
     async fn handle_abort(&self, _workers: &mut WorkersLocked<'_>, error: Error) -> Result<()> {
-        // not supported until service can be associated with abort
         unimplemented!("unexpected worker task abort {error:?}");
     }
 
@@ -202,6 +199,5 @@ async fn worker(service: Arc<dyn Service>) -> WorkerResult {
         result.await
     };
 
-    // flattens JoinError for panic into worker's Error
     (service, result.unwrap_or_else(Err))
 }

@@ -63,8 +63,6 @@ where
         F: Fn(Self::Ok) -> Result<U, E> + Clone + Send + 'static,
         U: Send + 'static,
     {
-        // Zero would otherwise reach `try_buffer_unordered` and stall, the same
-        // way it does for the -band combinators.
         let n = match n.into() {
             Some(n) if n > 0 => n,
             _ => available_parallelism(),

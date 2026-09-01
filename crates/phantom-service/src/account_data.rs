@@ -103,7 +103,6 @@ pub async fn update(
     let prev = self.db.roomusertype_roomuserdataid.qry(&key).await;
     let _ = self.db.roomusertype_roomuserdataid.put(key, roomuserdataid);
 
-    // Remove old entry
     if let Ok(prev) = prev {
         let _ = self.db.roomuserdataid_accountdata.remove(&prev);
     }
@@ -162,16 +161,11 @@ pub fn changes_since<'a>(
     since: u64,
     to: Option<u64>,
 ) -> impl Stream<Item = AnyRawAccountDataEvent> + Send + 'a {
-    // The identifiers come back out of the key as the strings they were
-    // written as: the database layer knows nothing of ruma's types, and
-    // re-parsing them only to compare them would cost more than comparing the
-    // bytes.
     type Key<'a> = (Option<&'a str>, &'a str, u64, Ignore);
 
     let room_id_str = room_id.map(RoomId::as_str);
     let user_id_str = user_id.as_str();
 
-    // Skip the data that's exactly at since, because we sent that last time
     let first_possible = (room_id, user_id, since.saturating_add(1));
 
     self.db

@@ -261,8 +261,6 @@ async fn execute(&self, queue: &Sender<Cmd>, cmd: Cmd) -> Result {
         self.queued_max.fetch_max(queue.len(), Ordering::Relaxed);
     }
 
-    // Awaits when the queue is full, which is the backpressure that stops
-    // requests being accepted faster than the storage can answer them.
     queue
         .send(cmd)
         .await
@@ -288,8 +286,6 @@ fn worker_init(&self, id: usize) {
         .topology
         .iter()
         .enumerate()
-        // A single queue means every core serves it, so pinning would only
-        // take cores away from the scheduler for nothing.
         .filter(|_| self.queues.len() > 1)
         .filter(|_| self.server.config.db_pool_affinity)
         .filter_map(|(core_id, &queue_id)| (group == queue_id).then_some(core_id))
@@ -297,10 +293,6 @@ fn worker_init(&self, id: usize) {
 
     set_affinity(affinity.clone());
 
-    // Where jemalloc is partitioning arenas by core and this worker is pinned
-    // to exactly one, put it on that core's arena: the values it allocates are
-    // freed by whichever tokio worker consumes them, and crossing arenas on
-    // every read is what that partitioning exists to avoid.
     #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
     if affinity.clone().count() == 1 && phantom_core::alloc::je::is_affine_arena() {
         use phantom_core::{
@@ -324,8 +316,6 @@ fn worker_init(&self, id: usize) {
 
 #[implement(Pool)]
 fn worker_loop(self: &Arc<Self>, recv: &Receiver<Cmd>) {
-    // The wait span reports `busy` as it decrements on entry, so the count has
-    // to start out including this worker.
     self.busy.fetch_add(1, Ordering::Relaxed);
 
     while let Ok(cmd) = self.worker_wait(recv) {
@@ -360,17 +350,11 @@ fn handle_get(&self, mut cmd: Get) {
     debug_assert!(!cmd.key[0].is_empty(), "querying for an empty key");
 
     let Some(chan) = cmd.res.take().filter(|chan| !chan.is_canceled()) else {
-        // The caller's future was dropped while this sat in the queue, so the
-        // query can be skipped outright.
         return;
     };
 
-    // Goes back through the map layer rather than to the engine directly, so
-    // that a read costs the same wherever it was issued from.
     let result = cmd.map.get_blocking(&cmd.key[0]);
 
-    // Fails if the caller gave up between the check above and now, which is
-    // as acceptable here as it was there.
     chan.send(send_get([result].into())).ok();
 }
 
@@ -413,48 +397,27 @@ fn handle_iter(&self, mut cmd: Seek) {
     chan.send(send_seek(state)).ok();
 }
 
-// The four functions below launder the lifetime on a handle or a cursor across
-// the channel between a worker and its caller. `send_` erases it on the way
-// out of a thread, `recv_` restores it on the way in.
-//
-// # Safety
-//
-// Both borrow into the open database: a handle pins a cache block, a cursor
-// holds a column handle. The lifetime is how `rocksdb` states that, and a
-// channel cannot carry it, so it is erased on the way out and restored on the
-// way in.
-//
-// What makes the round trip sound is that the caller of `execute_get` or
-// `execute_iter` is awaiting a borrow of the pool, which is owned by the
-// engine: the database cannot be dropped while a result is in flight, and the
-// lifetime the caller ends up with is bounded by that borrow rather than by
-// the `'static` the channel saw.
-
 #[inline]
 #[allow(unsafe_code)]
 fn send_get(result: BatchResult<'_>) -> BatchResult<'static> {
-    // SAFETY: see above.
     unsafe { std::mem::transmute(result) }
 }
 
 #[inline]
 #[allow(unsafe_code)]
 fn recv_get<'a>(result: BatchResult<'static>) -> BatchResult<'a> {
-    // SAFETY: see above.
     unsafe { std::mem::transmute(result) }
 }
 
 #[inline]
 #[allow(unsafe_code)]
 pub(crate) fn send_seek(state: cursor::State<'_>) -> cursor::State<'static> {
-    // SAFETY: see above.
     unsafe { std::mem::transmute(state) }
 }
 
 #[inline]
 #[allow(unsafe_code)]
 fn recv_seek<'a>(state: cursor::State<'static>) -> cursor::State<'a> {
-    // SAFETY: see above.
     unsafe { std::mem::transmute(state) }
 }
 

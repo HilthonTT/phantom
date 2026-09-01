@@ -40,11 +40,6 @@ impl Resolver {
     pub(super) fn build(server: &Arc<Server>, cache: Arc<Cache>) -> Result<Arc<Self>> {
         let config = &server.config;
 
-        // The system configuration is read for the nameservers, the search
-        // domains and the platform's own defaults; the options below are then
-        // applied over it. A machine with no resolver configuration at all is
-        // an error rather than a fallback to a public resolver, which is not
-        // a choice to make on an operator's behalf.
         let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
             .map_err(|e| err!("Failed to configure the DNS resolver from the system: {e}"))?;
 
@@ -62,10 +57,6 @@ impl Resolver {
             let mut ns = name_server.clone();
 
             if config.query_over_tcp_only {
-                // A name server carries one connection per protocol now, so
-                // restricting to TCP means dropping the others rather than
-                // setting a protocol. The port is kept from whatever the
-                // system configured, which need not be 53.
                 let port = ns.connections.first().map(|conn| conn.port);
                 ns.connections
                     .retain(|conn| matches!(conn.protocol, ProtocolConfig::Tcp));
@@ -163,21 +154,13 @@ async fn hooked_resolve(
     name: Name,
 ) -> ResolvingResult {
     match cache.get_override(name.as_str()).await {
-        // Still valid, so the addresses the resolution settled on are used
-        // as-is and no query is made at all.
         Ok(cached) if cached.valid() => cached_to_reqwest(cached),
 
-        // Expired, but it recorded that this name resolves via another one.
-        // Following that again is what keeps an SRV indirection in place
-        // across the expiry, rather than falling back to the name reqwest
-        // asked for, which is not where the server is.
         Ok(CachedOverride {
             overriding: Some(overriding),
             ..
         }) => match overriding.parse() {
             Ok(name) => resolve_to_reqwest(server, resolver, name).boxed().await,
-            // Only reachable if something else wrote the record; the
-            // resolution path only ever stores a name it resolved.
             Err(e) => Err(Box::new(e)),
         },
 
@@ -197,15 +180,10 @@ async fn resolve_to_reqwest(
     };
 
     let handle_results = |results: LookupIp| -> Addrs {
-        // `LookupIp::iter` borrows the lookup, so the addresses are collected
-        // rather than handed to reqwest as a borrowing iterator.
         let addrs: Vec<_> = results.iter().map(|ip| SocketAddr::new(ip, 0)).collect();
         Box::new(addrs.into_iter())
     };
 
-    // A query that outlives the shutdown would hold the runtime open for as
-    // long as `dns_timeout` allows, which on the default settings is longer
-    // than a shutdown should ever take.
     tokio::select! {
         results = resolver.lookup_ip(name.as_str()) => Ok(handle_results(results?)),
         () = server.until_shutdown() => Err(handle_shutdown()),

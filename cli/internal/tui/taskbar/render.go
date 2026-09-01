@@ -38,7 +38,6 @@ func (m Model) renderTask(p *panel.Panel, t resource.Task, underCursor bool) {
 
 	glyph := m.theme.ForState(t.State).Render(" " + m.glyphs.GlyphForState(t.State))
 
-	// The name shares its line with the state glyph on the right.
 	name := panel.Truncate(t.Name, p.ContentWidth()-panel.Width(rail)-2)
 	gap := max(p.ContentWidth()-panel.Width(rail)-panel.Width(name)-2, 0)
 

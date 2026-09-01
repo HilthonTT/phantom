@@ -4,16 +4,13 @@ use argon2::{Algorithm, Argon2, Params, PasswordHasher, PasswordVerifier, Versio
 
 use crate::{Error, Result, err};
 
-const M_COST: u32 = Params::DEFAULT_M_COST; // memory size in 1 KiB blocks
-const T_COST: u32 = Params::DEFAULT_T_COST; // nr of iterations
-const P_COST: u32 = Params::DEFAULT_P_COST; // parallelism
+const M_COST: u32 = Params::DEFAULT_M_COST;
+const T_COST: u32 = Params::DEFAULT_T_COST;
+const P_COST: u32 = Params::DEFAULT_P_COST;
 
 static ARGON: OnceLock<Argon2<'static>> = OnceLock::new();
 
 fn init_argon() -> Argon2<'static> {
-    // 19456 Kib blocks, iterations = 2, parallelism = 1
-    // * <https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id>
-
     const {
         assert!(M_COST == 19_456, "M_COST default changed");
         assert!(T_COST == 2, "T_COST default changed");
@@ -28,8 +25,6 @@ fn init_argon() -> Argon2<'static> {
 }
 
 pub(super) fn password(password: &str) -> Result<String> {
-    // `hash_password` draws a 16-byte salt from the OS RNG via `getrandom`, so
-    // there is no rand_core version to reconcile with the rest of the crate.
     ARGON
         .get_or_init(init_argon)
         .hash_password(password.as_bytes())

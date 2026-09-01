@@ -35,7 +35,6 @@ impl Data {
     ) -> Result<Arc<[ShortEventId]>> {
         debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
-        // Check RAM cache
         if let Some(result) = self
             .auth_chain_cache
             .lock()
@@ -45,12 +44,10 @@ impl Data {
             return Ok(Arc::clone(result));
         }
 
-        // We only save auth chains for single events in the db
         if key.len() != 1 {
             return Err!(Request(NotFound("auth_chain not cached")));
         }
 
-        // Check database
         let chain = self
             .shorteventid_authchain
             .qry(&key[0])
@@ -62,7 +59,6 @@ impl Data {
             .map(u64_from_u8)
             .collect::<Arc<[ShortEventId]>>();
 
-        // Cache in RAM
         self.auth_chain_cache
             .lock()
             .expect("cache locked")
@@ -75,7 +71,6 @@ impl Data {
     pub(super) fn cache_auth_chain(&self, key: Vec<ShortEventId>, auth_chain: Arc<[ShortEventId]>) {
         debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
-        // Only persist single events in db
         if key.len() == 1 {
             let key = key[0].to_be_bytes();
             let val = auth_chain
@@ -86,7 +81,6 @@ impl Data {
             self.shorteventid_authchain.insert(&key, &val).ok();
         }
 
-        // Cache in RAM
         self.auth_chain_cache
             .lock()
             .expect("cache locked")

@@ -10,7 +10,6 @@ pub(super) fn recursion_depth(item: ItemStruct, _args: &[Meta]) -> Result<TokenS
     let mut best: usize = 0;
     let mut count: usize = 0;
 
-    // think you'd find a fancy recursive ast visitor? think again
     let tree = format!("{item:#?}");
     for line in tree.lines() {
         let trim = line.trim_start_matches(' ');

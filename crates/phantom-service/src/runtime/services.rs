@@ -119,17 +119,11 @@ impl Services {
     pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
         debug_info!("Starting services...");
 
-        // An admin command runs against the whole graph, and the graph is only
-        // whole now: the admin service is in it, so it cannot have been handed
-        // this when it was built.
         self.admin.set_services(Some(self));
 
         let manager = Manager::new(self);
         self.manager.lock().await.replace(manager.clone());
 
-        // Outside the lock: starting is what spawns the workers, and it is
-        // long enough that holding the handle for it would block a concurrent
-        // `stop` from ever being able to take it.
         manager.start().await?;
 
         debug_info!("Services startup complete.");
@@ -149,17 +143,12 @@ impl Services {
     pub async fn stop(&self) {
         info!("Shutting down services...");
 
-        // Interrupting first is what lets a worker return from its loop rather
-        // than be waited on until it happens to finish.
         self.interrupt();
 
         if let Some(manager) = self.manager.lock().await.take() {
             manager.stop().await;
         }
 
-        // After the workers are down rather than before: a command still being
-        // processed holds the graph it was handed, and dropping the reference
-        // early would only make it fail on the way out.
         self.admin.set_services(None);
 
         debug_info!("Services shutdown complete.");

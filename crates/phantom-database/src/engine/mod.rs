@@ -196,8 +196,6 @@ impl Drop for Engine {
     fn drop(&mut self) {
         const BLOCKING: bool = true;
 
-        // Before anything else: the workers hold column handles into this
-        // database, so they have to be gone before it closes.
         debug!("Waiting for database workers to finish...");
         self.pool.close();
 

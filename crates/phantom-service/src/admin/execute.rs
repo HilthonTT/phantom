@@ -31,9 +31,6 @@ const STARTUP_DELAY: Duration = Duration::from_millis(500);
 /// Runs the `admin_execute` commands.
 #[implement(super::Service)]
 pub(super) async fn startup_execute(&self) -> Result {
-    // Cloned rather than borrowed: the config manager hands out a reference
-    // through a thread-local, and the loop below awaits, which may leave the
-    // task on another thread than the one the reference came from.
     let commands = self.services.server.config.admin_execute.clone();
     if commands.is_empty() {
         return Ok(());
@@ -63,8 +60,6 @@ async fn execute_commands(&self, commands: &[String]) -> Result {
             return Err(e);
         }
 
-        // These run back to back on the worker's task before it starts taking
-        // commands from the queue, so it yields between them.
         tokio::task::yield_now().await;
     }
 
@@ -75,9 +70,6 @@ async fn execute_commands(&self, commands: &[String]) -> Result {
 async fn execute_command(&self, i: usize, command: String) -> Result {
     debug!("Execute command #{i}: executing {command:?}");
 
-    // In place rather than queued: the queue is drained by the worker that is
-    // running this, so queueing here would deadlock, and the caller wants the
-    // outcome anyway.
     match self.command_in_place(command, None).await {
         Ok(None) => {
             info!("Execute command #{i} completed with no output.");

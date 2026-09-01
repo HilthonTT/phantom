@@ -47,9 +47,6 @@ where
     type Batch = BTreeMap<OwnedServerName, BTreeSet<OwnedServerSigningKeyId>>;
     type Signatures = BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, String>>;
 
-    // Only the `signatures` field is deserialized, and only its keys are
-    // kept: this is a batch of events, and the signatures themselves are not
-    // wanted until each event is verified on its own.
     let mut batch = Batch::new();
     events
         .cloned()
@@ -168,8 +165,6 @@ async fn acquire_origins<I>(&self, batch: I) -> Batch
 where
     I: Iterator<Item = (OwnedServerName, Vec<OwnedServerSigningKeyId>)> + Send,
 {
-    // One deadline shared by every request, rather than one each: a server
-    // that is simply gone should not extend how long the whole round takes.
     let timeout = Instant::now()
         .checked_add(ORIGIN_TIMEOUT)
         .expect("timeout overflows");

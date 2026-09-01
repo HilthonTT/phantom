@@ -55,9 +55,6 @@ impl super::Service {
             return Ok((result, true));
         }
 
-        // Checked again under the lock: the resolution below is several round
-        // trips, and everything that queued behind this guard would otherwise
-        // repeat all of them after the first one had already cached an answer.
         let _dedup = self.resolving.lock(server_name.as_str()).await;
         if let Ok(result) = self.cache.get_destination(server_name).await {
             return Ok((result, true));
@@ -104,8 +101,6 @@ impl super::Service {
             }
         };
 
-        // Not `get_ip_with_port`: that supplies the default port, and the
-        // `Host` header must carry a port only where the name itself did.
         let host = if let Ok(addr) = host.parse::<SocketAddr>() {
             Destination::Literal(addr)
         } else if let Ok(addr) = host.parse::<IpAddr>() {
@@ -322,8 +317,6 @@ impl super::Service {
             match self.resolver.resolver.srv_lookup(hostname).await {
                 Err(e) => Self::handle_resolve_error(&e, hostname)?,
                 Ok(result) => {
-                    // `srv_lookup` answers with plain records now, so the SRV
-                    // ones are picked out here.
                     let srv = result
                         .answers()
                         .iter()
@@ -333,9 +326,6 @@ impl super::Service {
                         });
 
                     let Some(srv) = srv else {
-                        // An empty answer is not the same as no record: fall
-                        // through to the next name rather than reporting a
-                        // destination with no target.
                         continue;
                     };
 
@@ -354,8 +344,6 @@ impl super::Service {
         use hickory_resolver::net::DnsError;
 
         match e {
-            // Not an error: a server that publishes no SRV record is the
-            // ordinary case, and the caller moves on to the next step.
             NetError::Dns(DnsError::NoRecordsFound(..)) => {
                 debug!(%host, "No DNS records found: {e}");
                 Ok(())

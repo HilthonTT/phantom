@@ -34,11 +34,9 @@ pub trait Event {
     fn state_key(&self) -> Option<&str>;
 
     /// The events before this event.
-    // Requires GATs to avoid boxing (and TAIT for making it convenient).
     fn prev_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_;
 
     /// All the authenticating events for this event.
-    // Requires GATs to avoid boxing (and TAIT for making it convenient).
     fn auth_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_;
 
     /// If this event is a redaction event this is the event it redacts.

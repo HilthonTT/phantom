@@ -62,9 +62,6 @@ where
 {
     let upper = prefix_upper_bound(prefix.as_ref());
 
-    // Forward, the range begins at the prefix. Backwards it ends just below
-    // the upper bound, which the bound itself positions the cursor at, so
-    // there is nothing to seek to.
     let from = (!REV).then(|| prefix.as_ref().to_vec());
 
     self.iter_bounded::<T, REV>(from.as_deref(), upper)
@@ -86,10 +83,6 @@ where
     if self.iter_is_cached::<REV>(from, upper) {
         let state = state.init::<REV>(from);
 
-        // Positioned without I/O, and the steps after it will not block
-        // either, so this stream will never yield to the scheduler on its
-        // own. Spending the cooperative budget once up front is what stops a
-        // long cached iteration from monopolising its tokio worker.
         return task::consume_budget()
             .map(move |()| Cursor::<'a, T, REV>::from(state))
             .into_stream()
@@ -216,12 +209,8 @@ mod tests {
             );
         }
 
-        // A sibling component sorts *below* the range rather than above it,
-        // because the separator is the highest byte there is.
         assert!(b"!rooms"[..] < prefix[..], "a sibling precedes the range");
 
-        // And the bound is the least key above the range: nothing sorts
-        // between the two.
         assert_eq!(upper, b"!roon", "one past the last byte below the maximum");
     }
 

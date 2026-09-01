@@ -91,9 +91,6 @@ impl Destination {
     pub fn port(&self) -> Option<u16> {
         match &self {
             Self::Literal(addr) => Some(addr.port()),
-            // The stored form keeps the leading colon; `strip_prefix` rather
-            // than a slice so that a malformed value is `None` instead of a
-            // panic on a non-boundary index.
             Self::Named(_, port) => port.strip_prefix(':')?.parse().ok(),
         }
     }

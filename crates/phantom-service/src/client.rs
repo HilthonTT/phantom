@@ -61,9 +61,6 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         let config = &args.server.config;
 
-        // Required rather than depended on: every client below is built
-        // against the resolver, so it has to exist now rather than at first
-        // use. `Services` builds the resolver first for this reason.
         let resolver = args.require::<resolver::Service>("resolver");
 
         let url_preview_bind_addr = config
@@ -180,9 +177,6 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
         .redirect(redirect::Policy::limited(6))
         .danger_accept_invalid_certs(config.allow_invalid_tls_certificates)
         .connection_verbose(cfg!(debug_assertions))
-        // The reference gates each of these behind a cargo feature as well as
-        // the config option, which leaves six `cfg` blocks to keep in step
-        // with three features. The codecs are small; the option is enough.
         .gzip(config.gzip_compression)
         .brotli(config.brotli_compression)
         .zstd(config.zstd_compression);

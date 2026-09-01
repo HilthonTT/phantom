@@ -61,7 +61,6 @@ pub async fn exists(&self, room_id: &RoomId) -> bool {
 
     let prefix = serialize_to_vec(shortroomid).expect("failed to serialize prefix");
 
-    // Look for PDUs in that room.
     self.db
         .pduid_pdu
         .raw_keys_prefix(&prefix)

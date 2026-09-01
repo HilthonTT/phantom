@@ -68,8 +68,6 @@ func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, model, cmd
 
 	case key.Matches(msg, m.keys.Sort):
-		// Sorting is a listing operation, and there is no listing to reorder
-		// yet. The confirmation box is what it will open onto.
 		m.confirm.Ask("Change the sort order",
 			"Sorting is not wired up yet — this is where it will ask.")
 		m.modal = modal.Confirm

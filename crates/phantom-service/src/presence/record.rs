@@ -58,8 +58,6 @@ impl Presence {
             now.saturating_sub(self.last_active_ts),
         ));
 
-        // `PresenceEventContent` is `non_exhaustive`, so it is built from
-        // its constructor rather than as a literal.
         let mut content = PresenceEventContent::new(self.state.clone());
         content.status_msg = self.status_msg.clone();
         content.currently_active = Some(self.currently_active);

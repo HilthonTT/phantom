@@ -12,10 +12,6 @@ impl<T> UnwrapInfallible<T> for Result<T, Infallible> {
     fn unwrap_infallible(self) -> T {
         match self {
             Ok(value) => value,
-            // `Infallible` has no variants, so this arm cannot be reached and
-            // the compiler emits no branch for it. The reference implementation
-            // reached for `unwrap_unchecked` and an `unsafe` block to say the
-            // same thing.
             Err(never) => match never {},
         }
     }

@@ -38,7 +38,6 @@ mod tests {
         let min = Duration::from_secs(1);
         let max = Duration::from_secs(60);
 
-        // Try 2 waits min * 2^2 = 4s.
         assert!(continue_exponential_backoff(
             min,
             max,
@@ -52,7 +51,6 @@ mod tests {
             2
         ));
 
-        // Try 3 waits min * 3^2 = 9s.
         assert!(continue_exponential_backoff(
             min,
             max,
@@ -101,7 +99,6 @@ mod tests {
             2
         ));
 
-        // Nothing has been tried yet, so nothing is being waited out.
         assert!(!continue_exponential_backoff_secs(1, 60, Duration::ZERO, 0));
     }
 }

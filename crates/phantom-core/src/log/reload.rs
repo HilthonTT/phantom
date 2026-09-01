@@ -159,8 +159,6 @@ mod tests {
                 .push(new_value.to_string());
 
             if self.fails {
-                // The only way to obtain a `reload::Error` is from a handle
-                // whose layer is gone, which is what this stands for.
                 let (_, handle) =
                     reload::Layer::<_, tracing_subscriber::Registry>::new(EnvFilter::new("info"));
                 return handle.reload(new_value);
@@ -186,8 +184,6 @@ mod tests {
 
     #[test]
     fn reload_without_names_reloads_every_layer() {
-        // The reference filtered on `names.is_some_and(..)`, so `None` reloaded
-        // nothing at all.
         let (handles, reloads) = handles(&[]);
 
         handles

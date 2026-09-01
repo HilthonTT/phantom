@@ -107,9 +107,7 @@ impl Service {
                     serde_json::from_value::<BundledThread>(thread.clone().into()).ok()
                 })
                 .map_or_else(
-                    // New thread.
                     || BundledThread::new(pdu.to_sync_message_like_event(), uint!(1), true),
-                    // Thread already existed.
                     |mut thread| {
                         thread.count = thread.count.saturating_add(uint!(1));
                         thread.latest_event = pdu.to_sync_message_like_event();
@@ -122,9 +120,6 @@ impl Service {
                 .try_into()
                 .expect("thread is valid json");
 
-            // Merged into the bundled aggregations rather than assigned over
-            // them: `m.relations` holds one key per relation type, and the
-            // others are none of this service's business.
             match unsigned
                 .entry("m.relations".to_owned())
                 .or_insert_with(|| CanonicalJsonValue::Object(BTreeMap::default()))
@@ -146,9 +141,6 @@ impl Service {
                 .await?;
         }
 
-        // Participants are stored as a set: a sender who has already replied
-        // in this thread must not be appended again, or the list grows by one
-        // entry per message in the thread.
         let mut users = match self.get_participants(&root_id).await {
             Ok(userids) => userids,
             _ => vec![root_pdu.sender],

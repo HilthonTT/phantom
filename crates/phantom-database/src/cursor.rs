@@ -107,10 +107,6 @@ impl<'a> State<'a> {
         debug_assert!(!self.seek, "cursor was already positioned");
 
         match from {
-            // `seek` lands on the first key at or after `from`, and
-            // `seek_for_prev` on the last at or before it, so each direction
-            // starts on the entry nearest the bound on the side it will move
-            // away from.
             Some(key) if REV => self.inner.seek_for_prev(key),
             Some(key) => self.inner.seek(key),
             None if REV => self.inner.seek_to_last(),
@@ -225,7 +221,5 @@ fn keyval_longevity<'a, 'b: 'a>(item: KeyVal<'a>) -> KeyVal<'b> {
 #[inline]
 #[allow(unsafe_code)]
 fn slice_longevity<'a, 'b: 'a>(item: &'a Slice) -> &'b Slice {
-    // SAFETY: see the contract above; upheld by the callers of the map layer's
-    // iteration methods, not by this function.
     unsafe { std::mem::transmute(item) }
 }

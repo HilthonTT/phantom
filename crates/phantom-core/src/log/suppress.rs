@@ -23,7 +23,6 @@ pub struct Suppress {
 impl Suppress {
     #[must_use]
     pub fn new(server: &Arc<Server>) -> Self {
-        // An EnvFilter with no directives enables nothing.
         let suppress = EnvFilter::default();
 
         let restore = server
@@ -32,9 +31,6 @@ impl Suppress {
             .current(HANDLE)
             .unwrap_or_else(|| EnvFilter::try_new(&server.config.log).unwrap_or_default());
 
-        // Failing to suppress is not worth taking the server down for; the
-        // caller's output is merely interleaved with logging, as it would have
-        // been without this type at all.
         let restore = server
             .log
             .reload
@@ -56,9 +52,6 @@ impl Drop for Suppress {
             return;
         };
 
-        // Dropping is not a place to panic from: a failure to restore leaves
-        // the console quiet, which the operator can undo with a log-level
-        // command, whereas an unwind here would abort a shutdown path.
         _ = self
             .server
             .log
@@ -150,8 +143,6 @@ mod tests {
 
     #[test]
     fn an_unsuppressible_console_is_not_fatal() {
-        // No console layer is registered, so the reload fails; constructing and
-        // dropping the guard must still be harmless.
         let server = server(false);
 
         drop(Suppress::new(&server));

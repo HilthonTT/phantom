@@ -14,8 +14,6 @@ use crate::Result;
 pub fn to_canonical_object<T: serde::Serialize>(
     value: T,
 ) -> Result<CanonicalJsonObject, CanonicalJsonError> {
-    // ruma 0.16 dropped `CanonicalJsonError::SerDe`, so serialization failures
-    // are reported through `Other` and a non-object through `InvalidType`.
     match serde_json::to_value(value)
         .map_err(|error| CanonicalJsonError::Other(error.to_string()))?
     {

@@ -135,8 +135,6 @@ func (p *Panel) Render() string {
 		return ""
 	}
 
-	// Too small for a border: fill the whole rectangle with content instead of
-	// drawing a box that would have no inside.
 	if p.cfg.Width < borderThickness || p.cfg.Height < borderThickness {
 		return strings.Join(p.body(p.cfg.Width, p.cfg.Height), "\n")
 	}
@@ -177,7 +175,6 @@ func (p *Panel) body(w, h int) []string {
 
 		line = Truncate(line, w)
 
-		// An unstyled line has no colours of its own, so it takes the panel's.
 		if !strings.ContainsRune(line, ansiEscape) {
 			line = content.Render(line)
 		}
@@ -235,7 +232,6 @@ func (p *Panel) topEdge(b lipgloss.Border) (string, bool) {
 		fill -= titleIndent
 	}
 
-	// `─┤ Title ├───`: the tees face outwards, into the edge either side.
 	return indent + b.MiddleRight + " " + title + " " + b.MiddleLeft +
 		strings.Repeat(b.Top, fill), true
 }
@@ -248,7 +244,6 @@ func (p *Panel) bottomEdge(b lipgloss.Border) (string, bool) {
 		return "", false
 	}
 
-	// Each item gets an equal share of the edge, less its own tees and padding.
 	share := width/len(p.info) - infoAffix - titlePadding
 
 	var items strings.Builder

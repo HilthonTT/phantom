@@ -71,8 +71,6 @@ impl TestDb {
             ),
         )?;
 
-        // The server is only here to carry the config: nothing under test
-        // logs through it, so the subsystem is built rather than installed.
         let log = Log {
             reload: LogLevelReloadHandles::default(),
             capture: Arc::new(capture::State::new()),
@@ -100,8 +98,6 @@ async fn a_written_value_reads_back() {
 
     let handle = map.qry(&("room", 1_u64)).await.expect("found");
 
-    // Borrowed out of the handle, which is what `de` is for; `deserialized`
-    // would want an owned type.
     let borrowed: (&str,) = handle.de().expect("deserialized");
     assert_eq!(borrowed, ("value",));
 
@@ -146,8 +142,6 @@ async fn a_removed_key_is_gone() {
 
     assert!(!map.contains(&("k",)).await);
 
-    // Removing what is not there is not an error; the engine writes a
-    // tombstone either way.
     map.del(("k",)).expect("removing an absent key is fine");
 }
 
@@ -156,8 +150,6 @@ async fn entries_iterate_in_key_order() {
     let test = db();
     let map = &test.db["random"];
 
-    // Written out of order, and with an integer component, since byte order
-    // is what puts them back in order and only big-endian integers sort.
     for i in [3_u64, 1, 2] {
         map.put(("room", i), (i,)).expect("written");
     }
@@ -236,8 +228,6 @@ async fn a_prefix_iteration_stops_at_the_end_of_the_prefix() {
     map.put(("room", 1_u64), (1_u64,)).expect("written");
     map.put(("room", 2_u64), (2_u64,)).expect("written");
 
-    // Sorts immediately after the `room` range and must not be included: it
-    // starts with the same bytes, but not with the same component.
     map.put(("roomier", 1_u64), (9_u64,)).expect("written");
 
     let forward: Vec<u64> = map
@@ -431,8 +421,6 @@ async fn concurrent_databases_close_without_deadlocking() {
                     map.put(("room", i), (i,)).expect("written");
                 }
 
-                // A flush is background work, so it is the step that hangs
-                // where the thread pools have been taken away.
                 test.db.engine.sort().expect("flushed");
             });
         }
@@ -456,8 +444,6 @@ async fn seeking_backwards_to_a_prefix_lands_before_its_range() {
 
     let prefix = crate::serialize_key(("room", Interfix)).expect("serialized");
 
-    // What the reference does: seek backwards *to the prefix*, with no upper
-    // bound, then stop at the first key that does not match.
     let found: Vec<_> = map
         .rev_raw_keys_from(&prefix)
         .try_take_while(|k| futures::future::ok(k.starts_with(&prefix)))

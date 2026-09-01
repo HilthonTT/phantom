@@ -43,9 +43,6 @@ impl Watchers {
         };
 
         async move {
-            // Both outcomes are a wake: `Ok` is `wake` having sent, `Err` is
-            // `wake` having dropped the sender afterwards, or the database
-            // having gone away underneath us.
             rx.changed().await.ok();
         }
     }
@@ -64,10 +61,6 @@ impl Watchers {
             return;
         }
 
-        // Two ways to find the matching prefixes, and which is cheaper depends
-        // on the shape of the moment rather than of the schema: a column with
-        // one waiter and long keys wants the scan, one with a waiter per user
-        // and short keys wants the probes.
         let triggered: Vec<_> = if watchers.len() <= key.len() {
             watchers
                 .keys()
@@ -94,11 +87,7 @@ impl Watchers {
             .expect("watchers lock is never held across a panic");
 
         for prefix in triggered {
-            // Absent if another writer got here between the two locks, in
-            // which case it has already woken these waiters.
             if let Some(tx) = watchers.remove(&prefix) {
-                // Fails only when every receiver is gone, which is not an
-                // error: the waiters lost interest.
                 tx.send(()).ok();
             }
         }
@@ -181,8 +170,6 @@ mod tests {
             let watch = watchers.watch(b"a").boxed();
 
             for i in 0..keys {
-                // Distinct prefixes that must not match, to move the watcher
-                // count across the threshold `wake` branches on.
                 drop(watchers.watch(format!("z{i}").as_bytes()));
             }
 

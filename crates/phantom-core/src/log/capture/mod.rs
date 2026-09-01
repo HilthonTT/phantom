@@ -97,7 +97,6 @@ mod tests {
         f();
         drop(guard);
 
-        // Nothing recorded after the guard drops may reach the capture.
         tracing::info!("after the guard");
 
         out.lock().expect("locked").clone()
@@ -113,8 +112,6 @@ mod tests {
 
     #[test]
     fn filter_sees_field_values() {
-        // The filter is handed the event's recorded fields, which the reference
-        // implementation left empty — it recorded them only for the closure.
         let out = captured(
             Some(|data: Data<'_>| data.message().contains("keep")),
             || {
@@ -129,8 +126,6 @@ mod tests {
 
     #[test]
     fn closure_sees_the_span_scope() {
-        // Likewise the closure is handed the enclosing spans, which the
-        // reference implementation collected only for the filter.
         let scopes: Arc<Mutex<Vec<Vec<String>>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = scopes.clone();
 

@@ -45,7 +45,6 @@ impl ProxyConfig {
             Self::None => None,
             Self::Global { url } => Some(Proxy::all(url)?),
             Self::ByDomain(proxies) => Some(Proxy::custom(move |url| {
-                // first matching proxy
                 proxies.iter().find_map(|proxy| proxy.for_url(url)).cloned()
             })),
         })
@@ -65,10 +64,9 @@ impl PartialProxyConfig {
     #[must_use]
     pub fn for_url(&self, url: &Url) -> Option<&Url> {
         let domain = url.domain()?;
-        let mut included_because = None; // most specific reason it was included
-        let mut excluded_because = None; // most specific reason it was excluded
+        let mut included_because = None;
+        let mut excluded_because = None;
         if self.include.is_empty() {
-            // treat empty include list as `*`
             included_because = Some(&WildCardedDomain::WildCard);
         }
         for wc_domain in &self.include {
@@ -88,7 +86,6 @@ impl PartialProxyConfig {
             }
         }
         match (included_because, excluded_because) {
-            // Included for a more specific reason than it was excluded.
             (Some(include), Some(exclude)) if include.more_specific_than(exclude) => {
                 Some(&self.url)
             }
@@ -129,7 +126,6 @@ impl std::str::FromStr for WildCardedDomain {
 
     #[allow(clippy::string_slice)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // maybe do some domain validation?
         Ok(if s.starts_with("*.") {
             Self::WildCarded(s[1..].to_owned())
         } else if s == "*" {

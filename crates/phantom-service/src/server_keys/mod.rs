@@ -145,8 +145,6 @@ async fn add_signing_keys(&self, new_keys: ServerSigningKeys) -> Result {
         .await
         .deserialized()
         .unwrap_or_else(|_| {
-            // Nothing is held for this server yet. The timestamp is only
-            // meaningful on keys a server published, so any value does here.
             ServerSigningKeys::new(origin.to_owned(), MilliSecondsSinceUnixEpoch::now())
         });
 
@@ -182,10 +180,6 @@ pub async fn required_keys_exist(
 
 #[implement(Service)]
 pub async fn verify_key_exists(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> bool {
-    // The values are left as raw JSON: this only asks whether the key id is
-    // present, and deserializing every key to answer that is wasted work.
-    // The ids are owned because `&ServerSigningKeyId` is an unsized newtype
-    // with no borrowing `Deserialize`.
     type KeysMap<'a> = BTreeMap<OwnedServerSigningKeyId, &'a RawJsonValue>;
 
     let Ok(keys) = self
@@ -221,8 +215,6 @@ pub async fn verify_keys_for(&self, origin: &ServerName) -> VerifyKeys {
         .map(|keys| merge_old_keys(keys).verify_keys)
         .unwrap_or_default();
 
-    // Our own keys are not in the database: they are held in the service, and
-    // a server never fetches itself over federation.
     if self.services.server_state.server_is_ours(origin) {
         keys.extend(self.verify_keys.clone());
     }

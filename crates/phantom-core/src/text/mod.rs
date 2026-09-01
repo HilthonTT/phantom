@@ -39,7 +39,7 @@ pub fn camel_to_snake_string(s: &str) -> String {
 }
 
 #[inline]
-#[allow(clippy::unbuffered_bytes)] // these are in-memory string writers, not file I/O
+#[allow(clippy::unbuffered_bytes)]
 pub fn camel_to_snake_case<I, O>(output: &mut O, input: I) -> Result<()>
 where
     I: std::io::Read,

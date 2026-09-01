@@ -10,19 +10,11 @@ use phantom_core::alloc::je::this_thread;
 fn allocated_and_deallocated_are_distinct_counters() {
     const SIZE: usize = 4 * 1024 * 1024;
 
-    // Prime both thread-local mib caches before sampling. Priming allocates, so
-    // a first read of `deallocated` can otherwise land after `allocated` was
-    // already sampled and appear to exceed it. Touching `allocated` first also
-    // means a shared key would be initialized from *its* name, which is the
-    // aliasing this test is here to catch.
     let _ = this_thread::allocated();
     let _ = this_thread::deallocated();
 
     let live_before = this_thread::allocated().saturating_sub(this_thread::deallocated());
 
-    // Hold the allocation live across the measurement. Live bytes must grow by
-    // at least the size of the Vec; if both accessors resolve to the same
-    // jemalloc counter the difference is pinned to zero and cannot move.
     let v: Vec<u8> = vec![7; SIZE];
     std::hint::black_box(&v);
 
@@ -30,10 +22,6 @@ fn allocated_and_deallocated_are_distinct_counters() {
     let deallocated = this_thread::deallocated();
     drop(v);
 
-    // Unrelated churn on this thread moves both counters by a few bytes either
-    // way, so this asserts the order of magnitude rather than an exact total.
-    // Aliased accessors pin the difference to exactly zero, which is the case
-    // being ruled out.
     let growth = allocated
         .saturating_sub(deallocated)
         .saturating_sub(live_before);

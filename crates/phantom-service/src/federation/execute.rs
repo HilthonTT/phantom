@@ -140,8 +140,6 @@ async fn perform<T>(
 where
     T: OutgoingRequest + Send,
 {
-    // Taken before the send consumes the request: reqwest strips the url off
-    // some of the errors it hands back.
     let url = request.url().clone();
     let method = request.method().clone();
 
@@ -252,8 +250,6 @@ fn handle_error(
     mut e: reqwest::Error,
 ) -> Result {
     if e.is_timeout() || e.is_connect() {
-        // The url is already in the span, and repeating it is noise on the
-        // two errors every unreachable server produces.
         e = e.without_url();
         debug_warn!("{e:?}");
     } else if e.is_redirect() {

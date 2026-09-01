@@ -79,15 +79,10 @@ fn code_span<S>(out: &mut S, text: &str) -> Result<()>
 where
     S: Write + ?Sized,
 {
-    // An empty span is not a code span at all, so render one space instead.
     let text = if text.is_empty() { " " } else { text };
 
-    // A span opened by N backticks is closed by the next run of exactly N, so
-    // one more than the longest run inside the text is always safe.
     let fence = "`".repeat(longest_backtick_run(text).saturating_add(1));
 
-    // A leading or trailing backtick would be absorbed into the fence; a pair
-    // of spaces around the text is stripped again when the span is rendered.
     let pad = if text.starts_with('`') || text.ends_with('`') {
         " "
     } else {
@@ -166,7 +161,6 @@ mod tests {
 
         assert!(out.ends_with("``a `code` b``\n"), "{out}");
 
-        // The naive single-backtick rendering would have closed the span here.
         let padded = render(markdown, "` **bold** `");
         assert!(padded.contains("`` ` **bold** ` ``"), "{padded}");
     }

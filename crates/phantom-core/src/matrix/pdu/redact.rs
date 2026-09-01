@@ -18,8 +18,6 @@ struct ExtractRedactedBecause {
 
 #[implement(super::Pdu)]
 pub fn redact(&mut self, room_version_id: &RoomVersionId, reason: &Self) -> Result {
-    // Which keys survive a redaction is a property of the room version's rule
-    // set, so an unknown version cannot be redacted at all.
     let rules = room_version_id.rules().ok_or_else(|| {
         err!(Request(UnsupportedRoomVersion(
             "Unsupported room version {room_version_id}"

@@ -66,19 +66,15 @@ fn descriptor_cf_options(
 
     opts.set_compression_type(desc.compression);
     opts.set_compression_per_level(compression_shape.as_slice());
-    opts.set_compression_options(-14, desc.compression_level, 0, 0); // -14 w_bits is read by zlib.
+    opts.set_compression_options(-14, desc.compression_level, 0, 0);
     if let Some(&bottommost_level) = desc.bottommost_level.as_ref() {
         opts.set_bottommost_compression_type(desc.compression);
         opts.set_bottommost_zstd_max_train_bytes(0, true);
         opts.set_bottommost_compression_options(-14, bottommost_level, 0, 0, true);
     }
 
-    // Larger than the engine's own default, so that a memtable serving values
-    // of the sizes phantom writes allocates in fewer, larger blocks.
     opts.set_arena_block_size(1024 * 1024 * 2);
 
-    // Debug builds pay for the consistency checks; release builds honour the
-    // operator's `rocksdb_paranoid_file_checks` instead.
     #[cfg(debug_assertions)]
     opts.set_paranoid_checks(true);
 
@@ -105,13 +101,9 @@ fn set_compression(desc: &mut Descriptor, config: &Config) {
         "lz4" => CompressionType::Lz4,
         "lz4hc" => CompressionType::Lz4hc,
         "none" => CompressionType::None,
-        // `config::check` rejects anything else, so this is zstd and the
-        // spellings of it rather than a silent fallback.
         _ => CompressionType::Zstd,
     };
 
-    // The per-column levels below are tuned for zstd. An operator who names a
-    // level, or an algorithm whose scale differs, takes precedence over them.
     let can_override_level = config.rocksdb_compression_level == SENTINEL_COMPRESSION_LEVEL
         && desc.compression == CompressionType::Zstd;
 

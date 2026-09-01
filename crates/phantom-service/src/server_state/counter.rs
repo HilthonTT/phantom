@@ -67,10 +67,6 @@ impl Counter {
     fn stored_count(global: &Arc<Map>) -> Result<u64> {
         match global.get_blocking(COUNTER) {
             Ok(counter) => bytes::u64_from_bytes(&counter),
-            // Nothing has been counted yet on a database that was just
-            // created. Only a missing key means that; the reference reads any
-            // error as a zero, which would have the next write start the
-            // counter over.
             Err(e) if e.is_not_found() => Ok(0),
             Err(e) => Err(e),
         }

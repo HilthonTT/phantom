@@ -125,9 +125,6 @@ async fn get_verify_key_from_notaries(
 ) -> Result<VerifyKey> {
     for notary in &self.services.server.config.trusted_servers {
         if let Ok(server_keys) = self.notary_request(notary, origin).await {
-            // Everything the notary answered with is kept, not just the key
-            // that was asked for: the rest is a fetch that will not have to
-            // happen later.
             for server_key in server_keys.clone() {
                 self.add_signing_keys(server_key).await?;
             }

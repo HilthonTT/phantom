@@ -310,7 +310,6 @@ impl Data {
             .await
             .map_err(|e| err!(Request(NotFound("Room {room_id:?} not found: {e:?}"))))?;
 
-        // +1 so we don't send the base event
         let pdu_id = PduId {
             shortroomid,
             shorteventid: shorteventid.saturating_inc(dir),
@@ -320,7 +319,6 @@ impl Data {
     }
 }
 
-//TODO: this is an ABA
 #[allow(dead_code, reason = "called by the parked write path")]
 fn increment(db: &Arc<Map>, key: &[u8]) {
     let old = db.get_blocking(key);

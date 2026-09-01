@@ -48,8 +48,6 @@ impl crate::Service for Service {
     }
 
     async fn worker(self: Arc<Self>) -> Result {
-        // Nothing to write, and the point of a read-only server is that it
-        // does not write.
         if self.services.server.config.rocksdb_read_only {
             return Ok(());
         }
@@ -106,8 +104,5 @@ async fn set_emergency_access(&self) -> Result {
         return Ok(());
     }
 
-    // No password configured, so close the account again. This is also what
-    // runs on an ordinary startup, and is what drops the sessions a previous
-    // recovery left behind.
     self.services.users.deactivate_account(server_user).await
 }

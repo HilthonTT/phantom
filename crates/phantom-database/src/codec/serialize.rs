@@ -211,7 +211,7 @@ impl<W: Write> ser::Serializer for &mut Serializer<'_, W> {
         unhandled!("serialize Struct Variant not implemented")
     }
 
-    #[allow(clippy::needless_borrows_for_generic_args)] // buggy
+    #[allow(clippy::needless_borrows_for_generic_args)]
     fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: Serialize + ?Sized,
@@ -509,7 +509,6 @@ mod tests {
 
     #[test]
     fn cbor_newtype_writes_cbor() {
-        // 0x18 0x2A is CBOR for the unsigned integer 42.
         assert_eq!(ser(("k", Cbor(42_u32))), b"k\xFF\x18\x2A");
     }
 

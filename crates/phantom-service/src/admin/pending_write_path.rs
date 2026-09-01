@@ -105,8 +105,6 @@ async fn handle_response(&self, content: RoomMessageEventContent) -> Result {
         return Ok(());
     };
 
-    // In the admin room the server answers as itself; anywhere else the
-    // command was escaped by an admin, and the echo is theirs.
     let response_sender = if self.is_admin_room(&pdu.room_id).await {
         &self.services.server_state.server_user
     } else {
@@ -186,13 +184,9 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
         return Err!(debug_warn!("User is already pending an invitation to the admin room"));
     }
 
-    // The server user is what grants the membership and the power level; it is
-    // the only account that already has the power to.
     let server_user = &self.services.server_state.server_user;
 
     if self.services.server_state.user_is_local(user_id) {
-        // A local user is joined outright. The invite is still sent, because
-        // the join has to have something to accept.
         debug_info!("Inviting local user {user_id} to admin room {room_id}");
         self.services
             .timeline
@@ -221,7 +215,6 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
             )
             .await?;
     } else {
-        // A remote user has to accept for themselves.
         debug_info!("Inviting remote user {user_id} to admin room {room_id}");
         self.services
             .timeline
@@ -261,8 +254,6 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
         )
         .await?;
 
-    // Tagging the room is a convenience for the client, so a failure is
-    // reported and not fatal to the grant.
     let room_tag = self.services.server.config.admin_room_tag.as_str();
     if !room_tag.is_empty()
         && let Err(e) = self.set_room_tag(&room_id, user_id, room_tag).await
@@ -329,7 +320,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
 
     let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 
-    // The account the server posts as has to exist before it can post.
     let server_user = &services.server_state.server_user;
     services.users.create(server_user, None)?;
 
@@ -342,7 +332,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         }
     };
 
-    // 1. The room create event
     services
         .rooms
         .timeline
@@ -359,7 +348,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 2. Make the server user join
     services
         .rooms
         .timeline
@@ -374,7 +362,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 3. Power levels
     let users = BTreeMap::from_iter([(server_user.into(), 69420.into())]);
 
     services
@@ -391,7 +378,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 4.1 Join rules — invite only, since the invite is the grant
     services
         .rooms
         .timeline
@@ -403,7 +389,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 4.2 History visibility
     services
         .rooms
         .timeline
@@ -418,7 +403,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 4.3 Guest access
     services
         .rooms
         .timeline
@@ -433,7 +417,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 5. Name and topic
     let room_name = format!("{} Admin Room", services.server.config.server_name);
     services
         .rooms
@@ -462,8 +445,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
         )
         .await?;
 
-    // 6. Room alias. This is what `server_state::admin_room_id` resolves, so
-    // the room is not the admin room until this lands.
     let alias = &services.server_state.admin_alias;
 
     services
@@ -482,8 +463,6 @@ pub async fn create_admin_room(services: &Services) -> Result {
 
     services.rooms.alias.set_alias(alias, &room_id, server_user)?;
 
-    // 7. Disable URL previews, which would otherwise have the server fetch
-    // whatever a command's output happens to link to.
     services
         .rooms
         .timeline

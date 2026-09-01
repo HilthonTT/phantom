@@ -40,7 +40,6 @@ pub struct RoomVersion {
     pub event_format: EventFormatVersion,
     /// Which state resolution algorithm is used.
     pub state_res: StateResolutionVersion,
-    // FIXME: not sure what this one means?
     pub enforce_key_validity: bool,
 
     /// `m.room.aliases` had special auth rules and redaction rules

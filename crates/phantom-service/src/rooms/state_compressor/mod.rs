@@ -129,9 +129,6 @@ impl crate::Service for Service {
     }
 
     async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
-        // The same `Arc<CompressedState>` is shared by the layers of one stack
-        // and across stacks, so the sets are counted by address: adding up
-        // every layer's length would report the same allocation many times.
         let (cache_len, ents) = {
             let cache = self.stateinfo_cache.lock().expect("locked");
             let ents = cache.iter().map(at!(1)).flat_map(|vec| vec.iter()).fold(
@@ -222,8 +219,6 @@ async fn new_shortstatehash_info(
         }]);
     };
 
-    // Boxed because this recurses once per layer, and the layers are only
-    // bounded by the rebalancing in `save_state_from_diff`.
     let mut stack = Box::pin(self.load_shortstatehash_info(parent)).await?;
     let top = stack.last().expect("at least one frame");
 
@@ -317,8 +312,6 @@ pub fn save_state_from_diff(
     let diffsum = checked!(statediffnew_len + statediffremoved_len)?;
 
     if parent_states.len() > 3 {
-        // Too many layers: fold this diff into the one below and try again
-        // one layer down.
         let parent = parent_states.pop().expect("parent must have a state");
         let (parent_new, parent_removed) =
             merge_into_parent(&parent, &statediffnew, &statediffremoved);
@@ -333,7 +326,6 @@ pub fn save_state_from_diff(
     }
 
     if parent_states.is_empty() {
-        // Nothing below, so this diff *is* the full state.
         self.save_statediff(
             shortstatehash,
             &StateDiff {
@@ -352,8 +344,6 @@ pub fn save_state_from_diff(
     let parent_diff = checked!(parent_added_len + parent_removed_len)?;
 
     if checked!(diffsum * diffsum)? >= checked!(2 * diff_to_sibling * parent_diff)? {
-        // The diff has outgrown the layer it would sit on: replace that layer
-        // instead of adding to the stack.
         let (parent_new, parent_removed) =
             merge_into_parent(&parent, &statediffnew, &statediffremoved);
 
@@ -440,7 +430,7 @@ pub async fn save_state(
             new_shortstatehash,
             statediffnew.clone(),
             statediffremoved.clone(),
-            2, // a state change is two event changes on average
+            2,
             states_parents,
         )?;
     }
@@ -510,8 +500,6 @@ async fn get_statediff(&self, shortstatehash: ShortStateHash) -> Result<StateDif
 /// The write half of [`get_statediff`](Service::get_statediff).
 #[implement(Service)]
 fn save_statediff(&self, shortstatehash: ShortStateHash, diff: &StateDiff) {
-    // In bytes, not entries: the parent word, then one compressed event per
-    // addition, then the separator word and one per removal.
     const WORD: usize = size_of::<ShortStateHash>();
     const ENTRY: usize = size_of::<CompressedStateEvent>();
 
@@ -560,19 +548,14 @@ fn merge_into_parent(
 
     for removed in statediffremoved {
         if !parent_new.remove(removed) {
-            // The parent did not add it, so the removal is the parent's now.
             parent_removed.insert(*removed);
         }
-        // Else the parent added it and the child took it away again, which
-        // together is no change at all.
     }
 
     for new in statediffnew {
         if !parent_removed.remove(new) {
-            // The parent did not touch it, so the addition is the parent's now.
             parent_new.insert(*new);
         }
-        // Else the parent removed it and the child put it back.
     }
 
     (parent_new, parent_removed)

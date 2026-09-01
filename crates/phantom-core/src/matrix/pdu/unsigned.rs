@@ -37,7 +37,6 @@ pub fn add_age(&mut self) -> Result {
         .map_or_else(|| Ok(Map::new()), serde_json::from_str)
         .map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?;
 
-    // deliberately allowing for the possibility of negative age
     let now: i128 = MilliSecondsSinceUnixEpoch::now().get().into();
     let then: i128 = self.origin_server_ts.into();
     let this_age = now.saturating_sub(then);

@@ -69,8 +69,6 @@ fn the_port_is_read_back_off_a_destination() {
 
 #[test]
 fn a_malformed_port_reads_as_none_rather_than_panicking() {
-    // Only reachable through a record written by something other than the
-    // resolution path, but it must not take the process down when it is.
     let dest = Destination::Named(
         String::from("example.com"),
         PortString::from("").expect("fits"),

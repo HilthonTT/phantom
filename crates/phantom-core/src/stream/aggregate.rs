@@ -85,9 +85,6 @@ where
         <Self as Stream>::Item: Eq + Hash,
     {
         self.ready_fold(HashMap::with_capacity(CAP), |mut counts, item| {
-            // A count that reached `usize::MAX` has bigger problems than being
-            // one short; saturating here keeps an unbounded stream from
-            // panicking a release build into an aborted request.
             counts
                 .entry(item)
                 .and_modify(|count: &mut usize| *count = count.saturating_add(1))

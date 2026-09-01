@@ -139,8 +139,6 @@ pub async fn unregister_appservice(&self, appservice_id: &str) -> Result {
         )));
     }
 
-    // Ordered as in `register_appservice`, for the same reason: the map is
-    // only moved once the database says the change is durable.
     self.db.id_appserviceregistrations.remove(appservice_id)?;
 
     registrations.remove(appservice_id);
@@ -237,9 +235,6 @@ fn validate(&self, registration: &Registration) -> Result<RegistrationInfo> {
         return Err!(Request(InvalidParam("Appservice registration has no id.")));
     }
 
-    // Not merely useless: `find_from_token` compares the token a request
-    // arrived with against every registration, so an empty `as_token` is one a
-    // request presenting no token at all would be attributed to.
     if registration.as_token.is_empty() || registration.hs_token.is_empty() {
         return Err!(Request(InvalidParam(
             "Appservice {id:?} has an empty as_token or hs_token."
@@ -317,8 +312,6 @@ fn check_collisions(
     let new_sender = new.sender_user(server_name).ok();
 
     for (id, other) in registered {
-        // Re-registering an id replaces that registration, so it is not a
-        // collision with the entry it is about to take the place of.
         if id == new_id {
             continue;
         }

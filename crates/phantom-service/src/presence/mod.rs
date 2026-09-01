@@ -108,9 +108,6 @@ impl crate::Service for Service {
     }
 
     fn interrupt(&self) {
-        // `notify_one` rather than `notify_waiters`: the worker may not be
-        // parked on the notification yet, and a permit it picks up on its
-        // next pass is what keeps the interrupt from being missed.
         self.interrupt.notify_one();
     }
 
@@ -176,7 +173,7 @@ impl Service {
         status_msg: Option<String>,
     ) -> Result<()> {
         let presence_state = match state.as_str() {
-            "" => &PresenceState::Offline, // default an empty string to 'offline'
+            "" => &PresenceState::Offline,
             &_ => state,
         };
 
@@ -214,7 +211,6 @@ impl Service {
         self.db.remove_presence(user_id).await
     }
 
-    // Unset online/unavailable presence to offline on startup
     pub async fn unset_all_presence(&self) {
         let _cork = self.services.db.engine.cork_and_flush();
 

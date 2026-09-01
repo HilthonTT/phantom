@@ -21,16 +21,13 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
 
     let mut opts = Options::default();
 
-    // Logging
     set_logging_defaults(&mut opts, config);
 
-    // Processing
     opts.set_max_background_jobs(num_threads::<i32>(config)?);
     opts.set_max_subcompactions(num_threads::<u32>(config)?);
     opts.set_avoid_unnecessary_blocking_io(true);
     opts.set_max_file_opening_threads(0);
 
-    // IO
     opts.set_manual_wal_flush(true);
     opts.set_atomic_flush(config.rocksdb_atomic_flush);
     opts.set_enable_pipelined_write(!config.rocksdb_atomic_flush);
@@ -39,14 +36,11 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
         opts.set_use_direct_io_for_flush_and_compaction(true);
     }
     if config.rocksdb_optimize_for_spinning_disks {
-        // Speeds up opening the database on a hard drive, where gathering the
-        // statistics costs a seek per file.
         opts.set_skip_stats_update_on_db_open(true);
     } else {
         opts.set_compaction_readahead_size(1024 * 512);
     }
 
-    // Blocks
     opts.set_row_cache(row_cache);
     opts.set_db_write_buffer_size(cache_size_f64(
         config,
@@ -54,13 +48,11 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
         1_048_576,
     )?);
 
-    // Files
     opts.set_table_cache_num_shard_bits(7);
     opts.set_wal_size_limit_mb(1024);
     opts.set_max_total_wal_size(1024 * 1024 * 512);
     opts.set_writable_file_max_buffer_size(1024 * 1024 * 2);
 
-    // Misc
     opts.set_disable_auto_compactions(!config.rocksdb_compaction);
     opts.create_missing_column_families(true);
     opts.create_if_missing(true);
@@ -80,9 +72,6 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
         2_u8..=u8::MAX => true,
     });
 
-    // An unclean shutdown of a homeserver is usually survivable: whatever a
-    // torn tail record loses can be re-fetched over federation. `config::check`
-    // has already rejected any mode outside this range.
     opts.set_wal_recovery_mode(match config.rocksdb_recovery_mode {
         0 => DBRecoveryMode::AbsoluteConsistency,
         2 => DBRecoveryMode::PointInTime,
@@ -90,10 +79,6 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
         _ => DBRecoveryMode::TolerateCorruptedTailRecords,
     });
 
-    // <https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST>
-    // "We recommend to set track_and_verify_wals_in_manifest to true for
-    // production, it has been enabled in production for the entire database
-    // cluster serving the social graph for all Meta apps."
     opts.set_track_and_verify_wals_in_manifest(true);
 
     opts.set_paranoid_checks(config.rocksdb_paranoid_file_checks);

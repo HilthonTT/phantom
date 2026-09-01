@@ -83,8 +83,6 @@ impl From<IntRoomPowerLevelsEventContent> for RoomPowerLevelsEventContent {
             notifications,
         } = int_pl;
 
-        // Every field is overwritten below, so the rule set picked here only
-        // decides defaults that never survive the assignment.
         let mut pl = Self::new(&AuthorizationRules::V1);
         pl.ban = ban;
         pl.events = events;

@@ -121,9 +121,6 @@ pub async fn set_pusher(
                 )));
             }
 
-            // Checked on the way in as well as on the way out, so a client is
-            // told its URL is unusable now rather than having notifications
-            // quietly fail later.
             if let PusherKind::Http(http) = &data.pusher.kind {
                 self.check_gateway_url(&http.url)?;
             }
@@ -136,9 +133,6 @@ pub async fn set_pusher(
         set_pusher::v3::PusherAction::Delete(ids) => {
             self.delete_pusher(sender, ids.pushkey.as_str())?;
         }
-        // ruma's enum is non-exhaustive, so a future spec action reaches here
-        // rather than failing to compile. Refusing it is the honest answer: we
-        // do not know what it was asking for.
         _ => return Err!(Request(InvalidParam("Unrecognised pusher action."))),
     }
 
@@ -149,10 +143,6 @@ pub async fn set_pusher(
 pub fn delete_pusher(&self, sender: &UserId, pushkey: &str) -> Result {
     self.db.senderkey_pusher.del((sender, pushkey))?;
     self.db.pushkey_deviceid.remove(pushkey)?;
-
-    // Upstream also drops whatever the sending queue still holds for this
-    // pushkey. phantom has no sending service yet, so there is no queue to
-    // drop from; this is where that call goes when there is.
 
     Ok(())
 }
@@ -202,9 +192,6 @@ pub fn get_pushkeys<'a>(&'a self, sender: &'a UserId) -> impl Stream<Item = &'a 
 /// checked again once it has resolved, in [`Service::send_request`].
 #[implement(Service)]
 fn check_gateway_url(&self, url: &str) -> Result<reqwest::Url> {
-    // `reqwest::Url` is the `url` crate's, re-exported. Reaching it through
-    // reqwest is what keeps the parser this validates with and the parser the
-    // request is built with the same one.
     let parsed = reqwest::Url::parse(url).map_err(|e| {
         err!(Request(InvalidParam(warn!(
             "Pusher URL {url:?} is not a URL: {e}"
@@ -237,14 +224,10 @@ where
     T: OutgoingRequest + Metadata<Authentication = NoAuthentication, PathBuilder = SinglePath>,
     T: Debug + Send,
 {
-    // ruma appends the endpoint's path to whatever it is given, and the
-    // client registered a URL that already ends in it.
     let dest = dest.replace(&self.services.server.config.notification_push_path, "");
 
     trace!("Push gateway destination: {dest}");
 
-    // No access token and no version negotiation: a push gateway is not a
-    // Matrix server, it is one endpoint at a URL the client handed us.
     let http_request = request
         .try_into_http_request::<BytesMut>(&dest, (), ())
         .map_err(|e| {
@@ -271,9 +254,6 @@ where
         .await
         .inspect_err(|e| warn!("Could not send request to pusher {dest}: {e}"))?;
 
-    // The name resolved to something, and what it resolved to is checked
-    // too: the denylist is about where the bytes went, not what it was
-    // called.
     if let Some(remote_addr) = response.remote_addr()
         && let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string())
         && !self.services.client.valid_cidr_range(&ip)
@@ -403,9 +383,6 @@ pub async fn get_actions<'a>(
     pdu: &Raw<AnySyncTimelineEvent>,
     room_id: &RoomId,
 ) -> &'a [Action] {
-    // A room always has at least the member being notified in it, so a count
-    // that could not be read is one rather than zero — the difference matters
-    // to the `room_member_count` conditions.
     let member_count = self
         .services
         .state_cache
@@ -443,16 +420,12 @@ async fn send_notice(
     tweaks: Vec<Tweak>,
     event: &PduEvent,
 ) -> Result {
-    // Email pushers are not implemented: the server has no way to send mail.
     let PusherKind::Http(http) = &pusher.kind else {
         return Ok(());
     };
 
     self.check_gateway_url(&http.url)?;
 
-    // A gateway asking for event ids only is told nothing else about the
-    // event — not the sender, not the content, not even the tweaks, since a
-    // sound or a highlight would say something about what happened.
     let event_id_only = http.format == Some(PushFormat::EventIdOnly);
 
     let mut device = Device::new(pusher.ids.app_id.clone(), pusher.ids.pushkey.clone());
@@ -467,8 +440,6 @@ async fn send_notice(
     notifi.event_id = Some((*event.event_id).to_owned());
     notifi.room_id = Some((*event.room_id).to_owned());
 
-    // A default count is not serialised at all, which is how a gateway is
-    // told to leave the badge alone.
     let badge_disabled = http.data.get("disable_badge_count").is_some()
         || http
             .data
@@ -480,8 +451,6 @@ async fn send_notice(
     }
 
     if !event_id_only {
-        // An encrypted event is worth waking the device for even though
-        // nothing here can read it: the client can, once it is awake.
         notifi.prio = if event.kind == TimelineEventType::RoomEncrypted
             || tweaks.iter().any(|t| {
                 matches!(
