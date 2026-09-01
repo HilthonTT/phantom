@@ -17,6 +17,7 @@ pub mod lazy_loading;
 pub mod metadata;
 pub mod outlier;
 pub mod pdu_metadata;
+pub mod search;
 pub mod short;
 pub mod state;
 pub mod state_accessor;

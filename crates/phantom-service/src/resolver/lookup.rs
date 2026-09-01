@@ -13,7 +13,7 @@ use std::{
 };
 
 use futures::{FutureExt, TryFutureExt};
-use hickory_resolver::ResolveError;
+use hickory_resolver::{net::NetError, proto::rr::RData};
 use ipaddress::IPAddress;
 use phantom_core::{Err, Result, debug, debug_info, err, error, result::LogErr, trace};
 use ruma::ServerName;
@@ -293,7 +293,7 @@ impl super::Service {
             Ok(override_ip) => self.cache.set_override(
                 untername,
                 &CachedOverride {
-                    ips: override_ip.into_iter().take(MAX_IPS).collect(),
+                    ips: override_ip.iter().take(MAX_IPS).collect(),
                     port,
                     expire: CachedOverride::default_expire(),
                     overriding: (hostname != untername)
@@ -322,7 +322,17 @@ impl super::Service {
             match self.resolver.resolver.srv_lookup(hostname).await {
                 Err(e) => Self::handle_resolve_error(&e, hostname)?,
                 Ok(result) => {
-                    let Some(result) = result.iter().next() else {
+                    // `srv_lookup` answers with plain records now, so the SRV
+                    // ones are picked out here.
+                    let srv = result
+                        .answers()
+                        .iter()
+                        .find_map(|record| match &record.data {
+                            RData::SRV(srv) => Some(srv),
+                            _ => None,
+                        });
+
+                    let Some(srv) = srv else {
                         // An empty answer is not the same as no record: fall
                         // through to the next name rather than reporting a
                         // destination with no target.
@@ -330,8 +340,8 @@ impl super::Service {
                     };
 
                     return Ok(Some(Destination::Named(
-                        result.target().to_string().trim_end_matches('.').to_owned(),
-                        port_string(result.port()),
+                        srv.target.to_string().trim_end_matches('.').to_owned(),
+                        port_string(srv.port),
                     )));
                 }
             }
@@ -340,30 +350,27 @@ impl super::Service {
         Ok(None)
     }
 
-    fn handle_resolve_error(e: &ResolveError, host: &'_ str) -> Result<()> {
-        use hickory_resolver::{ResolveErrorKind::Proto, proto::ProtoErrorKind};
+    fn handle_resolve_error(e: &NetError, host: &'_ str) -> Result<()> {
+        use hickory_resolver::net::DnsError;
 
-        match e.kind() {
-            Proto(e) => match e.kind() {
-                // Not an error: a server that publishes no SRV record is the
-                // ordinary case, and the caller moves on to the next step.
-                ProtoErrorKind::NoRecordsFound { .. } => {
-                    debug!(%host, "No DNS records found: {e}");
-                    Ok(())
-                }
-                ProtoErrorKind::Timeout => {
-                    Err!(warn!(host = %host, message = ::std::format_args!("DNS {e}")))
-                }
-                ProtoErrorKind::NoConnections => {
-                    error!(
-                        "Your DNS server is overloaded and has run out of connections. Federation \
-                         will be unreliable until this is remedied."
-                    );
+        match e {
+            // Not an error: a server that publishes no SRV record is the
+            // ordinary case, and the caller moves on to the next step.
+            NetError::Dns(DnsError::NoRecordsFound(..)) => {
+                debug!(%host, "No DNS records found: {e}");
+                Ok(())
+            }
+            NetError::Timeout => {
+                Err!(warn!(host = %host, message = ::std::format_args!("DNS {e}")))
+            }
+            NetError::NoConnections => {
+                error!(
+                    "Your DNS server is overloaded and has run out of connections. Federation \
+                     will be unreliable until this is remedied."
+                );
 
-                    Err!(error!(host = %host, message = ::std::format_args!("DNS error: {e}")))
-                }
-                _ => Err!(error!(host = %host, message = ::std::format_args!("DNS error: {e}"))),
-            },
+                Err!(error!(host = %host, message = ::std::format_args!("DNS error: {e}")))
+            }
             _ => Err!(error!(host = %host, message = ::std::format_args!("DNS error: {e}"))),
         }
     }

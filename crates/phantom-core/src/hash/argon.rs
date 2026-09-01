@@ -1,10 +1,8 @@
 use std::sync::OnceLock;
 
 use argon2::{
-    Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version,
-    password_hash, password_hash::SaltString,
+    Algorithm, Argon2, Params, PasswordHasher, PasswordVerifier, Version, password_hash,
 };
-use rand::Rng;
 
 use crate::{Error, Result, err};
 
@@ -31,28 +29,20 @@ fn init_argon() -> Argon2<'static> {
     Argon2::new(algorithm, version, params)
 }
 
-/// Salt width in bytes, matching `password_hash::Salt::RECOMMENDED_LENGTH`.
-const SALT_LEN: usize = 16;
-
 pub(super) fn password(password: &str) -> Result<String> {
-    // `SaltString::generate` takes an `impl CryptoRngCore` from rand_core 0.6,
-    // which the rand 0.10 thread RNG does not implement. Draw the salt bytes
-    // ourselves and encode them instead of pinning a second rand_core.
-    let mut salt_bytes = [0u8; SALT_LEN];
-    rand::rng().fill_bytes(&mut salt_bytes);
-    let salt = SaltString::encode_b64(&salt_bytes).map_err(map_err)?;
+    // `hash_password` draws a 16-byte salt from the OS RNG via `getrandom`, so
+    // there is no rand_core version to reconcile with the rest of the crate.
     ARGON
         .get_or_init(init_argon)
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|it| it.to_string())
         .map_err(map_err)
 }
 
 pub(super) fn verify_password(password: &str, password_hash: &str) -> Result<()> {
-    let password_hash = PasswordHash::new(password_hash).map_err(map_err)?;
     ARGON
         .get_or_init(init_argon)
-        .verify_password(password.as_bytes(), &password_hash)
+        .verify_password(password.as_bytes(), password_hash)
         .map_err(map_err)
 }
 

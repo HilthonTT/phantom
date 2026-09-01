@@ -11,7 +11,12 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use futures::FutureExt;
-use hickory_resolver::{TokioResolver, lookup_ip::LookupIp};
+use hickory_resolver::{
+    TokioResolver,
+    config::{ConnectionConfig, ProtocolConfig},
+    lookup_ip::LookupIp,
+    net::runtime::TokioRuntimeProvider,
+};
 use phantom_core::{Result, config::IpLookupStrategy, err, server::Server};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
@@ -43,7 +48,7 @@ impl Resolver {
         let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
             .map_err(|e| err!("Failed to configure the DNS resolver from the system: {e}"))?;
 
-        let mut conf = hickory_resolver::config::ResolverConfig::new();
+        let mut conf = hickory_resolver::config::ResolverConfig::default();
 
         if let Some(domain) = sys_conf.domain() {
             conf.set_domain(domain.clone());
@@ -57,7 +62,21 @@ impl Resolver {
             let mut ns = name_server.clone();
 
             if config.query_over_tcp_only {
-                ns.protocol = hickory_resolver::proto::xfer::Protocol::Tcp;
+                // A name server carries one connection per protocol now, so
+                // restricting to TCP means dropping the others rather than
+                // setting a protocol. The port is kept from whatever the
+                // system configured, which need not be 53.
+                let port = ns.connections.first().map(|conn| conn.port);
+                ns.connections
+                    .retain(|conn| matches!(conn.protocol, ProtocolConfig::Tcp));
+
+                if ns.connections.is_empty() {
+                    let mut tcp = ConnectionConfig::tcp();
+                    if let Some(port) = port {
+                        tcp.port = port;
+                    }
+                    ns.connections.push(tcp);
+                }
             }
 
             ns.trust_negative_responses = !config.query_all_nameservers;
@@ -65,7 +84,7 @@ impl Resolver {
             conf.add_name_server(ns);
         }
 
-        opts.cache_size = usize::try_from(config.dns_cache_entries).unwrap_or(usize::MAX);
+        opts.cache_size = u64::from(config.dns_cache_entries);
         opts.preserve_intermediates = true;
         opts.negative_min_ttl = Some(Duration::from_secs(config.dns_min_ttl_nxdomain));
         opts.negative_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 30));
@@ -79,11 +98,13 @@ impl Resolver {
         opts.case_randomization = true;
         opts.ip_strategy = ip_strategy(config.ip_lookup_strategy);
 
-        let rt_prov = hickory_resolver::proto::runtime::TokioRuntimeProvider::new();
-        let conn_prov = hickory_resolver::name_server::TokioConnectionProvider::new(rt_prov);
-        let mut builder = TokioResolver::builder_with_config(conf, conn_prov);
+        let mut builder = TokioResolver::builder_with_config(conf, TokioRuntimeProvider::new());
         *builder.options_mut() = opts;
-        let resolver = Arc::new(builder.build());
+        let resolver = Arc::new(
+            builder
+                .build()
+                .map_err(|e| err!("Failed to build the DNS resolver: {e}"))?,
+        );
 
         Ok(Arc::new(Self {
             resolver: resolver.clone(),
@@ -176,7 +197,10 @@ async fn resolve_to_reqwest(
     };
 
     let handle_results = |results: LookupIp| -> Addrs {
-        Box::new(results.into_iter().map(|ip| SocketAddr::new(ip, 0)))
+        // `LookupIp::iter` borrows the lookup, so the addresses are collected
+        // rather than handed to reqwest as a borrowing iterator.
+        let addrs: Vec<_> = results.iter().map(|ip| SocketAddr::new(ip, 0)).collect();
+        Box::new(addrs.into_iter())
     };
 
     // A query that outlives the shutdown would hold the runtime open for as
