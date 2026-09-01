@@ -133,6 +133,7 @@ Currently built:
 | `server_state` | the server's own identity, its secrets, and the event counter |
 | `transaction_id` | what a transaction id was answered with, so a retry gets the original response |
 | `rooms` | a placeholder tree — only `rooms::outlier` exists, and it is unimplemented |
+| `admin` | the admin room, who counts as an admin, and the command queue |
 
 The interesting parts of the runtime are the three problems it solves.
 

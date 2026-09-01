@@ -16,7 +16,7 @@ use super::{
     registry::{self, Map},
 };
 use crate::{
-    account_data, appservice, client, config, emergency, federation, key_backups, presence,
+    account_data, admin, appservice, client, config, emergency, federation, key_backups, presence,
     resolver, rooms, server_keys, server_state, transaction_id, users,
 };
 
@@ -36,6 +36,7 @@ pub struct Services {
     pub users: Arc<users::Service>,
     pub emergency: Arc<emergency::Service>,
     pub presence: Arc<presence::Service>,
+    pub admin: Arc<admin::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
     pub(crate) service: Arc<Map>,
@@ -101,6 +102,7 @@ impl Services {
             users: build!(users::Service),
             emergency: build!(emergency::Service),
             presence: build!(presence::Service),
+            admin: build!(admin::Service),
 
             manager: Mutex::new(None),
             service,
@@ -112,6 +114,11 @@ impl Services {
     /// Starts the manager, and through it every service's worker.
     pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
         debug_info!("Starting services...");
+
+        // An admin command runs against the whole graph, and the graph is only
+        // whole now: the admin service is in it, so it cannot have been handed
+        // this when it was built.
+        self.admin.set_services(Some(self));
 
         let manager = Manager::new(self);
         self.manager.lock().await.replace(manager.clone());
@@ -145,6 +152,11 @@ impl Services {
         if let Some(manager) = self.manager.lock().await.take() {
             manager.stop().await;
         }
+
+        // After the workers are down rather than before: a command still being
+        // processed holds the graph it was handed, and dropping the reference
+        // early would only make it fail on the way out.
+        self.admin.set_services(None);
 
         debug_info!("Services shutdown complete.");
     }

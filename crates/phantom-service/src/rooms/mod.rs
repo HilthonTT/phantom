@@ -11,6 +11,7 @@
 //! submodules are, individually, and a [`Dep`](crate::Dep) is taken on one of
 //! those rather than on the group.
 
+pub mod alias;
 pub mod auth_chain;
 pub mod directory;
 pub mod lazy_loading;

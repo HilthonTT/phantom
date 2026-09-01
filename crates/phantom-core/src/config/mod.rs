@@ -1035,6 +1035,52 @@ pub struct Config {
     #[serde(default, with = "serde_regex")]
     pub forbidden_usernames: RegexSet,
 
+    /// Admin commands to run once the server has started, in order, as if
+    /// they had been typed into the admin room.
+    ///
+    /// Each entry is one command without its `!admin` prefix. Their output
+    /// goes to the log, since there is nobody in a room to answer, and a
+    /// command that fails stops startup unless
+    /// `admin_execute_errors_ignore` is set.
+    ///
+    /// This build registers no command set, so anything listed here fails.
+    /// The option is here because the schedule belongs to the admin service
+    /// and the commands do not.
+    ///
+    /// example: ["users create-user @admin:example.com", "server memory-usage"]
+    ///
+    /// default: []
+    #[serde(default)]
+    pub admin_execute: Vec<String>,
+
+    /// Admin commands to run every time the server is sent SIGUSR2, in the
+    /// same form as `admin_execute`.
+    ///
+    /// Unlike the startup list this one is re-read each time, so a reloaded
+    /// config changes what the next signal runs.
+    ///
+    /// default: []
+    #[serde(default)]
+    pub admin_signal_execute: Vec<String>,
+
+    /// Carry on when one of the commands above fails, instead of treating the
+    /// failure as fatal to startup.
+    ///
+    /// default: false
+    #[serde(default)]
+    pub admin_execute_errors_ignore: bool,
+
+    /// Let an admin run a command outside the admin room by escaping it with a
+    /// backslash, as `\!admin ...`.
+    ///
+    /// The command and its output are both visible to that room, which is the
+    /// point: it is how an admin answers a question where it was asked. Only
+    /// local admins can do it, escaped or not.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub admin_escape_commands: bool,
+
     /// Reload the configuration when the server is sent SIGUSR1.
     ///
     /// Only `server_name` is fixed for the life of the process; every other
