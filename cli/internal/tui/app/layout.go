@@ -39,6 +39,7 @@ func (m Model) tooSmall() bool {
 // terminal, where those columns are better spent on the listing.
 func (m *Model) resize(width, height int) {
 	m.width, m.height = width, height
+	m.help.SetSize(width, height)
 	if m.tooSmall() {
 		return
 	}

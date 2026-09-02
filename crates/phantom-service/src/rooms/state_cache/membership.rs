@@ -72,6 +72,9 @@ impl Service {
                     self.forget(room_id, user_id);
                 }
             }
+            MembershipState::Knock => {
+                self.mark_as_knocked(user_id, room_id, last_state);
+            }
             _ => {}
         }
 

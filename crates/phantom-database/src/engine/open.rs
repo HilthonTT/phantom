@@ -36,6 +36,7 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
     )?;
 
     let cfds = Self::configure_cfds(&ctx, &db_opts, desc)?;
+    let columns: Vec<String> = cfds.iter().map(|cfd| cfd.name().to_owned()).collect();
     let num_cfds = cfds.len();
     debug!("Configured {num_cfds} column descriptors...");
 
@@ -65,6 +66,7 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
         db,
         pool,
         ctx: ctx.clone(),
+        columns,
         read_only: config.rocksdb_read_only,
         secondary: config.rocksdb_secondary,
         checksums: config.rocksdb_checksums,

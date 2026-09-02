@@ -75,12 +75,15 @@ macro_rules! err {
 		)
 	};
 
+	// Diverges from upstream, which also passed `config = %$item` as a field.
+	// The visitor appends every non-message field to the buffer, so the item
+	// was glued onto the front of the message text; `Error::Config`'s Display
+	// already names the directive.
 	(Config($item:literal, $fmt:literal $(, $($arg:tt)+)?)) => {{
 		let mut buf = String::new();
 		$crate::error::Error::Config($item, $crate::err_log!(
 			buf,
 			error,
-			config = %$item,
 			message = ::std::format_args!($fmt $(, $($arg)+)?)
 		))
 	}};

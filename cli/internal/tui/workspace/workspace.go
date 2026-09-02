@@ -91,11 +91,14 @@ func (m Model) Section() resource.Section { return m.tabs[m.active].Section }
 func (m Model) Filtering() bool { return m.filtering }
 
 // Rows are the active tab's rows after the filter, in display order.
-func (m Model) Rows() []resource.Row { return m.rowsOf(m.tabs[m.active]) }
+func (m Model) Rows() []resource.Row { return m.rowsOf(m.active) }
 
-func (m Model) rowsOf(t Tab) []resource.Row {
+// rowsOf is tab i's rows. The filter box belongs to the active tab only, so
+// the other tabs always show their full listing.
+func (m Model) rowsOf(i int) []resource.Row {
+	t := m.tabs[i]
 	query := strings.ToLower(strings.TrimSpace(m.filter.Value()))
-	if query == "" {
+	if i != m.active || query == "" {
 		return t.listing.Rows
 	}
 
@@ -155,11 +158,13 @@ func (m *Model) CloseTab() {
 func (m *Model) NextTab() {
 	m.active = (m.active + 1) % len(m.tabs)
 	m.clearFilter()
+	m.clampScroll()
 }
 
 func (m *Model) PrevTab() {
 	m.active = (m.active - 1 + len(m.tabs)) % len(m.tabs)
 	m.clearFilter()
+	m.clampScroll()
 }
 
 // MoveUp, MoveDown, PageUp, PageDown, Top and Bottom walk the active tab's
@@ -233,7 +238,11 @@ func (m *Model) StartFiltering() tea.Cmd {
 }
 
 // StopFiltering takes the keyboard back and empties the box.
-func (m *Model) StopFiltering() { m.clearFilter() }
+func (m *Model) StopFiltering() {
+	m.clearFilter()
+	m.tabs[m.active].cursor = 0
+	m.tabs[m.active].top = 0
+}
 
 // UpdateFilter feeds a message to the filter box.
 func (m *Model) UpdateFilter(msg tea.Msg) tea.Cmd {
@@ -244,12 +253,12 @@ func (m *Model) UpdateFilter(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+// clearFilter empties the box without touching any cursor: the tab being
+// switched to keeps the position it was left at.
 func (m *Model) clearFilter() {
 	m.filtering = false
 	m.filter.Blur()
 	m.filter.SetValue("")
-	m.tabs[m.active].cursor = 0
-	m.tabs[m.active].top = 0
 }
 
 // clampScroll keeps the window of drawn rows over the cursor.

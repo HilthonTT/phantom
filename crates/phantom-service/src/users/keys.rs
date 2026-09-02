@@ -111,7 +111,9 @@ impl Service {
         type KeyVal<'a> = ((Ignore, Ignore, &'a Unquoted), Ignore);
 
         let mut algorithm_counts = BTreeMap::<OneTimeKeyAlgorithm, _>::new();
-        let query = (user_id, device_id);
+        // With `Interfix` the prefix ends at the device id's separator;
+        // without it device "A" also counted the keys of device "AB".
+        let query = (user_id, device_id, Interfix);
         self.db
             .onetimekeyid_onetimekeys
             .stream_prefix(&query)

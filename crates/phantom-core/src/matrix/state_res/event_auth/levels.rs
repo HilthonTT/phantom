@@ -134,41 +134,34 @@ pub(super) fn check_power_levels(
         }
     }
 
-    let levels = [
-        "users_default",
-        "events_default",
-        "state_default",
-        "ban",
-        "redact",
-        "kick",
-        "invite",
-    ];
-    let old_state = serde_json::to_value(old_state).unwrap();
-    let new_state = serde_json::to_value(new_state).unwrap();
-    for lvl_name in &levels {
-        if let Some((old_lvl, new_lvl)) = get_deserialize_levels(&old_state, &new_state, lvl_name) {
-            let old_level_too_big = old_lvl > user_level;
-            let new_level_too_big = new_lvl > user_level;
+    // Diverges from upstream, which round-tripped both contents through
+    // serde_json and compared whatever keys were present on both sides. Ruma
+    // skips serializing a level at its default, so any change to or from a
+    // default value was silently not checked. The typed fields carry the
+    // defaults, and the spec only examines entries that are being changed.
+    for (old_lvl, new_lvl) in [
+        (old_state.users_default, new_state.users_default),
+        (old_state.events_default, new_state.events_default),
+        (old_state.state_default, new_state.state_default),
+        (old_state.ban, new_state.ban),
+        (old_state.redact, new_state.redact),
+        (old_state.kick, new_state.kick),
+        (old_state.invite, new_state.invite),
+    ] {
+        if old_lvl == new_lvl {
+            continue;
+        }
 
-            if old_level_too_big || new_level_too_big {
-                warn!("cannot add ops > than own");
-                return Some(false);
-            }
+        let old_level_too_big = old_lvl > user_level;
+        let new_level_too_big = new_lvl > user_level;
+
+        if old_level_too_big || new_level_too_big {
+            warn!("cannot add ops > than own");
+            return Some(false);
         }
     }
 
     Some(true)
-}
-
-fn get_deserialize_levels(
-    old: &serde_json::Value,
-    new: &serde_json::Value,
-    name: &str,
-) -> Option<(Int, Int)> {
-    Some((
-        serde_json::from_value(old.get(name)?.clone()).ok()?,
-        serde_json::from_value(new.get(name)?.clone()).ok()?,
-    ))
 }
 
 /// Does the event redacting come from a user with enough power to redact the

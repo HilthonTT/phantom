@@ -17,7 +17,10 @@ fn init_argon() -> Argon2<'static> {
         assert!(P_COST == 1, "P_COST default changed");
     }
 
-    let algorithm = Algorithm::Argon2d;
+    // Argon2id, as upstream and RFC 9106 recommend for passwords: Argon2d's
+    // data-dependent memory access is not side-channel resistant. Existing
+    // hashes still verify because the PHC string names its own variant.
+    let algorithm = Algorithm::Argon2id;
     let version = Version::default();
     let out_len: Option<usize> = None;
     let params = Params::new(M_COST, T_COST, P_COST, out_len).expect("valid parameters");

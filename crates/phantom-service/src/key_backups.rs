@@ -117,34 +117,40 @@ pub async fn update_backup<'a>(
 
 #[implement(Service)]
 pub async fn get_latest_backup_version(&self, user_id: &UserId) -> Result<String> {
-    type Key<'a> = (&'a str, &'a str);
+    type Key<'a> = (Ignore, &'a str);
 
-    let last_possible_key = (user_id, u64::MAX);
+    // Versions are the decimal global counter, so the byte-wise last key is
+    // not the newest once the counter gains a digit: "99999" sorts after
+    // "100000". Upstream took the last key.
+    let prefix = (user_id, Interfix);
     self.db
         .backupid_algorithm
-        .rev_keys_from(&last_possible_key)
+        .keys_prefix(&prefix)
         .ignore_err()
-        .ready_take_while(|(user_id_, _): &Key<'_>| *user_id_ == user_id.as_str())
         .map(|(_, version): Key<'_>| version.to_owned())
-        .next()
+        .collect::<Vec<_>>()
         .await
+        .into_iter()
+        .max_by_key(|version| version.parse::<u64>().unwrap_or(0))
         .ok_or_else(|| err!(Request(NotFound("No backup versions found"))))
 }
 
 #[implement(Service)]
 pub async fn get_latest_backup(&self, user_id: &UserId) -> Result<(String, Raw<BackupAlgorithm>)> {
-    type Key<'a> = (&'a str, &'a str);
+    type Key<'a> = (Ignore, &'a str);
     type KeyVal<'a> = (Key<'a>, Raw<BackupAlgorithm>);
 
-    let last_possible_key = (user_id, u64::MAX);
+    // See `get_latest_backup_version` for why this is not the last key.
+    let prefix = (user_id, Interfix);
     self.db
         .backupid_algorithm
-        .rev_stream_from(&last_possible_key)
+        .stream_prefix(&prefix)
         .ignore_err()
-        .ready_take_while(|((user_id_, _), _): &KeyVal<'_>| *user_id_ == user_id.as_str())
         .map(|((_, version), algorithm): KeyVal<'_>| (version.to_owned(), algorithm))
-        .next()
+        .collect::<Vec<_>>()
         .await
+        .into_iter()
+        .max_by_key(|(version, _)| version.parse::<u64>().unwrap_or(0))
         .ok_or_else(|| err!(Request(NotFound("No backup found"))))
 }
 

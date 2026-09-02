@@ -31,6 +31,10 @@ type HelpModel struct {
 	cursor  int
 	top     int
 
+	// The terminal size the menu is drawn in, so the scroll window matches
+	// the number of rows [Render] actually has.
+	width, height int
+
 	search textinput.Model
 }
 
@@ -45,10 +49,25 @@ func NewHelp(t theme.Theme, g theme.Glyphs, k keymap.KeyMap) HelpModel {
 // Focus gives the search box the keyboard, which it holds for as long as the
 // help menu is open.
 func (m *HelpModel) Focus() tea.Cmd {
-	m.cursor, m.top = 0, 0
+	m.top = 0
 	m.search.SetValue("")
+	m.moveTo(0)
 
 	return m.search.Focus()
+}
+
+// SetSize records the terminal size the menu will be drawn in.
+func (m *HelpModel) SetSize(width, height int) {
+	m.width, m.height = width, height
+	m.moveTo(m.cursor)
+}
+
+// visibleRows is how many entries fit under the search line and the divider.
+func (m HelpModel) visibleRows() int {
+	_, h := size(helpWidth, helpHeight, m.width, m.height)
+
+	// Two border rows, the search line and the divider are not entries.
+	return max(h-4, 1)
 }
 
 // Blur takes the keyboard back.
@@ -82,7 +101,18 @@ func (m *HelpModel) moveTo(i int) {
 	entries := m.matching()
 	m.cursor = min(max(i, 0), max(len(entries)-1, 0))
 
-	visible := helpHeight - 5
+	// Never rest on a heading: slide forward, then back, to a binding.
+	for m.cursor < len(entries) && entries[m.cursor].Heading != "" {
+		m.cursor++
+	}
+	if m.cursor >= len(entries) {
+		m.cursor = max(len(entries)-1, 0)
+		for m.cursor > 0 && entries[m.cursor].Heading != "" {
+			m.cursor--
+		}
+	}
+
+	visible := m.visibleRows()
 	if m.cursor < m.top {
 		m.top = m.cursor
 	}

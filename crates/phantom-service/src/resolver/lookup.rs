@@ -85,9 +85,13 @@ impl super::Service {
                 if let Some(pos) = dest.as_str().find(':') {
                     self.step_2(dest, cache, pos).await?
                 } else {
-                    self.conditional_query_and_cache(dest.as_str(), DEFAULT_PORT_NUM, true)
-                        .await?;
-
+                    // Diverges from upstream, which first resolved `dest`
+                    // itself and cached that as its override. The well-known
+                    // client does not use the hooked resolver, so nothing
+                    // needed it, and step 4 then found the override already
+                    // present and never resolved the SRV target: a name with
+                    // its own A records and an SRV record pointing elsewhere
+                    // was connected to at its own address.
                     self.services.server.check_running()?;
 
                     match self.request_well_known(dest.as_str()).await? {
@@ -383,7 +387,10 @@ impl super::Service {
             "Destination is not an IP literal"
         );
 
-        let ip = IPAddress::parse(dest.host()).map_err(|e| {
+        // `host()` keeps the brackets around an IPv6 literal, which the
+        // address parser does not accept.
+        let host = dest.host().trim_start_matches('[').trim_end_matches(']');
+        let ip = IPAddress::parse(host).map_err(|e| {
             err!(BadServerResponse(
                 "Failed to parse IP literal from string: {e}"
             ))

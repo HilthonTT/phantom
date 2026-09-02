@@ -38,7 +38,11 @@ where
                 result.ok_or_else(|| Error::NotFound(format!("Failed to find {event_id}")))
             })
         })
-        .try_buffer_unordered(parallel_fetches)
+        // Diverges from upstream's `try_buffer_unordered`: the events must be
+        // auth-checked in the order the sort produced, and an unordered fetch
+        // yielded them in I/O completion order, which made the resolved state
+        // depend on database timing whenever `parallel_fetches > 1`.
+        .try_buffered(parallel_fetches)
         .try_collect()
         .boxed()
         .await?;

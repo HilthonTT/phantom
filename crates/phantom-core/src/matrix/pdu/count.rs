@@ -10,7 +10,7 @@ use ruma::api::Direction;
 
 use crate::{Error, Result, err};
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(Eq, Clone, Copy, Debug)]
 pub enum Count {
     Normal(u64),
     Backfilled(i64),
@@ -177,6 +177,22 @@ impl FromStr for Count {
     }
 }
 
+// Diverges from upstream, which derived these. `from_signed(0)` yields
+// `Backfilled(0)` while `Default` is `Normal(0)`, and arithmetic can land on
+// either, so a derived equality disagreed with `Ord` (which compares the
+// signed value) for zero. Equality and hashing go by the same value.
+impl PartialEq for Count {
+    fn eq(&self, other: &Self) -> bool {
+        self.into_signed() == other.into_signed()
+    }
+}
+
+impl std::hash::Hash for Count {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.into_signed().hash(state);
+    }
+}
+
 impl PartialOrd for Count {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -192,5 +208,26 @@ impl Ord for Count {
 impl Default for Count {
     fn default() -> Self {
         Self::Normal(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::Count;
+
+    /// Zero can be reached as `Normal(0)` or `Backfilled(0)`; equality,
+    /// hashing and ordering all have to agree that it is one value.
+    #[test]
+    fn zero_is_equal_however_it_was_made() {
+        let from_signed = Count::from_signed(0);
+        let from_default = Count::default();
+
+        assert_eq!(from_signed, from_default);
+        assert_eq!(from_signed.cmp(&from_default), std::cmp::Ordering::Equal);
+
+        let set: HashSet<Count> = [from_signed, from_default].into_iter().collect();
+        assert_eq!(set.len(), 1);
     }
 }

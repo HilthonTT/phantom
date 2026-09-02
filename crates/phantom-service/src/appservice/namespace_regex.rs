@@ -61,10 +61,13 @@ impl TryFrom<&[Namespace]> for NamespaceRegex {
 
 /// The namespaces of one exclusivity as a set, or `None` where there are none.
 fn compile(namespaces: &[Namespace], exclusive: bool) -> Result<Option<RegexSet>, regex::Error> {
-    let patterns: Vec<&str> = namespaces
+    // Anchored at the start, as Synapse matches them. Unanchored (as
+    // upstream) `@_irc_.*` also claimed `@evil_irc_x:example.org`, letting
+    // an appservice act as any user whose id merely contained the pattern.
+    let patterns: Vec<String> = namespaces
         .iter()
         .filter(|namespace| namespace.exclusive == exclusive)
-        .map(|namespace| namespace.regex.as_str())
+        .map(|namespace| format!("^(?:{})", namespace.regex))
         .collect();
 
     if patterns.is_empty() {

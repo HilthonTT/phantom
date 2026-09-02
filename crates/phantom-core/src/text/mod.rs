@@ -129,6 +129,19 @@ mod tests {
         assert_eq!(common_prefix(&["日本", "本日"]), "");
     }
 
+    /// A quote on one end only is not a quoted string, whichever end it is.
+    #[test]
+    fn unquote_infallible_strips_only_a_matched_pair() {
+        use super::Unquote;
+
+        assert_eq!("\"abc\"".unquote_infallible(), "abc");
+        assert_eq!("abc".unquote_infallible(), "abc");
+        assert_eq!("\"abc".unquote_infallible(), "\"abc");
+        assert_eq!("abc\"".unquote_infallible(), "abc\"");
+        assert_eq!("\"".unquote_infallible(), "\"");
+        assert_eq!("".unquote_infallible(), "");
+    }
+
     #[test]
     fn camel_to_snake_splits_on_the_capitals() {
         assert_eq!(camel_to_snake_string("CamelCase"), "camel_case");

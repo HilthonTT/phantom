@@ -204,8 +204,7 @@ fn check_gateway_url(&self, url: &str) -> Result<reqwest::Url> {
         ))));
     }
 
-    if let Some(host) = parsed.host_str()
-        && let Ok(ip) = IPAddress::parse(host)
+    if let Some(ip) = host_ip_literal(&parsed)
         && !self.services.client.valid_cidr_range(&ip)
     {
         return Err!(Request(InvalidParam(warn!(
@@ -214,6 +213,16 @@ fn check_gateway_url(&self, url: &str) -> Result<reqwest::Url> {
     }
 
     Ok(parsed)
+}
+
+/// The URL's host as an address, if it is an address literal.
+///
+/// `host_str` keeps the brackets around an IPv6 literal, which the address
+/// parser rejects; checking the raw string let `https://[fd00::1]/` past the
+/// denylist entirely.
+fn host_ip_literal(url: &reqwest::Url) -> Option<IPAddress> {
+    let host = url.host_str()?;
+    IPAddress::parse(host.trim_start_matches('[').trim_end_matches(']')).ok()
 }
 
 /// Sends one request to a push gateway.
@@ -239,8 +248,7 @@ where
 
     let reqwest_request = reqwest::Request::try_from(http_request)?;
 
-    if let Some(host) = reqwest_request.url().host_str()
-        && let Ok(ip) = IPAddress::parse(host)
+    if let Some(ip) = host_ip_literal(reqwest_request.url())
         && !self.services.client.valid_cidr_range(&ip)
     {
         return Err!(BadServerResponse("Not allowed to send requests to this IP"));
@@ -339,7 +347,7 @@ pub async fn send_push_notice(
     }
 
     if notify == Some(true) {
-        self.send_notice(unread, pusher, tweaks, pdu).await?;
+        self.send_notice(user, unread, pusher, tweaks, pdu).await?;
     }
 
     Ok(())
@@ -415,6 +423,7 @@ pub async fn get_actions<'a>(
 #[tracing::instrument(skip(self, unread, pusher, tweaks, event))]
 async fn send_notice(
     &self,
+    user: &UserId,
     unread: UInt,
     pusher: &Pusher,
     tweaks: Vec<Tweak>,
@@ -467,8 +476,11 @@ async fn send_notice(
         notifi.event_type = Some(event.kind.clone());
         notifi.content = serde_json::value::to_raw_value(&event.content).ok();
 
+        // The notified user is the target when they are the member event's
+        // state key. Upstream compared the state key to the sender, which is
+        // false for an invite and true for a self-join, both backwards.
         if event.kind == TimelineEventType::RoomMember {
-            notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
+            notifi.user_is_target = event.state_key.as_deref() == Some(user.as_str());
         }
 
         notifi.sender_display_name = self.services.users.displayname(&event.sender).await.ok();

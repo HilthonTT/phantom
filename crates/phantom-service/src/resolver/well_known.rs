@@ -36,7 +36,13 @@ pub(super) async fn request_well_known(&self, dest: &str) -> Result<Option<Strin
         return Ok(None);
     }
 
-    let text = response.text().await?;
+    let text = match response.text().await {
+        Ok(text) => text,
+        Err(e) => {
+            debug!("Well-known body from {dest:?} could not be read: {e}");
+            return Ok(None);
+        }
+    };
     trace!("response text: {text:?}");
 
     if text.len() >= MAX_RESPONSE_LEN {

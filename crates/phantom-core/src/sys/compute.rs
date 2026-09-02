@@ -132,18 +132,17 @@ pub fn cores_available() -> impl Iterator<Item = Id> {
 
 #[cfg(target_os = "linux")]
 #[inline]
-#[expect(unsafe_code, reason = "calling getcpu(2) and eliding its error branch")]
+#[expect(unsafe_code, reason = "calling getcpu(2)")]
 pub fn getcpu() -> Result<usize> {
     use crate::{Error, math};
 
     let ret: i32 = unsafe { libc::sched_getcpu() };
 
-    #[cfg(target_os = "linux")]
-    unsafe {
-        std::hint::assert_unchecked(ret >= 0);
-    };
-
-    if ret == -1 {
+    // Diverges from upstream, which asserted `ret >= 0` to the optimiser
+    // *before* testing for -1. That told the compiler the error branch was
+    // unreachable, so a failing sched_getcpu(2) (ENOSYS, seccomp) was
+    // undefined behaviour rather than an Err.
+    if ret < 0 {
         return Err(Error::from_errno());
     }
 

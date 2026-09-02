@@ -47,7 +47,7 @@ impl crate::Service for Service {
                 engine: args.db.engine.clone(),
                 userroomid_notificationcount: args.db["userroomid_notificationcount"].clone(),
                 userroomid_highlightcount: args.db["userroomid_highlightcount"].clone(),
-                roomuserid_lastnotificationread: args.db["userroomid_highlightcount"].clone(),
+                roomuserid_lastnotificationread: args.db["roomuserid_lastnotificationread"].clone(),
                 roomsynctoken_shortstatehash: args.db["roomsynctoken_shortstatehash"].clone(),
             },
             services: Services {

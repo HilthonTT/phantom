@@ -83,8 +83,11 @@ pub(crate) struct Get {
 /// block in hand by then; a step that does block is the price of not paying a
 /// queue round trip per entry.
 pub(crate) struct Seek {
-    pub(crate) map: Arc<Map>,
+    // Declared before `map` so the cursor is dropped first: if this `Arc` is
+    // the last owner of the engine, dropping it closes the database, and an
+    // iterator must not outlive that.
     pub(crate) state: cursor::State<'static>,
+    pub(crate) map: Arc<Map>,
     pub(crate) dir: Direction,
     pub(crate) key: Option<KeyBuf>,
     pub(crate) res: Option<ResultSender<cursor::State<'static>>>,
@@ -156,8 +159,14 @@ pub(crate) fn close(&self) {
         "Closing pool. Waiting for workers to join..."
     );
 
+    // A queued command holds the map, and so the engine; if a worker drains
+    // the last such command it becomes the engine's final owner and closes
+    // the pool from its own thread. Joining itself would deadlock.
+    let this_thread = thread::current().id();
+
     workers
         .into_iter()
+        .filter(|worker| worker.thread().id() != this_thread)
         .map(JoinHandle::join)
         .map(|result| result.map_err(Error::from_panic))
         .enumerate()

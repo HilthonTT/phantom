@@ -51,10 +51,15 @@ async fn test_event_sort() {
         .collect::<Vec<_>>();
 
     let fetcher = |id| ready(events.get(&id).cloned());
-    let sorted_power_events =
-        super::reverse_topological_power_sort(power_events, &auth_chain, &fetcher, 1)
-            .await
-            .unwrap();
+    let sorted_power_events = super::reverse_topological_power_sort(
+        &RoomVersion::V6,
+        power_events,
+        &auth_chain,
+        &fetcher,
+        1,
+    )
+    .await
+    .unwrap();
 
     let resolved_power = super::iterative_auth_check(
         &RoomVersion::V6,

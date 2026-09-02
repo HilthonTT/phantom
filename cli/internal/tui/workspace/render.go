@@ -20,16 +20,17 @@ func (m Model) Render(focused bool) string {
 	boxes := make([]string, 0, len(m.tabs))
 
 	for i, tab := range m.tabs {
-		boxes = append(boxes, m.renderTab(tab, focused && i == m.active, m.tabWidthAt(i)))
+		boxes = append(boxes, m.renderTab(i, focused && i == m.active, m.tabWidthAt(i)))
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, boxes...)
 }
 
-func (m Model) renderTab(tab Tab, focused bool, width int) string {
+func (m Model) renderTab(i int, focused bool, width int) string {
+	tab := m.tabs[i]
 	p := panel.New(m.theme.PanelConfig(width, m.height, focused))
 
-	rows := m.rowsOf(tab)
+	rows := m.rowsOf(i)
 	cursor := min(tab.cursor, max(len(rows)-1, 0))
 
 	p.SetTitle(m.title(tab, rows, cursor))

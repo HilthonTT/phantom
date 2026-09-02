@@ -47,7 +47,12 @@ func (m Model) renderTask(p *panel.Panel, t resource.Task, underCursor bool) {
 		return
 	}
 
-	bar := m.bars[t.State]
+	bar, ok := m.bars[t.State]
+	if !ok {
+		// A task without a state has no bar of its own; the zero
+		// progress.Model would draw NUL bytes.
+		bar = m.bars[resource.Running]
+	}
 	bar.SetWidth(max(p.ContentWidth()-panel.Width(rail)-8, 4))
 
 	p.AddLine(rail + bar.ViewAs(t.Progress) +

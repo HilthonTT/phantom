@@ -6,13 +6,13 @@ pub trait Unquote<'a> {
     /// this interface will fail.
     fn is_quoted(&self) -> bool;
 
+    /// Unquotes a string. The input must be quoted on each side for Some to be
+    /// returned
+    fn unquote(&self) -> Option<&'a str>;
+
     /// Unquotes a string. If the input is not quoted it is simply returned
     /// as-is. If the input is partially quoted on either end that quote is not
     /// removed.
-    fn unquote(&self) -> Option<&'a str>;
-
-    /// Unquotes a string. The input must be quoted on each side for Some to be
-    /// returned
     fn unquote_infallible(&self) -> &'a str;
 }
 
@@ -29,9 +29,8 @@ impl<'a> Unquote<'a> for &'a str {
 
     #[inline]
     fn unquote_infallible(&self) -> &'a str {
-        self.strip_prefix(QUOTE)
-            .unwrap_or(self)
-            .strip_suffix(QUOTE)
-            .unwrap_or(self)
+        // Diverges from upstream, which stripped a lone trailing quote but
+        // kept a lone leading one. Both ends are all-or-nothing here.
+        self.unquote().unwrap_or(self)
     }
 }

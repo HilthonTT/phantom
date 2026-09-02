@@ -52,6 +52,17 @@ fn namespaces_match_only_what_they_cover() {
     assert!(!info.is_exclusive_user_match(&other));
 }
 
+/// The pattern is anchored at the start: an id that merely contains it is
+/// not in the namespace, or an appservice could act as any such user.
+#[test]
+fn a_namespace_matches_from_the_start_of_the_id() {
+    let info = registration("irc", "irc_bot", "irc", exclusive_users("@irc_.*"));
+
+    let contains = UserId::parse("@evil_irc_x:phantom.test").expect("valid user id");
+    assert!(!info.is_user_match(&contains));
+    assert!(!info.is_exclusive_user_match(&contains));
+}
+
 #[test]
 fn a_non_exclusive_namespace_is_matched_but_not_claimed() {
     let mut namespaces = Namespaces::new();

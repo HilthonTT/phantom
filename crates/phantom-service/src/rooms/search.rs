@@ -241,10 +241,13 @@ fn search_pdu_ids_query_word(
 /// The same function tokenizes a message being indexed and a query being run,
 /// which is the only thing that makes the two agree on what a word is.
 fn tokenize(body: &str) -> impl Iterator<Item = String> + Send + '_ {
+    // The length limit is checked after lowercasing: it is the lowercased
+    // word that goes into the fixed-capacity key, and lowercasing can grow
+    // a word in bytes.
     body.split_terminator(|c: char| !c.is_alphanumeric())
         .filter(|s| !s.is_empty())
-        .filter(|word| word.len() <= WORD_MAX_LEN)
         .map(str::to_lowercase)
+        .filter(|word| word.len() <= WORD_MAX_LEN)
 }
 
 /// The key one word of one event is indexed under.
@@ -270,4 +273,23 @@ fn prefix_len(word: &str) -> usize {
     size_of::<ShortRoomId>()
         .saturating_add(word.len())
         .saturating_add(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WORD_MAX_LEN, make_prefix, tokenize};
+
+    /// Lowercasing can grow a word in bytes (`İ` is two bytes, its lowercase
+    /// three), and the lowercased word is what goes into the fixed-capacity
+    /// key: the length check has to see that form or the key overflows.
+    #[test]
+    fn tokens_are_limited_after_lowercasing() {
+        let word = "İ".repeat(WORD_MAX_LEN / 2);
+        assert!(word.len() <= WORD_MAX_LEN);
+
+        for token in tokenize(&word) {
+            assert!(token.len() <= WORD_MAX_LEN);
+            make_prefix(0, &token);
+        }
+    }
 }

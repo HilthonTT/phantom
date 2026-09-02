@@ -41,6 +41,11 @@ pub struct Engine {
     pub(crate) pool: Arc<Pool>,
 
     pub(crate) ctx: Arc<Context>,
+
+    /// The names of every column opened, described or not, for the
+    /// whole-database operations that must reach each one.
+    columns: Vec<String>,
+
     read_only: bool,
     secondary: bool,
     checksums: bool,
@@ -78,7 +83,12 @@ impl Engine {
     pub fn sort(&self) -> Result {
         let flushoptions = FlushOptions::default();
 
-        result(DBCommon::flush_opt(&self.db, &flushoptions))
+        // `flush_opt` only flushes the default column family, which holds
+        // nothing here; every described column is flushed instead.
+        let cfs: Vec<_> = self.columns.iter().map(|name| self.cf(name)).collect();
+        let cfs: Vec<&_> = cfs.iter().collect();
+
+        result(self.db.flush_cfs_opt(&cfs, &flushoptions))
     }
 
     /// Catches a secondary instance up with the primary's writes.

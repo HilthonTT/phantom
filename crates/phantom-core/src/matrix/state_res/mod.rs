@@ -141,7 +141,9 @@ where
         .boxed()
         .await;
 
+    let room_version = RoomVersion::new(room_version)?;
     let sorted_control_levels = reverse_topological_power_sort(
+        &room_version,
         control_events,
         &all_conflicted,
         &event_fetch,
@@ -152,7 +154,6 @@ where
     debug!(count = sorted_control_levels.len(), "power events");
     trace!(list = ?sorted_control_levels, "sorted power events");
 
-    let room_version = RoomVersion::new(room_version)?;
     let resolved_control = iterative_auth_check(
         &room_version,
         sorted_control_levels.iter(),

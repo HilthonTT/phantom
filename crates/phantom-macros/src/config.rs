@@ -208,7 +208,9 @@ fn get_default(field: &Field) -> Option<String> {
                 ..
             }) => {
                 match str.value().as_str() {
-                    "HashSet::new" | "Vec::new" | "RegexSet::empty" => Some("[]".to_owned()),
+                    "HashSet::new" | "Vec::new" | "RegexSet::empty" => {
+                        return Some("[]".to_owned());
+                    }
                     "true_fn" => return Some("true".to_owned()),
                     _ => return None,
                 };

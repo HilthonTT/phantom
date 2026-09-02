@@ -94,8 +94,13 @@ func (m Model) startFiltering() (tea.Model, tea.Cmd) {
 func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Cancel):
-		m.sidebar.StopFiltering()
-		m.workspace.StopFiltering()
+		// Only the panel whose box is open stops filtering: stopping the
+		// other one would reset its cursor as well.
+		if m.sidebar.Filtering() {
+			m.sidebar.StopFiltering()
+		} else {
+			m.workspace.StopFiltering()
+		}
 		return m, nil
 
 	case key.Matches(msg, m.keys.Up):

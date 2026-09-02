@@ -168,8 +168,10 @@ fn prepare(&self, request: http::Request<Vec<u8>>) -> Result<Request> {
 /// naming an address literal reaches here without having gone through it.
 #[implement(super::Service)]
 fn validate_url(&self, url: &Url) -> Result<()> {
+    // `host_str` keeps the brackets around an IPv6 literal, which the
+    // address parser rejects; a bracketed literal skipped the check.
     if let Some(url_host) = url.host_str()
-        && let Ok(ip) = IPAddress::parse(url_host)
+        && let Ok(ip) = IPAddress::parse(url_host.trim_start_matches('[').trim_end_matches(']'))
     {
         trace!("Checking request URL IP {ip:?}");
         self.services.resolver.validate_ip(&ip)?;

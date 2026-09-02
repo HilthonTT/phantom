@@ -53,9 +53,13 @@ impl Service {
     ) -> impl Stream<Item = &'a ServerName> + Send + 'a {
         type KeyVal<'a> = (Ignore, Vec<&'a str>);
 
+        // The key is written as raw bytes below, so it is read back the same
+        // way: serializing a bare id as a query key trips the codec's
+        // top-level string assertion.
         self.db
             .roomid_inviteviaservers
-            .stream_prefix(room_id)
+            .raw_stream_prefix(room_id.as_bytes())
+            .map(phantom_database::keyval::result_deserialize::<Ignore, Vec<&str>>)
             .ignore_err()
             .map(|(_, servers): KeyVal<'_>| servers)
             .flat_map(|servers| {

@@ -151,20 +151,27 @@ pub async fn try_auth(
             )
             .map_err(|_| err!(Request(InvalidParam("User ID is invalid."))))?;
 
-            if user_id.localpart() != user_id_from_username.localpart() {
+            // Diverges from upstream, which compared localparts only and let
+            // a user without a stored password through. A bare `@user:other`
+            // identifier parses as-is, so a matching localpart on a foreign
+            // server name rebound `user_id` to an account with no password
+            // hash, and the stage completed without checking anything.
+            if user_id != user_id_from_username {
                 return Err!(Request(Forbidden("User ID and access token mismatch.")));
             }
             let user_id = user_id_from_username;
 
-            if let Ok(hash) = self.services.users.password_hash(&user_id).await {
-                let hash_matches = hash::verify_password(password, &hash).is_ok();
-                if !hash_matches {
-                    uiaainfo.auth_error = Some(StandardErrorBody::new(
-                        ErrorKind::Forbidden,
-                        "Invalid username or password.".to_owned(),
-                    ));
-                    return Ok((false, uiaainfo));
-                }
+            let hash_matches = match self.services.users.password_hash(&user_id).await {
+                Ok(hash) => hash::verify_password(password, &hash).is_ok(),
+                Err(_) => false,
+            };
+
+            if !hash_matches {
+                uiaainfo.auth_error = Some(StandardErrorBody::new(
+                    ErrorKind::Forbidden,
+                    "Invalid username or password.".to_owned(),
+                ));
+                return Ok((false, uiaainfo));
             }
 
             uiaainfo.completed.push(AuthType::Password);
