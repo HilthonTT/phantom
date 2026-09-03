@@ -19,7 +19,7 @@ const chromeRows = 3
 func (m Model) Render(focused bool) string {
 	boxes := make([]string, 0, len(m.tabs))
 
-	for i, tab := range m.tabs {
+	for i := range m.tabs {
 		boxes = append(boxes, m.renderTab(i, focused && i == m.active, m.tabWidthAt(i)))
 	}
 

@@ -1,17 +1,14 @@
-use std::{fmt::Debug, mem};
+use std::fmt::Debug;
 
-use bytes::BytesMut;
 use phantom_core::Result;
 use reqwest::Client;
-use ruma::api::{
-    IncomingResponse, MatrixVersion, OutgoingRequest, appservice::Registration,
-    client::typing::create_typing_event::v3::Typing::No,
-};
+use ruma::api::{OutgoingRequest, appservice::Registration};
 
+#[expect(dead_code, reason = "the sender that calls this is not written yet")]
 pub(crate) async fn send_request<T>(
-    client: &Client,
+    _client: &Client,
     registration: Registration,
-    request: T,
+    _request: T,
 ) -> Result<Option<T::IncomingResponse>>
 where
     T: OutgoingRequest + Debug + Send,
