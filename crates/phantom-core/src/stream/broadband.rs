@@ -177,9 +177,11 @@ mod tests {
 
     #[tokio::test]
     async fn results_are_yielded_as_they_finish() {
+        // An explicit width: the automatic one is a process-wide value that
+        // another test in this binary may be setting to 1 at the same time.
         let out: Vec<u8> = (1_u8..=4)
             .stream()
-            .broad_then(|item| async move {
+            .broadn_then(4, |item| async move {
                 tokio::time::sleep(Duration::from_millis(u64::from(5 - item) * 20)).await;
                 item
             })

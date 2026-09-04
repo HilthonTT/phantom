@@ -76,7 +76,9 @@ pub fn usize_from_f64(val: f64) -> Result<usize> {
         ));
     }
 
-    if val > usize::MAX as f64 {
+    // `usize::MAX as f64` rounds up to 2^64, which itself has no `usize`
+    // to truncate to, so the bound is inclusive.
+    if val >= usize::MAX as f64 {
         return Err!(Arithmetic("float exceeds the range of usize"));
     }
 
@@ -181,3 +183,23 @@ pub trait Expected {
 }
 
 impl<T> Expected for T {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
+    fn usize_from_f64_rejects_everything_without_a_usize() {
+        assert_eq!(usize_from_f64(0.0).expect("in range"), 0);
+        assert_eq!(usize_from_f64(4096.9).expect("in range"), 4096);
+
+        assert!(usize_from_f64(-1.0).is_err(), "negative");
+        assert!(usize_from_f64(f64::NAN).is_err(), "NaN");
+        assert!(usize_from_f64(f64::INFINITY).is_err(), "infinite");
+
+        // `usize::MAX as f64` rounds up to 2^64, one past the last `usize`; a
+        // saturating cast would silently hand back `usize::MAX` for it.
+        assert!(usize_from_f64(usize::MAX as f64).is_err(), "2^64");
+    }
+}

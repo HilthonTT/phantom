@@ -86,12 +86,19 @@ pub(super) fn width<N: Into<Option<usize>>>(n: N) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use super::*;
 
-    /// The values are process-wide, so the tests that write to them run under
-    /// one lock rather than as separate `#[test]`s racing each other.
+    /// The values are process-wide, so every test that reads or writes them
+    /// takes this lock: the setter test would otherwise race the readers,
+    /// which run in parallel with it.
+    static LOCK: Mutex<()> = Mutex::new(());
+
     #[test]
     fn an_unspecified_or_zero_width_falls_back_to_the_automatic_one() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
         assert_eq!(width(None), automatic_width());
         assert_eq!(width(0), automatic_width());
         assert_eq!(width(4), 4);
@@ -99,6 +106,8 @@ mod tests {
 
     #[test]
     fn setters_clamp_and_report_the_prior_value() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
         let (previous, set) = set_width(WIDTH_LIMIT.1.saturating_mul(2));
         assert_eq!(set, WIDTH_LIMIT.1, "clamped to the upper limit");
         assert_eq!(automatic_width(), WIDTH_LIMIT.1);

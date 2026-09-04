@@ -48,6 +48,21 @@ impl Service {
             })
             .await;
 
+        // The device's one-time keys and identity keys go with it. Left behind,
+        // a re-created device with the same id would advertise the old
+        // session's identity keys, and peers claiming one of the stale
+        // one-time keys would build Olm sessions the new client cannot open.
+        self.db
+            .onetimekeyid_onetimekeys
+            .raw_keys_prefix(&prefix)
+            .ignore_err()
+            .ready_for_each(|key| {
+                self.db.onetimekeyid_onetimekeys.remove(key).ok();
+            })
+            .await;
+
+        self.db.keyid_key.del(userdeviceid).ok();
+
         increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
         self.db.userdeviceid_metadata.del(userdeviceid).ok();
