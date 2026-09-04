@@ -11,12 +11,19 @@ mod data;
 mod dest;
 mod sender;
 
-use std::{fmt::Debug, iter::once, sync::Arc};
+use std::{
+    fmt::Debug,
+    hash::{DefaultHasher, Hash, Hasher},
+    iter::once,
+    sync::Arc,
+};
 
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::{Stream, StreamExt, stream::FuturesUnordered};
-use phantom_core::{Result, err, result::LogErr, server::Server, stream::ReadyExt};
+use phantom_core::{
+    Result, err, math::usize_from_u64_truncated, result::LogErr, server::Server, stream::ReadyExt,
+};
 use ruma::{RoomId, ServerName, UserId};
 use smallvec::SmallVec;
 
@@ -346,22 +353,31 @@ impl Service {
         sender.try_send(msg).map_err(|e| err!("{e}"))
     }
 
+    /// Which worker this destination's traffic goes through.
     pub(super) fn shard_id(&self, dest: &Destination) -> usize {
-        if self.channels.len() <= 1 {
-            return 0;
-        }
-
-        let mut hash = dest.get_prefix();
-        hash.truncate(size_of::<usize>());
-
-        let hash = u64::from_le_bytes(
-            hash.try_into()
-                .expect("Destination prefix length is too short"),
-        );
-
-        let hash = usize::try_from(hash).expect("usize too small for hash");
-        hash % self.channels.len()
+        shard_id(dest, self.channels.len())
     }
+}
+
+/// [`Service::shard_id`] against a given number of workers.
+///
+/// The destination is hashed rather than read as an integer out of the leading
+/// bytes of its queue prefix. Those bytes are not a `u64` to begin with — the
+/// prefix of the appservice `irc` is the five bytes `+irc\xFF` — and they are
+/// not a spread either, since every appservice prefix opens with the same
+/// sigil and the servers of one hosting provider share a suffix, not a prefix.
+///
+/// What matters is only that a destination always comes out the same, which is
+/// what keeps one server's transactions on one worker and so in order.
+fn shard_id(dest: &Destination, senders: usize) -> usize {
+    if senders <= 1 {
+        return 0;
+    }
+
+    let mut hasher = DefaultHasher::new();
+    dest.hash(&mut hasher);
+
+    usize_from_u64_truncated(hasher.finish()) % senders
 }
 
 fn num_senders(args: &crate::Args<'_>) -> usize {
@@ -382,4 +398,89 @@ fn num_senders(args: &crate::Args<'_>) -> usize {
         .config
         .sender_workers
         .clamp(MIN_SENDERS, max_senders)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use ruma::{OwnedServerName, OwnedUserId};
+
+    use super::{Destination, shard_id};
+
+    fn federation(server: &str) -> Destination {
+        Destination::Federation(OwnedServerName::try_from(server).expect("valid server name"))
+    }
+
+    fn push(user: &str, pushkey: &str) -> Destination {
+        Destination::Push(
+            OwnedUserId::try_from(user).expect("valid user id"),
+            pushkey.to_owned(),
+        )
+    }
+
+    /// A queue prefix is not eight bytes long just because a `u64` is: the
+    /// appservice `irc` has the five-byte prefix `+irc\xFF`, and so does the
+    /// server `a.io`. Reading a shard out of the first eight bytes of one of
+    /// those is reading past the end of it.
+    #[test]
+    fn short_destinations_shard_like_any_other() {
+        let dests = [
+            Destination::Appservice("irc".to_owned()),
+            federation("a.io"),
+            push("@a:b.io", "k"),
+        ];
+
+        for dest in dests {
+            for senders in 1..=8 {
+                assert!(
+                    shard_id(&dest, senders) < senders,
+                    "{dest:?} over {senders} senders"
+                );
+            }
+        }
+    }
+
+    /// One server's transactions stay ordered only because they all go through
+    /// the same worker, so the shard has to be a function of the destination
+    /// alone.
+    #[test]
+    fn a_destination_always_lands_on_the_same_worker() {
+        let dest = federation("matrix.org");
+        let first = shard_id(&dest, 4);
+
+        for _ in 0..8 {
+            assert_eq!(shard_id(&federation("matrix.org"), 4), first);
+        }
+    }
+
+    /// Every appservice prefix opens with the same sigil and every push prefix
+    /// with another, so a shard taken from the leading bytes would pile each
+    /// kind onto one worker.
+    #[test]
+    fn destinations_of_one_kind_spread_over_the_workers() {
+        const SENDERS: usize = 4;
+
+        let appservices: HashSet<usize> = ["irc", "telegram", "discord", "slack", "xmpp", "sms"]
+            .into_iter()
+            .map(|id| shard_id(&Destination::Appservice(id.to_owned()), SENDERS))
+            .collect();
+
+        assert!(appservices.len() > 1, "every appservice on one worker");
+
+        let pushers: HashSet<usize> = ["@a:b.io", "@c:d.io", "@e:f.io", "@g:h.io", "@i:j.io"]
+            .into_iter()
+            .map(|user| shard_id(&push(user, "key"), SENDERS))
+            .collect();
+
+        assert!(pushers.len() > 1, "every pusher on one worker");
+    }
+
+    /// A single worker takes everything, and is the default.
+    #[test]
+    fn one_worker_takes_every_destination() {
+        assert_eq!(shard_id(&federation("matrix.org"), 1), 0);
+        assert_eq!(shard_id(&Destination::Appservice("irc".to_owned()), 1), 0);
+        assert_eq!(shard_id(&push("@a:b.io", "k"), 0), 0);
+    }
 }

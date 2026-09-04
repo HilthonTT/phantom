@@ -467,7 +467,10 @@ impl Service {
         since: (u64, u64),
         max_edu_count: &AtomicU64,
     ) -> Option<EduBuf> {
-        let mut num = 0;
+        // The cap is over the whole EDU, not over each room, and the rooms are
+        // walked concurrently: a `&mut usize` would be copied into each of
+        // those futures and counted from zero again in every one of them.
+        let num = &AtomicUsize::default();
         let receipts: BTreeMap<OwnedRoomId, ReceiptMap> = self
             .services
             .state_cache
@@ -475,7 +478,7 @@ impl Service {
             .map(RoomId::to_owned)
             .broad_filter_map(|room_id| async move {
                 let receipt_map = self
-                    .select_edus_receipts_room(&room_id, since, max_edu_count, &mut num)
+                    .select_edus_receipts_room(&room_id, since, max_edu_count, num)
                     .await;
 
                 receipt_map
@@ -507,7 +510,7 @@ impl Service {
         room_id: &RoomId,
         since: (u64, u64),
         max_edu_count: &AtomicU64,
-        num: &mut usize,
+        num: &AtomicUsize,
     ) -> ReceiptMap {
         let receipts = self
             .services
@@ -561,11 +564,10 @@ impl Service {
 
             let receipt_data = ReceiptData::new(receipt, vec![event_id.clone()]);
 
-            if read.insert(user_id.to_owned(), receipt_data).is_none() {
-                *num = num.saturating_add(1);
-                if *num >= SELECT_RECEIPT_LIMIT {
-                    break;
-                }
+            if read.insert(user_id.to_owned(), receipt_data).is_none()
+                && num.fetch_add(1, Ordering::Relaxed) >= SELECT_RECEIPT_LIMIT - 1
+            {
+                break;
             }
         }
 
