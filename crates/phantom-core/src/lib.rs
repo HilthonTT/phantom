@@ -44,6 +44,7 @@ pub mod matrix;
 pub mod metrics;
 pub mod rand;
 pub mod result;
+pub mod secret;
 pub mod server;
 pub mod set;
 pub mod stream;
@@ -51,8 +52,18 @@ pub mod sync;
 pub mod sys;
 pub mod text;
 pub mod time;
+pub mod url;
 
 pub use self::{config::Config, error::Error, result::Result};
+
+// So that a macro expanding to `phantom_core::…` — which is what it must emit
+// for the downstream crates that are its usual callers — also resolves when it
+// is invoked here.
+extern crate self as phantom_core;
+
+// Records this crate's compiler flags for `info::rustc`, which is how a build
+// reports the cargo features it was actually compiled with.
+info::rustc_flags_capture! {}
 
 pub use ::{http, ruma, tracing};
 
@@ -63,9 +74,8 @@ pub use phantom_macros::implement;
 /// `#[crate::recursion_depth]`.
 pub use phantom_macros::recursion_depth;
 
-/// Re-exported so allocator modules can spell the pre-main initializer as
-/// `#[crate::ctor]`.
-#[cfg(feature = "jemalloc")]
+/// Re-exported so allocator modules and `info::rustc`'s flag registration can
+/// spell the pre-main initializer as `#[crate::ctor]`.
 pub use ctor::ctor;
 
 /// Replaces `state` with `source`, returning the previous value.

@@ -4,7 +4,11 @@
 //! read back at runtime by the admin room, by the federation `User-Agent`, and
 //! by log filtering that needs to tell our own events from a dependency's.
 
+pub mod cargo;
+pub mod rustc;
 pub mod version;
+
+pub use phantom_macros::rustc_flags_capture;
 
 pub use self::version::{name, user_agent, version};
 
