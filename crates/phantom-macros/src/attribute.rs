@@ -50,3 +50,14 @@ pub(crate) fn get_named_string(args: &[Meta], name: &str) -> Option<String> {
         value.path.is_ident(name).then(|| str.value())
     })
 }
+
+/// This crate's name with the workspace prefix removed, i.e. `database` while
+/// compiling `phantom-database`.
+///
+/// `None` outside a cargo build, where the macros that key a registry by crate
+/// have nothing to key it by and expand to nothing instead.
+pub(crate) fn get_crate_name() -> Option<String> {
+    std::env::var("CARGO_CRATE_NAME")
+        .ok()
+        .map(|name| name.trim_start_matches("phantom_").to_owned())
+}

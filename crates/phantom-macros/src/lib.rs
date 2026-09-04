@@ -3,15 +3,18 @@
 //! Proc macros must live in their own `proc-macro = true` crate, so this sits
 //! next to `phantom-core` rather than inside it.
 
+mod async_noinline;
 mod attribute;
+mod cargo;
 mod config;
 mod debug;
+mod git;
 mod implement;
 mod rustc;
 
 use proc_macro::TokenStream;
 use syn::{
-    Error, ItemFn, ItemStruct, Meta,
+    Error, ItemConst, ItemFn, ItemStruct, Meta,
     parse::{Parse, Parser},
     parse_macro_input,
 };
@@ -66,4 +69,51 @@ pub fn recursion_depth(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn implement(args: TokenStream, input: TokenStream) -> TokenStream {
     attribute_macro::<ItemFn, _>(args, input, implement::implement)
+}
+
+/// Replaces the annotated `const` with the text of a workspace `Cargo.toml`.
+///
+/// ```ignore
+/// #[cargo_manifest]
+/// const WORKSPACE_MANIFEST: &'static str = ();
+/// #[cargo_manifest(crate = "database")]
+/// const DATABASE_MANIFEST: &'static str = ();
+/// ```
+#[proc_macro_attribute]
+pub fn cargo_manifest(args: TokenStream, input: TokenStream) -> TokenStream {
+    attribute_macro::<ItemConst, _>(args, input, cargo::manifest)
+}
+
+/// Splits an `async fn` into an `#[inline(never)]` wrapper returning a boxed
+/// future and a private body, so the body is compiled once rather than into
+/// every caller.
+#[proc_macro_attribute]
+pub fn async_noinline(args: TokenStream, input: TokenStream) -> TokenStream {
+    attribute_macro::<ItemFn, _>(args, input, async_noinline::async_noinline)
+}
+
+/// Defines `RUSTC_FLAGS` for this crate and registers it with
+/// `phantom_core::info::rustc`, which is how a build reports the cargo
+/// features it was actually compiled with.
+#[proc_macro]
+pub fn rustc_flags_capture(args: TokenStream) -> TokenStream {
+    rustc::flags_capture(args)
+}
+
+/// Defines `RUSTC_VERSION`, the output of `rustc -V` for this build.
+#[proc_macro]
+pub fn rustc_version(args: TokenStream) -> TokenStream {
+    rustc::version(args)
+}
+
+/// Defines `GIT_SEMANTIC`, the version of the nearest tag this was built from.
+#[proc_macro]
+pub fn git_semantic(args: TokenStream) -> TokenStream {
+    git::semantic(args)
+}
+
+/// Defines `GIT_COMMIT`, the commit this was built from.
+#[proc_macro]
+pub fn git_commit(args: TokenStream) -> TokenStream {
+    git::commit(args)
 }
