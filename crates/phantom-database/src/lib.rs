@@ -30,6 +30,7 @@ pub mod keyval;
 mod map;
 mod pool;
 mod schema;
+mod txn;
 mod watchers;
 
 use std::{ops::Index, sync::Arc};
@@ -48,6 +49,7 @@ pub use self::{
     handle::{Deserialized, Handle},
     keyval::{Key, KeyVal, Slice, Val, serialize_key, serialize_val},
     map::{Map, Qry, compact},
+    txn::Txn,
 };
 use self::{
     engine::descriptor::Descriptor,

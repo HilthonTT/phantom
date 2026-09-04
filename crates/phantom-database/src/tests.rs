@@ -21,8 +21,9 @@ use phantom_core::{
 use tempfile::TempDir;
 
 use crate::{
-    Database, Deserialized, Interfix,
+    Database, Deserialized, Interfix, Txn,
     engine::descriptor::{self, Descriptor},
+    keyval::serialize_key,
 };
 
 /// A column with values written across the keyspace, which is what most of
@@ -456,4 +457,139 @@ async fn seeking_backwards_to_a_prefix_lands_before_its_range() {
         "the reference formulation yields nothing; got {} entries",
         found.len()
     );
+}
+
+#[tokio::test]
+async fn a_prefix_is_deleted_whole() {
+    let test = db();
+    let map = &test.db["random"];
+
+    for i in 0_u64..4 {
+        map.put(("room", i), ("v",)).expect("written");
+    }
+    map.put(("other_room", 0_u64), ("v",)).expect("written");
+
+    map.del_prefix(&("room", Interfix)).await;
+
+    for i in 0_u64..4 {
+        assert!(!map.contains(&("room", i)).await, "{i} survived");
+    }
+    assert!(
+        map.contains(&("other_room", 0_u64)).await,
+        "a sibling prefix was taken with it"
+    );
+}
+
+/// The prefix ends at the record separator, so it must not reach a key whose
+/// first component merely begins with the same bytes.
+#[tokio::test]
+async fn deleting_a_prefix_stops_at_the_separator() {
+    let test = db();
+    let map = &test.db["random"];
+
+    map.put(("ab", 1_u64), ("v",)).expect("written");
+    map.put(("abc", 1_u64), ("v",)).expect("written");
+
+    map.del_prefix(&("ab", Interfix)).await;
+
+    assert!(!map.contains(&("ab", 1_u64)).await);
+    assert!(map.contains(&("abc", 1_u64)).await, "abc is not under ab");
+}
+
+#[tokio::test]
+async fn deleting_an_absent_prefix_is_not_an_error() {
+    let test = db();
+
+    test.db["random"].del_prefix(&("nothing", Interfix)).await;
+}
+
+#[tokio::test]
+async fn a_transaction_writes_across_columns() {
+    let test = db();
+
+    let mut txn = Txn::new(&test.db.engine);
+    txn.put(&test.db["random"], ("k", 1_u64), ("one",))
+        .expect("queued");
+    txn.put(&test.db["other"], ("k", 2_u64), ("two",))
+        .expect("queued");
+
+    assert_eq!(txn.len(), 2);
+    txn.execute().expect("committed");
+
+    let one: (String,) = test.db["random"]
+        .qry(&("k", 1_u64))
+        .await
+        .expect("found")
+        .deserialized()
+        .expect("deserialized");
+    assert_eq!(one, ("one".to_owned(),));
+
+    let two: (String,) = test.db["other"]
+        .qry(&("k", 2_u64))
+        .await
+        .expect("found")
+        .deserialized()
+        .expect("deserialized");
+    assert_eq!(two, ("two".to_owned(),));
+}
+
+/// The pattern the transaction exists for: a value moved between columns,
+/// where landing halfway would leave it in both or in neither.
+#[tokio::test]
+async fn a_transaction_moves_a_value_between_columns() {
+    let test = db();
+    let from = &test.db["random"];
+    let to = &test.db["other"];
+
+    from.put(("k", 1_u64), ("v",)).expect("written");
+
+    let mut txn = Txn::new(&test.db.engine);
+    txn.put(to, ("k", 1_u64), ("v",)).expect("queued");
+    txn.del(from, ("k", 1_u64)).expect("queued");
+    txn.execute().expect("committed");
+
+    assert!(!from.contains(&("k", 1_u64)).await, "not removed");
+    assert!(to.contains(&("k", 1_u64)).await, "not written");
+}
+
+/// Building one and dropping it leaves the database as it was, which is what
+/// makes bailing out part-way through safe.
+#[tokio::test]
+async fn a_dropped_transaction_writes_nothing() {
+    let test = db();
+    let map = &test.db["random"];
+
+    let mut txn = Txn::new(&test.db.engine);
+    txn.put(map, ("k", 1_u64), ("v",)).expect("queued");
+    drop(txn);
+
+    assert!(!map.contains(&("k", 1_u64)).await);
+}
+
+#[tokio::test]
+async fn an_empty_transaction_is_a_no_op() {
+    let test = db();
+
+    let txn = Txn::new(&test.db.engine);
+
+    assert!(txn.is_empty());
+    txn.execute().expect("committed");
+}
+
+/// A watcher is woken by a transaction the same as by a direct write, which is
+/// what keeps a long-poll from sleeping through one.
+#[tokio::test]
+async fn a_transaction_wakes_the_watchers() {
+    let test = db();
+    let map = &test.db["random"];
+
+    let watch = map.watch_prefix(&serialize_key(("room", Interfix)).expect("serialized"));
+
+    let mut txn = Txn::new(&test.db.engine);
+    txn.put(map, ("room", 1_u64), ("v",)).expect("queued");
+    txn.execute().expect("committed");
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), watch)
+        .await
+        .expect("the watcher was woken");
 }

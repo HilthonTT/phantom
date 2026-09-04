@@ -8,6 +8,7 @@ mod clear;
 pub mod compact;
 mod contains;
 mod count;
+mod del_prefix;
 mod get;
 mod insert;
 mod iter;
@@ -137,6 +138,15 @@ impl Map {
     #[inline]
     pub(crate) fn db(&self) -> &Arc<Engine> {
         &self.db
+    }
+
+    /// Wakes whatever is watching a prefix of `key`.
+    ///
+    /// Called by [`Txn`](crate::Txn) once its batch has landed, since a write
+    /// made through one does not go through this column's own write path.
+    #[inline]
+    pub(crate) fn wake(&self, key: &[u8]) {
+        self.watchers.wake(key);
     }
 
     #[inline]
