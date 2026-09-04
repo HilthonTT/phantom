@@ -9,11 +9,8 @@
 use std::{collections::HashSet, sync::Arc};
 
 use futures::{Stream, StreamExt, pin_mut};
-use phantom_core::{
-    Result, implement,
-    stream::{IterStream, ReadyExt, TryIgnore},
-};
-use phantom_database::{Deserialized, Engine, Handle, Interfix, Map, Qry, serialize_to_vec};
+use phantom_core::{Result, implement, stream::IterStream};
+use phantom_database::{Deserialized, Engine, Handle, Interfix, Map, Qry};
 use ruma::{DeviceId, OwnedUserId, RoomId, UserId, api::client::filter::LazyLoadOptions};
 
 pub struct Service {
@@ -69,16 +66,9 @@ impl crate::Service for Service {
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub async fn reset(&self, ctx: &Context<'_>) {
-    let prefix = serialize_to_vec((ctx.user_id, ctx.device_id, ctx.room_id, Interfix))
-        .expect("failed to serialize prefix");
-
     self.db
         .lazyloadedids
-        .raw_keys_prefix(&prefix)
-        .ignore_err()
-        .ready_for_each(|key| {
-            self.db.lazyloadedids.remove(key).ok();
-        })
+        .del_prefix(&(ctx.user_id, ctx.device_id, ctx.room_id, Interfix))
         .await;
 }
 

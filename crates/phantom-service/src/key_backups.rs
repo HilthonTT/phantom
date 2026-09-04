@@ -81,16 +81,9 @@ pub async fn delete_backup(&self, user_id: &UserId, version: &str) {
     self.db.backupid_algorithm.del(key).ok();
     self.db.backupid_etag.del(key).ok();
 
-    let prefix =
-        serialize_to_vec((user_id, version, Interfix)).expect("failed to serialize prefix");
-
     self.db
         .backupkeyid_backup
-        .raw_keys_prefix(&prefix)
-        .ignore_err()
-        .ready_for_each(|outdated_key| {
-            self.db.backupkeyid_backup.remove(outdated_key).ok();
-        })
+        .del_prefix(&(user_id, version, Interfix))
         .await;
 }
 
@@ -277,31 +270,17 @@ pub async fn get_session(
 
 #[implement(Service)]
 pub async fn delete_all_keys(&self, user_id: &UserId, version: &str) {
-    let prefix =
-        serialize_to_vec((user_id, version, Interfix)).expect("failed to serialize prefix");
-
     self.db
         .backupkeyid_backup
-        .raw_keys_prefix(&prefix)
-        .ignore_err()
-        .ready_for_each(|outdated_key| {
-            self.db.backupkeyid_backup.remove(outdated_key).ok();
-        })
+        .del_prefix(&(user_id, version, Interfix))
         .await;
 }
 
 #[implement(Service)]
 pub async fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &RoomId) {
-    let prefix = serialize_to_vec((user_id, version, room_id, Interfix))
-        .expect("failed to serialize prefix");
-
     self.db
         .backupkeyid_backup
-        .raw_keys_prefix(&prefix)
-        .ignore_err()
-        .ready_for_each(|outdated_key| {
-            self.db.backupkeyid_backup.remove(outdated_key).ok();
-        })
+        .del_prefix(&(user_id, version, room_id, Interfix))
         .await;
 }
 

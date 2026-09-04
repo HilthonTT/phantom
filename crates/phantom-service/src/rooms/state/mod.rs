@@ -32,7 +32,7 @@ use phantom_core::{
     stream::{BroadbandExt, IterStream, ReadyExt, TryIgnore},
     sync::{MutexMap, MutexMapGuard},
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Map, serialize_to_vec};
+use phantom_database::{Deserialized, Ignore, Interfix, Map};
 use ruma::{
     EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
     events::{
@@ -439,15 +439,9 @@ impl Service {
     ) where
         I: Iterator<Item = &'a EventId> + Send + 'a,
     {
-        let prefix = serialize_to_vec((room_id, Interfix)).expect("failed to serialize prefix");
-
         self.db
             .roomid_pduleaves
-            .raw_keys_prefix(&prefix)
-            .ignore_err()
-            .ready_for_each(|key| {
-                self.db.roomid_pduleaves.remove(key).ok();
-            })
+            .del_prefix(&(room_id, Interfix))
             .await;
 
         for event_id in event_ids {

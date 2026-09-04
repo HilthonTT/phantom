@@ -36,30 +36,15 @@ impl Service {
             self.db.token_userdeviceid.remove(&old_token).ok();
         }
 
-        let prefix =
-            serialize_to_vec((user_id, device_id, Interfix)).expect("failed to serialize prefix");
+        let prefix = (user_id, device_id, Interfix);
 
-        self.db
-            .todeviceid_events
-            .raw_keys_prefix(&prefix)
-            .ignore_err()
-            .ready_for_each(|key| {
-                self.db.todeviceid_events.remove(key).ok();
-            })
-            .await;
+        self.db.todeviceid_events.del_prefix(&prefix).await;
 
         // The device's one-time keys and identity keys go with it. Left behind,
         // a re-created device with the same id would advertise the old
         // session's identity keys, and peers claiming one of the stale
         // one-time keys would build Olm sessions the new client cannot open.
-        self.db
-            .onetimekeyid_onetimekeys
-            .raw_keys_prefix(&prefix)
-            .ignore_err()
-            .ready_for_each(|key| {
-                self.db.onetimekeyid_onetimekeys.remove(key).ok();
-            })
-            .await;
+        self.db.onetimekeyid_onetimekeys.del_prefix(&prefix).await;
 
         self.db.keyid_key.del(userdeviceid).ok();
 

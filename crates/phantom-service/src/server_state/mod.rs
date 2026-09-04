@@ -14,13 +14,12 @@ pub mod counter;
 use std::{
     collections::HashMap,
     fmt::Write,
-    path::Path,
     sync::{Arc, RwLock},
     time::Instant,
 };
 
 use async_trait::async_trait;
-use phantom_core::{Result, bytes::pretty, error, server::Server};
+use phantom_core::{Result, bytes::pretty, secret, server::Server};
 use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedUserId, RoomAliasId, ServerName, UserId};
 
 use self::counter::Counter;
@@ -46,14 +45,18 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         let config = &args.server.config;
 
-        let turn_secret = read_secret(config.turn_secret_file.as_deref(), "TURN secret")
-            .unwrap_or_else(|| config.turn_secret.clone());
-
-        let registration_token = read_secret(
-            config.registration_token_file.as_deref(),
-            "registration token",
+        let turn_secret = secret::resolve(
+            config.turn_secret_file.as_deref(),
+            Some(config.turn_secret.as_str()),
+            "TURN secret",
         )
-        .or_else(|| config.registration_token.clone());
+        .unwrap_or_default();
+
+        let registration_token = secret::resolve(
+            config.registration_token_file.as_deref(),
+            config.registration_token.as_deref(),
+            "registration token",
+        );
 
         Ok(Arc::new(Self {
             counter: Counter::new(&args),
@@ -98,18 +101,6 @@ impl crate::Service for Service {
     fn name(&self) -> &str {
         crate::make_name(std::module_path!())
     }
-}
-
-/// Reads a secret held in a file beside the config, trimmed of the trailing
-/// newline an editor leaves behind. `None` where there is no file to read or
-/// it could not be read, which leaves the caller on its inline option.
-fn read_secret(path: Option<&Path>, what: &str) -> Option<String> {
-    let path = path?;
-
-    std::fs::read_to_string(path)
-        .inspect_err(|e| error!("Failed to read the {what} file {path:?}: {e}"))
-        .ok()
-        .map(|secret| secret.trim().to_owned())
 }
 
 impl Service {

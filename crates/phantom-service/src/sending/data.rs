@@ -6,7 +6,7 @@ use phantom_core::{
     stream::{ReadyExt, TryIgnore},
     text,
 };
-use phantom_database::{Database, Deserialized, Map};
+use phantom_database::{Database, Deserialized, Map, Txn};
 use ruma::{ServerName, UserId};
 
 use super::{Destination, SendingEvent};
@@ -49,50 +49,40 @@ impl Data {
 
     pub(super) async fn delete_all_active_requests_for(&self, destination: &Destination) {
         let prefix = destination.get_prefix();
-        self.servercurrentevent_data
-            .raw_keys_prefix(&prefix)
-            .ignore_err()
-            .ready_for_each(|key| {
-                self.servercurrentevent_data.remove(key).ok();
-            })
-            .await;
+
+        self.servercurrentevent_data.raw_del_prefix(&prefix).await;
     }
 
     pub(super) async fn delete_all_requests_for(&self, destination: &Destination) {
         let prefix = destination.get_prefix();
-        self.servercurrentevent_data
-            .raw_keys_prefix(&prefix)
-            .ignore_err()
-            .ready_for_each(|key| {
-                self.servercurrentevent_data.remove(key).ok();
-            })
-            .await;
 
-        self.servernameevent_data
-            .raw_keys_prefix(&prefix)
-            .ignore_err()
-            .ready_for_each(|key| {
-                self.servernameevent_data.remove(key).ok();
-            })
-            .await;
+        self.servercurrentevent_data.raw_del_prefix(&prefix).await;
+        self.servernameevent_data.raw_del_prefix(&prefix).await;
     }
 
+    /// Moves queued events into the in-flight column.
+    ///
+    /// One transaction rather than a write and a delete per event: the two
+    /// columns are the same fact seen from either side, and a crash between
+    /// them would leave an event either queued and in flight at once — sent
+    /// twice — or in neither, and dropped.
     pub(super) fn mark_as_active<'a, I>(&self, events: I) -> Result
     where
         I: Iterator<Item = &'a QueueItem>,
     {
-        events
-            .filter(|(key, _)| !key.is_empty())
-            .try_for_each(|(key, val)| {
-                let val = if let SendingEvent::Edu(val) = &val {
-                    &**val
-                } else {
-                    &[]
-                };
+        let mut txn = Txn::new(&self.db.engine);
 
-                self.servercurrentevent_data.insert(key, val)?;
-                self.servernameevent_data.remove(key)
-            })
+        for (key, event) in events.filter(|(key, _)| !key.is_empty()) {
+            let val: &[u8] = match event {
+                SendingEvent::Edu(val) => val,
+                SendingEvent::Pdu(_) | SendingEvent::Flush => &[],
+            };
+
+            txn.insert(&self.servercurrentevent_data, key, val);
+            txn.remove(&self.servernameevent_data, key);
+        }
+
+        txn.execute()
     }
 
     #[inline]
