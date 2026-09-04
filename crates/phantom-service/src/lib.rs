@@ -12,6 +12,10 @@
 //! [`runtime`] holds all of that machinery; every other module here is one
 //! service.
 
+// Proving `Send`/`Sync` for a `Dep` means walking the whole service graph, and
+// the default limit is not deep enough for it. See [`runtime::Dep`].
+#![recursion_limit = "192"]
+
 pub mod account_data;
 pub mod admin;
 pub mod appservice;

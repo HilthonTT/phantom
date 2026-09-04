@@ -588,6 +588,13 @@ pub struct Config {
     #[serde(default = "true_fn")]
     pub allow_outgoing_read_receipts: bool,
 
+    /// Send local users' typing notifications to the other servers in their
+    /// rooms.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub allow_outgoing_typing: bool,
+
     /// Notary servers to gather other servers' public keys from, when this
     /// server does not already hold a key it needs.
     ///

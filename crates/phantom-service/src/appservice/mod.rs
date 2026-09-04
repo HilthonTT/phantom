@@ -21,6 +21,7 @@
 
 mod namespace_regex;
 mod registration_info;
+mod request;
 #[cfg(test)]
 mod tests;
 
@@ -37,6 +38,7 @@ use ruma::{
 use tokio::sync::{RwLock, RwLockReadGuard};
 
 pub use self::{namespace_regex::NamespaceRegex, registration_info::RegistrationInfo};
+use crate::{Dep, client};
 
 /// Every registration this server serves, by registration id.
 pub type Registrations = BTreeMap<String, RegistrationInfo>;
@@ -47,7 +49,12 @@ pub struct Service {
     /// through against a map neither of them saw the other in.
     registration_info: RwLock<Registrations>,
     server: Arc<Server>,
+    services: Services,
     db: Data,
+}
+
+struct Services {
+    client: Dep<client::Service>,
 }
 
 struct Data {
@@ -60,6 +67,9 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             registration_info: RwLock::new(BTreeMap::new()),
             server: args.server.clone(),
+            services: Services {
+                client: args.depend::<client::Service>("client"),
+            },
             db: Data {
                 id_appserviceregistrations: args.db["id_appserviceregistrations"].clone(),
             },

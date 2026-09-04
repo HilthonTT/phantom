@@ -456,6 +456,11 @@
 #
 #allow_outgoing_read_receipts = true
 
+# Send local users' typing notifications to the other servers in their
+# rooms.
+#
+#allow_outgoing_typing = true
+
 # Notary servers to gather other servers' public keys from, when this
 # server does not already hold a key it needs.
 #

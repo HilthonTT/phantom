@@ -6,7 +6,6 @@
 //! persisted, so what is in flight when the server stops goes out at the
 //! next start.
 
-mod appservice;
 mod data;
 mod dest;
 mod sender;
@@ -22,7 +21,11 @@ use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::{Stream, StreamExt, stream::FuturesUnordered};
 use phantom_core::{
-    Result, err, math::usize_from_u64_truncated, result::LogErr, server::Server, stream::ReadyExt,
+    Result, err,
+    math::usize_from_u64_truncated,
+    result::LogErr,
+    server::Server,
+    stream::{IterStream, ReadyExt},
 };
 use ruma::{RoomId, ServerName, UserId};
 use smallvec::SmallVec;
@@ -42,6 +45,7 @@ pub struct Service {
 }
 
 struct Services {
+    alias: Dep<rooms::alias::Service>,
     client: Dep<client::Service>,
     server_state: Dep<server_state::Service>,
     state: Dep<rooms::state::Service>,
@@ -87,6 +91,7 @@ impl crate::Service for Service {
             db: Data::new(&args),
             server: args.server.clone(),
             services: Services {
+                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
                 client: args.depend::<client::Service>("client"),
                 server_state: args.depend::<server_state::Service>("server_state"),
                 state: args.depend::<rooms::state::Service>("rooms::state"),
@@ -268,6 +273,79 @@ impl Service {
             event,
             queue_id: keys.into_iter().next().expect("request queue results"),
         })
+    }
+
+    /// Sends one EDU to every appservice that should hear about `room_id`.
+    ///
+    /// The EDU is built per appservice rather than once and cloned: each is a
+    /// separate transaction whose id is the hash of its own contents, and a
+    /// closure is what lets the caller decide the shape without this having to
+    /// know it. `serializer` must write the appservice `EphemeralData` form,
+    /// which is not the federation `Edu` form the other senders here carry.
+    ///
+    /// An appservice hears about a room if it claims the room id, if one of
+    /// its users is in the room, or if it claims one of the room's aliases —
+    /// and, before any of those, only if its registration asked for ephemeral
+    /// events at all.
+    #[tracing::instrument(skip(self, serializer), level = "debug")]
+    pub async fn send_edu_room_appservices<F>(&self, room_id: &RoomId, serializer: F) -> Result
+    where
+        F: Fn(&mut EduBuf) -> Result + Send,
+    {
+        let registrations = self.services.appservice.read().await;
+
+        // The ids are taken while the guard is held and the guard dropped
+        // before anything is queued: the registrations are read under the same
+        // lock a registration is added under, and holding it across the writes
+        // would block that for as long as the fan-out takes.
+        let interested: Vec<String> = registrations
+            .values()
+            .stream()
+            .filter(|appservice| self.appservice_hears_about(room_id, appservice))
+            .map(|appservice| appservice.registration.id.clone())
+            .collect()
+            .await;
+
+        drop(registrations);
+
+        for id in interested {
+            let mut buf = EduBuf::new();
+            serializer(&mut buf)?;
+
+            self.send_edu_appservice(id, buf).log_err().ok();
+        }
+
+        Ok(())
+    }
+
+    /// Whether `appservice` should be told what happens in `room_id`.
+    async fn appservice_hears_about(
+        &self,
+        room_id: &RoomId,
+        appservice: &appservice_service::RegistrationInfo,
+    ) -> bool {
+        if !appservice.registration.receive_ephemeral {
+            return false;
+        }
+
+        if appservice.rooms.is_match(room_id.as_str()) {
+            return true;
+        }
+
+        if self
+            .services
+            .state_cache
+            .appservice_in_room(room_id, appservice)
+            .await
+        {
+            return true;
+        }
+
+        self.services
+            .alias
+            .local_aliases_for_room(room_id)
+            .ready_any(|alias| appservice.aliases.is_match(alias.as_str()))
+            .await
     }
 
     #[tracing::instrument(skip(self, room_id), level = "debug")]

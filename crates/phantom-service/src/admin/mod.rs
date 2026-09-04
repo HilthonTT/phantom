@@ -68,6 +68,7 @@ pub struct Service {
 
 struct Services {
     server: Arc<Server>,
+    alias: Dep<rooms::alias::Service>,
     server_state: Dep<server_state::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
 
@@ -120,6 +121,7 @@ impl crate::Service for Service {
             services: Services {
                 server: args.server.clone(),
                 server_state: args.depend::<server_state::Service>("server_state"),
+                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
                 services: RwLock::new(None),
             },
@@ -292,7 +294,8 @@ pub async fn user_is_admin(&self, user_id: &UserId) -> bool {
 /// that case.
 #[implement(Service)]
 pub async fn get_admin_room(&self) -> Result<OwnedRoomId> {
-    let room_id = self.services.server_state.admin_room_id().await?;
+    let admin_alias = &self.services.server_state.admin_alias;
+    let room_id = self.services.alias.resolve_local_alias(admin_alias).await?;
 
     self.services
         .state_cache

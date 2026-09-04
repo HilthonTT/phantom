@@ -27,12 +27,14 @@ pub mod state_cache;
 pub mod state_compressor;
 pub mod threads;
 pub mod timeline;
+pub mod typing;
 pub mod user;
 
 use std::sync::Arc;
 
 /// The room services, grouped.
 pub struct Services {
+    pub alias: Arc<alias::Service>,
     pub directory: Arc<directory::Service>,
     pub short: Arc<short::Service>,
     pub state: Arc<state::Service>,
@@ -48,5 +50,6 @@ pub struct Services {
     pub pdu_metadata: Arc<pdu_metadata::Service>,
     pub lazy_loading: Arc<lazy_loading::Service>,
     pub threads: Arc<threads::Service>,
+    pub typing: Arc<typing::Service>,
     pub user: Arc<user::Service>,
 }

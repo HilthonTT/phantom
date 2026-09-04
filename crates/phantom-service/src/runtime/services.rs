@@ -80,6 +80,7 @@ impl Services {
             config: build!(config::Service),
             federation: build!(federation::Service),
             rooms: rooms::Services {
+                alias: build!(rooms::alias::Service),
                 directory: build!(rooms::directory::Service),
                 short: build!(rooms::short::Service),
                 state: build!(rooms::state::Service),
@@ -95,6 +96,7 @@ impl Services {
                 outlier: build!(rooms::outlier::Service),
                 pdu_metadata: build!(rooms::pdu_metadata::Service),
                 threads: build!(rooms::threads::Service),
+                typing: build!(rooms::typing::Service),
                 user: build!(rooms::user::Service),
             },
             server_keys: build!(server_keys::Service),

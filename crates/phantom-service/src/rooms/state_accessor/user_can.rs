@@ -199,3 +199,32 @@ pub async fn power_level_context(
 
     (rules, creators)
 }
+
+/// The room's power levels, resolved against the rules of its room version.
+///
+/// Errors where the room has no `m.room.power_levels`, which is not the same
+/// as a room whose levels are all at their defaults: a room without the event
+/// is one where the creator holds everything, and what that means for the
+/// question being asked is the caller's to decide. [`power_level_context`]
+/// supplies the creators, since from room version 12 they hold levels the
+/// event never states.
+///
+/// [`power_level_context`]: Self::power_level_context
+#[implement(super::Service)]
+pub async fn get_power_levels(&self, room_id: &RoomId) -> Result<RoomPowerLevels> {
+    let content = self
+        .room_state_get_content::<RoomPowerLevelsEventContent>(
+            room_id,
+            &StateEventType::RoomPowerLevels,
+            "",
+        )
+        .await?;
+
+    let (rules, creators) = self.power_level_context(room_id).await;
+
+    Ok(RoomPowerLevels::new(
+        RoomPowerLevelsSource::Original(content),
+        &rules,
+        creators,
+    ))
+}

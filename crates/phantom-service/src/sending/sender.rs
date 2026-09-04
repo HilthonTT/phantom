@@ -48,7 +48,7 @@ use ruma::{
 };
 use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 
-use super::{Destination, EduBuf, EduVec, Msg, SendingEvent, Service, appservice, data::QueueItem};
+use super::{Destination, EduBuf, EduVec, Msg, SendingEvent, Service, data::QueueItem};
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -726,13 +726,16 @@ impl Service {
 
         let txn_id = OwnedTransactionId::from(URL_SAFE_NO_PAD.encode(txn_hash));
 
-        let client = &self.services.client.appservice;
-
         let mut request =
             ruma::api::appservice::event::push_events::v1::Request::new(txn_id, pdu_jsons);
         request.ephemeral = edu_jsons;
 
-        match appservice::send_request(client, appservice, request).await {
+        match self
+            .services
+            .appservice
+            .send_request(appservice, request)
+            .await
+        {
             Ok(_) => Ok(Destination::Appservice(id)),
             Err(e) => Err((Destination::Appservice(id), e)),
         }

@@ -38,6 +38,7 @@ pub struct Service {
 struct Services {
     server: Arc<Server>,
     account_data: Dep<account_data::Service>,
+    alias: Dep<rooms::alias::Service>,
     server_state: Dep<server_state::Service>,
     state_accessor: Dep<rooms::state_accessor::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
@@ -75,6 +76,7 @@ impl crate::Service for Service {
                 server_state: args.depend::<server_state::Service>("server_state"),
                 state_accessor: args
                     .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
             },
             db: Data {
@@ -130,7 +132,8 @@ impl Service {
     /// question the same way — membership of the admin room is what being an
     /// admin *is*, not a flag kept beside it.
     pub async fn is_admin(&self, user_id: &UserId) -> bool {
-        let Ok(admin_room) = self.services.server_state.admin_room_id().await else {
+        let admin_alias = &self.services.server_state.admin_alias;
+        let Ok(admin_room) = self.services.alias.resolve_local_alias(admin_alias).await else {
             return false;
         };
 
