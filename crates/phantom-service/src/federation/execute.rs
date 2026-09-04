@@ -41,6 +41,26 @@ where
     T: Debug + Send,
 {
     let client = &self.services.client.federation;
+
+    self.execute_with(client, dest, request).await
+}
+
+/// [`Self::execute`] over a caller-chosen client.
+///
+/// The sender pushes its transactions through a client of its own, with the
+/// longer timeouts a transaction the far end has to process in full needs.
+#[implement(super::Service)]
+#[tracing::instrument(skip_all, name = "request", level = "debug")]
+pub async fn execute_with<T>(
+    &self,
+    client: &Client,
+    dest: &ServerName,
+    request: T,
+) -> Result<T::IncomingResponse>
+where
+    T: OutgoingRequest + Metadata<Authentication = ServerSignatures, PathBuilder = FixedPath>,
+    T: Debug + Send,
+{
     let origin = self.services.server.name.clone();
     let keypair = self.services.server_keys.keypair();
     let input = ServerSignaturesInput::new(origin, dest.to_owned(), keypair);

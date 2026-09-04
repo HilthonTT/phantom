@@ -22,6 +22,9 @@ systemd = ["dep:sd-notify"]
 [dependencies]
 # `serde` so a resolved destination's port string is stored as it stands.
 arrayvec = { version = "0.7.8", features = ["serde"] }
+# The queues between the sender's dispatchers and its workers. Chosen over
+# tokio's mpsc because the receiving end is cloned when a worker starts.
+async-channel = "2.5.0"
 # The response body a federation request is read into; `reqwest` hands one
 # back and ruma reads the typed response out of it, so it is named here.
 bytes = "1.12.1"
@@ -66,6 +69,10 @@ ruma = { version = "0.16.0", features = [
 sd-notify = { version = "0.5.0", optional = true, default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+# Inline buffers for the EDU JSON a sending transaction carries; most fit in
+# the inline capacity, so a queued EDU costs no heap allocation. `write` so
+# serde_json can serialize straight into one.
+smallvec = { version = "1.15.2", features = ["write"] }
 # `macros` for `select!` in the manager loop, `rt` for the tasks the workers
 # run in, `sync` for the mutexes the manager's state lives behind, and `time`
 # for the delay before a panicked worker is restarted.
@@ -78,6 +85,7 @@ tokio = { version = "1.49.0", default-features = false, features = [
 # The `#[instrument]` attribute on the worker frame; the log macros reach
 # tracing through phantom-core's re-export.
 tracing = "0.1.44"
+base64 = "0.23.1"
 
 [lints]
 workspace = true

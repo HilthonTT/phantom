@@ -448,6 +448,14 @@
 #
 #presence_timeout_remote_users = true
 
+# Send local users' presence to the other servers in their rooms.
+#
+#allow_outgoing_presence = true
+
+# Send local users' read receipts to the other servers in their rooms.
+#
+#allow_outgoing_read_receipts = true
+
 # Notary servers to gather other servers' public keys from, when this
 # server does not already hold a key it needs.
 #
@@ -713,6 +721,39 @@
 # Seconds an unused sender connection is kept in the pool.
 #
 #sender_idle_timeout = 180
+
+# Longest a remote server that keeps failing is left alone between
+# attempts. The wait after a failure doubles each time, starting from
+# `sender_timeout`, and stops growing here.
+#
+#sender_retry_backoff_limit = 86400
+
+# Seconds the sender waits for its in-flight transactions to finish at
+# shutdown before giving up on them. Nothing is lost either way: what
+# was not acknowledged is sent again at the next start.
+#
+#sender_shutdown_timeout = 5
+
+# Worker tasks the sender spreads its destinations over. Each remote
+# server always lands on the same worker, so ordering to one server is
+# kept. Never more than the runtime has threads.
+#
+# 0 runs a single worker.
+#
+#sender_workers = 0
+
+# Send the transactions that were still in flight when the server last
+# stopped as soon as it starts. Off, they wait until there is something
+# new to send to that server.
+#
+#startup_netburst = true
+
+# Events per remote server the startup burst may carry; the rest are
+# dropped. Servers that were unreachable for a long time can have a lot
+# queued, and sending all of it at once is rarely wanted. -1 keeps
+# everything.
+#
+#startup_netburst_keep = 50
 
 # Seconds a request to an appservice may take. Appservices usually sit
 # on the same network, so this is about the work they do rather than the

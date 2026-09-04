@@ -215,6 +215,18 @@ pub(super) fn default_sender_idle_timeout() -> u64 {
     180
 }
 
+pub(super) fn default_sender_retry_backoff_limit() -> u64 {
+    86400
+}
+
+pub(super) fn default_sender_shutdown_timeout() -> u64 {
+    5
+}
+
+pub(super) fn default_startup_netburst_keep() -> i64 {
+    50
+}
+
 pub(super) fn default_appservice_timeout() -> u64 {
     35
 }

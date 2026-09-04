@@ -576,6 +576,18 @@ pub struct Config {
     #[serde(default = "true_fn")]
     pub presence_timeout_remote_users: bool,
 
+    /// Send local users' presence to the other servers in their rooms.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub allow_outgoing_presence: bool,
+
+    /// Send local users' read receipts to the other servers in their rooms.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub allow_outgoing_read_receipts: bool,
+
     /// Notary servers to gather other servers' public keys from, when this
     /// server does not already hold a key it needs.
     ///
@@ -899,6 +911,49 @@ pub struct Config {
     /// default: 180
     #[serde(default = "default_sender_idle_timeout")]
     pub sender_idle_timeout: u64,
+
+    /// Longest a remote server that keeps failing is left alone between
+    /// attempts. The wait after a failure doubles each time, starting from
+    /// `sender_timeout`, and stops growing here.
+    ///
+    /// default: 86400
+    #[serde(default = "default_sender_retry_backoff_limit")]
+    pub sender_retry_backoff_limit: u64,
+
+    /// Seconds the sender waits for its in-flight transactions to finish at
+    /// shutdown before giving up on them. Nothing is lost either way: what
+    /// was not acknowledged is sent again at the next start.
+    ///
+    /// default: 5
+    #[serde(default = "default_sender_shutdown_timeout")]
+    pub sender_shutdown_timeout: u64,
+
+    /// Worker tasks the sender spreads its destinations over. Each remote
+    /// server always lands on the same worker, so ordering to one server is
+    /// kept. Never more than the runtime has threads.
+    ///
+    /// 0 runs a single worker.
+    ///
+    /// default: 0
+    #[serde(default)]
+    pub sender_workers: usize,
+
+    /// Send the transactions that were still in flight when the server last
+    /// stopped as soon as it starts. Off, they wait until there is something
+    /// new to send to that server.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub startup_netburst: bool,
+
+    /// Events per remote server the startup burst may carry; the rest are
+    /// dropped. Servers that were unreachable for a long time can have a lot
+    /// queued, and sending all of it at once is rarely wanted. -1 keeps
+    /// everything.
+    ///
+    /// default: 50
+    #[serde(default = "default_startup_netburst_keep")]
+    pub startup_netburst_keep: i64,
 
     /// Seconds a request to an appservice may take. Appservices usually sit
     /// on the same network, so this is about the work they do rather than the
