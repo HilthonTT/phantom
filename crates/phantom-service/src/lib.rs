@@ -24,6 +24,7 @@ pub mod config;
 pub mod emergency;
 pub mod federation;
 pub mod key_backups;
+pub mod media;
 pub mod moderation;
 pub mod presence;
 pub mod pusher;

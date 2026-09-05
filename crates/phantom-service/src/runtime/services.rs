@@ -16,7 +16,7 @@ use super::{
     registry::{self, Map},
 };
 use crate::{
-    account_data, admin, appservice, client, config, emergency, federation, key_backups,
+    account_data, admin, appservice, client, config, emergency, federation, key_backups, media,
     moderation, presence, pusher, resolver, rooms, sending, server_keys, server_state, sync,
     transaction_id, updates, users,
 };
@@ -25,6 +25,7 @@ use crate::{
 pub struct Services {
     pub client: Arc<client::Service>,
     pub config: Arc<config::Service>,
+    pub media: Arc<media::Service>,
     pub moderation: Arc<moderation::Service>,
     pub resolver: Arc<resolver::Service>,
     pub federation: Arc<federation::Service>,
@@ -82,6 +83,7 @@ impl Services {
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
+            media: build!(media::Service),
             moderation: build!(moderation::Service),
             federation: build!(federation::Service),
             rooms: rooms::Services {

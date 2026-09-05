@@ -93,6 +93,29 @@ pub struct Config {
     /// example: "/var/lib/phantom"
     pub database_path: PathBuf,
 
+    /// Path to the directory holding uploaded and cached media files.
+    ///
+    /// Media is kept as files rather than in the database because it is large,
+    /// written once and read whole — everything a filesystem is better at than
+    /// a key-value store. What the database holds is the metadata pointing at
+    /// them, so the two must be backed up and restored together.
+    ///
+    /// Leave this unset to use a `media` directory under `database_path`.
+    ///
+    /// example: "/var/lib/phantom/media"
+    pub media_path: Option<PathBuf>,
+
+    /// Check at startup that every file the media metadata names is present.
+    ///
+    /// Answers a request for media that is not there with "gone" rather than
+    /// with an error, which is what a client can act on. The check reads one
+    /// directory entry per stored file, so an installation with a very large
+    /// media store may prefer to turn it off and accept the worse error.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub media_startup_check: bool,
+
     /// Path phantom writes online database backups to. The backups are taken
     /// through RocksDB's backup engine, so the server does not have to be
     /// stopped to take one.
@@ -1261,6 +1284,17 @@ impl Config {
         validate(&config)?;
 
         Ok(config)
+    }
+
+    /// Where media files are kept, resolved.
+    ///
+    /// `media_path` where an operator set one, and a `media` directory beside
+    /// the database otherwise.
+    #[must_use]
+    pub fn media_path(&self) -> PathBuf {
+        self.media_path
+            .clone()
+            .unwrap_or_else(|| self.database_path.join("media"))
     }
 
     /// The console layer's filter, built from `log` and `log_filter_regex`.

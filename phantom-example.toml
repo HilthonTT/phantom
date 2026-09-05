@@ -43,6 +43,28 @@
 #
 #database_path =
 
+# Path to the directory holding uploaded and cached media files.
+#
+# Media is kept as files rather than in the database because it is large,
+# written once and read whole — everything a filesystem is better at than
+# a key-value store. What the database holds is the metadata pointing at
+# them, so the two must be backed up and restored together.
+#
+# Leave this unset to use a `media` directory under `database_path`.
+#
+# example: "/var/lib/phantom/media"
+#
+#media_path =
+
+# Check at startup that every file the media metadata names is present.
+#
+# Answers a request for media that is not there with "gone" rather than
+# with an error, which is what a client can act on. The check reads one
+# directory entry per stored file, so an installation with a very large
+# media store may prefer to turn it off and accept the worse error.
+#
+#media_startup_check = true
+
 # Path phantom writes online database backups to. The backups are taken
 # through RocksDB's backup engine, so the server does not have to be
 # stopped to take one.

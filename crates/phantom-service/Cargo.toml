@@ -80,7 +80,10 @@ smallvec = { version = "1.15.2", features = ["write"] }
 # `macros` for `select!` in the manager loop, `rt` for the tasks the workers
 # run in, `sync` for the mutexes the manager's state lives behind, and `time`
 # for the delay before a panicked worker is restarted.
+# `fs` for the media store, whose files are read and written off the tokio
+# worker threads rather than blocking one of them.
 tokio = { version = "1.49.0", default-features = false, features = [
+    "fs",
     "macros",
     "rt",
     "sync",
