@@ -38,10 +38,7 @@ use ruma::{
             v1::{Device, Notification, NotificationCounts, NotificationPriority},
         },
     },
-    events::{
-        AnySyncTimelineEvent, StateEventType, TimelineEventType,
-        room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent, RoomPowerLevelsSource},
-    },
+    events::{AnySyncTimelineEvent, TimelineEventType, room::power_levels::RoomPowerLevels},
     push::{Action, HighlightTweakValue, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
     serde::Raw,
     uint,
@@ -316,7 +313,11 @@ pub async fn send_push_notice(
     let mut notify = None;
     let mut tweaks = Vec::new();
 
-    let power_levels = self.room_power_levels(&pdu.room_id).await;
+    let power_levels = self
+        .services
+        .state_accessor
+        .room_power_levels(&pdu.room_id)
+        .await;
 
     for action in self
         .get_actions(
@@ -351,33 +352,6 @@ pub async fn send_push_notice(
     }
 
     Ok(())
-}
-
-/// A room's power levels, resolved against the rules of its room version.
-///
-/// A room with no power levels event is not one where nobody has any: from
-/// room version 12 the creators hold them implicitly, which is what the rules
-/// and the creator list are for.
-#[implement(Service)]
-async fn room_power_levels(&self, room_id: &RoomId) -> RoomPowerLevels {
-    let content = self
-        .services
-        .state_accessor
-        .room_state_get_content::<RoomPowerLevelsEventContent>(
-            room_id,
-            &StateEventType::RoomPowerLevels,
-            "",
-        )
-        .await
-        .ok();
-
-    let (rules, creators) = self
-        .services
-        .state_accessor
-        .power_level_context(room_id)
-        .await;
-
-    RoomPowerLevels::new(RoomPowerLevelsSource::from(content), &rules, creators)
 }
 
 /// What a user's rules say to do about an event.

@@ -1,13 +1,16 @@
 //! The PDUs of a room, in order.
 //!
-//! Only the read path is here so far: looking a PDU up by event id or by the
-//! id it is stored under, and streaming a room's PDUs in either direction.
-//! The write path — `append_pdu`, `create_hash_and_sign_event`,
-//! `build_and_append_pdu`, `append_incoming_pdu`, `redact_pdu` and backfill —
-//! is parked in `pending_write_path.rs`, which is not a module of this one:
-//! every one of those functions calls into a service phantom does not have
-//! yet. That file names which service each is waiting on.
+//! The read path is here — looking a PDU up by event id or by the id it is
+//! stored under, and streaming a room's PDUs in either direction — and the
+//! write path is in [`append`], which is where an event becomes part of a
+//! room rather than merely being known about.
+//!
+//! What is still parked in `pending_write_path.rs`, which is not a module of
+//! this one, is the part that builds an event of this server's own
+//! (`create_hash_and_sign_event`, `build_and_append_pdu`) and backfill. Those
+//! wait on `rooms::event_handler`.
 
+mod append;
 mod data;
 
 use std::sync::Arc;
@@ -20,15 +23,49 @@ use phantom_core::{
     implement,
     matrix::pdu::{PduCount, PduEvent},
     stream::TryIgnore,
+    sync::MutexMap,
 };
-use ruma::{CanonicalJsonObject, EventId, RoomId, UserId};
+use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, RoomId, UserId};
 
 use self::data::Data;
 pub use self::data::PdusIterItem;
+use crate::{Dep, account_data, admin, appservice, rooms, sending, server_state, users};
 
 pub struct Service {
+    /// Held across assigning an event its position in a room and writing it
+    /// there.
+    ///
+    /// Distinct from the state mutex a caller already holds: that one orders
+    /// changes to a room's *state*, and this one orders the counter. An event
+    /// with no state key never touches the first and still must not share a
+    /// position with another.
+    mutex_insert: RoomMutexMap,
+    services: Services,
     db: Data,
 }
+
+struct Services {
+    account_data: Dep<account_data::Service>,
+    admin: Dep<admin::Service>,
+    alias: Dep<rooms::alias::Service>,
+    appservice: Dep<appservice::Service>,
+    pdu_metadata: Dep<rooms::pdu_metadata::Service>,
+    pusher: Dep<crate::pusher::Service>,
+    read_receipt: Dep<rooms::read_receipt::Service>,
+    search: Dep<rooms::search::Service>,
+    sending: Dep<sending::Service>,
+    server_state: Dep<server_state::Service>,
+    short: Dep<rooms::short::Service>,
+    spaces: Dep<rooms::spaces::Service>,
+    state: Dep<rooms::state::Service>,
+    state_accessor: Dep<rooms::state_accessor::Service>,
+    state_cache: Dep<rooms::state_cache::Service>,
+    threads: Dep<rooms::threads::Service>,
+    user: Dep<rooms::user::Service>,
+    users: Dep<users::Service>,
+}
+
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
 
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>>
@@ -36,6 +73,28 @@ impl crate::Service for Service {
         Self: Sized,
     {
         Ok(Arc::new(Self {
+            mutex_insert: RoomMutexMap::new(),
+            services: Services {
+                account_data: args.depend::<account_data::Service>("account_data"),
+                admin: args.depend::<admin::Service>("admin"),
+                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
+                appservice: args.depend::<appservice::Service>("appservice"),
+                pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
+                pusher: args.depend::<crate::pusher::Service>("pusher"),
+                read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
+                search: args.depend::<rooms::search::Service>("rooms::search"),
+                sending: args.depend::<sending::Service>("sending"),
+                server_state: args.depend::<server_state::Service>("server_state"),
+                short: args.depend::<rooms::short::Service>("rooms::short"),
+                spaces: args.depend::<rooms::spaces::Service>("rooms::spaces"),
+                state: args.depend::<rooms::state::Service>("rooms::state"),
+                state_accessor: args
+                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+                threads: args.depend::<rooms::threads::Service>("rooms::threads"),
+                user: args.depend::<rooms::user::Service>("rooms::user"),
+                users: args.depend::<users::Service>("users"),
+            },
             db: Data::new(&args),
         }))
     }

@@ -200,6 +200,32 @@ pub async fn power_level_context(
     (rules, creators)
 }
 
+/// The room's power levels, resolved against the rules of its room version,
+/// with a room that has no `m.room.power_levels` treated as one at its
+/// defaults.
+///
+/// This is the form a caller wants when it is deciding what to do about an
+/// event — pushing it, or authorizing it — since such a caller has no useful
+/// answer to "the room has no power levels event" other than the defaults.
+/// [`get_power_levels`] is the form for a caller that needs to know.
+///
+/// [`get_power_levels`]: Self::get_power_levels
+#[implement(super::Service)]
+pub async fn room_power_levels(&self, room_id: &RoomId) -> RoomPowerLevels {
+    let content = self
+        .room_state_get_content::<RoomPowerLevelsEventContent>(
+            room_id,
+            &StateEventType::RoomPowerLevels,
+            "",
+        )
+        .await
+        .ok();
+
+    let (rules, creators) = self.power_level_context(room_id).await;
+
+    RoomPowerLevels::new(RoomPowerLevelsSource::from(content), &rules, creators)
+}
+
 /// The room's power levels, resolved against the rules of its room version.
 ///
 /// Errors where the room has no `m.room.power_levels`, which is not the same
