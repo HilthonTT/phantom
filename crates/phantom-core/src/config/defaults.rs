@@ -289,3 +289,7 @@ pub(super) fn default_check_for_updates_interval_s() -> u64 {
 pub(super) fn default_space_hierarchy_cache_capacity() -> u32 {
     1000
 }
+
+pub(super) fn default_federation_prev_event_budget_s() -> u64 {
+    300
+}

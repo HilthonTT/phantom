@@ -86,6 +86,7 @@ impl Services {
             rooms: rooms::Services {
                 alias: build!(rooms::alias::Service),
                 directory: build!(rooms::directory::Service),
+                event_handler: build!(rooms::event_handler::Service),
                 short: build!(rooms::short::Service),
                 spaces: build!(rooms::spaces::Service),
                 state: build!(rooms::state::Service),

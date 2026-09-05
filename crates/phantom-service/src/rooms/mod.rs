@@ -14,6 +14,7 @@
 pub mod alias;
 pub mod auth_chain;
 pub mod directory;
+pub mod event_handler;
 pub mod lazy_loading;
 pub mod metadata;
 pub mod outlier;
@@ -37,6 +38,7 @@ use std::sync::Arc;
 pub struct Services {
     pub alias: Arc<alias::Service>,
     pub directory: Arc<directory::Service>,
+    pub event_handler: Arc<event_handler::Service>,
     pub short: Arc<short::Service>,
     pub spaces: Arc<spaces::Service>,
     pub state: Arc<state::Service>,

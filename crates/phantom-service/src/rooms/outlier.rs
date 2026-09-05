@@ -47,6 +47,20 @@ pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
         .deserialized()
 }
 
+/// The outlier as it was stored, rather than as a parsed PDU.
+///
+/// The canonical JSON is what an event is authenticated as — its signatures
+/// are over these bytes — so a caller putting the event in a room writes back
+/// what it read here rather than re-serializing the parsed form.
+#[implement(Service)]
+pub async fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
+    self.db
+        .eventid_outlierpdu
+        .get(event_id)
+        .await
+        .deserialized()
+}
+
 /// Append the PDU as an outlier.
 #[implement(Service)]
 #[tracing::instrument(skip(self, pdu), level = "debug")]

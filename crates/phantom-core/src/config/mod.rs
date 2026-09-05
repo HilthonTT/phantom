@@ -667,6 +667,20 @@ pub struct Config {
     #[serde(default, with = "serde_regex")]
     pub forbidden_remote_server_names: RegexSet,
 
+    /// How long the server will spend fetching and placing the events before
+    /// an event that arrived with a gap in front of it, in seconds.
+    ///
+    /// A server that has been unreachable for a while hands back an event
+    /// whose history this server is missing entirely, and closing that gap
+    /// event by event can take longer than the outage did. When the budget
+    /// runs out the event is still accepted — its state comes from the sending
+    /// server rather than from this server's own record — and the rest of the
+    /// gap is left to backfill.
+    ///
+    /// default: 300
+    #[serde(default = "default_federation_prev_event_budget_s")]
+    pub federation_prev_event_budget_s: u64,
+
     /// Servers whose public room directory this server will neither query nor
     /// republish, as regular expressions matched against the server name.
     ///

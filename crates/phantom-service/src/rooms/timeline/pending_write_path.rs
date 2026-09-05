@@ -18,10 +18,11 @@
 //! - `check_pdu_for_admin_room` — the extra rules that keep the admin room
 //!   from being left or banned empty
 //!
-//! Of these, only backfill is still waiting on a service: it needs
-//! `rooms::event_handler` to place the events it fetches. The other three are
-//! waiting on the porting itself — adapting conduwuit's calls to phantom's
-//! names, and to a newer ruma whose event and signing APIs have moved since.
+//! None of these is waiting on a service any more: `rooms::event_handler`,
+//! `rooms::spaces`, `sending` and `rooms::alias` were the last of them, and
+//! all four have landed. What they are waiting on is the porting itself —
+//! adapting conduwuit's calls to phantom's names, and to a newer ruma whose
+//! event and signing APIs have moved since.
 //!
 //! The imports the parked code needs are conduwuit's, not phantom's, and are
 //! left alone for the same reason the bodies are:
