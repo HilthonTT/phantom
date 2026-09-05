@@ -3,6 +3,7 @@
 //! Proc macros must live in their own `proc-macro = true` crate, so this sits
 //! next to `phantom-core` rather than inside it.
 
+mod admin;
 mod async_noinline;
 mod attribute;
 mod cargo;
@@ -11,10 +12,11 @@ mod debug;
 mod git;
 mod implement;
 mod rustc;
+mod text;
 
 use proc_macro::TokenStream;
 use syn::{
-    Error, ItemConst, ItemFn, ItemStruct, Meta,
+    Error, ItemConst, ItemEnum, ItemFn, ItemStruct, Meta,
     parse::{Parse, Parser},
     parse_macro_input,
 };
@@ -90,6 +92,16 @@ pub fn cargo_manifest(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn async_noinline(args: TokenStream, input: TokenStream) -> TokenStream {
     attribute_macro::<ItemFn, _>(args, input, async_noinline::async_noinline)
+}
+
+#[proc_macro_attribute]
+pub fn admin_command(args: TokenStream, input: TokenStream) -> TokenStream {
+    attribute_macro::<ItemFn, _>(args, input, admin::command)
+}
+
+#[proc_macro_attribute]
+pub fn admin_command_dispatch(args: TokenStream, input: TokenStream) -> TokenStream {
+    attribute_macro::<ItemEnum, _>(args, input, admin::command_dispatch)
 }
 
 /// Defines `RUSTC_FLAGS` for this crate and registers it with
