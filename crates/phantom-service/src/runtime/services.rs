@@ -87,6 +87,7 @@ impl Services {
                 alias: build!(rooms::alias::Service),
                 directory: build!(rooms::directory::Service),
                 short: build!(rooms::short::Service),
+                spaces: build!(rooms::spaces::Service),
                 state: build!(rooms::state::Service),
                 state_accessor: build!(rooms::state_accessor::Service),
                 state_cache: build!(rooms::state_cache::Service),

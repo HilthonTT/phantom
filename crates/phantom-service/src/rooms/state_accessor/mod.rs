@@ -23,6 +23,7 @@
 mod room_state;
 mod server_can;
 mod state;
+mod summary;
 mod user_can;
 
 use std::sync::Arc;

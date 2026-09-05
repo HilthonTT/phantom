@@ -285,3 +285,7 @@ pub(super) fn default_check_for_updates_url() -> String {
 pub(super) fn default_check_for_updates_interval_s() -> u64 {
     60 * 60 * 2
 }
+
+pub(super) fn default_space_hierarchy_cache_capacity() -> u32 {
+    1000
+}

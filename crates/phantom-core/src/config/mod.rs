@@ -145,6 +145,17 @@ pub struct Config {
     #[serde(default = "default_auth_chain_cache_capacity")]
     pub auth_chain_cache_capacity: u32,
 
+    /// Room summaries kept in the in-memory space hierarchy cache.
+    ///
+    /// Only summaries fetched from another server are cached — a local room is
+    /// summarized from state that is already in memory, and caching it would
+    /// only mean showing a stale name after a rename. Entries are small, and
+    /// cache_capacity_modifier scales this along with every other cache.
+    ///
+    /// default: 1000
+    #[serde(default = "default_space_hierarchy_cache_capacity")]
+    pub space_hierarchy_cache_capacity: u32,
+
     /// Entries kept in the in-memory state-info cache.
     ///
     /// One entry is the stack of compressed-state layers behind a single

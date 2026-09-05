@@ -21,6 +21,7 @@ pub mod pdu_metadata;
 pub mod read_receipt;
 pub mod search;
 pub mod short;
+pub mod spaces;
 pub mod state;
 pub mod state_accessor;
 pub mod state_cache;
@@ -37,6 +38,7 @@ pub struct Services {
     pub alias: Arc<alias::Service>,
     pub directory: Arc<directory::Service>,
     pub short: Arc<short::Service>,
+    pub spaces: Arc<spaces::Service>,
     pub state: Arc<state::Service>,
     pub state_accessor: Arc<state_accessor::Service>,
     pub state_cache: Arc<state_cache::Service>,

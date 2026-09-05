@@ -86,6 +86,15 @@
 #
 #auth_chain_cache_capacity = 100000 + (10000 * CPU core count)
 
+# Room summaries kept in the in-memory space hierarchy cache.
+#
+# Only summaries fetched from another server are cached — a local room is
+# summarized from state that is already in memory, and caching it would
+# only mean showing a stale name after a rename. Entries are small, and
+# cache_capacity_modifier scales this along with every other cache.
+#
+#space_hierarchy_cache_capacity = 1000
+
 # Entries kept in the in-memory state-info cache.
 #
 # One entry is the stack of compressed-state layers behind a single
