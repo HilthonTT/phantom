@@ -656,11 +656,54 @@ pub struct Config {
     #[serde(default, with = "serde_regex")]
     pub forbidden_remote_server_names: RegexSet,
 
+    /// Servers whose public room directory this server will neither query nor
+    /// republish, as regular expressions matched against the server name.
+    ///
+    /// Narrower than `forbidden_remote_server_names`, which already covers
+    /// the directory along with everything else — this is for a server worth
+    /// federating with whose room directory is not worth showing.
+    ///
+    /// example: ["nsfwserver\\.tld$"]
+    ///
+    /// default: []
+    #[serde(default, with = "serde_regex")]
+    pub forbidden_remote_room_directory_server_names: RegexSet,
+
+    /// Servers this server will not download media from, as regular
+    /// expressions matched against the server name.
+    ///
+    /// Narrower than `forbidden_remote_server_names` in the same way: the
+    /// server is federated with, but nothing it hosts is fetched onto this
+    /// server's disk. Media already downloaded is not removed — the admin
+    /// command that purges it is.
+    ///
+    /// example: ["badserver\\.tld$"]
+    ///
+    /// default: []
+    #[serde(default, with = "serde_regex")]
+    pub forbidden_remote_media_server_names: RegexSet,
+
     /// Periodically fetch phantom's announcement feed, which carries security
     /// and release notices. Despite the name this checks for announcements,
     /// not for a newer version to install.
     #[serde(default)]
     pub allow_check_for_updates: bool,
+
+    /// Where the announcement feed is fetched from.
+    ///
+    /// The feed is a JSON document of `{"announcements": [{"id": 1, "message":
+    /// "..."}]}`, read in ascending `id` order; an operator running their own
+    /// fork points this at their own file.
+    ///
+    /// default: "https://raw.githubusercontent.com/HilthonTT/phantom/main/announcements.json"
+    #[serde(default = "default_check_for_updates_url")]
+    pub check_for_updates_url: String,
+
+    /// How long to wait between fetches of the announcement feed, in seconds.
+    ///
+    /// default: 7200
+    #[serde(default = "default_check_for_updates_interval_s")]
+    pub check_for_updates_interval_s: u64,
 
     /// Static TURN username handed to clients, for a TURN server that
     /// authenticates with fixed credentials rather than `turn_secret`.

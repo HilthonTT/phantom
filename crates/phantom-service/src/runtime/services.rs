@@ -16,14 +16,16 @@ use super::{
     registry::{self, Map},
 };
 use crate::{
-    account_data, admin, appservice, client, config, emergency, federation, key_backups, presence,
-    pusher, resolver, rooms, sending, server_keys, server_state, transaction_id, users,
+    account_data, admin, appservice, client, config, emergency, federation, key_backups,
+    moderation, presence, pusher, resolver, rooms, sending, server_keys, server_state,
+    transaction_id, updates, users,
 };
 
 /// Every service the server is built out of, and the database they share.
 pub struct Services {
     pub client: Arc<client::Service>,
     pub config: Arc<config::Service>,
+    pub moderation: Arc<moderation::Service>,
     pub resolver: Arc<resolver::Service>,
     pub federation: Arc<federation::Service>,
     pub rooms: rooms::Services,
@@ -39,6 +41,7 @@ pub struct Services {
     pub pusher: Arc<pusher::Service>,
     pub sending: Arc<sending::Service>,
     pub admin: Arc<admin::Service>,
+    pub updates: Arc<updates::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
     pub(crate) service: Arc<Map>,
@@ -78,6 +81,7 @@ impl Services {
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
+            moderation: build!(moderation::Service),
             federation: build!(federation::Service),
             rooms: rooms::Services {
                 alias: build!(rooms::alias::Service),
@@ -111,6 +115,7 @@ impl Services {
             pusher: build!(pusher::Service),
             sending: build!(sending::Service),
             admin: build!(admin::Service),
+            updates: build!(updates::Service),
 
             manager: Mutex::new(None),
             service,

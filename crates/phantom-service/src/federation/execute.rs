@@ -20,7 +20,7 @@ use ruma::{
     },
 };
 
-use crate::resolver::lookup::ResolvedDest;
+use crate::{moderation::Restriction, resolver::lookup::ResolvedDest};
 
 /// A federation endpoint whose path does not vary by spec version, which in
 /// ruma is every one of them. Naming it is what lets the senders below be
@@ -128,10 +128,8 @@ where
 
     if self
         .services
-        .server
-        .config
-        .forbidden_remote_server_names
-        .is_match(dest.host())
+        .moderation
+        .forbids(dest, Restriction::Federation)
     {
         return Err!(Request(Forbidden(debug_warn!(
             "Federation with {dest} is not allowed."

@@ -24,6 +24,7 @@ pub mod config;
 pub mod emergency;
 pub mod federation;
 pub mod key_backups;
+pub mod moderation;
 pub mod presence;
 pub mod pusher;
 pub mod resolver;
@@ -34,6 +35,7 @@ pub mod server_keys;
 pub mod server_state;
 pub mod transaction_id;
 pub mod uiaa;
+pub mod updates;
 pub mod users;
 
 pub use self::runtime::{Args, Dep, Map, Service, Services, add, get, make_name, try_get};

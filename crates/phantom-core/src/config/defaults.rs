@@ -277,3 +277,11 @@ pub(super) fn parallelism_scaled_u32(val: u32) -> u32 {
         .map(|val| val.saturating_mul(cores))
         .map_or(u32::MAX, |val| u32::try_from(val).unwrap_or(u32::MAX))
 }
+
+pub(super) fn default_check_for_updates_url() -> String {
+    "https://raw.githubusercontent.com/HilthonTT/phantom/main/announcements.json".to_owned()
+}
+
+pub(super) fn default_check_for_updates_interval_s() -> u64 {
+    60 * 60 * 2
+}
