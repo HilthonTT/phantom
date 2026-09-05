@@ -60,11 +60,15 @@ reqwest = { version = "0.12.28", default-features = false, features = [
 # here because this crate is the one that uses it.
 # `push-gateway-api-c` is the sending half only: the server posts
 # notifications to a gateway and never serves the endpoint itself.
+# `unstable-msc4186` is sliding sync (`/sync` v5). The endpoint is not stable
+# in the spec, but it is what current clients use for their room list, and the
+# sync service holds the per-connection state it is defined in terms of.
 ruma = { version = "0.16.0", features = [
     "client-api",
     "appservice-api",
     "federation-api",
     "push-gateway-api-c",
+    "unstable-msc4186",
 ] }
 sd-notify = { version = "0.5.0", optional = true, default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }

@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     account_data, admin, appservice, client, config, emergency, federation, key_backups,
-    moderation, presence, pusher, resolver, rooms, sending, server_keys, server_state,
+    moderation, presence, pusher, resolver, rooms, sending, server_keys, server_state, sync,
     transaction_id, updates, users,
 };
 
@@ -31,6 +31,7 @@ pub struct Services {
     pub rooms: rooms::Services,
     pub server_keys: Arc<server_keys::Service>,
     pub server_state: Arc<server_state::Service>,
+    pub sync: Arc<sync::Service>,
     pub transaction_id: Arc<transaction_id::Service>,
     pub account_data: Arc<account_data::Service>,
     pub key_backups: Arc<key_backups::Service>,
@@ -107,6 +108,7 @@ impl Services {
             },
             server_keys: build!(server_keys::Service),
             server_state: build!(server_state::Service),
+            sync: build!(sync::Service),
             transaction_id: build!(transaction_id::Service),
             account_data: build!(account_data::Service),
             key_backups: build!(key_backups::Service),
