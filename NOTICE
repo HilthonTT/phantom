@@ -5,9 +5,9 @@ This product includes software developed as part of conduwuit
 (https://github.com/girlbossceo/conduwuit), Copyright 2023 June and the
 conduwuit contributors, licensed under the Apache License, Version 2.0.
 
-Substantial portions of `crates/phantom-core`, `crates/phantom-database` and
-`crates/phantom-macros` are derived from conduwuit, in places verbatim and in
-places adapted. The most significant are:
+Substantial portions of `crates/phantom-core`, `crates/phantom-database`,
+`crates/phantom-macros` and `crates/phantom-service` are derived from conduwuit,
+in places verbatim and in places adapted. The most significant are:
 
   - the configuration layer, including the example-config generator
     (`phantom-core/src/config/`, `phantom-macros`)
@@ -18,6 +18,10 @@ places adapted. The most significant are:
   - assorted shared utilities (`phantom-core/src/result/`, and the
     type-named modules beside it)
   - the database layer (`phantom-database`)
+  - the service runtime and the services built on it (`phantom-service`), in
+    particular the timeline write path (`rooms/timeline/append.rs`), the
+    federation event handler (`rooms/event_handler/`) and the space hierarchy
+    (`rooms/spaces/`)
 
 These files have been modified. Changes include renaming to phantom's
 namespace, adapting to current upstream releases of ruma and tracing whose APIs

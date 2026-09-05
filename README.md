@@ -16,7 +16,7 @@ admin console written in Go.
 | :--- | :--- |
 | **`phantom-core`** — config, errors, logging, allocators, Matrix events and state resolution | usable |
 | **`phantom-database`** — RocksDB engine, 88 typed columns, codecs, the read pool | usable |
-| **`phantom-service`** — the service runtime, plus the resolver, HTTP clients, config reload, server state and transaction ids | partial |
+| **`phantom-service`** — the service runtime and 30-odd services on it: rooms and their state, the timeline write path, the federation event handler, spaces, media, sync, sending, users, push | partial |
 | **`phantom-macros`** — the config-example generator and friends | usable |
 | **`phantom-server`** — the binary | a stub |
 | **`cli/`** — the `phantom` admin console | runs on placeholder data |

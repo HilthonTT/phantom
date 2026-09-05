@@ -123,7 +123,7 @@ A service is a long-lived singleton owning one area of the server's behaviour.
 `runtime/` is the machinery they all plug into; every other module is one
 service.
 
-Currently built:
+Currently built, outside the room tree:
 
 | Service | What it owns |
 | :--- | :--- |
@@ -131,10 +131,42 @@ Currently built:
 | `client` | the HTTP clients every outbound request is made through |
 | `config` | re-reading the config file on `SIGUSR1` and swapping it in |
 | `server_state` | the server's own identity, its secrets, and the event counter |
+| `server_keys` | this server's signing keys and the keys it has fetched for others |
+| `federation` | one signed request to another server, sent and awaited |
+| `sending` | the outgoing queue: transactions to servers, appservices and pushers |
 | `transaction_id` | what a transaction id was answered with, so a retry gets the original response |
-| `rooms` | a placeholder tree — only `rooms::outlier` exists, and it is unimplemented |
-| `admin` | the admin room, who counts as an admin, and the command queue |
+| `users` | accounts, devices, keys, profiles and to-device messages |
+| `account_data` | the account data a client stores against itself and against a room |
+| `key_backups` | server-side backups of a client's room keys |
+| `uiaa` | interactive-auth sessions in progress |
+| `appservice` | the registered appservices and their namespaces |
+| `presence` | who is online, and when they stop counting as online |
 | `pusher` | the push gateways a client registered, and the notifications sent through them |
+| `media` | uploaded and cached files, their metadata and the fetch from the server that holds them |
+| `sync` | parking a `/sync` until something happens, and the sliding-sync conversation state |
+| `moderation` | which remote servers this operator refuses, and how far the refusal goes |
+| `updates` | the announcement feed, and which announcements have been surfaced |
+| `emergency` | the emergency password and what turning it on does |
+| `admin` | the admin room, who counts as an admin, and the command queue |
+
+And `rooms`, one service per area of room state:
+
+| Service | What it owns |
+| :--- | :--- |
+| `short` | the `u64` given to every event id, room id and state key |
+| `state` | the room's current state version, and its forward extremities |
+| `state_accessor` | reading a room's state, and who may see what |
+| `state_cache` | membership, denormalized both ways round |
+| `state_compressor` | a state version stored as a stack of diffs |
+| `auth_chain` | the transitive set of events authorizing an event |
+| `timeline` | the PDUs of a room in order, and the write path that puts them there |
+| `event_handler` | taking an event another server sent and deciding what it means |
+| `spaces` | walking a space hierarchy, locally and over federation |
+| `alias`, `directory` | room aliases and the public room directory |
+| `outlier` | events believed but not yet placed |
+| `metadata` | whether a room exists, is banned, or is disabled |
+| `pdu_metadata` | relations between events, and which events have been referenced |
+| `threads`, `read_receipt`, `typing`, `search`, `lazy_loading`, `user` | one each |
 
 The interesting parts of the runtime are the three problems it solves.
 
@@ -172,6 +204,28 @@ gateway that has stopped answering cannot hold connections a federation request
 needs, and a URL preview cannot wait as long as a room join legitimately does.
 
 [spec]: https://spec.matrix.org/latest/server-server-api/#resolving-server-names
+
+The three services worth reading on their own are `rooms::event_handler`,
+`rooms::timeline` and `rooms::spaces`.
+
+**`event_handler`** is the hard half of federation, and its module docs lay out
+the five questions it answers about an event another server hands us. The one
+worth knowing from outside is the difference between rejecting an event and
+soft-failing it: an event that the room's rules reject *at the event* never
+happened, while one they reject only against the room's state *now* is recorded
+and built upon but never shown. The usual cause of the second is an event from
+someone who has since been banned, arriving late.
+
+**`timeline`**'s write path is `append.rs`. Nothing there authorizes anything —
+by the time it runs the event is settled — and everything after the write is a
+fan-out to whatever has to be told: push rules, the search index, the relation
+indexes, appservices, and whatever the event's own type implies.
+
+**`spaces`** walks a space hierarchy depth-first and pages it without holding
+any per-client state: a page ends by recording the path it stopped at, and the
+next request re-walks from the root and starts emitting when it reaches that
+path again. A room is visited once per walk however many parents name it, which
+is what stops a cyclic space from being walked forever.
 
 ### `phantom-server`
 
