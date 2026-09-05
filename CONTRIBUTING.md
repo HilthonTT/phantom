@@ -15,7 +15,7 @@
 
 [docs/installation.md](docs/installation.md) covers the toolchains and their
 platform packages. In short: Rust 1.97.1 via `rustup` (pinned, so it selects
-itself), Go 1.26+, and a C/C++ compiler with `libclang` for the bundled
+itself), Go 1.27+, and a C/C++ compiler with `libclang` for the bundled
 RocksDB.
 
 ## Checks

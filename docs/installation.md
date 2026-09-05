@@ -31,7 +31,7 @@ admin console.
 | [Rust](https://rustup.rs) | 1.97.1 | the homeserver workspace | yes |
 | A C/C++ compiler | any recent gcc or clang | building the bundled RocksDB | yes |
 | `libclang` | 11+ | `bindgen`, which generates the RocksDB bindings | yes |
-| [Go](https://go.dev/dl/) | 1.26 or newer | the `phantom` admin CLI | only for the CLI |
+| [Go](https://go.dev/dl/) | 1.27 or newer | the `phantom` admin CLI | only for the CLI |
 | [`just`](https://github.com/casey/just) | any | the `just` recipes used throughout the docs | optional |
 | `git` | any | fetching the source | yes |
 
@@ -135,7 +135,7 @@ repository installs 1.97.1 because `rust-toolchain.toml` asks for it.
 
 ### Go
 
-Install Go 1.26 or newer from [go.dev/dl](https://go.dev/dl/), or through your
+Install Go 1.27 or newer from [go.dev/dl](https://go.dev/dl/), or through your
 package manager if it carries a version that new:
 
 ```sh
@@ -357,8 +357,8 @@ distribution Rust taking precedence over `rustup`. Check with `rustc --version`
 inside the repository; it should print 1.97.1. If it does not, install Rust via
 `rustup` and make sure `~/.cargo/bin` comes first on your `PATH`.
 
-**`go: go.mod requires go >= 1.26`**
-Your Go is too old. Install 1.26 or newer from go.dev rather than from a
+**`go: go.mod requires go >= 1.27`**
+Your Go is too old. Install 1.27 or newer from go.dev rather than from a
 distribution package.
 
 **The build is killed, or the machine swaps itself to death**
