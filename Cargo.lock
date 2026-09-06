@@ -2507,6 +2507,7 @@ dependencies = [
  "smallvec",
  "tokio",
  "tracing",
+ "url",
  "webpage",
 ]
 

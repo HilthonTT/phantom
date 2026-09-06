@@ -11,12 +11,19 @@
 //! [`resolver::Service::resolve_destination`] fills in, so the address a
 //! server name resolved to is the address the connection is made to.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
+use bytes::{Bytes, BytesMut};
 use either::Either;
 use ipaddress::IPAddress;
-use phantom_core::{Config, Result, err, implement, info::user_agent, trace};
-use reqwest::redirect;
+use phantom_core::{
+    Config, Err, Result, config::proxy::ProxyConfig, debug, err, implement, info::user_agent, trace,
+};
+use reqwest::{Url, redirect};
 
 use crate::resolver;
 
@@ -55,6 +62,11 @@ pub struct Service {
 
     /// `ip_range_denylist`, parsed once. See [`Self::valid_cidr_range`].
     pub cidr_range_denylist: Vec<IPAddress>,
+
+    /// The proxy policy these clients were built against, kept so that a
+    /// request can be asked whether it would be proxied without rebuilding
+    /// one. See [`ProxyConfig::resolver_alias`].
+    pub proxy: ProxyConfig,
 }
 
 impl crate::Service for Service {
@@ -146,6 +158,8 @@ impl crate::Service for Service {
                 .inspect(|cidr| trace!("Denied CIDR range: {cidr:?}"))
                 .collect::<Result<_, String>>()
                 .map_err(|e| err!(Config("ip_range_denylist", "{e}")))?,
+
+            proxy: config.proxy.clone(),
         }))
     }
 
@@ -233,4 +247,84 @@ pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
     self.cidr_range_denylist
         .iter()
         .all(|cidr| !cidr.includes(ip))
+}
+
+/// [`valid_cidr_range`](Self::valid_cidr_range) for a standard-library
+/// address, which is the form a socket and a URL host both hand back.
+#[inline]
+#[must_use]
+#[implement(Service)]
+pub fn valid_cidr_range_ip(&self, ip: IpAddr) -> bool {
+    self.valid_cidr_range(&ipaddress_from_std(ip))
+}
+
+/// Whether a response's peer may be talked to, per `ip_range_denylist`.
+///
+/// A proxied request connected to the proxy rather than to the destination,
+/// so its peer address is the proxy's and screening it would deny every
+/// request the proxy carries. The destination is screened before the request
+/// is made instead.
+#[inline]
+#[must_use]
+#[implement(Service)]
+pub fn valid_cidr_range_remote_addr(&self, url: &Url, remote_addr: SocketAddr) -> bool {
+    self.valid_cidr_range_ip(remote_addr.ip()) || self.proxied(url)
+}
+
+/// Whether a request for `url` goes through a proxy.
+#[inline]
+#[must_use]
+#[implement(Service)]
+pub fn proxied(&self, url: &Url) -> bool {
+    self.proxy.intercepts(url)
+}
+
+/// `ipaddress`'s representation of a standard-library address.
+///
+/// It parses from text, so the address is printed and read back. An IPv6
+/// address is printed without the brackets a URL would carry, which is the
+/// form the parser wants.
+#[must_use]
+fn ipaddress_from_std(ip: IpAddr) -> IPAddress {
+    let (proto, text) = match ip {
+        IpAddr::V4(v4) => ("ipv4", v4.to_string()),
+        IpAddr::V6(v6) => ("ipv6", v6.to_string()),
+    };
+
+    IPAddress::parse(&text).unwrap_or_else(|e| {
+        unreachable!("{proto} address {text} does not parse as one: {e}");
+    })
+}
+
+/// Reads a response body, refusing one over `limit`.
+///
+/// The advertised length is checked before anything is allocated, and the
+/// read loop checks again as it goes: a peer is free to advertise a length it
+/// does not honour, or none at all.
+pub async fn read_response_capped(mut response: reqwest::Response, limit: usize) -> Result<Bytes> {
+    let mut body = match response.content_length() {
+        Some(len) if len > limit.try_into().unwrap_or(u64::MAX) => {
+            debug!(%len, %limit, "Rejecting response: the advertised body exceeds the limit");
+
+            return Err!(BadServerResponse(
+                "Response body length {len} exceeds the {limit} byte limit"
+            ));
+        }
+        Some(len) => BytesMut::with_capacity(usize::try_from(len).unwrap_or(limit)),
+        None => BytesMut::new(),
+    };
+
+    while let Some(chunk) = response.chunk().await? {
+        if body.len().saturating_add(chunk.len()) > limit {
+            debug!(%limit, "Rejecting response: the streamed body exceeds the limit");
+
+            return Err!(BadServerResponse(
+                "Response body exceeds the {limit} byte limit"
+            ));
+        }
+
+        body.extend_from_slice(&chunk);
+    }
+
+    Ok(body.freeze())
 }

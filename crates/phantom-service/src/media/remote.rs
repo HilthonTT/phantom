@@ -11,6 +11,8 @@
 //! server's files without touching anything of ours — and what makes a second
 //! request for the same file free.
 
+#[cfg(feature = "url_preview")]
+use phantom_core::err;
 use phantom_core::{Err, Result, debug, implement};
 use ruma::{
     MxcUri,
@@ -23,6 +25,11 @@ use crate::moderation::Restriction;
 
 /// Serves a file, fetching it from the server that holds it if this server
 /// does not have it already.
+///
+/// A URI of ours that is not stored is not necessarily unknown: a URL preview
+/// mints one for each piece of media a page names, without downloading it. The
+/// lazy path is what resolves those, and it reports the same not-found for a
+/// URI that was never minted at all.
 #[implement(Service)]
 pub async fn get_or_fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
     if let Ok(found) = self.get(mxc, Dimensions::ORIGINAL).await {
@@ -32,10 +39,86 @@ pub async fn get_or_fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
     let (server_name, _) = parts(mxc)?;
 
     if self.services.server_state.server_is_ours(server_name) {
-        return Err!(Request(NotFound("Media {mxc} is not stored here.")));
+        return self.fetch_lazy_media(mxc).await;
     }
 
     self.fetch(mxc).await
+}
+
+/// Resolves a URI a URL preview minted, on the first download of it.
+///
+/// A preview records the URL rather than the file, so this is where the file
+/// is actually obtained — from the bytes an `og:image` measurement already
+/// staged, or from the origin. Either way it is promoted into the media store
+/// through the ordinary upload path, so every later download is a plain
+/// media hit and the origin is contacted at most once.
+///
+/// One fetch per URI is in flight at a time. Without that, a URI handed to a
+/// room's worth of clients at once is a room's worth of requests at the
+/// origin, which is this server amplifying for whoever posted the link.
+#[cfg(feature = "url_preview")]
+#[implement(Service)]
+#[tracing::instrument(name = "lazy", level = "debug", skip(self))]
+async fn fetch_lazy_media(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
+    use reqwest::Url;
+
+    let key = mxc.as_str();
+
+    let _lock = self.federation_mutex.lock(key).await;
+
+    // A caller that was queued behind the lock may have promoted it already.
+    if let Ok(found) = self.get(mxc, Dimensions::ORIGINAL).await {
+        return Ok(found);
+    }
+
+    let media = match self.db.get_lazy_content(key).await {
+        Ok(media) => media,
+        Err(_) => {
+            let Ok(url) = self.db.search_lazy_media(key).await else {
+                return Err!(Request(NotFound("Media {mxc} is not stored here.")));
+            };
+
+            let url = Url::parse(&url)
+                .map_err(|e| err!(Database("Lazy media {mxc} has an unparseable URL: {e}")))?;
+
+            self.fetch_preview_media(&url).await?
+        }
+    };
+
+    self.create(
+        mxc,
+        None,
+        media.content_disposition.as_ref(),
+        media.content_type.as_deref(),
+        &media.content,
+    )
+    .await
+    .inspect_err(|_| debug!(%mxc, "Could not promote lazy media"))?;
+
+    // The registration and its staged bytes are what made this URI resolvable
+    // before it was stored; now that it is stored they are only a second copy.
+    let mut txn = self.db.txn();
+
+    self.db.remove_lazy_media(&mut txn, key);
+    self.db.remove_lazy_content(&mut txn, key);
+
+    txn.execute()?;
+
+    let meta = FileMeta {
+        content_type: media.content_type,
+        content_disposition: media.content_disposition.map(|value| value.to_string()),
+        size: media.content.len() as u64,
+        created: super::now(),
+    };
+
+    Ok((meta, media.content))
+}
+
+#[cfg(not(feature = "url_preview"))]
+#[implement(Service)]
+#[expect(clippy::unused_async)]
+async fn fetch_lazy_media(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
+    Err!(Request(NotFound("Media {mxc} is not stored here.")))
 }
 
 /// Downloads a file from the server that holds it and stores it.

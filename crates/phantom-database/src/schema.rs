@@ -120,6 +120,23 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "mediaid_file",
         ..descriptor::RANDOM_SMALL
     },
+    // The external URL a lazily-registered URL-preview mxc stands for, until
+    // a client asks for it and the bytes are promoted into `mediaid_file`.
+    Descriptor {
+        name: "mediaid_lazy",
+        ..descriptor::RANDOM_SMALL
+    },
+    // Bytes a preview already fetched in order to measure an `og:image`,
+    // staged so the first download promotes them instead of fetching the
+    // origin a second time. Large values, unlike the other media columns.
+    Descriptor {
+        name: "mediaid_lazycontent",
+        ..descriptor::RANDOM
+    },
+    Descriptor {
+        name: "mediaid_pending",
+        ..descriptor::RANDOM_SMALL
+    },
     Descriptor {
         name: "mediaid_user",
         ..descriptor::RANDOM_SMALL

@@ -99,7 +99,12 @@ tracing = "0.1.44"
 base64 = "0.23.1"
 webpage = { version = "2.0.1", optional = true }
 image = { version = "0.25.10", optional = true }
-smallstr = "0.3.1"
+# `serde` for the media type a URL preview carries, which is stored and
+# served as a string but is short enough to live inline.
+smallstr = { version = "0.3.1", features = ["serde"] }
+# `Host`, which reqwest's re-export of `Url` does not carry: a preview URL
+# whose host is an IP literal is screened against the CIDR denylist by value.
+url = "2.5.7"
 serde_bytes = "0.11.19"
 
 [lints]

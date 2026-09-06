@@ -48,7 +48,13 @@ use ruma::{
 use serde::{Deserialize, Serialize};
 use tokio::{fs, sync::Notify};
 
-use crate::{Dep, moderation, server_state};
+use crate::{Dep, client, config, moderation, server_state};
+
+/// Characters in a media id this server mints.
+///
+/// Long enough that a media id cannot be guessed, which is the only thing
+/// keeping an unauthenticated download of somebody else's file out of reach.
+pub const MXC_LENGTH: usize = 32;
 
 pub struct Service {
     path: PathBuf,
@@ -64,6 +70,13 @@ pub struct Service {
 }
 
 struct Services {
+    /// The outbound HTTP clients, for the URL preview fetches and the media
+    /// a preview names.
+    client: Dep<client::Service>,
+
+    /// Derefs to the running config, so a reload is seen by the next preview
+    /// rather than at the next restart.
+    config: Dep<config::Service>,
     federation: Dep<crate::federation::Service>,
     moderation: Dep<moderation::Service>,
     server: Arc<Server>,
@@ -132,6 +145,8 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             path: args.server.config.media_path(),
             services: Services {
+                client: args.depend::<client::Service>("client"),
+                config: args.depend::<config::Service>("config"),
                 federation: args.depend::<crate::federation::Service>("federation"),
                 moderation: args.depend::<moderation::Service>("moderation"),
                 server: args.server.clone(),
@@ -260,7 +275,18 @@ pub async fn delete(&self, mxc: &MxcUri) -> Result {
         .collect()
         .await;
 
+    // A URI a URL preview minted has no file of its own until somebody
+    // downloads it, so dropping the registration is the whole deletion.
+    #[cfg(feature = "url_preview")]
+    let had_lazy = self.forget_lazy_media(mxc.as_str()).await?;
+    #[cfg(not(feature = "url_preview"))]
+    let had_lazy = false;
+
     if keys.is_empty() {
+        if had_lazy {
+            return Ok(());
+        }
+
         return Err!(Request(NotFound("Media {mxc} is not stored here.")));
     }
 

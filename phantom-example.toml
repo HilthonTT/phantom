@@ -680,6 +680,43 @@
 #
 #url_preview_max_spider_size = 256000
 
+# Bytes of a single media item phantom will fetch or relay for a URL
+# preview: the `og:image` it measures, and the file behind each
+# `mxc://` a preview hands out.
+#
+# A file whose advertised length is over this is not registered at all,
+# so a client is never given a URI the relay is bound to refuse.
+#
+#url_preview_max_media_size = 52428800
+
+# Seconds a fetched URL preview stays cached, an empty one included.
+#
+# Raising it spares the origins named in a room whose history is read
+# often, at the cost of serving metadata a page has since changed. Zero
+# fetches on every request.
+#
+#url_preview_cache_ttl = 86400
+
+# `User-Agent` phantom sends when fetching a page to read its OpenGraph
+# tags. Unset sends the ordinary server agent.
+#
+# Some origins serve those tags only to an agent they recognise as a
+# link-preview crawler, and serve everyone else a page whose tags sit
+# past `url_preview_max_spider_size`.
+#
+#url_preview_user_agent =
+
+# `User-Agent` phantom sends when fetching the media a preview names —
+# `og:image`, `og:video`, `og:audio`, and a URL that is itself a file —
+# as opposed to the page they appear on. Unset falls back to
+# `url_preview_user_agent`.
+#
+# Setting this is also what makes a page-agent rejection non-final: a
+# URL the page client is refused is retried with this one, since an
+# origin that gates its pages often does not gate its files.
+#
+#url_preview_media_user_agent =
+
 # Apply the domain allowlists to a URL's root domain rather than to the
 # host it names, so that allowing "wikipedia.org" also allows
 # "en.m.wikipedia.org". Does not affect

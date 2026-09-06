@@ -51,6 +51,67 @@ impl ProxyConfig {
     }
 }
 
+/// Proxy schemes that resolve the destination hostname at the proxy rather
+/// than in this process. `socks5h` and `socks4a` are the resolving spellings
+/// of their families; the plain `socks5` and `socks4` are not.
+const RESOLVES_REMOTELY: [&str; 4] = ["http", "https", "socks4a", "socks5h"];
+
+impl ProxyConfig {
+    /// Whether `url` names a configured proxy endpoint that this process
+    /// would resolve itself.
+    ///
+    /// A request aimed at the proxy's own hostname is indistinguishable, at
+    /// the resolver, from the connection to the proxy — so a URL preview
+    /// pointed at it would be handed the exemption the proxy endpoint has.
+    /// Where the proxy resolves the destination instead, no local lookup
+    /// happens and there is nothing to alias.
+    #[must_use]
+    pub fn resolver_alias(&self, url: &Url) -> bool {
+        let Some(host) = url.host_str() else {
+            return false;
+        };
+
+        let names_a_proxy = self
+            .endpoints()
+            .filter_map(|endpoint| endpoint.host_str())
+            .any(|endpoint| endpoint.eq_ignore_ascii_case(host));
+
+        names_a_proxy
+            && self
+                .proxy_for(url)
+                .is_none_or(|proxy| !RESOLVES_REMOTELY.contains(&proxy.scheme()))
+    }
+
+    /// Every proxy endpoint this configuration names, whichever rule reaches
+    /// it.
+    fn endpoints(&self) -> impl Iterator<Item = &Url> {
+        let (global, by_domain): (Option<&Url>, &[PartialProxyConfig]) = match self {
+            Self::None => (None, &[]),
+            Self::Global { url } => (Some(url), &[]),
+            Self::ByDomain(proxies) => (None, proxies.as_slice()),
+        };
+
+        global
+            .into_iter()
+            .chain(by_domain.iter().map(|proxy| &proxy.url))
+    }
+
+    /// Whether a request for `url` would be carried by a proxy.
+    #[must_use]
+    pub fn intercepts(&self, url: &Url) -> bool {
+        self.proxy_for(url).is_some()
+    }
+
+    /// The proxy `url` would be carried by, if any.
+    fn proxy_for(&self, url: &Url) -> Option<&Url> {
+        match self {
+            Self::None => None,
+            Self::Global { url: proxy } => Some(proxy),
+            Self::ByDomain(proxies) => proxies.iter().find_map(|proxy| proxy.for_url(url)),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct PartialProxyConfig {
     #[serde(deserialize_with = "crate::json::deserialize_from_str")]
@@ -191,6 +252,57 @@ mod tests {
         let proxy = partial(&[], &[]);
 
         assert!(!matches(&proxy, "http://127.0.0.1:8008"));
+    }
+
+    /// A preview aimed at the proxy's own hostname would be resolved here,
+    /// which is the lookup the proxy endpoint is exempt from.
+    #[test]
+    fn resolver_alias_recognizes_a_locally_resolved_endpoint() {
+        let config = ProxyConfig::Global {
+            url: "socks5://tor.example:9050".parse().expect("valid url"),
+        };
+
+        assert!(config.resolver_alias(&"http://tor.example/".parse().expect("valid url")));
+        assert!(!config.resolver_alias(&"http://example.org/".parse().expect("valid url")));
+    }
+
+    /// `socks5h` resolves the destination at the proxy, so nothing is looked
+    /// up here and there is no exemption to alias.
+    #[test]
+    fn resolver_alias_ignores_a_remotely_resolved_endpoint() {
+        let config = ProxyConfig::Global {
+            url: "socks5h://tor.example:9050".parse().expect("valid url"),
+        };
+
+        assert!(!config.resolver_alias(&"http://tor.example/".parse().expect("valid url")));
+    }
+
+    /// A per-domain proxy only carries the domains it matches, so a URL it
+    /// does not carry is resolved here even when it names the endpoint.
+    #[test]
+    fn resolver_alias_covers_an_unmatched_by_domain_endpoint() {
+        let mut proxy = partial(&["*.onion"], &[]);
+        proxy.url = "socks5h://tor.example:9050".parse().expect("valid url");
+
+        let config = ProxyConfig::ByDomain(vec![proxy]);
+
+        assert!(config.resolver_alias(&"http://tor.example/".parse().expect("valid url")));
+    }
+
+    #[test]
+    fn resolver_alias_is_case_insensitive_over_the_host() {
+        let config = ProxyConfig::Global {
+            url: "socks5://Tor.Example:9050".parse().expect("valid url"),
+        };
+
+        assert!(config.resolver_alias(&"http://TOR.EXAMPLE/".parse().expect("valid url")));
+    }
+
+    #[test]
+    fn resolver_alias_never_fires_without_a_proxy() {
+        let config = ProxyConfig::None;
+
+        assert!(!config.resolver_alias(&"http://example.org/".parse().expect("valid url")));
     }
 
     #[test]

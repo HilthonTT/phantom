@@ -137,6 +137,14 @@ pub(super) fn default_url_preview_max_spider_size() -> usize {
     256_000
 }
 
+pub(super) fn default_url_preview_max_media_size() -> usize {
+    50 * 1024 * 1024
+}
+
+pub(super) fn default_url_preview_cache_ttl() -> u64 {
+    60 * 60 * 24
+}
+
 /// Every range that has no business being reached from the public internet:
 /// loopback, the three private ranges, shared address space, IETF protocol
 /// assignments, link-local, 6to4 relay anycast, benchmarking, the three
