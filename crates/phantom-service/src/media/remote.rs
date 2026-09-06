@@ -15,12 +15,14 @@
 use phantom_core::err;
 use phantom_core::{Err, Result, debug, implement};
 use ruma::{
-    MxcUri,
-    api::federation::authenticated_media::{FileOrLocation, get_content},
+    MxcUri, ServerName,
+    api::federation::authenticated_media::{
+        Content, FileOrLocation, get_content, get_content_thumbnail,
+    },
     http_headers::ContentDisposition,
 };
 
-use super::{Dimensions, FileMeta, Service, parts};
+use super::{Dim, Dimensions, FileMeta, Service, parts};
 use crate::moderation::Restriction;
 
 /// Serves a file, fetching it from the server that holds it if this server
@@ -127,6 +129,61 @@ async fn fetch_lazy_media(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
 pub async fn fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
     let (server_name, media_id) = parts(mxc)?;
 
+    self.may_fetch_from(server_name)?;
+
+    let request = get_content::v1::Request::new(media_id.to_owned());
+
+    let response = self
+        .services
+        .federation
+        .execute(server_name, request)
+        .await?;
+
+    let content = file_of(mxc, server_name, response.content)?;
+
+    self.store_fetched(mxc, Dimensions::ORIGINAL, content).await
+}
+
+/// Downloads a thumbnail from the server that holds the media, and stores it.
+///
+/// Asked for at the size the request was rounded to, and stored under that
+/// size whatever the origin actually sent: a server is entitled to answer
+/// with a picture of its own choosing, and a client displays a thumbnail
+/// rather than measuring it. Storing it under the requested size is what
+/// makes the next request for that size a local read.
+#[implement(Service)]
+#[tracing::instrument(name = "fetch_thumbnail", level = "debug", skip(self))]
+pub(super) async fn fetch_thumbnail(&self, mxc: &MxcUri, dim: &Dim) -> Result<(FileMeta, Vec<u8>)> {
+    let (server_name, media_id) = parts(mxc)?;
+
+    self.may_fetch_from(server_name)?;
+
+    let mut request = get_content_thumbnail::v1::Request::new(
+        media_id.to_owned(),
+        dim.width.into(),
+        dim.height.into(),
+    );
+
+    request.method = Some(dim.method.clone());
+
+    // An animated thumbnail is worth having for the media that has one, and
+    // a server that cannot make one answers with a still.
+    request.animated = Some(true);
+
+    let response = self
+        .services
+        .federation
+        .execute(server_name, request)
+        .await?;
+
+    let content = file_of(mxc, server_name, response.content)?;
+
+    self.store_fetched(mxc, dim.dimensions(), content).await
+}
+
+/// Whether this server downloads media from that one at all.
+#[implement(Service)]
+fn may_fetch_from(&self, server_name: &ServerName) -> Result {
     if self
         .services
         .moderation
@@ -137,34 +194,37 @@ pub async fn fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
         )));
     }
 
-    let request = get_content::v1::Request::new(media_id.to_owned());
+    Ok(())
+}
 
-    let response = self
-        .services
-        .federation
-        .execute(server_name, request)
-        .await?;
-
-    let content = match response.content {
-        FileOrLocation::File(content) => content,
-        // A server may answer with a URL instead of the bytes. Following it
-        // would be this server making an arbitrary outbound request on a
-        // remote server's say-so, which is a different and much larger trust
-        // decision than federating with it.
-        FileOrLocation::Location(location) => {
-            return Err!(BadServerResponse(
-                "{server_name} redirected media {mxc} to {location}, which is not followed."
-            ));
-        }
+/// The bytes out of a federation media response.
+///
+/// A server may answer with a URL instead of the file. Following it would be
+/// this server making an arbitrary outbound request on a remote server's say
+/// so, which is a different and much larger trust decision than federating
+/// with it, so it is refused.
+fn file_of(mxc: &MxcUri, server_name: &ServerName, content: FileOrLocation) -> Result<Content> {
+    match content {
+        FileOrLocation::File(content) => Ok(content),
+        FileOrLocation::Location(location) => Err!(BadServerResponse(
+            "{server_name} redirected media {mxc} to {location}, which is not followed."
+        )),
         // The enum is non-exhaustive because the spec may grow another way of
         // answering. Anything we do not recognize is not a file we can serve.
-        _ => {
-            return Err!(BadServerResponse(
-                "{server_name} answered for media {mxc} in a form this server does not understand."
-            ));
-        }
-    };
+        _ => Err!(BadServerResponse(
+            "{server_name} answered for media {mxc} in a form this server does not understand."
+        )),
+    }
+}
 
+/// Stores what a fetch came back with, and reports it as a download serves it.
+#[implement(Service)]
+async fn store_fetched(
+    &self,
+    mxc: &MxcUri,
+    dimensions: Dimensions,
+    content: Content,
+) -> Result<(FileMeta, Vec<u8>)> {
     let content_disposition =
         ContentDisposition::new(phantom_core::content_disposition::content_disposition_type(
             content.content_type.as_deref(),
@@ -177,8 +237,9 @@ pub async fn fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
                 .map(phantom_core::content_disposition::sanitise_filename),
         );
 
-    self.create(
+    self.create_at(
         mxc,
+        dimensions,
         None,
         Some(&content_disposition),
         content.content_type.as_deref(),

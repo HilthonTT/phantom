@@ -21,7 +21,14 @@ systemd = ["dep:sd-notify"]
 
 url_preview = ["dep:image", "dep:webpage"]
 
-media_thumbnail = ["dep:image"]
+# `tokio/process` runs the video thumbnail program and `tokio/io-util` drains
+# its pipes; neither is wanted in a build that cannot thumbnail.
+media_thumbnail = [
+    "dep:image",
+    "dep:libc",
+    "tokio/io-util",
+    "tokio/process",
+]
 
 [dependencies]
 # `serde` so a resolved destination's port string is stored as it stands.
@@ -106,6 +113,12 @@ smallstr = { version = "0.3.1", features = ["serde"] }
 # whose host is an IP literal is screened against the CIDR denylist by value.
 url = "2.5.7"
 serde_bytes = "0.11.19"
+
+# `killpg`, so that a video thumbnail program overrunning its deadline cannot
+# leave behind whatever a wrapper script spawned. Only reachable through the
+# thumbnailer, hence optional, and only on unix, where process groups exist.
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2.189", optional = true }
 
 [lints]
 workspace = true

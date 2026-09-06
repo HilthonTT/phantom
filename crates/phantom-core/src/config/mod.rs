@@ -116,6 +116,135 @@ pub struct Config {
     #[serde(default = "true_fn")]
     pub media_startup_check: bool,
 
+    /// Largest picture, in pixels, the thumbnailer will decode.
+    ///
+    /// Dimensions cost memory whatever the encoded file weighs — a few
+    /// kilobytes of PNG can declare a picture that costs gigabytes to hold —
+    /// so a picture declaring more than this is served without a thumbnail
+    /// rather than decoded. A frame extracted from a video inherits the
+    /// resolution of the video it came from and is bounded here too.
+    ///
+    /// 50 megapixels is roughly four 8K frames, and more than any ordinary
+    /// camera produces. Each pixel is budgeted four bytes, so the default
+    /// admits a decode of about 200 MiB. The budget is per decode in flight,
+    /// which is what to size it against: thumbnail requests are not otherwise
+    /// limited in number.
+    ///
+    /// default: 50000000
+    #[serde(default = "default_media_thumbnail_max_pixels")]
+    pub media_thumbnail_max_pixels: u64,
+
+    /// Program that extracts a still frame from a video, so that a video can
+    /// be given a thumbnail. Phantom decodes no video itself; the frame the
+    /// program writes is thumbnailed as an ordinary picture and cached as an
+    /// ordinary thumbnail.
+    ///
+    /// The list is an argument vector whose first entry is the program and
+    /// whose remaining entries are its arguments. It is executed directly and
+    /// never through a shell, so no quoting or expansion applies. Every
+    /// argument has these tokens substituted before each call:
+    ///
+    /// - `{input}` the path of a temporary file holding the source video.
+    /// - `{width}` and `{height}` the requested thumbnail dimensions.
+    ///
+    /// The program writes one frame to standard output in any format the
+    /// thumbnailer decodes: PNG, JPEG, WebP or GIF. While the list is empty,
+    /// videos are served without a thumbnail.
+    ///
+    /// example: [
+    /// "ffmpeg", "-loglevel", "error", "-i", "{input}", "-vf", "thumbnail",
+    /// "-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1",
+    /// ]
+    ///
+    /// default: []
+    #[serde(default)]
+    pub media_video_thumbnail_command: Vec<String>,
+
+    /// Seconds a video thumbnail request may spend extracting its frame.
+    ///
+    /// One deadline spans the wait for a free slot, staging the video and the
+    /// program itself, so a queue cannot compound it into a multiple of what
+    /// is configured here. On expiry the program and anything it spawned are
+    /// killed and the video is served without a thumbnail.
+    ///
+    /// default: 30
+    #[serde(default = "default_media_video_thumbnail_timeout")]
+    pub media_video_thumbnail_timeout: u64,
+
+    /// Frame extractions permitted to run at once.
+    ///
+    /// Decoding video costs far more than scaling a picture, so requests past
+    /// this limit wait for a slot rather than piling load onto the host. A
+    /// slot is held from staging the video through to the program exiting, so
+    /// this also bounds how many staged videos occupy the staging directory at
+    /// once. Raise it where cores are spare.
+    ///
+    /// default: 1
+    #[serde(default = "default_media_video_thumbnail_concurrency")]
+    pub media_video_thumbnail_concurrency: usize,
+
+    /// Largest video, in bytes, staged for the thumbnail program, and largest
+    /// frame read back from it.
+    ///
+    /// A video past this is served without a thumbnail rather than written
+    /// out, and a frame past it is refused rather than decoded from what would
+    /// be a truncation.
+    ///
+    /// default: 134217728
+    #[serde(default = "default_media_video_thumbnail_max_size")]
+    pub media_video_thumbnail_max_size: usize,
+
+    /// Directory a video is staged in for the thumbnail program to read.
+    ///
+    /// One file per running program, removed as soon as it exits, and any left
+    /// behind by a killed server are reclaimed at startup. Leave this unset to
+    /// use a `tmp` directory under `database_path`, which keeps videos off the
+    /// memory-backed `/tmp` a service manager commonly provides.
+    ///
+    /// example: "/var/tmp/phantom"
+    pub media_video_thumbnail_path: Option<PathBuf>,
+
+    /// Media IDs one user may hold reserved but unfilled at a time.
+    ///
+    /// A client may ask for a media ID before it has the file, so that it can
+    /// send the message naming it first. Each reservation is a promise to
+    /// serve something at that URI, so a user cannot hold an unbounded number
+    /// of them.
+    ///
+    /// default: 5
+    #[serde(default = "default_max_pending_media_uploads")]
+    pub max_pending_media_uploads: usize,
+
+    /// Seconds a reserved media ID stays fillable before it expires.
+    ///
+    /// Past this the reservation is refused rather than filled, and the ID
+    /// stays permanently unresolvable: a client that reserves one and loses
+    /// the file must reserve another.
+    ///
+    /// default: 86400
+    #[serde(default = "default_media_create_unused_expiration_time")]
+    pub media_create_unused_expiration_time: u64,
+
+    /// Media IDs a user may reserve per second, sustained.
+    ///
+    /// Reserving one costs nothing but the record, which is what makes it
+    /// worth rate limiting separately from the upload it precedes. Zero
+    /// disables the limit.
+    ///
+    /// default: 10
+    #[serde(default = "default_media_rc_create_per_second")]
+    pub media_rc_create_per_second: u32,
+
+    /// Media ID reservations a user may make in a burst.
+    ///
+    /// The allowance refills at `media_rc_create_per_second`, so this is what
+    /// a client may spend at once after a quiet period. Zero disables the
+    /// limit.
+    ///
+    /// default: 50
+    #[serde(default = "default_media_rc_create_burst_count")]
+    pub media_rc_create_burst_count: u32,
+
     /// Path phantom writes online database backups to. The backups are taken
     /// through RocksDB's backup engine, so the server does not have to be
     /// stopped to take one.

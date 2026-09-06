@@ -14,23 +14,28 @@
 //! device name, four thousand characters — cannot become a filename, and it
 //! means the directory can be listed without leaking who uploaded what.
 //!
-//! **Thumbnails are not generated here.** The endpoint that would serve one
-//! needs an image decoder, which this workspace does not depend on; the
-//! storage for them is in place — a thumbnail is an entry at the same media id
-//! with a width and height — so what is missing is the decoding, not the
-//! plumbing. Nothing here claims to have produced a thumbnail it has not.
+//! **A thumbnail is media in its own right**: an entry at the same media id
+//! with a width and a height, where the original is `(0, 0)`. That is what
+//! makes serving one an ordinary media read, and what makes deleting a piece
+//! of media take its thumbnails with it. Generating one needs an image
+//! decoder, which is what the `media_thumbnail` feature carries; a build
+//! without it answers with the original rather than claiming to have produced
+//! something. See the `thumbnail` module.
 //!
 //! [`check`]: Service::check
 
 mod data;
 mod preview;
 mod remote;
+mod thumbnail;
+#[cfg(feature = "media_thumbnail")]
+mod video;
 
 use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::{Instant, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use async_trait::async_trait;
@@ -38,16 +43,23 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use data::Data;
 use futures::StreamExt;
 use phantom_core::{
-    Err, Result, debug, err, implement, info, server::Server, stream::TryIgnore, sync::MutexMap,
-    warn,
+    Err, Error, Result, debug, err, http::StatusCode, implement, info, server::Server,
+    stream::TryIgnore, sync::MutexMap, time::now_millis, warn,
 };
 use phantom_database::{Cbor, Deserialized, Interfix, serialize_to_vec};
 use ruma::{
-    MxcUri, OwnedMxcUri, OwnedUserId, ServerName, UserId, http_headers::ContentDisposition,
+    MxcUri, OwnedMxcUri, OwnedUserId, ServerName, UserId,
+    api::error::{ErrorKind, LimitExceededErrorData, RetryAfter},
+    http_headers::ContentDisposition,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "media_thumbnail")]
+use tokio::sync::Semaphore;
 use tokio::{fs, sync::Notify};
 
+pub use self::thumbnail::Dim;
+#[cfg(feature = "media_thumbnail")]
+use self::video::{FAILURES, Failures, sweep_staging_dir};
 use crate::{Dep, client, config, moderation, server_state};
 
 /// Characters in a media id this server mints.
@@ -63,8 +75,16 @@ pub struct Service {
     url_preview_mutex: MutexMap<String, ()>,
     federation_mutex: MutexMap<String, ()>,
     mxc_state: MXCState,
+
+    /// How many frame extractions may run at once. Held from staging a video
+    /// through to the program exiting, so it also bounds how much of the
+    /// staging directory is in use.
     #[cfg(feature = "media_thumbnail")]
     video_thumbnail_slots: Semaphore,
+
+    /// Videos the extraction program has already failed on, so that the next
+    /// request for another size does not spend a slot reaching the same
+    /// verdict.
     #[cfg(feature = "media_thumbnail")]
     video_thumbnail_failures: Mutex<Failures>,
 }
@@ -83,11 +103,19 @@ struct Services {
     server_state: Dep<server_state::Service>,
 }
 
-/// For MSC2246
+/// What is known about media ids that have been reserved but not yet filled.
+///
+/// A client may ask for a media id before it has the file, so that it can send
+/// the message naming it and upload afterwards. Both halves here exist because
+/// of that gap: the notifiers are how a download waiting on one is woken the
+/// moment it is filled, and the allowances are what stops a client from
+/// reserving ids faster than it could ever fill them.
 struct MXCState {
-    /// Save the notifier for each pending media upload
+    /// The waiters on each reserved media id, notified when it is filled.
     notifiers: Mutex<HashMap<OwnedMxcUri, Arc<Notify>>>,
-    /// Save the ratelimiter for each user
+
+    /// Each user's remaining reservation allowance, and when it was last
+    /// spent. A token bucket: see [`Service::create_pending`].
     ratelimiter: Mutex<HashMap<OwnedUserId, (Instant, f64)>>,
 }
 
@@ -142,6 +170,11 @@ impl Dimensions {
 #[async_trait]
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+        // Before anything can stage a file this would race, and before the
+        // service graph exists to read the configuration through.
+        #[cfg(feature = "media_thumbnail")]
+        sweep_staging_dir(&args.server.config);
+
         Ok(Arc::new(Self {
             path: args.server.config.media_path(),
             services: Services {
@@ -158,6 +191,12 @@ impl crate::Service for Service {
                 notifiers: Mutex::new(HashMap::new()),
                 ratelimiter: Mutex::new(HashMap::new()),
             },
+            #[cfg(feature = "media_thumbnail")]
+            video_thumbnail_slots: Semaphore::new(
+                args.server.config.media_video_thumbnail_concurrency.max(1),
+            ),
+            #[cfg(feature = "media_thumbnail")]
+            video_thumbnail_failures: Mutex::new(Failures::new(FAILURES)),
             db: Data::new(args.db),
         }))
     }
@@ -200,7 +239,31 @@ pub async fn create(
     content_type: Option<&str>,
     file: &[u8],
 ) -> Result {
-    let key = self.key(mxc, Dimensions::ORIGINAL)?;
+    self.create_at(
+        mxc,
+        Dimensions::ORIGINAL,
+        uploader,
+        content_disposition,
+        content_type,
+        file,
+    )
+    .await
+}
+
+/// [`create`] at one size, which is how a thumbnail comes to be stored.
+///
+/// [`create`]: Service::create
+#[implement(Service)]
+pub(super) async fn create_at(
+    &self,
+    mxc: &MxcUri,
+    dimensions: Dimensions,
+    uploader: Option<&UserId>,
+    content_disposition: Option<&ContentDisposition>,
+    content_type: Option<&str>,
+    file: &[u8],
+) -> Result {
+    let key = self.key(mxc, dimensions)?;
 
     fs::write(self.file_path(&key), file)
         .await
@@ -224,6 +287,194 @@ pub async fn create(
     }
 
     debug!(%mxc, size = file.len(), "Stored media");
+
+    Ok(())
+}
+
+/// Reserves a media id for a file the client does not have ready yet.
+///
+/// A client that has to upload before it can send the message naming the
+/// upload must either hold the message back or guess the id. This is the
+/// third answer (MSC2246): the id is minted now and filled later, so the
+/// message can be sent immediately and the file can follow.
+///
+/// Returns when the reservation expires, in milliseconds since the epoch,
+/// which is what the client is told so that it knows how long it has.
+#[implement(Service)]
+pub async fn create_pending(&self, mxc: &MxcUri, uploader: &UserId) -> Result<u64> {
+    self.spend_reservation(uploader)?;
+
+    let config = &self.services.config;
+    let now = now_millis();
+    let (reserved, earliest) = self.db.count_pending_for(uploader, now).await;
+
+    if reserved >= config.max_pending_media_uploads {
+        // Retry when the oldest of them expires: that is the first moment
+        // this request could succeed, and a client told so does not poll.
+        let retry_after = Duration::from_millis(earliest.saturating_sub(now));
+
+        let mut data = LimitExceededErrorData::new();
+        data.retry_after = Some(RetryAfter::Delay(retry_after));
+
+        return Err(Error::Request(
+            ErrorKind::LimitExceeded(data),
+            "You have reserved as many media ids as you may hold unfilled.".into(),
+            StatusCode::TOO_MANY_REQUESTS,
+        ));
+    }
+
+    let lifetime = config
+        .media_create_unused_expiration_time
+        .saturating_mul(1000);
+
+    let expires_at = now.saturating_add(lifetime);
+
+    self.db.insert_pending(mxc, uploader, expires_at)?;
+
+    Ok(expires_at)
+}
+
+/// Fills a media id reserved earlier by [`create_pending`].
+///
+/// Only by the user who reserved it, and only before it expires. An expired
+/// reservation is not renewed by filling it: the id stays unresolvable for
+/// good, since something may already have been told it would resolve.
+///
+/// [`create_pending`]: Service::create_pending
+#[implement(Service)]
+pub async fn upload_pending(
+    &self,
+    mxc: &MxcUri,
+    uploader: &UserId,
+    content_disposition: Option<&ContentDisposition>,
+    content_type: Option<&str>,
+    file: &[u8],
+) -> Result {
+    let Ok((owner, expires_at)) = self.db.search_pending(mxc).await else {
+        if self.exists(mxc, Dimensions::ORIGINAL).await {
+            return Err!(Request(CannotOverwriteMedia(
+                "Media {mxc} has been uploaded already."
+            )));
+        }
+
+        return Err!(Request(NotFound("Media {mxc} was never reserved.")));
+    };
+
+    if owner != uploader {
+        return Err!(Request(Forbidden("You did not reserve media {mxc}.")));
+    }
+
+    if expires_at < now_millis() {
+        return Err!(Request(NotFound("The reservation of media {mxc} expired.")));
+    }
+
+    self.create(mxc, Some(uploader), content_disposition, content_type, file)
+        .await?;
+
+    self.db.remove_pending(mxc)?;
+
+    // Whoever is waiting on it is waiting on the file, which is now stored.
+    let notifier = self.mxc_state.notifiers.lock()?.remove(mxc);
+
+    if let Some(notifier) = notifier {
+        notifier.notify_waiters();
+    }
+
+    Ok(())
+}
+
+/// Waits for a reserved media id to be filled, for as long as the client said
+/// it was willing to wait.
+///
+/// What a download does when it finds nothing stored: a client that was sent
+/// a message naming an id may well ask for it before the upload lands, and
+/// answering "not found" straight away would show a broken picture for a file
+/// that is seconds away. Returns as soon as the id is filled, and errors if
+/// it was never reserved or the wait ran out.
+#[implement(Service)]
+pub async fn await_pending(&self, mxc: &MxcUri, timeout: Duration) -> Result {
+    match self.db.search_pending(mxc).await {
+        Ok((_, expires_at)) if expires_at > now_millis() => (),
+        _ => return Err!(Request(NotFound("Media {mxc} is not being uploaded."))),
+    }
+
+    let notifier = self
+        .mxc_state
+        .notifiers
+        .lock()?
+        .entry(mxc.to_owned())
+        .or_insert_with(|| Arc::new(Notify::new()))
+        .clone();
+
+    let notified = notifier.notified();
+    tokio::pin!(notified);
+
+    // Enrolled before the store is checked, so that an upload landing between
+    // the two is caught by the wait rather than lost between them.
+    notified.as_mut().enable();
+
+    if self.exists(mxc, Dimensions::ORIGINAL).await {
+        return Ok(());
+    }
+
+    let filled = tokio::time::timeout(timeout, notified).await;
+
+    // The last waiter takes the notifier with it. A reservation nobody ever
+    // fills is never notified, and so would otherwise leave an entry behind
+    // for the life of the process.
+    if let Ok(mut notifiers) = self.mxc_state.notifiers.lock()
+        && notifiers
+            .get(mxc)
+            .is_some_and(|notifier| Arc::strong_count(notifier) <= 2)
+    {
+        notifiers.remove(mxc);
+    }
+
+    filled.map_err(|_| {
+        err!(Request(NotYetUploaded(
+            "Media {mxc} has not been uploaded yet."
+        )))
+    })
+}
+
+/// Spends one of a user's media id reservations, refusing where there is none
+/// left to spend.
+///
+/// A token bucket: the allowance refills at `media_rc_create_per_second` up to
+/// `media_rc_create_burst_count`, and reserving costs one. Reserving is rate
+/// limited apart from uploading because it is so much cheaper — a reservation
+/// is a row, where an upload is a file — so a client that only reserves would
+/// otherwise be limited by nothing.
+#[implement(Service)]
+fn spend_reservation(&self, uploader: &UserId) -> Result {
+    let config = &self.services.config;
+    let rate = f64::from(config.media_rc_create_per_second);
+    let burst = f64::from(config.media_rc_create_burst_count);
+
+    if rate <= 0.0 || burst <= 0.0 {
+        return Ok(());
+    }
+
+    let now = Instant::now();
+    let mut ratelimiter = self.mxc_state.ratelimiter.lock()?;
+
+    let (spent_at, allowance) = ratelimiter
+        .entry(uploader.to_owned())
+        .or_insert_with(|| (now, burst));
+
+    let elapsed = now.duration_since(*spent_at).as_secs_f64();
+    let refilled = elapsed.mul_add(rate, *allowance).min(burst);
+
+    if refilled < 1.0 {
+        return Err(Error::Request(
+            ErrorKind::LimitExceeded(LimitExceededErrorData::new()),
+            "You are reserving media ids too quickly.".into(),
+            StatusCode::TOO_MANY_REQUESTS,
+        ));
+    }
+
+    *spent_at = now;
+    *allowance = refilled - 1.0;
 
     Ok(())
 }

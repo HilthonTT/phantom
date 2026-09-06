@@ -142,7 +142,7 @@ Currently built, outside the room tree:
 | `appservice` | the registered appservices and their namespaces |
 | `presence` | who is online, and when they stop counting as online |
 | `pusher` | the push gateways a client registered, and the notifications sent through them |
-| `media` | uploaded and cached files, their metadata and the fetch from the server that holds them |
+| `media` | uploaded and cached files, their metadata, their thumbnails and the fetch from the server that holds them |
 | `sync` | parking a `/sync` until something happens, and the sliding-sync conversation state |
 | `moderation` | which remote servers this operator refuses, and how far the refusal goes |
 | `updates` | the announcement feed, and which announcements have been surfaced |

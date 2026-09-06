@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-#[cfg(feature = "url_preview")]
-use phantom_core::debug;
-use phantom_core::{Result, at, err};
+use phantom_core::{
+    Result, at, debug, err,
+    stream::{ReadyExt, TryIgnore},
+};
 use phantom_database::{Cbor, Database, Deserialized, Map};
 #[cfg(feature = "url_preview")]
 use phantom_database::{Txn, serialize_to_vec};
-use ruma::http_headers::ContentDisposition;
+use ruma::{MxcUri, OwnedUserId, UserId};
 #[cfg(feature = "url_preview")]
 use serde::{Deserialize, Serialize};
 
@@ -25,14 +26,10 @@ pub(crate) struct Data {
     pub mediaid_user: Arc<Map>,
     pub url_previews: Arc<Map>,
 
+    /// Held for [`Self::txn`], which is the only thing that needs the engine
+    /// the columns live in rather than one column of it.
+    #[cfg(feature = "url_preview")]
     pub db: Arc<Database>,
-}
-
-#[derive(Debug)]
-pub struct Metadata {
-    pub content_disposition: Option<ContentDisposition>,
-    pub content_type: Option<String>,
-    pub(super) key: Vec<u8>,
 }
 
 /// Borrowed staging-cache value: written zero-copy from the measured bytes.
@@ -74,6 +71,7 @@ impl From<LazyContent> for Media {
 impl Data {
     pub(super) fn new(db: &Arc<Database>) -> Self {
         Self {
+            #[cfg(feature = "url_preview")]
             db: db.clone(),
             mediaid_file: db["mediaid_file"].clone(),
             #[cfg(feature = "url_preview")]
@@ -84,6 +82,72 @@ impl Data {
             mediaid_user: db["mediaid_user"].clone(),
             url_previews: db["url_previews"].clone(),
         }
+    }
+
+    /// Records a media id as reserved by a user until `expires_at`, which is
+    /// milliseconds since the epoch.
+    ///
+    /// Keyed by the whole URI rather than by its parts: a reservation is only
+    /// ever looked up by the exact id a client was handed, and it lives for a
+    /// day at most.
+    pub(super) fn insert_pending(&self, mxc: &MxcUri, user: &UserId, expires_at: u64) -> Result {
+        self.mediaid_pending.raw_put(mxc, (expires_at, user))
+    }
+
+    /// Drops a reservation, which filling one finishes with.
+    pub(super) fn remove_pending(&self, mxc: &MxcUri) -> Result {
+        self.mediaid_pending.remove(mxc.as_str())
+    }
+
+    /// Who reserved a media id, and when their claim on it expires.
+    pub(super) async fn search_pending(&self, mxc: &MxcUri) -> Result<(OwnedUserId, u64)> {
+        self.mediaid_pending
+            .get(mxc.as_str())
+            .await
+            .deserialized()
+            .map(|(expires_at, user): (u64, OwnedUserId)| (user, expires_at))
+    }
+
+    /// How many unexpired reservations a user holds as of `now`, and when the
+    /// first of them expires.
+    ///
+    /// Scans the column rather than indexing by user: reservations are few
+    /// and short-lived by construction, since holding many of them is the
+    /// thing this count is read to refuse.
+    ///
+    /// Expired rows are dropped on the way past. Nothing else ever visits
+    /// them — a reservation is looked up only by the id it named — so without
+    /// this the column would grow without bound, and a user who let five
+    /// reservations expire could never make another.
+    pub(super) async fn count_pending_for(&self, user: &UserId, now: u64) -> (usize, u64) {
+        type KeyVal<'a> = (&'a str, (u64, &'a str));
+
+        let held = (0_usize, u64::MAX, Vec::new());
+        let (count, earliest, expired) = self
+            .mediaid_pending
+            .stream()
+            .ignore_err()
+            .ready_fold(
+                held,
+                |(count, earliest, mut expired), (mxc, (expires_at, holder)): KeyVal<'_>| {
+                    if expires_at <= now {
+                        expired.push(mxc.to_owned());
+                    } else if holder == user.as_str() {
+                        return (count.saturating_add(1), earliest.min(expires_at), expired);
+                    }
+
+                    (count, earliest, expired)
+                },
+            )
+            .await;
+
+        for mxc in expired {
+            debug!(?mxc, "Dropping an expired media reservation");
+
+            self.mediaid_pending.remove(mxc.as_str()).ok();
+        }
+
+        (count, earliest)
     }
 
     #[cfg(feature = "url_preview")]

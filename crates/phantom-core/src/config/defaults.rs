@@ -133,6 +133,38 @@ pub(super) fn default_notification_push_path() -> String {
     "/_matrix/push/v1/notify".to_owned()
 }
 
+pub(super) fn default_media_thumbnail_max_pixels() -> u64 {
+    50_000_000
+}
+
+pub(super) fn default_media_video_thumbnail_timeout() -> u64 {
+    30
+}
+
+pub(super) fn default_media_video_thumbnail_concurrency() -> usize {
+    1
+}
+
+pub(super) fn default_media_video_thumbnail_max_size() -> usize {
+    128 * 1024 * 1024
+}
+
+pub(super) fn default_max_pending_media_uploads() -> usize {
+    5
+}
+
+pub(super) fn default_media_create_unused_expiration_time() -> u64 {
+    60 * 60 * 24
+}
+
+pub(super) fn default_media_rc_create_per_second() -> u32 {
+    10
+}
+
+pub(super) fn default_media_rc_create_burst_count() -> u32 {
+    50
+}
+
 pub(super) fn default_url_preview_max_spider_size() -> usize {
     256_000
 }
