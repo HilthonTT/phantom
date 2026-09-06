@@ -18,6 +18,15 @@ pub fn now_millis() -> u64 {
 }
 
 #[inline]
+#[must_use]
+pub fn now_secs() -> u64 {
+    UNIX_EPOCH
+        .elapsed()
+        .expect("positive duration after epoch")
+        .as_secs()
+}
+
+#[inline]
 pub fn parse_timepoint_ago(ago: &str) -> Result<SystemTime> {
     timepoint_ago(parse_duration(ago)?)
 }

@@ -72,6 +72,12 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
+        name: "eventid_originalpdu",
+        block_size: 2048,
+        index_size: 512,
+        ..descriptor::RANDOM
+    },
+    Descriptor {
         name: "eventid_outlierpdu",
         cache_disp: CacheDisp::SharedWith("pduid_pdu"),
         block_size: 1024,
@@ -325,6 +331,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
     },
     Descriptor {
         name: "threadid_userids",
+        ..descriptor::SEQUENTIAL_SMALL
+    },
+    Descriptor {
+        name: "timeredacted_eventid",
         ..descriptor::SEQUENTIAL_SMALL
     },
     Descriptor {

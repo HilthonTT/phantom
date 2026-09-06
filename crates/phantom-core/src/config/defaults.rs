@@ -333,3 +333,7 @@ pub(super) fn default_space_hierarchy_cache_capacity() -> u32 {
 pub(super) fn default_federation_prev_event_budget_s() -> u64 {
     300
 }
+
+pub(super) fn default_redaction_retention_seconds() -> u64 {
+    60 * 60 * 24 * 60
+}

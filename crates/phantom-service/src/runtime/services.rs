@@ -108,6 +108,7 @@ impl Services {
                 threads: build!(rooms::threads::Service),
                 typing: build!(rooms::typing::Service),
                 user: build!(rooms::user::Service),
+                retention: build!(rooms::retention::Service),
             },
             server_keys: build!(server_keys::Service),
             server_state: build!(server_state::Service),

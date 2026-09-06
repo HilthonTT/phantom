@@ -20,6 +20,7 @@ pub mod metadata;
 pub mod outlier;
 pub mod pdu_metadata;
 pub mod read_receipt;
+pub mod retention;
 pub mod search;
 pub mod short;
 pub mod spaces;
@@ -56,4 +57,5 @@ pub struct Services {
     pub threads: Arc<threads::Service>,
     pub typing: Arc<typing::Service>,
     pub user: Arc<user::Service>,
+    pub retention: Arc<retention::Service>,
 }

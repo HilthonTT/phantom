@@ -690,6 +690,26 @@ pub struct Config {
     #[serde(default = "true_fn")]
     pub allow_room_creation: bool,
 
+    /// Keep the original of an event before a redaction strips it.
+    ///
+    /// A redaction removes content the spec does not require the event to
+    /// keep, and the copy retained here is what a moderator reviewing a report
+    /// reads afterwards. Leaving this off makes a redaction final on arrival.
+    ///
+    /// default: true
+    #[serde(default = "true_fn")]
+    pub save_unredacted_events: bool,
+
+    /// Seconds an original retained by `save_unredacted_events` is kept before
+    /// it is swept.
+    ///
+    /// The default is 60 days. Zero keeps the originals indefinitely, which
+    /// grows without bound — set it only where something else prunes them.
+    ///
+    /// default: 5184000
+    #[serde(default = "default_redaction_retention_seconds")]
+    pub redaction_retention_seconds: u64,
+
     /// Serve this server's public room directory to other servers over
     /// federation.
     ///
