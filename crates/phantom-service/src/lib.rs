@@ -32,6 +32,7 @@ pub mod resolver;
 pub mod rooms;
 pub mod runtime;
 pub mod sending;
+pub mod sendmail;
 pub mod server_keys;
 pub mod server_state;
 pub mod sync;

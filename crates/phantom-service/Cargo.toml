@@ -23,12 +23,7 @@ url_preview = ["dep:image", "dep:webpage"]
 
 # `tokio/process` runs the video thumbnail program and `tokio/io-util` drains
 # its pipes; neither is wanted in a build that cannot thumbnail.
-media_thumbnail = [
-    "dep:image",
-    "dep:libc",
-    "tokio/io-util",
-    "tokio/process",
-]
+media_thumbnail = ["dep:image", "dep:libc", "tokio/io-util", "tokio/process"]
 
 [dependencies]
 # `serde` so a resolved destination's port string is stored as it stands.
@@ -113,6 +108,7 @@ smallstr = { version = "0.3.1", features = ["serde"] }
 # whose host is an IP literal is screened against the CIDR denylist by value.
 url = "2.5.7"
 serde_bytes = "0.11.19"
+lettre = { version = "0.11.23", features = ["tokio1", "tokio1-native-tls"] }
 
 # `killpg`, so that a video thumbnail program overrunning its deadline cannot
 # leave behind whatever a wrapper script spawned. Only reachable through the

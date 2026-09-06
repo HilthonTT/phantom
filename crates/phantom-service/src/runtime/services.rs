@@ -17,8 +17,8 @@ use super::{
 };
 use crate::{
     account_data, admin, appservice, client, config, emergency, federation, key_backups, media,
-    moderation, presence, pusher, resolver, rooms, sending, server_keys, server_state, sync,
-    transaction_id, updates, users,
+    moderation, presence, pusher, resolver, rooms, sending, sendmail, server_keys, server_state,
+    sync, transaction_id, updates, users,
 };
 
 /// Every service the server is built out of, and the database they share.
@@ -44,6 +44,7 @@ pub struct Services {
     pub sending: Arc<sending::Service>,
     pub admin: Arc<admin::Service>,
     pub updates: Arc<updates::Service>,
+    pub sendmail: Arc<sendmail::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
     pub(crate) service: Arc<Map>,
@@ -122,6 +123,7 @@ impl Services {
             sending: build!(sending::Service),
             admin: build!(admin::Service),
             updates: build!(updates::Service),
+            sendmail: build!(sendmail::Service),
 
             manager: Mutex::new(None),
             service,
