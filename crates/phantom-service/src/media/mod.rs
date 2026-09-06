@@ -22,22 +22,31 @@
 //!
 //! [`check`]: Service::check
 
+mod data;
+mod preview;
 mod remote;
 
-use std::{path::PathBuf, sync::Arc, time::SystemTime};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::{Instant, SystemTime},
+};
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use data::Data;
 use futures::StreamExt;
 use phantom_core::{
-    Err, Result, debug, err, implement, info, server::Server, stream::TryIgnore, warn,
+    Err, Result, debug, err, implement, info, server::Server, stream::TryIgnore, sync::MutexMap,
+    warn,
 };
-use phantom_database::{Cbor, Deserialized, Interfix, Map, serialize_to_vec};
+use phantom_database::{Cbor, Deserialized, Interfix, serialize_to_vec};
 use ruma::{
     MxcUri, OwnedMxcUri, OwnedUserId, ServerName, UserId, http_headers::ContentDisposition,
 };
 use serde::{Deserialize, Serialize};
-use tokio::fs;
+use tokio::{fs, sync::Notify};
 
 use crate::{Dep, moderation, server_state};
 
@@ -45,6 +54,13 @@ pub struct Service {
     path: PathBuf,
     services: Services,
     db: Data,
+    url_preview_mutex: MutexMap<String, ()>,
+    federation_mutex: MutexMap<String, ()>,
+    mxc_state: MXCState,
+    #[cfg(feature = "media_thumbnail")]
+    video_thumbnail_slots: Semaphore,
+    #[cfg(feature = "media_thumbnail")]
+    video_thumbnail_failures: Mutex<Failures>,
 }
 
 struct Services {
@@ -54,9 +70,19 @@ struct Services {
     server_state: Dep<server_state::Service>,
 }
 
-struct Data {
-    mediaid_file: Arc<Map>,
-    mediaid_user: Arc<Map>,
+/// For MSC2246
+struct MXCState {
+    /// Save the notifier for each pending media upload
+    notifiers: Mutex<HashMap<OwnedMxcUri, Arc<Notify>>>,
+    /// Save the ratelimiter for each user
+    ratelimiter: Mutex<HashMap<OwnedUserId, (Instant, f64)>>,
+}
+
+#[derive(Debug)]
+pub struct Media {
+    pub content: Vec<u8>,
+    pub content_type: Option<String>,
+    pub content_disposition: Option<ContentDisposition>,
 }
 
 /// What is known about a stored file besides its bytes.
@@ -111,10 +137,13 @@ impl crate::Service for Service {
                 server: args.server.clone(),
                 server_state: args.depend::<server_state::Service>("server_state"),
             },
-            db: Data {
-                mediaid_file: args.db["mediaid_file"].clone(),
-                mediaid_user: args.db["mediaid_user"].clone(),
+            url_preview_mutex: MutexMap::new(),
+            federation_mutex: MutexMap::new(),
+            mxc_state: MXCState {
+                notifiers: Mutex::new(HashMap::new()),
+                ratelimiter: Mutex::new(HashMap::new()),
             },
+            db: Data::new(args.db),
         }))
     }
 

@@ -19,6 +19,10 @@ element_hacks = []
 # the reload finished before it is.
 systemd = ["dep:sd-notify"]
 
+url_preview = ["dep:image", "dep:webpage"]
+
+media_thumbnail = ["dep:image"]
+
 [dependencies]
 # `serde` so a resolved destination's port string is stored as it stands.
 arrayvec = { version = "0.7.8", features = ["serde"] }
@@ -93,6 +97,10 @@ tokio = { version = "1.49.0", default-features = false, features = [
 # tracing through phantom-core's re-export.
 tracing = "0.1.44"
 base64 = "0.23.1"
+webpage = { version = "2.0.1", optional = true }
+image = { version = "0.25.10", optional = true }
+smallstr = "0.3.1"
+serde_bytes = "0.11.19"
 
 [lints]
 workspace = true
