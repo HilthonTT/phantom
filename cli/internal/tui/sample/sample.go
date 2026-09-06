@@ -6,7 +6,12 @@
 // and it is the one package to delete when that happens.
 package sample
 
-import "github.com/HilthonTT/phantom/cli/internal/tui/resource"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
+)
 
 // Server is the homeserver the connection box reports on.
 func Server() resource.Server {
@@ -66,6 +71,8 @@ func Listing(s resource.Section) resource.Listing {
 	switch s {
 	case resource.Overview:
 		return overview()
+	case resource.Services:
+		return services()
 	case resource.Rooms:
 		return rooms()
 	case resource.Users:
@@ -86,6 +93,8 @@ func Listing(s resource.Section) resource.Listing {
 }
 
 func overview() resource.Listing {
+	built, workers, planned := serviceCounts()
+
 	row := func(k, v string, state resource.State) resource.Row {
 		return resource.Row{
 			Cells: []string{k, v},
@@ -107,6 +116,8 @@ func overview() resource.Listing {
 			row("Server name", "phantom.chat", resource.NoState),
 			row("Version", "phantom 0.1.0", resource.NoState),
 			row("Uptime", "6d 04:11", resource.NoState),
+			row("Services", fmt.Sprintf("%d built, %d with workers, %d planned",
+				built, workers, planned), resource.Done),
 			row("Local users", "1,284", resource.NoState),
 			row("Rooms", "312", resource.NoState),
 			row("Events today", "48,910", resource.NoState),
@@ -118,6 +129,189 @@ func overview() resource.Listing {
 			row("Read-only mode", "off", resource.NoState),
 		},
 	}
+}
+
+// service is one row of the services listing: the name the runtime registry
+// knows it by, whether the manager runs a worker for it, and a phrase for what
+// it owns.
+//
+// There is no separate worker column, because it would say nothing the state
+// does not: a service the manager runs a worker for is the one that reads as
+// running, and one without a worker is built, answers calls, and is otherwise
+// idle.
+type service struct {
+	name   string
+	worker bool
+
+	// unwired marks a module that implements the service contract but that
+	// `Services::build` does not construct, so nothing can reach it.
+	unwired bool
+
+	// planned marks a service that is designed but not yet written. It has no
+	// module in the tree, so the worker and unwired flags say nothing about it.
+	planned bool
+
+	purpose string
+}
+
+// registry is every service in `phantom-service`, in the order
+// `runtime/services.rs` builds them — which is why the room services sit
+// between `federation` and `server_keys` rather than in a block of their own.
+//
+// Anything not built comes after them, since it has no place in that order:
+// first what is written but unreachable, then what is planned.
+//
+// The planned entries are listed rather than omitted so that the section shows
+// the whole shape of the server. An operator reading it sees that OAuth login
+// exists as an intention and is not running, instead of wondering whether the
+// console simply failed to report it.
+var registry = []service{
+	{name: "resolver", purpose: "a server name turned into an address"},
+	{name: "client", purpose: "the outbound HTTP clients"},
+	{name: "config", worker: true, purpose: "re-reading the config on SIGUSR1"},
+	{name: "media", worker: true, purpose: "uploads, thumbnails, remote fetches"},
+	{name: "moderation", purpose: "which servers this one refuses"},
+	{name: "federation", purpose: "one signed request to another server"},
+
+	{name: "rooms::alias", purpose: "the #name:server a room is reached by"},
+	{name: "rooms::directory", purpose: "the public room directory"},
+	{name: "rooms::event_handler", purpose: "what an event another server sent means"},
+	{name: "rooms::short", purpose: "long identifiers mapped to compact ones"},
+	{name: "rooms::spaces", purpose: "rooms whose purpose is to hold rooms"},
+	{name: "rooms::state", purpose: "the current state version, and extremities"},
+	{name: "rooms::state_accessor", purpose: "reading state, and who may see what"},
+	{name: "rooms::state_cache", purpose: "membership, denormalized both ways"},
+	{name: "rooms::state_compressor", purpose: "state stored as a stack of diffs"},
+	{name: "rooms::search", purpose: "full-text search over messages"},
+	{name: "rooms::read_receipt", purpose: "how far each user has read"},
+	{name: "rooms::timeline", purpose: "the PDUs of a room, in order"},
+	{name: "rooms::auth_chain", purpose: "every event authorizing an event"},
+	{name: "rooms::lazy_loading", purpose: "which members a device has been told of"},
+	{name: "rooms::metadata", purpose: "known, banned or disabled"},
+	{name: "rooms::outlier", purpose: "events accepted but not yet placed"},
+	{name: "rooms::pdu_metadata", purpose: "relations, and what has been referenced"},
+	{name: "rooms::threads", purpose: "threaded replies, and who took part"},
+	{name: "rooms::typing", purpose: "who is typing, and when they stop"},
+	{name: "rooms::user", purpose: "one user's unread counters in one room"},
+	{name: "rooms::retention", worker: true, purpose: "originals of redacted events"},
+
+	{name: "server_keys", purpose: "signing keys, this server's and others'"},
+	{name: "server_state", purpose: "identity, secrets, the event counter"},
+	{name: "sync", purpose: "parking a /sync until something happens"},
+	{name: "transaction_id", purpose: "a retry answered with the first response"},
+	{name: "account_data", purpose: "account data, global and per-room"},
+	{name: "key_backups", purpose: "server-side backups of room keys"},
+	{name: "appservice", worker: true, purpose: "the registered appservices"},
+	{name: "users", purpose: "accounts, devices, keys, profiles"},
+	{name: "emergency", worker: true, purpose: "the way back in when admins are locked out"},
+	{name: "presence", worker: true, purpose: "who is online, and for how long"},
+	{name: "pusher", purpose: "push gateways, and what is sent through them"},
+	{name: "sending", worker: true, purpose: "the outbound federation and push queue"},
+	{name: "admin", worker: true, purpose: "the admin room and its commands"},
+	{name: "updates", worker: true, purpose: "the announcement feed"},
+	{name: "sendmail", purpose: "outbound SMTP, when one is configured"},
+
+	{name: "uiaa", unwired: true, purpose: "interactive-auth sessions in progress"},
+
+	{name: "membership", planned: true, purpose: "join, leave, invite, kick, ban"},
+	{name: "oauth", planned: true, purpose: "OIDC login and OAuth2 (MSC3861)"},
+	{name: "threepid", planned: true, purpose: "email and phone bindings"},
+	{name: "registration_tokens", planned: true, purpose: "token-gated registration"},
+	{name: "deactivate", planned: true, purpose: "tearing an account down"},
+	{name: "rendezvous", planned: true, purpose: "QR-code login (MSC4108)"},
+	{name: "storage", planned: true, purpose: "object storage behind media"},
+	{name: "fetcher", planned: true, purpose: "coalesced federation fetches"},
+	{name: "tasks", planned: true, purpose: "long admin operations, polled"},
+	{name: "migrations", planned: true, purpose: "schema and data migrations"},
+	{name: "rooms::delete", planned: true, purpose: "shutting a room down, purging"},
+}
+
+// state is how the listing reports one service, and the word it prints.
+func (s service) state() (resource.State, string) {
+	switch {
+	case s.planned:
+		return resource.NoState, "planned"
+	case s.unwired:
+		return resource.Held, "unwired"
+	case s.worker:
+		return resource.Running, "running"
+	default:
+		return resource.Done, "ready"
+	}
+}
+
+// area is the half of the tree a service lives in, since the room services are
+// reached as `services.rooms.x` rather than off the top level.
+func (s service) area() string {
+	if strings.HasPrefix(s.name, "rooms::") {
+		return "rooms"
+	}
+	return "core"
+}
+
+// yesNo answers a question about a module in the tree. A planned service has
+// no module, so the question does not apply to it and the answer is a dash
+// rather than a "no" that would read as a fact about something that exists.
+func (s service) yesNo(b bool) string {
+	switch {
+	case s.planned:
+		return "—"
+	case b:
+		return "yes"
+	default:
+		return "no"
+	}
+}
+
+func services() resource.Listing {
+	rows := make([]resource.Row, 0, len(registry))
+
+	for _, svc := range registry {
+		state, word := svc.state()
+
+		rows = append(rows, resource.Row{
+			Cells: []string{svc.name, word, svc.purpose},
+			State: state,
+			Detail: []resource.Field{
+				{Label: "Service", Value: svc.name},
+				{Label: "State", Value: word, Emphasis: state},
+				{Label: "Area", Value: svc.area()},
+				{Label: "Worker", Value: svc.yesNo(svc.worker)},
+				{Label: "Registered", Value: svc.yesNo(!svc.unwired)},
+				{Label: "Purpose", Value: svc.purpose},
+			},
+		})
+	}
+
+	return resource.Listing{
+		Sort: "build order",
+		Columns: []resource.Column{
+			{Title: "Service", Width: 24},
+			{Title: "State", Width: 9},
+			{Title: "Purpose", Flex: true},
+		},
+		Rows: rows,
+	}
+}
+
+// serviceCounts is how many services are built, how many the manager runs a
+// worker for, and how many are still to be written. They are counted rather
+// than written down so the overview cannot drift from the listing.
+func serviceCounts() (built, workers, planned int) {
+	for _, svc := range registry {
+		switch {
+		case svc.planned:
+			planned++
+		case svc.unwired:
+			// Written, but nothing constructs it, so it is not built either.
+		default:
+			built++
+			if svc.worker {
+				workers++
+			}
+		}
+	}
+	return built, workers, planned
 }
 
 func rooms() resource.Listing {

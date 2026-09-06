@@ -13,6 +13,7 @@ type Glyphs struct {
 	Arrow   string // separates a panel's title from what it has selected
 
 	Server    string
+	Service   string
 	Room      string
 	User      string
 	Federated string
@@ -40,6 +41,7 @@ func UnicodeGlyphs() Glyphs {
 		Arrow:   "›",
 
 		Server:    "◆",
+		Service:   "◫",
 		Room:      "▣",
 		User:      "◍",
 		Federated: "◈",
@@ -69,6 +71,7 @@ func ASCIIGlyphs() Glyphs {
 		Arrow:   ">",
 
 		Server:    "#",
+		Service:   "&",
 		Room:      "#",
 		User:      "@",
 		Federated: "~",

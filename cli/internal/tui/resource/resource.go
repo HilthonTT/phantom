@@ -13,6 +13,7 @@ type Section int
 // The sections, in sidebar order.
 const (
 	Overview Section = iota
+	Services
 	Rooms
 	Users
 	Federation
@@ -36,6 +37,8 @@ func (s Section) String() string {
 	switch s {
 	case Overview:
 		return "Overview"
+	case Services:
+		return "Services"
 	case Rooms:
 		return "Rooms"
 	case Users:
@@ -58,7 +61,7 @@ func (s Section) String() string {
 // Group is the sidebar heading the section belongs under.
 func (s Section) Group() Group {
 	switch s {
-	case Overview, Rooms, Users, Federation, Media:
+	case Overview, Services, Rooms, Users, Federation, Media:
 		return ServerGroup
 	default:
 		return OperationsGroup
@@ -79,7 +82,10 @@ func (g Group) String() string {
 
 // Sections is every section, in sidebar order.
 func Sections() []Section {
-	return []Section{Overview, Rooms, Users, Federation, Media, Tasks, Logs, Settings}
+	return []Section{
+		Overview, Services, Rooms, Users, Federation, Media,
+		Tasks, Logs, Settings,
+	}
 }
 
 // Column is one field of a listing.

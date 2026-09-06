@@ -84,6 +84,8 @@ func (m Model) glyph(s resource.Section) string {
 	switch s {
 	case resource.Overview:
 		return m.glyphs.Server
+	case resource.Services:
+		return m.glyphs.Service
 	case resource.Rooms:
 		return m.glyphs.Room
 	case resource.Users:
