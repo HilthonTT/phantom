@@ -80,6 +80,8 @@ pub enum Error {
     TracingReload(#[from] tracing_subscriber::reload::Error),
     #[error(transparent)]
     TypedHeader(#[from] axum_extra::typed_header::TypedHeaderRejection),
+    #[error("Invalid URL: {0}")]
+    Url(#[from] url::ParseError),
 
     #[error("Arithmetic operation failed: {0}")]
     Arithmetic(Cow<'static, str>),

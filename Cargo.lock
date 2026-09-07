@@ -2566,6 +2566,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -2627,10 +2628,12 @@ dependencies = [
  "phantom-database",
  "regex",
  "reqwest",
+ "ring",
  "ruma",
  "sd-notify",
  "serde",
  "serde_bytes",
+ "serde_html_form",
  "serde_json",
  "smallstr",
  "smallvec",
