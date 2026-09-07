@@ -148,6 +148,38 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
+        name: "oauthid_session",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oauthuniqid_oauthid",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oidc_signingkey",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oidcclientid_registration",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oidccode_authsession",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oidcdevicecode_devicegrant",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oidcreqid_authrequest",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "oidcusercode_devicecode",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
         name: "onetimekeyid_onetimekeys",
         ..descriptor::RANDOM_SMALL
     },
@@ -400,6 +432,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
     },
     Descriptor {
         name: "userid_masterkeyid",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "userid_oauthid",
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
