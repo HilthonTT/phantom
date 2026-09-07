@@ -39,7 +39,7 @@ use phantom_core::{Result, err, server::Server};
 
 pub use self::{
     codec::{
-        deserialize::{Ignore, IgnoreAll},
+        deserialize::{Ignore, IgnoreAll, from_slice as deserialize},
         serialize::{
             Cbor, Interfix, Json, SEP, Separator, serialize, serialize_to, serialize_to_vec,
         },

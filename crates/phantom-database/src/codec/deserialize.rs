@@ -11,7 +11,10 @@ use serde::{
 
 use super::unhandled;
 
-/// Deserialize into T from buffer.
+/// Reads a `T` back out of the bytes it was serialized to.
+///
+/// The counterpart of [`serialize_to_vec`](super::serialize::serialize_to_vec),
+/// and the one path every typed read goes through.
 #[cfg_attr(
 	unabridged,
 	tracing::instrument(
@@ -21,7 +24,7 @@ use super::unhandled;
 		fields(len = %buf.len()),
 	)
 )]
-pub(crate) fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
+pub fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
 {
