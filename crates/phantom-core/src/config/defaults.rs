@@ -337,3 +337,9 @@ pub(super) fn default_federation_prev_event_budget_s() -> u64 {
 pub(super) fn default_redaction_retention_seconds() -> u64 {
     60 * 60 * 24 * 60
 }
+
+/// Discovery documents, token responses and userinfo all fit in a fraction of
+/// this; it is a ceiling, not a budget.
+pub(super) fn default_oidc_max_response_size() -> usize {
+    256 * 1024
+}
