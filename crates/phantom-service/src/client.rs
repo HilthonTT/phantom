@@ -60,6 +60,13 @@ pub struct Service {
     /// Requests to push gateways.
     pub pusher: reqwest::Client,
 
+    /// Requests to an OpenID Connect identity provider: discovery, the token
+    /// exchange, userinfo, revocation. Reached while a user is waiting in a
+    /// browser redirect, so the timeouts are short, and redirects are not
+    /// followed — an endpoint that has moved is a configuration error rather
+    /// than something to chase.
+    pub oauth: reqwest::Client,
+
     /// `ip_range_denylist`, parsed once. See [`Self::valid_cidr_range`].
     pub cidr_range_denylist: Vec<IPAddress>,
 
@@ -118,6 +125,14 @@ impl crate::Service for Service {
                 .redirect(redirect::Policy::limited(3))
                 .build()?,
 
+            oauth: base(config)?
+                .dns_resolver(resolver.resolver.clone())
+                .connect_timeout(Duration::from_secs(OAUTH_CONNECT_TIMEOUT))
+                .read_timeout(Duration::from_secs(OAUTH_READ_TIMEOUT))
+                .timeout(Duration::from_secs(OAUTH_READ_TIMEOUT))
+                .redirect(redirect::Policy::none())
+                .build()?,
+
             synapse: base(config)?
                 .dns_resolver(resolver.resolver.hooked.clone())
                 .read_timeout(Duration::from_secs(SYNAPSE_READ_TIMEOUT))
@@ -172,6 +187,13 @@ impl crate::Service for Service {
 /// several minutes of trickle. Fixed rather than configured: nothing but a
 /// migration reads them, and it is not a knob worth carrying in the config.
 const SYNAPSE_READ_TIMEOUT: u64 = 305;
+
+/// A provider is reached while a person waits in a redirected browser, so a
+/// provider that has stopped answering has to fail rather than hold the tab
+/// open. Fixed rather than configured: every request made on this client is a
+/// small JSON round trip.
+const OAUTH_CONNECT_TIMEOUT: u64 = 10;
+const OAUTH_READ_TIMEOUT: u64 = 30;
 
 /// An appservice that is up answers a connection immediately — it is on the
 /// same network in every deployment that makes sense. `appservice_timeout`
