@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     account_data, admin, appservice, client, config, deactivate, emergency, federation,
-    key_backups, media, moderation, presence, pusher, resolver, rooms, sending, sendmail,
+    key_backups, media, moderation, oauth, presence, pusher, resolver, rooms, sending, sendmail,
     server_keys, server_state, sync, transaction_id, updates, users,
 };
 
@@ -46,6 +46,7 @@ pub struct Services {
     pub admin: Arc<admin::Service>,
     pub updates: Arc<updates::Service>,
     pub sendmail: Arc<sendmail::Service>,
+    pub oauth: Arc<oauth::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
     pub(crate) service: Arc<Map>,
@@ -127,6 +128,7 @@ impl Services {
             admin: build!(admin::Service),
             updates: build!(updates::Service),
             sendmail: build!(sendmail::Service),
+            oauth: build!(oauth::Service),
 
             manager: Mutex::new(None),
             service,

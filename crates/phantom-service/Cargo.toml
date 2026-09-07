@@ -99,6 +99,13 @@ tokio = { version = "1.49.0", default-features = false, features = [
 # tracing through phantom-core's re-export.
 tracing = "0.1.44"
 base64 = "0.23.1"
+# ECDSA on P-256 for the OIDC server's signing key: generating it, publishing
+# its public half as a JWK, and signing the ID tokens. Already what
+# phantom-core hashes with, so no second crypto backend comes with it.
+ring = "0.17.14"
+# `application/x-www-form-urlencoded` bodies, which is how OAuth 2 posts to a
+# provider's token and revocation endpoints.
+serde_html_form = "0.4.1"
 webpage = { version = "2.0.1", optional = true }
 image = { version = "0.25.10", optional = true }
 # `serde` for the media type a URL preview carries, which is stored and
