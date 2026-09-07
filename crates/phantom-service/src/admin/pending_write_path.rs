@@ -8,8 +8,9 @@
 //! function as its dependencies land, rather than rewritten from memory later.
 //!
 //! Every function here calls
-//! [`rooms::timeline::build_and_append_pdu`](crate::rooms::timeline), which is
-//! itself parked. What each one additionally waits on:
+//! [`rooms::timeline::build_and_append_pdu`](crate::rooms::timeline), which
+//! has since been ported and is no longer what holds this file back. What each
+//! one still waits on:
 //!
 //! - `send_text` / `send_message` / `respond_to_room` / `handle_response`:
 //!   `rooms::state` (the per-room mutex), `rooms::timeline`

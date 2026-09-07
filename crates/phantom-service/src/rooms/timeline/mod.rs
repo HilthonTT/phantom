@@ -1,16 +1,18 @@
 //! The PDUs of a room, in order.
 //!
 //! The read path is here — looking a PDU up by event id or by the id it is
-//! stored under, and streaming a room's PDUs in either direction — and the
-//! write path is in [`append`], which is where an event becomes part of a
-//! room rather than merely being known about.
+//! stored under, and streaming a room's PDUs in either direction. The write
+//! path is in two halves: [`build`], which turns a `PduBuilder` into a signed,
+//! authorized event of this server's own, and [`append`], which is where an
+//! event — built here or arrived over federation — becomes part of a room
+//! rather than merely being known about.
 //!
 //! What is still parked in `pending_write_path.rs`, which is not a module of
-//! this one, is the part that builds an event of this server's own
-//! (`create_hash_and_sign_event`, `build_and_append_pdu`) and backfill. Those
-//! wait on `rooms::event_handler`.
+//! this one, is backfill: asking another server for the history before what
+//! this server holds.
 
 mod append;
+mod build;
 mod data;
 
 use std::sync::Arc;
@@ -54,6 +56,7 @@ struct Services {
     read_receipt: Dep<rooms::read_receipt::Service>,
     search: Dep<rooms::search::Service>,
     sending: Dep<sending::Service>,
+    server_keys: Dep<crate::server_keys::Service>,
     server_state: Dep<server_state::Service>,
     short: Dep<rooms::short::Service>,
     spaces: Dep<rooms::spaces::Service>,
@@ -84,6 +87,7 @@ impl crate::Service for Service {
                 read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
                 search: args.depend::<rooms::search::Service>("rooms::search"),
                 sending: args.depend::<sending::Service>("sending"),
+                server_keys: args.depend::<crate::server_keys::Service>("server_keys"),
                 server_state: args.depend::<server_state::Service>("server_state"),
                 short: args.depend::<rooms::short::Service>("rooms::short"),
                 spaces: args.depend::<rooms::spaces::Service>("rooms::spaces"),

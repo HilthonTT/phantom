@@ -13,23 +13,17 @@
 //! already left. It stops there, at data no one else can see. Nothing in a
 //! room's timeline is touched.
 //!
-//! What is not here is the half of leaving that has to say so in the room:
-//! demoting the user's own power level first, so a room is not left with an
-//! admin who is gone, and the `m.room.member` leave event itself. Both build
-//! a PDU of this server's own, which waits on
-//! [`rooms::timeline`](crate::rooms::timeline)'s `build_and_append_pdu`, and
-//! both are parked in `pending_write_path.rs` until it lands. Until then a
-//! deactivating user is recorded as having left locally — the rooms leave
-//! their sync — and the other members of those rooms are not told.
+//! Leaving the rooms is [`leave`], which both demotes the user out of any
+//! power they hold and sends the leave events that tell each room's other
+//! members the account is gone.
+
+mod leave;
 
 use std::sync::Arc;
 
 use futures::StreamExt;
-use phantom_core::{Result, warn};
-use ruma::{
-    OwnedRoomId, RoomId, UserId,
-    events::room::member::{MembershipState, RoomMemberEventContent},
-};
+use phantom_core::Result;
+use ruma::{OwnedRoomId, UserId};
 
 use crate::{Dep, account_data, rooms, users};
 
@@ -39,7 +33,10 @@ pub struct Service {
 
 struct Services {
     account_data: Dep<account_data::Service>,
+    state: Dep<rooms::state::Service>,
+    state_accessor: Dep<rooms::state_accessor::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
+    timeline: Dep<rooms::timeline::Service>,
     users: Dep<users::Service>,
 }
 
@@ -51,7 +48,11 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             services: Services {
                 account_data: args.depend::<account_data::Service>("account_data"),
+                state: args.depend::<rooms::state::Service>("rooms::state"),
+                state_accessor: args
+                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
                 users: args.depend::<users::Service>("users"),
             },
         }))
@@ -77,6 +78,8 @@ impl Service {
     pub async fn full_deactivate(&self, user_id: &UserId, erase: bool) -> Result {
         self.services.users.deactivate_account(user_id).await?;
         self.services.users.clear_profile(user_id).await;
+
+        self.demote_self(user_id).await?;
 
         let all_rooms = self.all_rooms(user_id).await;
 
@@ -143,28 +146,6 @@ impl Service {
                 .account_data
                 .erase_user(user_id, Some(room_id))
                 .await;
-        }
-    }
-
-    /// Records the user as having left `room_id`, in this server's indexes
-    /// alone.
-    ///
-    /// This is the local half of leaving, and until the leave event in
-    /// `pending_write_path.rs` can be built it is the whole of what happens:
-    /// the room stops appearing in the user's sync, and the other members of
-    /// it still see the account as joined. A failure is logged rather than
-    /// returned, because one room that cannot be left is not a reason to
-    /// leave the rest of the account half torn down.
-    async fn leave_room(&self, user_id: &UserId, room_id: &RoomId) {
-        let leave_content = RoomMemberEventContent::new(MembershipState::Leave);
-
-        if let Err(e) = self
-            .services
-            .state_cache
-            .update_membership(room_id, user_id, leave_content, user_id, None, None, true)
-            .await
-        {
-            warn!(%user_id, %room_id, "Failed to record the user as having left: {e}");
         }
     }
 }
