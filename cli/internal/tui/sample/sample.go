@@ -210,6 +210,7 @@ var registry = []service{
 	{name: "admin", worker: true, purpose: "the admin room and its commands"},
 	{name: "updates", worker: true, purpose: "the announcement feed"},
 	{name: "sendmail", purpose: "outbound SMTP, when one is configured"},
+	{name: "deactivate", purpose: "tearing an account down"},
 
 	{name: "uiaa", unwired: true, purpose: "interactive-auth sessions in progress"},
 
@@ -217,7 +218,6 @@ var registry = []service{
 	{name: "oauth", planned: true, purpose: "OIDC login and OAuth2 (MSC3861)"},
 	{name: "threepid", planned: true, purpose: "email and phone bindings"},
 	{name: "registration_tokens", planned: true, purpose: "token-gated registration"},
-	{name: "deactivate", planned: true, purpose: "tearing an account down"},
 	{name: "rendezvous", planned: true, purpose: "QR-code login (MSC4108)"},
 	{name: "storage", planned: true, purpose: "object storage behind media"},
 	{name: "fetcher", planned: true, purpose: "coalesced federation fetches"},

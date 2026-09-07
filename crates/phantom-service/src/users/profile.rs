@@ -92,6 +92,25 @@ impl Service {
         }
     }
 
+    /// Removes every part of a user's profile: displayname, avatar URL,
+    /// blurhash, and all profile keys.
+    ///
+    /// The rooms the user is in are not told. A profile is also carried by
+    /// each of the user's `m.room.member` events, and bringing those in line
+    /// means sending a member event to every room, which is the caller's to
+    /// do — [`deactivate`](crate::deactivate) leaves the rooms outright
+    /// rather than announcing an emptied profile to each of them first.
+    pub async fn clear_profile(&self, user_id: &UserId) {
+        self.set_displayname(user_id, None);
+        self.set_avatar_url(user_id, None);
+        self.set_blurhash(user_id, None);
+
+        self.db
+            .useridprofilekey_value
+            .del_prefix(&(user_id, Interfix))
+            .await;
+    }
+
     /// Get the timezone of a user.
     pub async fn timezone(&self, user_id: &UserId) -> Result<String> {
         let unstable_key = (user_id, "us.cloke.msc4175.tz");

@@ -16,9 +16,9 @@ use super::{
     registry::{self, Map},
 };
 use crate::{
-    account_data, admin, appservice, client, config, emergency, federation, key_backups, media,
-    moderation, presence, pusher, resolver, rooms, sending, sendmail, server_keys, server_state,
-    sync, transaction_id, updates, users,
+    account_data, admin, appservice, client, config, deactivate, emergency, federation,
+    key_backups, media, moderation, presence, pusher, resolver, rooms, sending, sendmail,
+    server_keys, server_state, sync, transaction_id, updates, users,
 };
 
 /// Every service the server is built out of, and the database they share.
@@ -38,6 +38,7 @@ pub struct Services {
     pub key_backups: Arc<key_backups::Service>,
     pub appservice: Arc<appservice::Service>,
     pub users: Arc<users::Service>,
+    pub deactivate: Arc<deactivate::Service>,
     pub emergency: Arc<emergency::Service>,
     pub presence: Arc<presence::Service>,
     pub pusher: Arc<pusher::Service>,
@@ -118,6 +119,7 @@ impl Services {
             key_backups: build!(key_backups::Service),
             appservice: build!(appservice::Service),
             users: build!(users::Service),
+            deactivate: build!(deactivate::Service),
             emergency: build!(emergency::Service),
             presence: build!(presence::Service),
             pusher: build!(pusher::Service),

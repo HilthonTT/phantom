@@ -7,13 +7,13 @@
 
 use std::sync::Arc;
 
-use futures::{Stream, StreamExt, TryFutureExt};
+use futures::{Stream, StreamExt, TryFutureExt, future::join};
 use phantom_core::{
     Err, Result, err, implement,
     result::LogErr,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Handle, Ignore, Json, Map};
+use phantom_database::{Deserialized, Handle, Ignore, Interfix, Json, Map};
 use ruma::{
     RoomId, UserId,
     events::{
@@ -108,6 +108,27 @@ pub async fn update(
     }
 
     Ok(())
+}
+
+/// Erases every account data event a user has, in one room or globally.
+///
+/// This is the erasure MSC4025 asks for when a user deactivates and requests
+/// it: the account data they set is theirs and goes with them, unlike the
+/// events they sent, which stay in the rooms they were sent to.
+///
+/// Both indexes are keyed by `(room_id, user_id, ...)` and the global scope is
+/// the room-less one, so a single prefix covers each of them, and passing
+/// `None` for `room_id` takes the global scope alone rather than every room.
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "debug")]
+pub async fn erase_user(&self, user_id: &UserId, room_id: Option<&RoomId>) {
+    let prefix = (room_id, user_id, Interfix);
+
+    join(
+        self.db.roomuserdataid_accountdata.del_prefix(&prefix),
+        self.db.roomusertype_roomuserdataid.del_prefix(&prefix),
+    )
+    .await;
 }
 
 /// Searches the room account data for a specific kind.
