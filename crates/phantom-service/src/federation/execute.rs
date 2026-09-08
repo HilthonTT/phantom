@@ -12,10 +12,10 @@ use reqwest::{Client, Method, Request, Response, Url};
 use ruma::{
     ServerName,
     api::{
-        EndpointError, IncomingResponse, Metadata, OutgoingRequest,
+        EndpointError, IncomingResponseExt, Metadata, OutgoingRequest, OutgoingRequestExt,
         auth_scheme::NoAuthentication,
         error::Error as RumaError,
-        federation::authentication::{ServerSignatures, ServerSignaturesInput},
+        federation::authentication::{ServerSignatures, XMatrixSigningInput},
         path_builder::SinglePath,
     },
 };
@@ -63,7 +63,7 @@ where
 {
     let origin = self.services.server.name.clone();
     let keypair = self.services.server_keys.keypair();
-    let input = ServerSignaturesInput::new(origin, dest.to_owned(), keypair);
+    let input = XMatrixSigningInput::new(origin, dest.to_owned(), keypair);
 
     self.execute_on(client, dest, request, input).await
 }
@@ -209,8 +209,9 @@ where
     T: OutgoingRequest + Send,
 {
     let response = into_http_response(dest, actual, method, url, response).await?;
+    let (parts, body) = response.into_parts();
 
-    T::IncomingResponse::try_from_http_response(response)
+    T::IncomingResponse::try_from_http_response(http::Response::from_parts(parts, &body[..]))
         .map_err(|e| err!(BadServerResponse("Server returned bad 200 response: {e:?}")))
 }
 
@@ -254,9 +255,11 @@ async fn into_http_response(
 
     debug!("Got {status:?} for {method} {url}");
     if !status.is_success() {
+        let (parts, body) = http_response.into_parts();
+
         return Err(Error::Federation(
             dest.to_owned(),
-            RumaError::from_http_response(http_response),
+            RumaError::from_http_response(http::Response::from_parts(parts, &body[..])),
         ));
     }
 

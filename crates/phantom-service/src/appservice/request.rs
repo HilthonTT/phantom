@@ -10,9 +10,8 @@ use std::{fmt::Debug, mem};
 use bytes::{Bytes, BytesMut};
 use phantom_core::{Err, Result, debug_error, err, http, implement, text, trace, warn};
 use ruma::api::{
-    IncomingResponse, Metadata, OutgoingRequest,
-    appservice::Registration,
-    auth_scheme::{AccessToken, SendAccessToken},
+    IncomingResponseExt, Metadata, OutgoingRequest, OutgoingRequestExt,
+    appservice::{HomeserverToken, Registration},
     path_builder::SinglePath,
 };
 
@@ -29,7 +28,7 @@ pub(crate) async fn send_request<T>(
 ) -> Result<Option<T::IncomingResponse>>
 where
     T: OutgoingRequest
-        + Metadata<Authentication = AccessToken, PathBuilder = SinglePath>
+        + Metadata<Authentication = HomeserverToken, PathBuilder = SinglePath>
         + Debug
         + Send,
 {
@@ -48,7 +47,7 @@ where
 
     let hs_token = registration.hs_token.as_str();
     let mut http_request = request
-        .try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(hs_token), ())
+        .try_into_http_request::<BytesMut>(&dest, hs_token, ())
         .map_err(|e| {
             err!(BadServerResponse(warn!(
                 message = format_args!("Failed to find destination {dest}: {e:?}"),
@@ -102,7 +101,7 @@ where
 
     let response = T::IncomingResponse::try_from_http_response(
         http_response_builder
-            .body(body)
+            .body(&body[..])
             .expect("reqwest body is valid http body"),
     );
 

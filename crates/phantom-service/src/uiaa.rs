@@ -167,10 +167,10 @@ pub async fn try_auth(
             };
 
             if !hash_matches {
-                uiaainfo.auth_error = Some(StandardErrorBody::new(
+                uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(
                     ErrorKind::Forbidden,
                     "Invalid username or password.".to_owned(),
-                ));
+                )));
                 return Ok((false, uiaainfo));
             }
 
@@ -181,10 +181,10 @@ pub async fn try_auth(
             if tokens.contains(t.token.trim()) {
                 uiaainfo.completed.push(AuthType::RegistrationToken);
             } else {
-                uiaainfo.auth_error = Some(StandardErrorBody::new(
+                uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(
                     ErrorKind::Forbidden,
                     "Invalid registration token.".to_owned(),
-                ));
+                )));
                 return Ok((false, uiaainfo));
             }
         }

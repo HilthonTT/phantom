@@ -29,7 +29,7 @@ use phantom_database::{Deserialized, Ignore, Interfix, Json, Map};
 use ruma::{
     DeviceId, OwnedDeviceId, RoomId, UInt, UserId,
     api::{
-        IncomingResponse, Metadata, OutgoingRequest,
+        IncomingResponseExt, Metadata, OutgoingRequest, OutgoingRequestExt,
         auth_scheme::NoAuthentication,
         client::push::{Pusher, PusherKind, set_pusher},
         path_builder::SinglePath,
@@ -289,7 +289,7 @@ where
 
     T::IncomingResponse::try_from_http_response(
         http_response_builder
-            .body(body)
+            .body(&body[..])
             .expect("reqwest body is valid http body"),
     )
     .map_err(|e| {
