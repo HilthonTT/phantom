@@ -213,6 +213,80 @@ func TestCursorMovesAndTheListingScrolls(t *testing.T) {
 	}
 }
 
+// arrow feeds a movement key the way a terminal sends one: a key code with no
+// text behind it. That is what separates a real arrow from the `j` and `k` the
+// same binding is aliased onto.
+func arrow(t *testing.T, m Model, code rune) Model {
+	t.Helper()
+
+	next, _ := m.Update(tea.KeyPressMsg{Code: code})
+
+	m, ok := next.(Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want app.Model", next)
+	}
+
+	return m
+}
+
+// A filter is only useful if the row it narrowed to can then be reached, so
+// the arrows have to keep working while the box is open.
+func TestArrowsMoveTheCursorWhileFiltering(t *testing.T) {
+	m := sized(t, 120, 32)
+	m.focus = focusWorkspace
+
+	m = press(t, m, "/")
+	if !m.workspace.Filtering() {
+		t.Fatal("`/` did not open the workspace filter")
+	}
+
+	first, ok := m.workspace.Selected()
+	if !ok {
+		t.Fatal("nothing selected with the filter open")
+	}
+
+	m = arrow(t, m, tea.KeyDown)
+	second, ok := m.workspace.Selected()
+	if !ok {
+		t.Fatal("nothing selected after the down arrow")
+	}
+	if second.Cells[0] == first.Cells[0] {
+		t.Errorf("the down arrow left the cursor on %q", first.Cells[0])
+	}
+
+	m = arrow(t, m, tea.KeyUp)
+	back, ok := m.workspace.Selected()
+	if !ok {
+		t.Fatal("nothing selected after the up arrow")
+	}
+	if back.Cells[0] != first.Cells[0] {
+		t.Errorf("the up arrow landed on %q, want %q", back.Cells[0], first.Cells[0])
+	}
+}
+
+// The movement keys are aliased onto `j` and `k`, which are also letters. A
+// filter box that swallowed them could not be used to search for "Tasks".
+func TestViKeysAreTextWhileFiltering(t *testing.T) {
+	m := sized(t, 120, 32)
+	m.focus = focusSidebar
+
+	all := len(m.sidebar.Sections())
+
+	m = press(t, m, "/")
+	m = press(t, m, "k")
+
+	got := len(m.sidebar.Sections())
+	if got == all {
+		t.Errorf("typing `k` filtered nothing: still %d sections", got)
+	}
+
+	for _, section := range m.sidebar.Sections() {
+		if !strings.Contains(strings.ToLower(section.String()), "k") {
+			t.Errorf("section %q does not match the typed filter \"k\"", section)
+		}
+	}
+}
+
 // Filtering narrows the sidebar to the sections that match, and leaving the
 // filter restores all of them.
 func TestSidebarFilterNarrowsTheSections(t *testing.T) {

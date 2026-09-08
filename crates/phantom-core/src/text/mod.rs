@@ -142,6 +142,27 @@ mod tests {
         assert_eq!("".unquote_infallible(), "");
     }
 
+    /// `is_quoted` is the predicate the fallible methods are documented
+    /// against, so it has to agree with them on every input. A lone quote is
+    /// the one that pulls them apart: it starts and ends with a quote without
+    /// being a quoted string, and `Unquoted` deserialization trusts this
+    /// answer before unquoting.
+    #[test]
+    fn is_quoted_agrees_with_unquote() {
+        use super::Unquote;
+
+        for input in ["\"abc\"", "abc", "\"abc", "abc\"", "\"", "", "\"\""] {
+            assert_eq!(
+                input.is_quoted(),
+                input.unquote().is_some(),
+                "is_quoted and unquote disagree about {input:?}"
+            );
+        }
+
+        assert!(!"\"".is_quoted(), "a lone quote is not a quoted string");
+        assert!("\"\"".is_quoted(), "two quotes are an empty quoted string");
+    }
+
     #[test]
     fn camel_to_snake_splits_on_the_capitals() {
         assert_eq!(camel_to_snake_string("CamelCase"), "camel_case");

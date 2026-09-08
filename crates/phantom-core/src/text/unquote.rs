@@ -24,7 +24,10 @@ impl<'a> Unquote<'a> for &'a str {
 
     #[inline]
     fn is_quoted(&self) -> bool {
-        self.starts_with(QUOTE) && self.ends_with(QUOTE)
+        // Asked of `unquote` rather than of the two ends separately: a lone
+        // quote both starts and ends with one, and answering true for it
+        // promises an unquoting that `unquote` then refuses to do.
+        self.unquote().is_some()
     }
 
     #[inline]

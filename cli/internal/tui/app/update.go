@@ -91,6 +91,12 @@ func (m Model) startFiltering() (tea.Model, tea.Cmd) {
 
 // handleFilterKey routes to the open filter box, intercepting only the keys
 // that close it or step the cursor while it stays open.
+//
+// Movement is taken from the arrows alone rather than from the whole binding.
+// [keymap.Default] aliases them onto `j` and `k`, which are also letters
+// somebody filtering for "Tasks" has to be able to type; a key carrying
+// printable text is therefore text, and only a movement key without any —
+// an arrow — steps the cursor.
 func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Cancel):
@@ -103,10 +109,20 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case key.Matches(msg, m.keys.Up):
+	case msg.Text == "" && key.Matches(msg, m.keys.Up):
+		if m.sidebar.Filtering() {
+			m.sidebar.MoveUp()
+		} else {
+			m.workspace.MoveUp()
+		}
 		return m, nil
 
-	case key.Matches(msg, m.keys.Down):
+	case msg.Text == "" && key.Matches(msg, m.keys.Down):
+		if m.sidebar.Filtering() {
+			m.sidebar.MoveDown()
+		} else {
+			m.workspace.MoveDown()
+		}
 		return m, nil
 	}
 
