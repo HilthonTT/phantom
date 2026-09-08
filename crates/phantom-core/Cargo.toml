@@ -64,7 +64,7 @@ ring = "0.17.14"
 url = "2.5.7"
 # No `state-res`: `matrix::state_res` is this crate's own implementation, so
 # ruma's would only be dead weight.
-ruma = { version = "0.16.0", features = [
+ruma = { version = "0.17.0", features = [
     "api",
     "client-api",
     "events",
