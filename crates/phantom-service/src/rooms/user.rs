@@ -9,13 +9,16 @@
 use std::{fmt::Debug, sync::Arc};
 
 use phantom_core::{Result, implement};
-use phantom_database::{Deserialized, Engine, Map};
-use ruma::{RoomId, UserId};
+use phantom_database::{Deserialized, Engine, Interfix, Map};
+use ruma::{OwnedUserId, RoomId, UserId};
 use serde::Serialize;
 
 use crate::{
     Dep,
-    rooms::{self, short::ShortStateHash},
+    rooms::{
+        self,
+        short::{ShortRoomId, ShortStateHash},
+    },
     server_state,
 };
 
@@ -152,4 +155,41 @@ pub async fn get_token_shortstatehash(
         .qry(key)
         .await
         .deserialized()
+}
+
+/// Drops everything this column set holds about a room.
+///
+/// The read markers and the token-to-state-version map are keyed room first,
+/// so each is one prefix. The two unread counters are not — they are keyed by
+/// user, so that a client's badge for every room is one scan — which is why
+/// `users` has to be passed in. It is the set of users who were ever joined:
+/// a counter is only ever incremented for a member, and the room-keyed
+/// membership indexes it would otherwise be read from are gone by the time a
+/// purge reaches here.
+#[implement(Service)]
+#[tracing::instrument(skip(self, users), level = "debug")]
+pub(super) async fn delete_room_notification_state(
+    &self,
+    room_id: &RoomId,
+    shortroomid: ShortRoomId,
+    users: &[OwnedUserId],
+) {
+    let _cork = self.db.engine.cork_guard();
+
+    for user_id in users {
+        let userroom_id = (user_id, room_id);
+
+        self.db.userroomid_notificationcount.del(userroom_id).ok();
+        self.db.userroomid_highlightcount.del(userroom_id).ok();
+    }
+
+    self.db
+        .roomuserid_lastnotificationread
+        .del_prefix(&(room_id, Interfix))
+        .await;
+
+    self.db
+        .roomsynctoken_shortstatehash
+        .del_prefix(&shortroomid)
+        .await;
 }

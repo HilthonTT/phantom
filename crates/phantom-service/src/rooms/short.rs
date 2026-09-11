@@ -288,3 +288,13 @@ pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> ShortRoomId {
             short
         })
 }
+/// Drops a room's short id, which is the last thing a purge removes.
+///
+/// The event mappings — `eventid_shorteventid` and its reverse — are left
+/// alone. A short event id is referenced from columns no longer scoped to the
+/// room it was assigned in, the auth chain index among them, so reclaiming
+/// them is a sweep of its own rather than part of deleting one room.
+#[implement(Service)]
+pub(super) fn delete_shortroomid(&self, room_id: &RoomId) -> Result {
+    self.db.roomid_shortroomid.remove(room_id)
+}

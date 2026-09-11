@@ -15,6 +15,7 @@
 //! [`state_accessor`]: crate::rooms::state_accessor
 //! [`update_membership`]: Service::update_membership
 
+mod delete;
 mod members;
 mod membership;
 mod servers;

@@ -14,6 +14,7 @@
 mod append;
 mod build;
 mod data;
+mod purge;
 
 use std::sync::Arc;
 
@@ -54,6 +55,7 @@ struct Services {
     pdu_metadata: Dep<rooms::pdu_metadata::Service>,
     pusher: Dep<crate::pusher::Service>,
     read_receipt: Dep<rooms::read_receipt::Service>,
+    retention: Dep<rooms::retention::Service>,
     search: Dep<rooms::search::Service>,
     sending: Dep<sending::Service>,
     server_keys: Dep<crate::server_keys::Service>,
@@ -85,6 +87,7 @@ impl crate::Service for Service {
                 pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
                 pusher: args.depend::<crate::pusher::Service>("pusher"),
                 read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
+                retention: args.depend::<rooms::retention::Service>("rooms::retention"),
                 search: args.depend::<rooms::search::Service>("rooms::search"),
                 sending: args.depend::<sending::Service>("sending"),
                 server_keys: args.depend::<crate::server_keys::Service>("server_keys"),

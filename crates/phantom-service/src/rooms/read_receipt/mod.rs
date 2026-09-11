@@ -185,3 +185,11 @@ where
             .expect("received valid json"),
     )
 }
+
+/// Drops every receipt set in a room, public and private alike.
+#[implement(Service)]
+#[inline]
+#[tracing::instrument(skip(self), level = "debug")]
+pub(super) async fn delete_all_read_receipts(&self, room_id: &RoomId) {
+    self.db.delete_all_read_receipts(room_id).await;
+}

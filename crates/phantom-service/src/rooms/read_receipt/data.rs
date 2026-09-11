@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, future::join3};
 use phantom_core::{
     Result, err,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Json, Map};
+use phantom_database::{Deserialized, Interfix, Json, Map};
 use ruma::{
     CanonicalJsonObject, RoomId, UserId,
     events::{AnySyncEphemeralRoomEvent, receipt::ReceiptEvent},
@@ -138,5 +138,22 @@ impl Data {
             .await
             .deserialized()
             .unwrap_or(0)
+    }
+
+    /// Drops every receipt set in a room, public and private alike.
+    ///
+    /// All three columns are keyed room first, so each is one prefix. The
+    /// public receipts go with the rest of the room; the private ones are
+    /// this server's own record and have nothing left to point at once the
+    /// timeline is gone.
+    pub(super) async fn delete_all_read_receipts(&self, room_id: &RoomId) {
+        let prefix = (room_id, Interfix);
+
+        join3(
+            self.readreceiptid_readreceipt.del_prefix(&prefix),
+            self.roomuserid_privateread.del_prefix(&prefix),
+            self.roomuserid_lastprivatereadupdate.del_prefix(&prefix),
+        )
+        .await;
     }
 }

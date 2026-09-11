@@ -8,7 +8,7 @@ use phantom_core::{
     result::LogErr,
     stream::{ReadyExt, TryIgnore, WidebandExt},
 };
-use phantom_database::Map;
+use phantom_database::{Interfix, Map};
 use ruma::{EventId, RoomId, UserId, api::Direction};
 
 use crate::{
@@ -120,5 +120,25 @@ impl Data {
     /// Whether the event was soft-failed when it was first seen.
     pub(super) async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
         self.softfailedeventids.get(event_id).await.is_ok()
+    }
+
+    /// Drops every record of an event in `room_id` referencing another.
+    pub(super) async fn delete_all_referenced(&self, room_id: &RoomId) {
+        self.referencedevents.del_prefix(&(room_id, Interfix)).await;
+    }
+
+    /// Drops every relation pointing at the event counted `to`.
+    ///
+    /// The column is keyed target first, so one event's relations are a
+    /// prefix. Nothing indexes the other direction: a relation lives in the
+    /// room its target does, so purging a room's events target by target
+    /// leaves none of its pairs behind.
+    pub(super) async fn purge_relations(&self, to: &[u8]) {
+        self.tofrom_relation.raw_del_prefix(to).await;
+    }
+
+    /// Forgets that an event was soft-failed.
+    pub(super) fn purge_soft_failed(&self, event_id: &EventId) {
+        self.softfailedeventids.remove(event_id).ok();
     }
 }

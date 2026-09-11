@@ -189,6 +189,17 @@ impl Service {
         Ok(stream)
     }
 
+    /// Drops the participant set of every thread in a room.
+    ///
+    /// Keyed by the root event's pdu id, which begins with the room's short
+    /// id, so one room's threads are a single prefix. The thread summaries
+    /// themselves need no sweep: they live in the root events' `unsigned`,
+    /// and those PDUs are going with the rest of the timeline.
+    #[tracing::instrument(skip(self), level = "debug")]
+    pub(super) async fn delete_all_threads(&self, shortroomid: ShortRoomId) {
+        self.db.threadid_userids.del_prefix(&shortroomid).await;
+    }
+
     pub(super) fn update_participants(
         &self,
         root_id: &RawPduId,

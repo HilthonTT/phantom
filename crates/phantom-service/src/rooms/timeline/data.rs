@@ -14,9 +14,9 @@ use super::{PduId, RawPduId};
 use crate::{Dep, rooms, rooms::short::ShortRoomId};
 
 pub(super) struct Data {
-    eventid_outlierpdu: Arc<Map>,
-    eventid_pduid: Arc<Map>,
-    pduid_pdu: Arc<Map>,
+    pub(super) eventid_outlierpdu: Arc<Map>,
+    pub(super) eventid_pduid: Arc<Map>,
+    pub(super) pduid_pdu: Arc<Map>,
     userroomid_highlightcount: Arc<Map>,
     userroomid_notificationcount: Arc<Map>,
     pub(super) engine: Arc<Engine>,

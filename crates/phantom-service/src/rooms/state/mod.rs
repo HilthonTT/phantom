@@ -452,6 +452,40 @@ impl Service {
         }
     }
 
+    /// Drops every forward extremity of a room.
+    ///
+    /// The empty form of [`set_forward_extremities`], for a room whose
+    /// timeline is going away entirely. Anything short of that wants the
+    /// setter: a room with no extremities has nowhere to hang its next event.
+    ///
+    /// [`set_forward_extremities`]: Self::set_forward_extremities
+    #[tracing::instrument(skip(self, _state_lock), level = "debug")]
+    pub(super) async fn delete_all_forward_extremities(
+        &self,
+        room_id: &RoomId,
+        _state_lock: &RoomMutexGuard,
+    ) {
+        self.db
+            .roomid_pduleaves
+            .del_prefix(&(room_id, Interfix))
+            .await;
+    }
+
+    /// Forgets which state version a room is at.
+    ///
+    /// The compressed state that version points at is left behind. It is
+    /// shared between versions and between rooms by construction, so it is
+    /// reclaimed by a sweep of what nothing references rather than by the
+    /// deletion of one room.
+    #[tracing::instrument(skip(self, _state_lock), level = "debug")]
+    pub(super) fn delete_room_shortstatehash(
+        &self,
+        room_id: &RoomId,
+        _state_lock: &RoomMutexGuard,
+    ) -> Result {
+        self.db.roomid_shortstatehash.remove(room_id)
+    }
+
     /// The events authorizing an event that has not been built yet.
     ///
     /// Which state events those are is decided by the event's own type,

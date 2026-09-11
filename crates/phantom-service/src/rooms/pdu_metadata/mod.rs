@@ -174,3 +174,24 @@ pub fn mark_event_soft_failed(&self, event_id: &EventId) {
 pub async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
     self.db.is_event_soft_failed(event_id).await
 }
+
+/// Drops every record of an event in `room_id` referencing another.
+#[implement(Service)]
+#[inline]
+#[tracing::instrument(skip(self), level = "debug")]
+pub(super) async fn delete_all_referenced(&self, room_id: &RoomId) {
+    self.db.delete_all_referenced(room_id).await;
+}
+
+/// Drops every relation pointing at one purged event, and its soft-fail mark.
+///
+/// Called per event as a room's timeline is purged rather than once for the
+/// room, because neither column is keyed by room: the relation pairs are
+/// short event ids, and a soft-failed event was never in a room's timeline to
+/// begin with.
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "trace")]
+pub(super) async fn purge_event(&self, shorteventid: &[u8], event_id: &EventId) {
+    self.db.purge_relations(shorteventid).await;
+    self.db.purge_soft_failed(event_id);
+}

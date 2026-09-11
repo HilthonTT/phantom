@@ -125,6 +125,20 @@ pub fn deindex_pdu(
     Ok(())
 }
 
+/// Drops every indexed token of a room's messages.
+///
+/// A token key begins with the room's short id, so the whole index for one
+/// room is a single prefix. This is the wholesale form of
+/// [`deindex_pdu`](Self::deindex_pdu), which a purge uses instead of
+/// deindexing each message in turn: it does not need the message bodies, and
+/// a redacted message's tokens are gone from the index while its PDU is still
+/// in the timeline, so walking the PDUs would miss them.
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "debug")]
+pub(super) async fn delete_all_tokenids(&self, shortroomid: ShortRoomId) {
+    self.db.tokenids.del_prefix(&shortroomid).await;
+}
+
 /// The events in one room matching a query, and how many there were.
 ///
 /// The count is of what the index matched, before the filter and the
