@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+
+mod error;
+mod inflight;
 mod opts;
 mod select;
 mod transport;
@@ -6,9 +10,15 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 
-use loole::{Receiver, Sender, unbounded};
+use loole::{Receiver, Sender};
 
-use self::{select::Select, transport::Transport};
+pub use self::opts::{EventWindow, FanoutGrowth, Op, Opts, Outcome};
+use self::{
+    error::Failure,
+    inflight::{Key, Subscription},
+    select::Select,
+    transport::Transport,
+};
 use crate::Services;
 
 const REQUESTS_MAX: usize = 100;
