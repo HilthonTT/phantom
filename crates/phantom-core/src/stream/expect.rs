@@ -2,16 +2,9 @@ use futures::{Stream, StreamExt, TryStream};
 
 use crate::Result;
 
-/// Unwraps a fallible stream, panicking on the first error.
-///
-/// For streams whose errors mean a bug rather than a condition the caller can
-/// act on; anything recoverable belongs in [`super::TryIgnore`] or ordinary
-/// `TryStream` handling.
 pub trait TryExpect<'a, Item> {
-    /// Unwraps each item, panicking with a generic message on an error.
     fn expect_ok(self) -> impl Stream<Item = Item> + Send + 'a;
 
-    /// Unwraps each item, panicking with `msg` on an error.
     fn map_expect(self, msg: &'a str) -> impl Stream<Item = Item> + Send + 'a;
 }
 

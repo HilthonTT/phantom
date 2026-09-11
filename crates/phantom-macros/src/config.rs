@@ -34,9 +34,6 @@ pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<Toke
 fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<TokenStream2> {
     let settings = get_simple_settings(args);
 
-    // A struct either opens a section or continues one already opened by a
-    // struct expanded before it. Only the opener writes the `[section]` line,
-    // so a section split across several structs still reads as one table.
     let continues = settings.get("continues");
     let section = settings.get("section").or(continues).ok_or_else(|| {
         Error::new(
@@ -45,10 +42,6 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
         )
     })?;
 
-    // `global` is the first section in the file, so opening it starts the file
-    // over. Everything else appends, which is what makes the output depend on
-    // the order the annotated structs are expanded in — module declaration
-    // order in the config crate.
     let truncate = settings
         .get("section")
         .is_some_and(|section| section == "global");
@@ -70,9 +63,6 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
         .split(' ')
         .collect();
 
-    // Fields holding a `#[serde(flatten)]` sub-struct. They carry no option of
-    // their own, so they are skipped when writing the example file, but their
-    // contents still belong in the summary table — this is what puts them back.
     let flattened: Vec<syn::Ident> = settings
         .get("flattened")
         .map_or("", String::as_str)
@@ -187,11 +177,7 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
     let struct_name = &input.ident;
     let display = quote! {
         impl #struct_name {
-            /// The struct's own rows of the summary table, without its header.
-            ///
-            /// Split out from [`Display`](std::fmt::Display) so that a struct
-            /// built from flattened parts can lay its parts' rows under one
-            /// header rather than printing a table per part.
+
             pub(crate) fn summary_rows<W>(&self, out: &mut W) -> std::fmt::Result
             where
                 W: std::fmt::Write + ?Sized,

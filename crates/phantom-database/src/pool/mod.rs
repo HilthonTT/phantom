@@ -1,15 +1,3 @@
-//! The thread pool that blocking database work is offloaded to.
-//!
-//! A read which misses the block cache blocks the calling thread until the
-//! storage answers. Doing that on a tokio worker would stall every other task
-//! sharing it, so the map layer tries the cache first and, on a miss, submits
-//! the work here instead: operating-system threads whose whole job is to sit
-//! in that wait.
-//!
-//! The pool is sized and laid out after the storage device rather than after
-//! the CPU — see [`configure`] — because the thing being waited on is the
-//! device's own queue depth.
-
 mod configure;
 
 use std::{
@@ -36,56 +24,33 @@ use smallvec::SmallVec;
 use self::configure::configure;
 use crate::{Handle, cursor, keyval::KeyBuf, map::Map};
 
-/// Frontend to the worker threads.
 pub(crate) struct Pool {
     server: Arc<Server>,
 
-    /// One queue per hardware queue on the storage device. Which one a request
-    /// goes to is decided by the core it was submitted from, so that a request
-    /// stays on the node whose device queue will carry it.
     queues: Vec<Sender<Cmd>>,
 
     workers: Mutex<Vec<JoinHandle<()>>>,
 
-    /// Maps a core to the queue serving it; the inverse of the affinity each
-    /// worker sets for itself.
     topology: Vec<usize>,
 
-    /// Workers not currently parked waiting for a request. Observed by the
-    /// tracing spans; not load-bearing.
     busy: AtomicUsize,
 
-    /// High-water mark of any queue's depth, kept under debug only, to show
-    /// whether the queue sizing is anywhere near being hit.
     queued_max: AtomicUsize,
 }
 
-/// What a worker can be asked to do.
 pub(crate) enum Cmd {
-    /// Read one or more keys from a column.
     Get(Get),
 
-    /// Position a cursor, which is the step of an iteration that may block.
     Iter(Seek),
 }
 
-/// A read of one or more keys, all from the same column.
 pub(crate) struct Get {
     pub(crate) map: Arc<Map>,
     pub(crate) key: BatchQuery,
     pub(crate) res: Option<ResultSender<BatchResult<'static>>>,
 }
 
-/// Positioning a cursor.
-///
-/// Only the initial seek is submitted. The steps after it are taken on the
-/// caller's thread, on the assumption that the engine's readahead has the next
-/// block in hand by then; a step that does block is the price of not paying a
-/// queue round trip per entry.
 pub(crate) struct Seek {
-    // Declared before `map` so the cursor is dropped first: if this `Arc` is
-    // the last owner of the engine, dropping it closes the database, and an
-    // iterator must not outlive that.
     pub(crate) state: cursor::State<'static>,
     pub(crate) map: Arc<Map>,
     pub(crate) dir: Direction,
@@ -98,18 +63,12 @@ type ResultSender<T> = oneshot::Sender<T>;
 pub(crate) type BatchQuery = SmallVec<[KeyBuf; BATCH_INLINE]>;
 pub(crate) type BatchResult<'a> = SmallVec<[Result<Handle<'a>>; BATCH_INLINE]>;
 
-/// Batches of one are the common case — a single `get` — so that is what the
-/// batch buffers hold before spilling.
 const BATCH_INLINE: usize = 1;
 
-/// Bounds on the derived worker count, whatever the device claims.
 const WORKER_LIMIT: (usize, usize) = (1, 1024);
 
-/// Bounds on the derived queue depth. The lower bound matters: a zero-capacity
-/// queue would rendezvous, serializing every submission against a worker.
 const QUEUE_LIMIT: (usize, usize) = (1, 4096);
 
-/// Workers only ever call into the engine, which keeps its own stacks.
 const WORKER_STACK_SIZE: usize = 1_048_576;
 
 const WORKER_NAME: &str = "phantom:db";
@@ -135,11 +94,6 @@ pub(crate) fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
     Ok(pool)
 }
 
-/// Closes the queues and joins every worker.
-///
-/// Separate from `Drop` because the engine has to outlive the workers — they
-/// hold column handles into it — so this is driven before the database is
-/// dropped rather than as a consequence of it.
 #[implement(Pool)]
 #[tracing::instrument(skip_all)]
 pub(crate) fn close(&self) {
@@ -159,9 +113,6 @@ pub(crate) fn close(&self) {
         "Closing pool. Waiting for workers to join..."
     );
 
-    // A queued command holds the map, and so the engine; if a worker drains
-    // the last such command it becomes the engine's final owner and closes
-    // the pool from its own thread. Joining itself would deadlock.
     let this_thread = thread::current().id();
 
     workers
@@ -212,7 +163,6 @@ fn spawn_one(self: Arc<Self>, workers: &mut Vec<JoinHandle<()>>, recv: &[Receive
     Ok(())
 }
 
-/// Runs a read on a worker and awaits its result.
 #[implement(Pool)]
 #[tracing::instrument(level = "trace", name = "get", skip(self, cmd))]
 pub(crate) async fn execute_get(self: &Arc<Self>, mut cmd: Get) -> Result<BatchResult<'_>> {
@@ -228,7 +178,6 @@ pub(crate) async fn execute_get(self: &Arc<Self>, mut cmd: Get) -> Result<BatchR
         .await
 }
 
-/// Positions a cursor on a worker and awaits it.
 #[implement(Pool)]
 #[tracing::instrument(level = "trace", name = "iter", skip(self, cmd))]
 pub(crate) async fn execute_iter(self: &Arc<Self>, mut cmd: Seek) -> Result<cursor::State<'_>> {
@@ -244,7 +193,6 @@ pub(crate) async fn execute_iter(self: &Arc<Self>, mut cmd: Seek) -> Result<curs
         .await
 }
 
-/// The queue serving the core this task is running on.
 #[implement(Pool)]
 fn select_queue(&self) -> &Sender<Cmd> {
     let core_id = get_affinity().next().unwrap_or(0);

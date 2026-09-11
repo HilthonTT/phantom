@@ -1,9 +1,3 @@
-//! Intersecting sorted sequences.
-//!
-//! The inputs are already in order — they come off the database in key order —
-//! so the intersection is a merge rather than a hash join, and streams out
-//! without ever holding both sides in memory.
-
 use std::{
     cmp::{Eq, Ord},
     pin::Pin,
@@ -14,11 +8,6 @@ use futures::{Stream, StreamExt};
 
 use crate::{is_equal_to, is_less_than};
 
-/// Intersection of sets
-///
-/// Outputs the set of elements common to all input sets. Inputs do not have to
-/// be sorted. If inputs are sorted a more optimized function is available in
-/// this suite and should be used.
 pub fn intersection<Item, Iter, Iters>(mut input: Iters) -> impl Iterator<Item = Item> + Send
 where
     Iters: Iterator<Item = Iter> + Clone + Send,
@@ -35,9 +24,6 @@ where
     })
 }
 
-/// Intersection of sets
-///
-/// Outputs the set of elements common to all input sets. Inputs must be sorted.
 pub fn intersection_sorted<Item, Iter, Iters>(mut input: Iters) -> impl Iterator<Item = Item> + Send
 where
     Iters: Iterator<Item = Iter> + Clone + Send,
@@ -58,9 +44,6 @@ where
     })
 }
 
-/// Intersection of sets
-///
-/// Outputs the set of elements common to both streams. Streams must be sorted.
 pub fn intersection_sorted_stream2<Item, S>(a: S, b: S) -> impl Stream<Item = Item> + Send
 where
     S: Stream<Item = Item> + Send + Unpin,
@@ -104,9 +87,6 @@ mod tests {
         assert_eq!(intersection(empty.into_iter()).count(), 0);
     }
 
-    /// A candidate that a later set only matches after that set has been
-    /// advanced must still be reported — the advanced-past element has to
-    /// survive between candidates.
     #[test]
     fn intersection_sorted_keeps_matches_across_advances() {
         let a = [1_u32, 2, 3, 4];

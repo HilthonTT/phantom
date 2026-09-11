@@ -1,5 +1,3 @@
-//! Opening the database.
-
 use std::{
     collections::BTreeSet,
     path::Path,
@@ -18,8 +16,6 @@ use super::{
 };
 use crate::{engine::error::or_else, pool::Pool};
 
-/// Opens the database at the configured path, creating it if it is not there,
-/// with one column per entry in `desc`.
 #[implement(Engine)]
 #[tracing::instrument(skip_all)]
 pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
@@ -74,11 +70,6 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
     }))
 }
 
-/// Pairs each described column with its options.
-///
-/// Every column already in the database has to be listed at open, including any
-/// phantom no longer describes: an unlisted column would be an error, so those
-/// are opened against a tombstone descriptor and left alone.
 #[implement(Engine)]
 #[tracing::instrument(name = "configure", skip_all)]
 fn configure_cfds(
@@ -135,8 +126,6 @@ fn configure_cfds(
     Ok(cfds)
 }
 
-/// The columns an existing database holds. An unreadable or absent database
-/// yields none, leaving the caller to create every described column.
 #[implement(Engine)]
 #[tracing::instrument(name = "discover", skip_all)]
 fn discover_cfs(path: &Path, opts: &Options) -> BTreeSet<String> {

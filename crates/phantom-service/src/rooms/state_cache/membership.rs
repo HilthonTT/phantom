@@ -1,10 +1,6 @@
 use super::*;
 
 impl Service {
-    /// Brings the membership indexes in line with a membership event.
-    ///
-    /// This is the way in: the `mark_as_*` functions below are the individual
-    /// writes it is made of, and skip everything this does around them.
     #[tracing::instrument(
         level = "debug",
         skip_all,
@@ -85,11 +81,6 @@ impl Service {
         Ok(())
     }
 
-    /// Carries a user's per-room settings across a room upgrade.
-    ///
-    /// Tags and the direct-chat flag only. Push rules are the other thing the
-    /// spec asks to be carried over, and are not here because phantom has no
-    /// pusher service yet to own them.
     async fn copy_room_settings(
         &self,
         predecessor: &RoomId,
@@ -144,13 +135,6 @@ impl Service {
         Ok(())
     }
 
-    /// Records a user as joined, clearing every other membership.
-    ///
-    /// One of the raw writes behind [`update_membership`], which is what a
-    /// caller should reach for instead: this skips the ignore check, the
-    /// upgrade carry-over and the count refresh.
-    ///
-    /// [`update_membership`]: Self::update_membership
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) {
         let userroom_id = serialize_key((user_id, room_id)).expect("failed to serialize key");
@@ -163,9 +147,6 @@ impl Service {
         self.db.roomid_inviteviaservers.remove(room_id).ok();
     }
 
-    /// Records a user as having left, clearing every other membership.
-    ///
-    /// See [`mark_as_joined`](Self::mark_as_joined) on using this directly.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) {
         let userroom_id = serialize_key((user_id, room_id)).expect("failed to serialize key");
@@ -186,9 +167,6 @@ impl Service {
         self.db.roomid_inviteviaservers.remove(room_id).ok();
     }
 
-    /// Records a user as knocking, clearing every other membership.
-    ///
-    /// See [`mark_as_joined`](Self::mark_as_joined) on using this directly.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn mark_as_knocked(
         &self,
@@ -212,9 +190,6 @@ impl Service {
         self.db.roomid_inviteviaservers.remove(room_id).ok();
     }
 
-    /// Records a user as invited, clearing every other membership.
-    ///
-    /// See [`mark_as_joined`](Self::mark_as_joined) on using this directly.
     #[tracing::instrument(level = "debug", skip(self, last_state, invite_via))]
     pub async fn mark_as_invited(
         &self,
@@ -242,19 +217,12 @@ impl Service {
         }
     }
 
-    /// Marks a user as having joined at some point, which is what tells a
-    /// later join from a first one.
     #[tracing::instrument(level = "debug", skip(self))]
     fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) {
         let key = once_joined_key(room_id, user_id);
         self.db.roomuseroncejoinedids.put_raw(key, []).ok();
     }
 
-    /// Drops every membership record but the one just written.
-    ///
-    /// A user has one membership in a room, so setting one is also clearing
-    /// the rest; doing that in one place is what keeps the four `mark_as_*`
-    /// functions from drifting as a fifth membership is added.
     fn clear_other_memberships(&self, userroom_id: &[u8], roomuser_id: &[u8], keep: Membership) {
         if keep != Membership::Joined {
             self.db.userroomid_joined.remove(userroom_id).ok();
@@ -277,7 +245,6 @@ impl Service {
         }
     }
 
-    /// Makes a user forget a room, which drops it from their sync entirely.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn forget(&self, room_id: &RoomId, user_id: &UserId) {
         self.db.userroomid_leftstate.del((user_id, room_id)).ok();
@@ -359,11 +326,6 @@ impl Service {
         self.db.userroomid_leftstate.qry(&key).await.is_ok()
     }
 
-    /// A user's membership in a room, or `None` where they have none.
-    ///
-    /// A ban is a leave the indexes do not distinguish, so it is read off the
-    /// one thing that does differ: a banned user has been joined at some point
-    /// and now holds no membership at all.
     #[tracing::instrument(skip(self), level = "trace")]
     pub async fn user_membership(
         &self,

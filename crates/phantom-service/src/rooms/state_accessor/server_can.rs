@@ -1,9 +1,3 @@
-//! What a remote server is allowed to see in a room.
-//!
-//! The server-side counterpart to [`user_can`](super::user_can): a server may
-//! see an event if any of its users could have, since anything sent to one of
-//! them has reached that server anyway.
-
 use futures::StreamExt;
 use phantom_core::{error, implement, stream::ReadyExt};
 use ruma::{
@@ -14,8 +8,6 @@ use ruma::{
     },
 };
 
-/// Whether `origin` may be sent `event_id`, by the room's `history_visibility`
-/// at that event.
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, level = "trace")]
 pub async fn server_can_see_event(

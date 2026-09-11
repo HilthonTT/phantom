@@ -1,10 +1,6 @@
 use super::Result;
 
-/// [`Option::filter`] for [`Result`], with the predicate reporting *why* it
-/// rejected the value rather than discarding that along with it.
 pub trait Filter<T, E> {
-    /// Passes an `Ok` value through the predicate, turning a rejection into the
-    /// error the predicate returned.
     #[must_use]
     fn filter<P, U>(self, predicate: P) -> Self
     where

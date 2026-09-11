@@ -1,11 +1,3 @@
-//! Tests against a real database.
-//!
-//! Each opens one under a temporary directory with two columns rather than the
-//! whole schema, and drops it — and the directory — at the end. The engine is
-//! what these are testing against: the map layer's behaviour around cache
-//! misses, iteration bounds and record separators is not reproducible against
-//! a stand-in.
-
 use std::sync::Arc;
 
 use figment::{
@@ -26,14 +18,11 @@ use crate::{
     keyval::serialize_key,
 };
 
-/// A column with values written across the keyspace, which is what most of
-/// the schema looks like.
 static RANDOM: Descriptor = Descriptor {
     name: "random",
     ..descriptor::RANDOM_SMALL
 };
 
-/// A second column, to check that they do not see each other's entries.
 static OTHER: Descriptor = Descriptor {
     name: "other",
     ..descriptor::RANDOM_SMALL
@@ -41,7 +30,6 @@ static OTHER: Descriptor = Descriptor {
 
 static COLUMNS: &[Descriptor] = &[RANDOM, OTHER];
 
-/// An open database, and the directory it will be removed with.
 struct TestDb {
     db: Arc<Database>,
     _dir: TempDir,
@@ -199,9 +187,6 @@ async fn a_reverse_iteration_is_the_forward_one_backwards() {
     assert_eq!(reverse, [3, 2, 1]);
 }
 
-/// The bug this exists for: seeking backwards from a prefix lands *before*
-/// the prefix's range, so a reverse prefix iteration that seeks to the prefix
-/// yields nothing. It has to start at the end of the range instead.
 #[tokio::test]
 async fn a_reverse_prefix_iteration_starts_at_the_end_of_the_prefix() {
     let test = db();
@@ -350,8 +335,6 @@ async fn clearing_empties_the_column_and_leaves_the_others() {
     assert_eq!(test.db["other"].count().await, 1);
 }
 
-/// What `watch_prefix` is for: a task parked on a prefix wakes when a write
-/// lands under it.
 #[tokio::test]
 async fn a_write_wakes_a_prefix_watcher() {
     let test = db();
@@ -398,18 +381,6 @@ async fn every_described_column_opens() {
     );
 }
 
-/// Several databases opening and closing at once must not deadlock.
-///
-/// The environment carrying the engine's background threads is the process's,
-/// not the database's: `Env::new` hands back the one RocksDB keeps for the
-/// process rather than building a new one. Shutting its thread pools down when
-/// a database closes therefore takes them away from every other database still
-/// open — which then waits forever for background work nothing is left to run —
-/// and two closes doing it at once join the same threads twice.
-///
-/// This is what the suite does implicitly, since it runs in parallel and every
-/// test opens its own database; here it is on purpose, so the failure names
-/// itself rather than surfacing as three unrelated tests that never finish.
 #[tokio::test]
 async fn concurrent_databases_close_without_deadlocking() {
     std::thread::scope(|scope| {
@@ -428,12 +399,6 @@ async fn concurrent_databases_close_without_deadlocking() {
     });
 }
 
-/// Why `iter_prefix` bounds the cursor instead of just seeking to the prefix.
-///
-/// Seeking backwards lands on the last key at or before the target, and every
-/// key inside a prefix's range sorts *after* the prefix — so seeking backwards
-/// to the prefix itself lands before the range and the first step leaves it
-/// again. This is the naive formulation, kept to show that it finds nothing.
 #[tokio::test]
 async fn seeking_backwards_to_a_prefix_lands_before_its_range() {
     let test = db();
@@ -480,8 +445,6 @@ async fn a_prefix_is_deleted_whole() {
     );
 }
 
-/// The prefix ends at the record separator, so it must not reach a key whose
-/// first component merely begins with the same bytes.
 #[tokio::test]
 async fn deleting_a_prefix_stops_at_the_separator() {
     let test = db();
@@ -533,8 +496,6 @@ async fn a_transaction_writes_across_columns() {
     assert_eq!(two, ("two".to_owned(),));
 }
 
-/// The pattern the transaction exists for: a value moved between columns,
-/// where landing halfway would leave it in both or in neither.
 #[tokio::test]
 async fn a_transaction_moves_a_value_between_columns() {
     let test = db();
@@ -552,8 +513,6 @@ async fn a_transaction_moves_a_value_between_columns() {
     assert!(to.contains(&("k", 1_u64)).await, "not written");
 }
 
-/// Building one and dropping it leaves the database as it was, which is what
-/// makes bailing out part-way through safe.
 #[tokio::test]
 async fn a_dropped_transaction_writes_nothing() {
     let test = db();
@@ -576,8 +535,6 @@ async fn an_empty_transaction_is_a_no_op() {
     txn.execute().expect("committed");
 }
 
-/// A watcher is woken by a transaction the same as by a direct write, which is
-/// what keeps a long-poll from sleeping through one.
 #[tokio::test]
 async fn a_transaction_wakes_the_watchers() {
     let test = db();

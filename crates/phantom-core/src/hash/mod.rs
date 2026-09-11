@@ -1,9 +1,3 @@
-//! Password hashing and content digests.
-//!
-//! Passwords go through [`argon`], which is a deliberate cost; content hashes
-//! go through [`sha256`], which is not. Do not reach for one where the other
-//! belongs.
-
 mod argon;
 pub mod sha256;
 

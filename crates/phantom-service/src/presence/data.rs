@@ -1,14 +1,3 @@
-//! Where a user's presence is kept.
-//!
-//! Two columns: `userid_presenceid` points a user at the number their current
-//! presence was written under, and `presenceid_presence` holds the record
-//! itself under that number. The number comes from the server counter, so
-//! `presenceid_presence` is in write order and a sync can read everything
-//! that changed after the token it last saw without walking every user.
-//!
-//! A write therefore inserts under a fresh number and deletes the record the
-//! old number pointed at, rather than overwriting in place.
-
 use std::sync::Arc;
 
 use futures::Stream;
@@ -191,7 +180,6 @@ fn presenceid_parse(key: &[u8]) -> Result<(u64, &UserId)> {
     Ok((count, user_id))
 }
 
-/// Parses a `UserId` from bytes.
 fn user_id_from_bytes(bytes: &[u8]) -> Result<&UserId> {
     let str: &str = str_from_bytes(bytes)?;
     let user_id: &UserId = str.try_into()?;

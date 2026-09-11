@@ -1,23 +1,3 @@
-//! Leaving the rooms a deactivating account is still in.
-//!
-//! Two steps, in this order and for this reason: a user who holds power in a
-//! room gives it up first, because once they have left they no longer have
-//! the power level to give anything up, and a room whose only admin walks out
-//! without demoting themselves is left with an admin who is gone.
-//!
-//! Leaving is a membership event like any other, so it goes through the room's
-//! state mutex and the timeline write path, and the room's other members learn
-//! of it the way they learn of anything else. Where that cannot be done — the
-//! user is not a member as far as the room's state is concerned, or the event
-//! is refused — the membership indexes are cleared locally anyway, so the room
-//! stops appearing in the user's sync. The account is being torn down, and one
-//! room that will not let go of it is not a reason to leave the rest half
-//! done.
-//!
-//! Leaving a room this server is not in at all is the one case not handled
-//! here. It needs `make_leave`/`send_leave` over federation, which belongs to
-//! the planned `membership` service rather than to this one.
-
 use futures::StreamExt;
 use phantom_core::{
     Result, err, implement, info,
@@ -35,15 +15,6 @@ use ruma::{
     },
 };
 
-/// Gives up the user's own power level in every room they are joined to.
-///
-/// Only where they are allowed to: a user who cannot change their own level
-/// cannot give it up either. The room's creator is let through on the strength
-/// of the create event rather than the levels, since from room version 12 a
-/// creator holds a level the power levels event never states.
-///
-/// Failures are logged and stepped over. A room that will not take the
-/// demotion is not a reason to abandon the deactivation.
 #[implement(super::Service)]
 pub(super) async fn demote_self(&self, user_id: &UserId) -> Result {
     let all_joined_rooms: Vec<OwnedRoomId> = self
@@ -120,12 +91,6 @@ pub(super) async fn demote_self(&self, user_id: &UserId) -> Result {
     Ok(())
 }
 
-/// Leaves `room_id` by sending the user's own `m.room.member` leave event,
-/// which is what tells the room's other members the account is gone.
-///
-/// Falls back to [`clear_local_leave`](Self::clear_local_leave) where the
-/// event cannot be built or sent. Either way the room stops appearing in the
-/// user's sync, which is what deactivation has to guarantee.
 #[implement(super::Service)]
 pub(super) async fn leave_room(&self, user_id: &UserId, room_id: &RoomId) {
     let state_lock = self.services.state.mutex.lock(room_id).await;
@@ -140,8 +105,6 @@ pub(super) async fn leave_room(&self, user_id: &UserId, room_id: &RoomId) {
         )
         .await;
 
-    // Not a member as far as the room's state is concerned, or in a state
-    // there is no leaving from. Either way there is no event to send.
     let Ok(event) = member_event else {
         return self.clear_local_leave(user_id, room_id).await;
     };
@@ -176,11 +139,6 @@ pub(super) async fn leave_room(&self, user_id: &UserId, room_id: &RoomId) {
     }
 }
 
-/// Records the user as having left, in this server's indexes alone.
-///
-/// The fallback for a room the leave event could not be sent to: the room
-/// leaves the user's sync, and the room's other members still see the account
-/// as it was.
 #[implement(super::Service)]
 async fn clear_local_leave(&self, user_id: &UserId, room_id: &RoomId) {
     let leave_content = RoomMemberEventContent::new(MembershipState::Leave);

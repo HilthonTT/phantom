@@ -1,18 +1,3 @@
-//! Matching rules a URL parser does not expose.
-
-/// Whether `hostname` is `domain` or sits beneath it.
-///
-/// Case-insensitive over ASCII, which is what DNS comparison is. A leading dot
-/// on `domain` is accepted and ignored, so the `.example.com` an operator is
-/// used to writing in a no-proxy list means the same as `example.com`.
-///
-/// The suffix has to fall on a label boundary. Without that check
-/// `notexample.com` matches `example.com`, which is how a proxy exemption or an
-/// allowlist ends up covering a domain somebody else registered.
-///
-/// The root, spelled `.`, matches only a fully qualified name — one written
-/// with the trailing dot — because that is the only form that names the root
-/// explicitly.
 #[must_use]
 pub fn hostname_matches_domain(hostname: &str, domain: &str) -> bool {
     if domain == "." {
@@ -29,8 +14,6 @@ pub fn hostname_matches_domain(hostname: &str, domain: &str) -> bool {
         return true;
     }
 
-    // The byte before the suffix has to be the label separator: `hostname` is
-    // `<something>.<domain>` or it is not a match at all.
     let Some(separator) = hostname
         .len()
         .checked_sub(domain.len())
@@ -56,7 +39,6 @@ mod tests {
         assert!(hostname_matches_domain("a.b.c.example.com", "example.com"));
     }
 
-    /// The check that stops an exemption for one domain covering another.
     #[test]
     fn a_suffix_only_matches_on_a_label_boundary() {
         assert!(!hostname_matches_domain("notexample.com", "example.com"));
@@ -73,7 +55,6 @@ mod tests {
         assert!(hostname_matches_domain("Matrix.Example.Com", "EXAMPLE.com"));
     }
 
-    /// A no-proxy list is conventionally written with the leading dot.
     #[test]
     fn a_leading_dot_on_the_domain_is_ignored() {
         assert!(hostname_matches_domain("example.com", ".example.com"));
@@ -89,8 +70,6 @@ mod tests {
         assert!(!hostname_matches_domain("", "example.com"));
     }
 
-    /// An empty domain would otherwise match everything, which is not what an
-    /// empty entry in a list is meant to say.
     #[test]
     fn an_empty_domain_matches_nothing() {
         assert!(!hostname_matches_domain("example.com", ""));

@@ -1,5 +1,3 @@
-//! Integration with allocators
-
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 pub mod je;
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]

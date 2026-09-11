@@ -1,10 +1,3 @@
-//! Sending a request to an appservice.
-//!
-//! An appservice is reached at the URL its registration names, authenticated
-//! with the `hs_token` that registration also carries — this server proving
-//! itself to the appservice, the opposite direction from the `as_token` an
-//! appservice proves itself to us with.
-
 use std::{fmt::Debug, mem};
 
 use bytes::{Bytes, BytesMut};
@@ -15,11 +8,6 @@ use ruma::api::{
     path_builder::SinglePath,
 };
 
-/// Sends one request to an appservice.
-///
-/// `Ok(None)` where the registration names no URL, which is how an appservice
-/// that only polls this server rather than being pushed to is written: it is
-/// registered, it is simply not somewhere requests go.
 #[implement(super::Service)]
 pub(crate) async fn send_request<T>(
     &self,
@@ -86,7 +74,7 @@ where
             .expect("http::response::Builder is usable"),
     );
 
-    let body = response.bytes().await?; // TODO: Handle timeouts and other errors more gracefully
+    let body = response.bytes().await?;
 
     if !status.is_success() {
         debug_error!(
@@ -113,11 +101,6 @@ where
     })
 }
 
-/// Appends the `hs_token` as an `access_token` query parameter.
-///
-/// The header the request already carries is the current scheme; this is the
-/// deprecated one, and it goes out as well because appservices written against
-/// the older spec never look at the header.
 fn add_access_token_query(request: &mut http::Request<Bytes>, hs_token: &str) {
     let mut parts = request.uri().clone().into_parts();
     let old_path_and_query = parts
@@ -156,7 +139,6 @@ mod tests {
         request.uri().to_string()
     }
 
-    /// A path with nothing after it opens the query string.
     #[test]
     fn the_token_opens_a_query_that_is_not_there() {
         assert_eq!(
@@ -165,8 +147,6 @@ mod tests {
         );
     }
 
-    /// A path that already carries parameters is appended to, not overwritten:
-    /// ruma puts the request's own parameters there.
     #[test]
     fn the_token_joins_a_query_that_is() {
         assert_eq!(
@@ -175,8 +155,6 @@ mod tests {
         );
     }
 
-    /// The rest of the URI is left alone, which is what makes the appservice
-    /// receive the request it would have without this.
     #[test]
     fn nothing_but_the_query_changes() {
         let out = uri_after("https://as.example:8448/prefix/_matrix/app/v1/ping");

@@ -1,5 +1,3 @@
-//! Carrying a panic through [`Error`] and back out again.
-
 use std::{
     any::Any,
     panic::{RefUnwindSafe, UnwindSafe, panic_any},
@@ -31,13 +29,11 @@ impl Error {
         }
     }
 
-    /// Get the panic message string.
     #[inline]
     pub fn panic_str(self) -> Option<&'static str> {
         self.is_panic().then_some(panic_str(&self.into_panic()))
     }
 
-    /// Check if the Error is trafficking a panic object.
     #[inline]
     pub fn is_panic(&self) -> bool {
         match &self {
@@ -48,7 +44,6 @@ impl Error {
     }
 }
 
-/// The `&str` a panic carried, or `""` if it carried a formatted message.
 #[must_use]
 pub fn panic_str(p: &(dyn Any + Send)) -> &'static str {
     p.downcast_ref::<&str>().copied().unwrap_or_default()

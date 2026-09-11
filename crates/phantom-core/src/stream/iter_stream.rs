@@ -2,13 +2,9 @@ use futures::{Stream, StreamExt, TryStream, stream};
 
 use crate::{Error, Result};
 
-/// Adapts any [`IntoIterator`] into a [`Stream`], so iterator sources compose
-/// with the stream combinators without an explicit `stream::iter` at each site.
 pub trait IterStream<I: IntoIterator + Send> {
     fn stream(self) -> impl Stream<Item = I::Item> + Send;
 
-    /// Adapts into a [`TryStream`] whose items are all `Ok`, for feeding an
-    /// infallible source into the fallible combinators.
     fn try_stream(
         self,
     ) -> impl TryStream<Ok = I::Item, Error = Error, Item = Result<I::Item>> + Send;

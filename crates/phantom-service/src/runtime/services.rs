@@ -1,5 +1,3 @@
-//! Every service the server is built out of, in one place.
-
 use std::{
     collections::BTreeMap,
     fmt::Write,
@@ -21,7 +19,6 @@ use crate::{
     server_keys, server_state, sync, transaction_id, updates, users,
 };
 
-/// Every service the server is built out of, and the database they share.
 pub struct Services {
     pub client: Arc<client::Service>,
     pub config: Arc<config::Service>,
@@ -55,16 +52,6 @@ pub struct Services {
 }
 
 impl Services {
-    /// Opens the database and constructs every service against it.
-    ///
-    /// Nothing is running yet when this returns: a service's worker is only
-    /// spawned by [`Self::start`], so that a service built early can depend on
-    /// one built after it.
-    ///
-    /// Build order only matters where one service reaches another during its
-    /// own construction rather than through a [`Dep`](super::Dep) — the
-    /// resolver is built before the client for that reason, since every
-    /// client is built against it.
     pub fn build(server: Arc<Server>) -> Result<Arc<Self>> {
         let db = Database::open(&server)?;
         let service: Arc<Map> = Arc::new(RwLock::new(BTreeMap::new()));
@@ -138,7 +125,6 @@ impl Services {
         }))
     }
 
-    /// Starts the manager, and through it every service's worker.
     pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
         debug_info!("Starting services...");
 
@@ -153,7 +139,6 @@ impl Services {
         Ok(Arc::clone(self))
     }
 
-    /// Resolves once the manager has finished, which is once every worker has.
     pub async fn poll(&self) -> Result<()> {
         if let Some(manager) = self.manager.lock().await.as_ref() {
             return manager.poll().await;
@@ -162,7 +147,6 @@ impl Services {
         Ok(())
     }
 
-    /// Interrupts every service and waits for the manager to wind down.
     pub async fn stop(&self) {
         info!("Shutting down services...");
 
@@ -177,14 +161,12 @@ impl Services {
         debug_info!("Services shutdown complete.");
     }
 
-    /// Drops whatever runtime state the services are holding on to.
     pub async fn clear_cache(&self) {
         for service in self.services() {
             service.clear_cache().await;
         }
     }
 
-    /// A markdown report of what the services and the database are holding.
     pub async fn memory_usage(&self) -> Result<String> {
         let mut out = String::new();
 
@@ -197,7 +179,6 @@ impl Services {
         Ok(out)
     }
 
-    /// Tells every service to return from its worker loop.
     fn interrupt(&self) {
         debug!("Interrupting services...");
 
@@ -209,12 +190,6 @@ impl Services {
         }
     }
 
-    /// The services still alive, in name order.
-    ///
-    /// Collected rather than borrowed: the callers await between services, and
-    /// the read guard cannot be held across that. The map holds weak
-    /// references so that services may point at each other, so a name whose
-    /// service has already dropped is simply skipped.
     fn services(&self) -> Vec<Arc<dyn Service>> {
         self.service
             .read()

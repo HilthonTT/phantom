@@ -1,11 +1,3 @@
-//! The presence record as it is stored.
-//!
-//! What a client sends and what a client is shown are both
-//! [`PresenceEvent`]s, which carry `last_active_ago` — a duration measured
-//! from whenever the event is read. A duration cannot be stored, so what is
-//! kept here is the timestamp it was measured from, and the event is rebuilt
-//! against the current clock on the way out.
-
 use phantom_core::{Error, Result, time};
 use ruma::{
     UInt, UserId,
@@ -16,8 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::users;
 
-/// Represents data required to be kept in order to implement the presence
-/// specification.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct Presence {
     state: PresenceState,
@@ -47,7 +37,6 @@ impl Presence {
             .map_err(|_| Error::bad_database("Invalid presence data in database"))
     }
 
-    /// Creates a `PresenceEvent` from available data.
     pub(super) async fn to_presence_event(
         &self,
         user_id: &UserId,

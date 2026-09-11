@@ -1,18 +1,9 @@
-//! Parallelism combinator extensions to [`futures::TryStream`].
-
 use futures::{TryFutureExt, stream::TryStream};
 use tokio::{runtime, task::JoinError};
 
 use super::TryBroadbandExt;
 use crate::{Error, Result, sys::compute::available_parallelism};
 
-/// Parallelism extensions to augment [`futures::TryStreamExt`].
-///
-/// These are for computation-bound work, where the `-band` combinators are for
-/// I/O-bound work: each item is handed to a blocking thread rather than polled
-/// on the runtime, and the default concurrency is the machine's compute
-/// parallelism rather than the stream width. Threads come from the tokio
-/// blocking pool. Results are unordered.
 pub trait TryParallelExt<T, E>
 where
     Self: TryStream<Ok = T, Error = E, Item = Result<T, E>> + Send + Sized,

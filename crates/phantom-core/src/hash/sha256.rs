@@ -5,7 +5,6 @@ use ring::{
 
 pub type Digest = [u8; SHA256_OUTPUT_LEN];
 
-/// Sha256 hash (input gather joined by 0xFF bytes)
 #[must_use]
 #[tracing::instrument(skip(inputs), level = "trace")]
 pub fn delimited<'a, T, I>(mut inputs: I) -> Digest
@@ -28,7 +27,6 @@ where
         .expect("failed to return Digest buffer")
 }
 
-/// Sha256 hash (input gather)
 #[must_use]
 #[tracing::instrument(skip(inputs), level = "trace")]
 pub fn concat<'a, T, I>(inputs: I) -> Digest
@@ -47,7 +45,6 @@ where
         .expect("failed to return Digest buffer")
 }
 
-/// Sha256 hash
 #[inline]
 #[must_use]
 #[tracing::instrument(skip(input), level = "trace")]

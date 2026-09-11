@@ -1,21 +1,3 @@
-//! Push notifications, and the gateways they are sent through.
-//!
-//! A user's client registers a *pusher*: a gateway URL and a key identifying
-//! the device to wake. When an event arrives, the user's push rules are
-//! evaluated against it, and if they say to notify, a notification goes to
-//! every pusher that user registered.
-//!
-//! The server never talks to Apple or Google. It talks to the gateway the
-//! client named, which is what holds the platform credentials — so the URL is
-//! attacker-supplied, and is checked against the CIDR denylist here and again
-//! when it is used, since a name that resolved inside the network once may do
-//! so again.
-//!
-//! Evaluating the rules is ruma's; what this service supplies is the context
-//! they need — the room's power levels, its member count, the user's display
-//! name — because a rule can say "notify me when someone says my name" or
-//! "when someone who can ban me posts".
-
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
@@ -64,11 +46,8 @@ struct Data {
     pushkey_deviceid: Arc<Map>,
 }
 
-/// The longest push key a client may register. It identifies a device to the
-/// gateway, and anything this long is not one.
 const PUSHKEY_MAX_LEN: usize = 512;
 
-/// The longest app id a client may register.
 const APP_ID_MAX_LEN: usize = 64;
 
 impl crate::Service for Service {
@@ -94,7 +73,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Registers or removes a pusher for one of a user's devices.
 #[implement(Service)]
 pub async fn set_pusher(
     &self,
@@ -182,11 +160,6 @@ pub fn get_pushkeys<'a>(&'a self, sender: &'a UserId) -> impl Stream<Item = &'a 
         .map(|(_, pushkey): (Ignore, &str)| pushkey)
 }
 
-/// Checks a gateway URL a client asked us to post to.
-///
-/// The scheme has to be one we can speak, and where the host is already an
-/// address, it has to be one the denylist allows. A host that is a name is
-/// checked again once it has resolved, in [`Service::send_request`].
 #[implement(Service)]
 fn check_gateway_url(&self, url: &str) -> Result<reqwest::Url> {
     let parsed = reqwest::Url::parse(url).map_err(|e| {
@@ -212,17 +185,11 @@ fn check_gateway_url(&self, url: &str) -> Result<reqwest::Url> {
     Ok(parsed)
 }
 
-/// The URL's host as an address, if it is an address literal.
-///
-/// `host_str` keeps the brackets around an IPv6 literal, which the address
-/// parser rejects; checking the raw string let `https://[fd00::1]/` past the
-/// denylist entirely.
 fn host_ip_literal(url: &reqwest::Url) -> Option<IPAddress> {
     let host = url.host_str()?;
     IPAddress::parse(host.trim_start_matches('[').trim_end_matches(']')).ok()
 }
 
-/// Sends one request to a push gateway.
 #[implement(Service)]
 #[tracing::instrument(skip(self, dest, request))]
 pub async fn send_request<T>(&self, dest: &str, request: T) -> Result<T::IncomingResponse>
@@ -299,7 +266,6 @@ where
     })
 }
 
-/// Runs one event past one user's push rules, and notifies if they say so.
 #[implement(Service)]
 #[tracing::instrument(skip(self, user, unread, pusher, ruleset, pdu))]
 pub async fn send_push_notice(
@@ -354,7 +320,6 @@ pub async fn send_push_notice(
     Ok(())
 }
 
-/// What a user's rules say to do about an event.
 #[implement(Service)]
 #[tracing::instrument(skip(self, user, ruleset, pdu), level = "debug")]
 pub async fn get_actions<'a>(
@@ -450,9 +415,6 @@ async fn send_notice(
         notifi.event_type = Some(event.kind.clone());
         notifi.content = serde_json::value::to_raw_value(&event.content).ok();
 
-        // The notified user is the target when they are the member event's
-        // state key. Upstream compared the state key to the sender, which is
-        // false for an invite and true for a self-join, both backwards.
         if event.kind == TimelineEventType::RoomMember {
             notifi.user_is_target = event.state_key.as_deref() == Some(user.as_str());
         }

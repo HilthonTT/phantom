@@ -1,11 +1,3 @@
-//! Events accepted but not yet placed in a room's timeline.
-//!
-//! An outlier is an event the server has validated and stored without knowing
-//! where it belongs: it arrived referencing state the server has not caught up
-//! to, usually as part of an auth chain fetched over federation. It stays here
-//! until the timeline it belongs to reaches it, at which point the timeline
-//! takes ownership and this copy is dropped.
-
 use std::sync::Arc;
 
 use phantom_core::{Result, implement, matrix::pdu::PduEvent};
@@ -37,7 +29,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Returns the pdu from the outlier tree.
 #[implement(Service)]
 pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
     self.db
@@ -47,11 +38,6 @@ pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
         .deserialized()
 }
 
-/// The outlier as it was stored, rather than as a parsed PDU.
-///
-/// The canonical JSON is what an event is authenticated as — its signatures
-/// are over these bytes — so a caller putting the event in a room writes back
-/// what it read here rather than re-serializing the parsed form.
 #[implement(Service)]
 pub async fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
     self.db
@@ -61,7 +47,6 @@ pub async fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<Canonical
         .deserialized()
 }
 
-/// Append the PDU as an outlier.
 #[implement(Service)]
 #[tracing::instrument(skip(self, pdu), level = "debug")]
 pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) {

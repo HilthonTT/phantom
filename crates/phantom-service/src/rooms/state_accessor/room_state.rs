@@ -1,10 +1,3 @@
-//! Reading a room's *current* state.
-//!
-//! Each of these is the matching `state_*` in [`super::state`] with the room's
-//! current shortstatehash looked up first, so a caller that already has a
-//! version in hand — anything asking about a room as it was at some event —
-//! should use that one and skip the lookup.
-
 use std::borrow::Borrow;
 
 use futures::{Stream, StreamExt, TryFutureExt};
@@ -15,7 +8,6 @@ use phantom_core::{
 use ruma::{EventId, RoomId, events::StateEventType};
 use serde::Deserialize;
 
-/// The content of the current state event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 pub async fn room_state_get_content<T>(
     &self,
@@ -31,7 +23,6 @@ where
         .and_then(|event| event.get_content())
 }
 
-/// The room's whole current state, keyed by type and state key.
 #[implement(super::Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn room_state_full<'a>(
@@ -46,9 +37,6 @@ pub fn room_state_full<'a>(
         .try_flatten_stream()
 }
 
-/// [`room_state_full`] as bare PDUs.
-///
-/// [`room_state_full`]: Self::room_state_full
 #[implement(super::Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn room_state_full_pdus<'a>(
@@ -63,7 +51,6 @@ pub fn room_state_full_pdus<'a>(
         .try_flatten_stream()
 }
 
-/// The event id of the current state event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub async fn room_state_get_id<Id>(
@@ -83,7 +70,6 @@ where
         .await
 }
 
-/// The current state event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub async fn room_state_get(

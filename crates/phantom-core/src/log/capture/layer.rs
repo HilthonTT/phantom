@@ -1,5 +1,3 @@
-//! The `tracing` layer feeding active captures.
-
 use std::{fmt, sync::Arc};
 
 use arrayvec::ArrayVec;
@@ -9,13 +7,8 @@ use tracing_subscriber::{layer::Context, registry::LookupSpan};
 
 use super::{Capture, Data, State};
 
-/// A recorded field: its name, and its value rendered to a string.
 pub type Value = (&'static str, String);
 
-/// How many fields and enclosing spans are recorded per event. Beyond this the
-/// remainder is dropped: an event with more than this many is pathological, and
-/// a log layer must not allocate — or panic — on the hot path to accommodate
-/// one.
 const CAP: usize = 32;
 
 type Values = ArrayVec<Value, CAP>;

@@ -1,11 +1,5 @@
-//! Level colours shared by every log renderer.
-//!
-//! Separate from [`super::fmt`] so the admin room's HTML, its Markdown, and any
-//! future renderer agree on what a level looks like.
-
 use super::Level;
 
-/// Foreground and background for a level, as HTML colour literals.
 #[inline]
 #[must_use]
 pub fn html(level: &Level) -> (&'static str, &'static str) {
@@ -18,8 +12,6 @@ pub fn html(level: &Level) -> (&'static str, &'static str) {
     }
 }
 
-/// Foreground for a level rendered inside a `<code>` tag, which sits on the
-/// client's own background rather than one we set.
 #[inline]
 #[must_use]
 pub fn code_tag(level: &Level) -> &'static str {

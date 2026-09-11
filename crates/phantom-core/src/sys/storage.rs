@@ -1,5 +1,3 @@
-//! System utilities related to devices/peripherals
-
 use std::{
     ffi::OsStr,
     fs,
@@ -12,30 +10,22 @@ use libc::dev_t;
 
 use crate::{Result, result::FlatOk, result::LogDebugErr, text::SplitInfallible};
 
-/// Device characteristics useful for random access throughput
 #[derive(Clone, Debug, Default)]
 pub struct Parallelism {
-    /// Number of requests for the device.
     pub nr_requests: Option<usize>,
 
-    /// Individual queue characteristics.
     pub mq: Vec<Queue>,
 }
 
-/// Device queue characteristics
 #[derive(Clone, Debug, Default)]
 pub struct Queue {
-    /// Queue's indice.
     pub id: usize,
 
-    /// Number of requests for the queue.
     pub nr_tags: Option<usize>,
 
-    /// CPU affinities for the queue.
     pub cpu_list: Vec<usize>,
 }
 
-/// Get device characteristics useful for random access throughput by name.
 #[must_use]
 pub fn parallelism(path: &Path) -> Parallelism {
     let dev_id = dev_from_path(path).log_debug_err().unwrap_or_default();
@@ -62,7 +52,6 @@ pub fn parallelism(path: &Path) -> Parallelism {
     }
 }
 
-/// Get device queue characteristics by mq path on sysfs(5)
 fn queue_parallelism(dir: &Path) -> Queue {
     let queue_id = dir.file_name();
 
@@ -94,7 +83,6 @@ fn queue_parallelism(dir: &Path) -> Queue {
     }
 }
 
-/// Get the name of the block device on which Path is mounted.
 pub fn name_from_path(path: &Path) -> Result<String> {
     use std::io::{Error, ErrorKind::NotFound};
 
@@ -111,7 +99,6 @@ pub fn name_from_path(path: &Path) -> Result<String> {
         .map(Into::into)
 }
 
-/// Get the (major, minor) of the block device on which Path is mounted.
 #[allow(clippy::useless_conversion, clippy::unnecessary_fallible_conversions)]
 pub fn dev_from_path(path: &Path) -> Result<(dev_t, dev_t)> {
     #[cfg(target_family = "unix")]

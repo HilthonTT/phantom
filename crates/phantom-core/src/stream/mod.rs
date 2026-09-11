@@ -1,5 +1,3 @@
-//! Extensions to [`futures::Stream`] and [`futures::TryStream`].
-
 mod aggregate;
 mod band;
 mod broadband;

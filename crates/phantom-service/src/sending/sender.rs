@@ -53,8 +53,8 @@ use super::{Destination, EduBuf, EduVec, Msg, SendingEvent, Service, data::Queue
 #[derive(Debug)]
 enum TransactionStatus {
     Running,
-    Failed(u32, Instant), // number of times failed, time of last failure
-    Retrying(u32),        // number of times failed
+    Failed(u32, Instant),
+    Retrying(u32),
 }
 
 type SendingError = (Destination, Error);
@@ -161,7 +161,6 @@ impl Service {
         let _cork = self.db.db.engine.cork_guard();
         self.db.delete_all_active_requests_for(dest).await;
 
-        // Find events that have been added since starting the last request
         let new_events = self
             .db
             .queued_requests(dest)
@@ -169,7 +168,6 @@ impl Service {
             .collect::<Vec<_>>()
             .await;
 
-        // Insert any pdus we found
         if !new_events.is_empty() {
             if let Err(e) = self.db.mark_as_active(new_events.iter()) {
                 error!(?dest, "Failed to mark queued events as active: {e}");
@@ -284,12 +282,11 @@ impl Service {
     async fn select_events(
         &self,
         dest: &Destination,
-        new_events: Vec<QueueItem>, // Events we want to send: event and full key
+        new_events: Vec<QueueItem>,
         statuses: &mut CurTransactionStatus,
     ) -> Result<Option<Vec<SendingEvent>>> {
         let (allow, retry) = self.select_events_current(dest, statuses)?;
 
-        // Nothing can be done for this remote, bail out.
         if !allow {
             return Ok(None);
         }
@@ -297,7 +294,6 @@ impl Service {
         let _cork = self.db.db.engine.cork_guard();
         let mut events = Vec::new();
 
-        // Must retry any previous transaction for this remote.
         if retry {
             self.db
                 .active_requests_for(dest)
@@ -307,7 +303,6 @@ impl Service {
             return Ok(Some(events));
         }
 
-        // Compose the next transaction
         let _cork = self.db.db.engine.cork_guard();
         if !new_events.is_empty() {
             self.db.mark_as_active(new_events.iter())?;
@@ -316,7 +311,6 @@ impl Service {
             }
         }
 
-        // Add EDU's into the transaction
         if let Destination::Federation(server_name) = dest
             && let Ok((select_edus, last_count)) = self.select_edus(server_name).await
         {
@@ -337,10 +331,9 @@ impl Service {
     ) -> Result<(bool, bool)> {
         let (mut allow, mut retry) = (true, false);
         statuses
-            .entry(dest.clone()) // TODO: can we avoid cloning?
+            .entry(dest.clone())
             .and_modify(|e| match e {
                 TransactionStatus::Failed(tries, time) => {
-                    // Fail if a request has failed recently (exponential backoff)
                     let min = self.server.config.network.sender_timeout;
                     let max = self.server.config.network.sender_retry_backoff_limit;
                     if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries)
@@ -353,7 +346,7 @@ impl Service {
                     }
                 }
                 TransactionStatus::Running | TransactionStatus::Retrying(_) => {
-                    allow = false; // already running
+                    allow = false;
                 }
             })
             .or_insert(TransactionStatus::Running);
@@ -363,7 +356,6 @@ impl Service {
 
     #[tracing::instrument(name = "edus", level = "debug", skip_all)]
     async fn select_edus(&self, server_name: &ServerName) -> Result<(EduVec, u64)> {
-        // selection window
         let since = self.db.get_latest_educount(server_name).await;
         let since_upper = self.services.server_state.current_count();
         let batch = (since, since_upper);
@@ -400,7 +392,6 @@ impl Service {
         Ok((events, max_edu_count.load(Ordering::Acquire)))
     }
 
-    /// Look for device changes
     #[tracing::instrument(
         name = "device_changes",
         level = "trace",
@@ -436,8 +427,6 @@ impl Service {
                     continue;
                 }
 
-                // Empty prev id forces synapse to resync; because synapse resyncs,
-                // we can just insert placeholder data
                 let edu = Edu::DeviceListUpdate(DeviceListUpdateContent::new(
                     user_id.into(),
                     device_id!("placeholder").to_owned(),
@@ -458,7 +447,6 @@ impl Service {
         events
     }
 
-    /// Look for read receipts in this room
     #[tracing::instrument(
         name = "receipts",
         level = "trace",
@@ -470,9 +458,6 @@ impl Service {
         since: (u64, u64),
         max_edu_count: &AtomicU64,
     ) -> Option<EduBuf> {
-        // The cap is over the whole EDU, not over each room, and the rooms are
-        // walked concurrently: a `&mut usize` would be copied into each of
-        // those futures and counted from zero again in every one of them.
         let num = &AtomicUsize::default();
         let receipts: BTreeMap<OwnedRoomId, ReceiptMap> = self
             .services
@@ -506,7 +491,6 @@ impl Service {
         Some(buf)
     }
 
-    /// Look for read receipts in this room
     #[tracing::instrument(name = "receipts", level = "trace", skip(self, since, max_edu_count))]
     async fn select_edus_receipts_room(
         &self,
@@ -577,7 +561,6 @@ impl Service {
         ReceiptMap::new(read)
     }
 
-    /// Look for presence
     #[tracing::instrument(
         name = "presence",
         level = "trace",
@@ -717,7 +700,7 @@ impl Service {
                         edu_jsons.push(raw);
                     }
                 }
-                SendingEvent::Flush => {} // flush only; no new content
+                SendingEvent::Flush => {}
             }
         }
 
@@ -782,15 +765,11 @@ impl Service {
                         pdus.push(pdu);
                     }
                 }
-                SendingEvent::Edu(_) | SendingEvent::Flush => {
-                    // Push gateways don't need EDUs (?) and flush only;
-                    // no new content
-                }
+                SendingEvent::Edu(_) | SendingEvent::Flush => {}
             }
         }
 
         for pdu in pdus {
-            // Redacted events are not notification targets (we don't send push for them)
             if pdu.contains_unsigned_property("redacted_because", serde_json::Value::is_string) {
                 continue;
             }
@@ -892,7 +871,6 @@ impl Service {
         }
     }
 
-    /// This does not return a full `Pdu` it is only to satisfy ruma's types.
     pub async fn convert_to_outgoing_federation_event(
         &self,
         mut pdu_json: CanonicalJsonObject,
@@ -904,7 +882,6 @@ impl Service {
             unsigned.remove("transaction_id");
         }
 
-        // room v3 and above removed the "event_id" field from remote PDU format
         if let Some(room_id) = pdu_json
             .get("room_id")
             .and_then(|val| RoomId::parse(val.as_str()?).ok())

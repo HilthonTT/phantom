@@ -1,20 +1,3 @@
-//! Believing an event without yet placing it.
-//!
-//! An outlier is an event this server has checked and stored but has not put
-//! in a room's timeline, because it does not know where in the timeline it
-//! goes. Almost every event arrives this way first: an event is authorized by
-//! naming the state events that permit it, those events have to be in hand
-//! before the check can run, and fetching them pulls in their own auth events
-//! in turn.
-//!
-//! Two checks make an outlier. Its **signatures** must verify against the keys
-//! of the servers that signed it, and its own recomputed id must match — an
-//! event whose content hash does not match is accepted in redacted form, since
-//! that is what a redaction looks like from outside. And it must **pass the
-//! room's rules against its own `auth_events`**, which is a weaker statement
-//! than passing against the room's state and is all that can be said about an
-//! event whose place is not yet known.
-
 use std::collections::{HashMap, HashSet};
 
 use futures::future::ready;
@@ -34,11 +17,6 @@ use ruma::{
 
 use super::Service;
 
-/// Validates one event and stores it as an outlier.
-///
-/// `auth_events_known` says the event's `auth_events` are already in this
-/// server's store, which is the case when a batch of events has just been
-/// fetched together. Where it is false, the auth events are fetched here.
 #[implement(Service)]
 #[tracing::instrument(level = "debug", skip_all, fields(%event_id))]
 pub(super) async fn handle_outlier_pdu(
@@ -50,9 +28,6 @@ pub(super) async fn handle_outlier_pdu(
     value: CanonicalJsonObject,
     auth_events_known: bool,
 ) -> Result<(PduEvent, CanonicalJsonObject)> {
-    // An outlier already validated once needs no second opinion: nothing about
-    // an event changes, and the check is expensive enough to be worth not
-    // repeating for every event that names it.
     if let Ok(pdu) = self.services.outlier.get_pdu_outlier(event_id).await
         && let Ok(json) = self.services.outlier.get_outlier_pdu_json(event_id).await
     {
@@ -103,14 +78,6 @@ pub(super) async fn handle_outlier_pdu(
     Ok((incoming_pdu, value))
 }
 
-/// Verifies an event's signatures, redacting it where its content hash does
-/// not match.
-///
-/// A content hash that does not match is not evidence of tampering as long as
-/// the signatures hold: it is what a redacted event looks like, since a
-/// redaction removes content the signature was taken over. So the event is
-/// accepted in the form the signature does cover — its redacted form — rather
-/// than rejected.
 #[implement(Service)]
 async fn verified(
     &self,
@@ -145,8 +112,6 @@ async fn verified(
         }
     };
 
-    // The id is not part of an event over federation, and everything below
-    // reads it off the object rather than passing it alongside.
     value.insert(
         "event_id".to_owned(),
         CanonicalJsonValue::String(event_id.as_str().into()),
@@ -155,11 +120,6 @@ async fn verified(
     Ok(value)
 }
 
-/// The event's `auth_events`, as a state map to check it against.
-///
-/// Two things are refused rather than merely ignored, because both mean the
-/// event is lying about what authorizes it: naming the same state key twice,
-/// and naming an event from a different room.
 #[implement(Service)]
 async fn auth_state_of(
     &self,
@@ -170,9 +130,6 @@ async fn auth_state_of(
 
     for auth_event_id in &incoming_pdu.auth_events {
         let Ok(auth_event) = self.services.timeline.get_pdu(auth_event_id).await else {
-            // An auth event we could not obtain leaves the check unable to
-            // find the state it needs, which fails it below rather than here:
-            // the missing event may be one the rules do not consult.
             debug!("Missing auth event {auth_event_id}");
             continue;
         };
@@ -198,8 +155,6 @@ async fn auth_state_of(
         }
     }
 
-    // The create event authorizes everything in the room and is not always
-    // named explicitly by the events that depend on it.
     auth_state
         .entry((StateEventType::RoomCreate, String::new().into()))
         .or_insert_with(|| create_event.clone());
@@ -207,17 +162,6 @@ async fn auth_state_of(
     Ok(auth_state)
 }
 
-/// Obtains events, and everything needed to authorize them, from `origin`.
-///
-/// The auth graph is walked depth-first so that an event is handled only after
-/// everything authorizing it has been, which is what lets each one be checked
-/// with its auth events already in the store. An event that cannot be fetched
-/// or will not validate is dropped from the walk and remembered as bad; its
-/// dependents will fail their own auth check for the lack of it, which is the
-/// correct outcome and not one worth a separate error path.
-///
-/// Returns what could be obtained, in the order asked for. A caller getting
-/// back fewer events than it asked for is the ordinary case, not a failure.
 #[implement(Service)]
 #[tracing::instrument(level = "debug", skip_all, fields(events = events.len()))]
 pub(super) async fn fetch_and_handle_outliers(
@@ -233,8 +177,6 @@ pub(super) async fn fetch_and_handle_outliers(
         .await;
 
     for (event_id, value) in fetched {
-        // Boxed to break the type cycle: handling an event may fetch the
-        // events that authorize it, which handles those in turn.
         let handled = Box::pin(self.handle_outlier_pdu(
             origin,
             create_event,
@@ -265,12 +207,6 @@ pub(super) async fn fetch_and_handle_outliers(
     found
 }
 
-/// Fetches `events` and their transitive `auth_events`, in an order that puts
-/// every event after the ones that authorize it.
-///
-/// Depth-first with an explicit stack rather than recursion: the auth graph of
-/// a busy room is thousands of events deep in the worst case, which is a stack
-/// overflow rather than a slow request.
 #[implement(Service)]
 async fn fetch_auth_graph(
     &self,
@@ -279,8 +215,6 @@ async fn fetch_auth_graph(
     room_id: &RoomId,
     room_version_id: &RoomVersionId,
 ) -> Vec<(OwnedEventId, CanonicalJsonObject)> {
-    /// A frame is visited twice: once to fetch it and push its dependencies,
-    /// and again once those have been dealt with.
     enum Step {
         Fetch(OwnedEventId),
         Emit(OwnedEventId),
@@ -307,9 +241,6 @@ async fn fetch_auth_graph(
             continue;
         }
 
-        // Already held, in the timeline or as an outlier: nothing to fetch,
-        // and nothing below it to walk either, since it was validated when it
-        // was stored.
         if self.services.timeline.pdu_exists(&event_id).await {
             continue;
         }
@@ -340,8 +271,6 @@ async fn fetch_auth_graph(
     order
 }
 
-/// Asks `origin` for one event, and checks that what comes back is the event
-/// that was asked for.
 #[implement(Service)]
 async fn fetch_event(
     &self,
@@ -371,9 +300,6 @@ async fn fetch_event(
         }
     };
 
-    // The id is the hash of the event, so a mismatch means the server sent a
-    // different event than the one asked for — not an error to recover from by
-    // using what arrived.
     if fetched_id != event_id {
         warn!("{origin} sent {fetched_id} when asked for {event_id}");
         return None;
@@ -392,7 +318,6 @@ async fn fetch_event(
     Some(value)
 }
 
-/// The `auth_events` of an event, read out of its JSON.
 fn auth_event_ids(value: &CanonicalJsonObject) -> Vec<OwnedEventId> {
     value
         .get("auth_events")

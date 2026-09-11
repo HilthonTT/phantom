@@ -1,9 +1,3 @@
-//! The database instance phantom's columns live in.
-//!
-//! [`Engine`] owns the open database handle and the operations that act on it
-//! as a whole — flushing, compaction, backup, and the properties an operator
-//! queries it for. The typed per-column surface is layered on top of this.
-
 mod backup;
 mod column_options;
 pub mod context;
@@ -35,15 +29,10 @@ use crate::{engine::error::result, pool::Pool};
 pub struct Engine {
     pub(crate) db: Db,
 
-    /// The threads blocking reads are offloaded to. Owned by the engine so
-    /// that it outlives them: a worker holds column handles into this
-    /// database and must be joined before it closes.
     pub(crate) pool: Arc<Pool>,
 
     pub(crate) ctx: Arc<Context>,
 
-    /// The names of every column opened, described or not, for the
-    /// whole-database operations that must reach each one.
     columns: Vec<String>,
 
     read_only: bool,
@@ -55,7 +44,6 @@ pub struct Engine {
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
 
 impl Engine {
-    /// Blocks until every pending compaction has finished.
     #[tracing::instrument(
         level = "info",
         skip_all,
@@ -72,7 +60,6 @@ impl Engine {
         result(self.db.wait_for_compact(&opts))
     }
 
-    /// Flushes every column's memtable to disk.
     #[tracing::instrument(
         level = "info",
         skip_all,
@@ -83,15 +70,12 @@ impl Engine {
     pub fn sort(&self) -> Result {
         let flushoptions = FlushOptions::default();
 
-        // `flush_opt` only flushes the default column family, which holds
-        // nothing here; every described column is flushed instead.
         let cfs: Vec<_> = self.columns.iter().map(|name| self.cf(name)).collect();
         let cfs: Vec<&_> = cfs.iter().collect();
 
         result(self.db.flush_cfs_opt(&cfs, &flushoptions))
     }
 
-    /// Catches a secondary instance up with the primary's writes.
     #[tracing::instrument(
         level = "debug",
         skip_all,
@@ -103,17 +87,11 @@ impl Engine {
         result(self.db.try_catch_up_with_primary())
     }
 
-    /// Flushes the write-ahead log and waits for the storage to acknowledge it.
     #[tracing::instrument(level = "info", skip_all)]
     pub fn sync(&self) -> Result {
         result(DBCommon::flush_wal(&self.db, true))
     }
 
-    /// Flushes the write-ahead log without waiting for durability.
-    ///
-    /// Writes are buffered until this is called: the engine is opened with
-    /// manual WAL flush so that a burst of writes costs one flush rather than
-    /// one per write.
     #[tracing::instrument(level = "debug", skip_all)]
     pub fn flush(&self) -> Result {
         result(DBCommon::flush_wal(&self.db, false))
@@ -129,36 +107,22 @@ impl Engine {
         self.corks.fetch_sub(1, Ordering::Relaxed);
     }
 
-    /// Whether a [`Cork`](crate::Cork) is currently held, which is the signal
-    /// to writers that they should not flush after every write.
     #[inline]
     #[must_use]
     pub fn corked(&self) -> bool {
         self.corks.load(Ordering::Relaxed) > 0
     }
 
-    /// Queries a database property by null-terminated name, for the properties
-    /// that have an integer representation. Intended for low-overhead
-    /// programmatic use; see [`Self::property`] for the rest.
     pub fn property_integer(&self, cf: &impl AsColumnFamilyRef, name: &CStr) -> Result<u64> {
         result(self.db.property_int_value_cf(cf, name))
             .and_then(|val| val.map_or_else(|| Err!("Property {name:?} not found."), Ok))
     }
 
-    /// Queries a database property by name, receiving the result as a string.
     pub fn property(&self, cf: &impl AsColumnFamilyRef, name: &str) -> Result<String> {
         result(self.db.property_value_cf(cf, name))
             .and_then(|val| val.map_or_else(|| Err!("Property {name:?} not found."), Ok))
     }
 
-    /// The handle for a column, which must have been described before the
-    /// database was opened.
-    ///
-    /// # Panics
-    ///
-    /// If no column of that name was described. Columns come from a static
-    /// table, so a miss is a programming error rather than a runtime
-    /// condition.
     #[must_use]
     pub fn cf(&self, name: &str) -> Arc<BoundColumnFamily<'_>> {
         self.db
@@ -166,8 +130,6 @@ impl Engine {
             .expect("column must be described prior to database open")
     }
 
-    /// The sequence number of the most recent write, which identifies the
-    /// point in time the database is currently at.
     #[inline]
     #[must_use]
     #[tracing::instrument(name = "sequence", level = "debug", skip_all, fields(sequence))]
@@ -180,8 +142,6 @@ impl Engine {
         sequence
     }
 
-    /// Whether reads verify block checksums, which the map layer consults when
-    /// building its read options.
     #[inline]
     #[must_use]
     pub fn checksums(&self) -> bool {

@@ -1,7 +1,6 @@
 use super::*;
 
 impl Service {
-    /// Every room a user is joined to.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn rooms_joined<'a>(
         &'a self,
@@ -17,8 +16,6 @@ impl Service {
             })
     }
 
-    /// Every room a user has been invited to, with the stripped state the
-    /// client is shown for it.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn rooms_invited<'a>(
         &'a self,
@@ -27,7 +24,6 @@ impl Service {
         stripped_rooms(&self.db.userroomid_invitestate, user_id)
     }
 
-    /// Every room a user is knocking at, with its stripped state.
     #[tracing::instrument(skip(self), level = "trace")]
     pub fn rooms_knocked<'a>(
         &'a self,
@@ -36,7 +32,6 @@ impl Service {
         stripped_rooms(&self.db.userroomid_knockedstate, user_id)
     }
 
-    /// Every room a user has left.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn rooms_left<'a>(
         &'a self,

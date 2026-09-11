@@ -1,11 +1,3 @@
-//! Macros expanding to the small closures that combinators take.
-//!
-//! `iter.filter(is_equal_to!(&'.'))` says what it tests at a glance where the
-//! closure would say it in punctuation.
-
-/// Expands to a closure testing its argument for equality with `$input`.
-///
-/// Handy in combinator position, e.g. `iter.filter(is_equal_to!(&'.'))`.
 #[macro_export]
 macro_rules! is_equal_to {
     ($input:expr) => {
@@ -13,9 +5,6 @@ macro_rules! is_equal_to {
     };
 }
 
-/// Expands to a closure testing its argument for being less than `$input`.
-///
-/// Handy in combinator position, e.g. `iter.skip_while(is_less_than!(&pivot))`.
 #[macro_export]
 macro_rules! is_less_than {
     ($input:expr) => {
@@ -23,8 +12,6 @@ macro_rules! is_less_than {
     };
 }
 
-/// Tests `$input` for being non-zero, or expands to a closure doing so when
-/// called with no argument.
 #[macro_export]
 macro_rules! is_nonzero {
     () => {
@@ -35,9 +22,6 @@ macro_rules! is_nonzero {
     };
 }
 
-/// Expands to a closure testing its argument with [`matches!`].
-///
-/// Handy in combinator position, e.g. `.is_some_and(is_matching!('A'..='Z'))`.
 #[macro_export]
 macro_rules! is_matching {
     ($($pat:tt)+) => {
@@ -45,7 +29,6 @@ macro_rules! is_matching {
     };
 }
 
-/// Expands to a closure testing its argument for being zero.
 #[macro_export]
 macro_rules! is_zero {
     () => {
@@ -53,7 +36,6 @@ macro_rules! is_zero {
     };
 }
 
-/// Expands to a closure testing its argument for being non-empty.
 #[macro_export]
 macro_rules! is_not_empty {
     () => {
@@ -61,9 +43,6 @@ macro_rules! is_not_empty {
     };
 }
 
-/// Expands to a closure returning its `bool` argument unchanged.
-///
-/// The identity predicate, for combinators that demand one.
 #[macro_export]
 macro_rules! is_true {
     () => {
@@ -71,7 +50,6 @@ macro_rules! is_true {
     };
 }
 
-/// Expands to a closure negating its `bool` argument.
 #[macro_export]
 macro_rules! is_false {
     () => {

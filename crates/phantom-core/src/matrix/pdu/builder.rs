@@ -9,7 +9,6 @@ use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 
 use super::StateKey;
 
-/// Build the start of a PDU in order to add it to the Database.
 #[derive(Debug, Deserialize)]
 pub struct Builder {
     #[serde(rename = "type")]
@@ -23,8 +22,6 @@ pub struct Builder {
 
     pub redacts: Option<OwnedEventId>,
 
-    /// For timestamped messaging, should only be used for appservices.
-    /// Will be set to current time if None
     pub timestamp: Option<MilliSecondsSinceUnixEpoch>,
 }
 

@@ -1,9 +1,3 @@
-//! Running code on the way out of a scope, however it is left.
-
-/// Runs `$body` when the enclosing scope ends, however it ends.
-///
-/// The closure is `FnOnce`, so the body may consume what it captures — which
-/// is what lets [`scope_restore!`] move a non-`Copy` value back into place.
 #[macro_export]
 macro_rules! defer {
     ($body:block) => {
@@ -29,11 +23,6 @@ macro_rules! defer {
     };
 }
 
-/// Sets `*$val` to `$ours` for the rest of the scope, restoring the previous
-/// value on the way out.
-///
-/// `$val` must be a `&mut T` binding, and it stays uniquely borrowed by the
-/// deferred restore until the scope ends.
 #[macro_export]
 macro_rules! scope_restore {
     ($val:ident, $ours:expr_2021) => {

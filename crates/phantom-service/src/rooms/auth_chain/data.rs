@@ -27,8 +27,6 @@ impl Data {
         }
     }
 
-    /// The cached chain for these starting events, from memory or, for a
-    /// single event, from the column behind it.
     pub(super) async fn cached_auth_chain(
         &self,
         key: &[ShortEventId],
@@ -67,7 +65,6 @@ impl Data {
         Ok(chain)
     }
 
-    /// Caches the chain in memory, and in the database if it is one event's.
     pub(super) fn cache_auth_chain(&self, key: Vec<ShortEventId>, auth_chain: Arc<[ShortEventId]>) {
         debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 

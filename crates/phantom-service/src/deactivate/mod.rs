@@ -1,22 +1,3 @@
-//! Tearing an account down.
-//!
-//! Deactivation is not deletion. The user id is never handed to anyone else,
-//! and the events the account sent stay in the rooms they were sent to,
-//! because a room's history belongs to the room rather than to the sender.
-//! What goes is everything that makes the account usable — the password and
-//! the devices that could log in with it — and everything on it that is only
-//! ever the user's own: the profile, and the membership of every room.
-//!
-//! A user may also ask, under MSC4025, that their non-event data be erased
-//! rather than merely left behind. That is what `erase` reaches: the account
-//! data the user set, global and per-room, including for rooms they had
-//! already left. It stops there, at data no one else can see. Nothing in a
-//! room's timeline is touched.
-//!
-//! Leaving the rooms is [`leave`], which both demotes the user out of any
-//! power they hold and sends the leave events that tell each room's other
-//! members the account is gone.
-
 mod leave;
 
 use std::sync::Arc;
@@ -64,16 +45,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// Runs through all the deactivation steps:
-    ///
-    /// - Mark as deactivated
-    /// - Removing display name
-    /// - Removing avatar URL and blurhash
-    /// - Removing all profile data
-    /// - Leaving all rooms (and forgets all of them)
-    ///
-    /// When `erase` is `true`, additionally erase non-event data per
-    /// MSC4025: all global and per-room account data for the user.
     #[tracing::instrument(skip(self), level = "debug")]
     pub async fn full_deactivate(&self, user_id: &UserId, erase: bool) -> Result {
         self.services.users.deactivate_account(user_id).await?;
@@ -95,13 +66,6 @@ impl Service {
         Ok(())
     }
 
-    /// Every room the deactivating user still has a foot in.
-    ///
-    /// Joined, invited and knocked: each is a membership that would keep
-    /// showing the room in the user's sync, so each has to be left. Rooms
-    /// already left are not here — there is nothing left to leave — which is
-    /// why [`erase_account_data`](Self::erase_account_data) gathers its own
-    /// set rather than reusing this one.
     async fn all_rooms(&self, user_id: &UserId) -> Vec<OwnedRoomId> {
         let joined = self
             .services
@@ -124,12 +88,6 @@ impl Service {
         joined.chain(invited).chain(knocked).collect().await
     }
 
-    /// Erases the user's account data, global and in every room they were
-    /// ever in.
-    ///
-    /// Rooms already left are included: the user's tags and read markers for
-    /// a room outlive their membership of it, so erasing only the rooms they
-    /// are still in would leave the older ones behind.
     async fn erase_account_data(&self, user_id: &UserId, all_rooms: &[OwnedRoomId]) {
         self.services.account_data.erase_user(user_id, None).await;
 

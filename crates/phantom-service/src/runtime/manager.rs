@@ -1,9 +1,3 @@
-//! Supervision of the service workers.
-//!
-//! Each service that has a worker gets a task; a worker that returns an error
-//! or panics is restarted after a backoff rather than taking the server down
-//! with it, and a worker that will not stop is what shutdown waits on.
-
 use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use futures::{FutureExt, TryFutureExt};
@@ -156,7 +150,6 @@ impl Manager {
         self.start_worker(workers, service).await
     }
 
-    /// Start the worker in a task for the service.
     async fn start_worker(
         &self,
         workers: &mut WorkersLocked<'_>,
@@ -176,11 +169,6 @@ impl Manager {
     }
 }
 
-/// Base frame for service worker. This runs in a tokio::task. All errors and
-/// panics from the worker are caught and returned cleanly. The JoinHandle
-/// should never error with a panic, and if so it should propagate, but it may
-/// error with an Abort which the manager should handle along with results to
-/// determine if the worker should be restarted.
 #[tracing::instrument(
 	parent = None,
 	level = "trace",

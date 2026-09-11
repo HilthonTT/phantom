@@ -1,9 +1,3 @@
-//! Waking a task when a column is written under a prefix it cares about.
-//!
-//! This is what lets a long-poll — a client parked on `/sync` — sleep until
-//! something it would report actually lands, rather than waking on a timer to
-//! find nothing changed.
-
 use std::{
     collections::{HashMap, hash_map::Entry},
     future::Future,
@@ -12,25 +6,12 @@ use std::{
 
 use tokio::sync::watch;
 
-/// The prefixes currently being waited on, and the channel that wakes each
-/// one's waiters.
-///
-/// A prefix is registered on first use and removed as soon as it fires: the
-/// waiters have all been woken by then, and anyone still interested registers
-/// again on their next pass. So the map holds only prefixes with a waiter
-/// parked on them right now, which is what keeps [`Watchers::wake`] cheap on
-/// the write path.
 #[derive(Default)]
 pub(crate) struct Watchers {
     watchers: RwLock<HashMap<Vec<u8>, watch::Sender<()>>>,
 }
 
 impl Watchers {
-    /// A future that completes once a key beginning with `prefix` is written.
-    ///
-    /// The returned future borrows nothing, so it may be held across anything
-    /// — including the drop of the map it came from, in which case it simply
-    /// never completes.
     pub(crate) fn watch(&self, prefix: &[u8]) -> impl Future<Output = ()> + Send + use<> {
         let mut rx = match self
             .watchers
@@ -47,10 +28,6 @@ impl Watchers {
         }
     }
 
-    /// Wakes everything waiting on a prefix of `key`.
-    ///
-    /// Runs on every write, so the no-waiters case — which is nearly all of
-    /// them — must not cost more than one uncontended read lock.
     pub(crate) fn wake(&self, key: &[u8]) {
         let watchers = self
             .watchers
@@ -127,8 +104,6 @@ mod tests {
         );
     }
 
-    /// The key itself counts as one of its own prefixes, so an exact-match
-    /// watch fires too.
     #[tokio::test]
     async fn an_exact_key_wakes_its_watcher() {
         let watchers = Watchers::default();
@@ -141,7 +116,6 @@ mod tests {
             .expect("the waiter was woken");
     }
 
-    /// Several tasks sharing a prefix share one channel and all wake together.
     #[tokio::test]
     async fn every_waiter_on_a_prefix_wakes() {
         let watchers = Watchers::default();
@@ -161,8 +135,6 @@ mod tests {
             .expect("both waiters were woken");
     }
 
-    /// Both branches of the strategy choice in `wake` have to agree; which one
-    /// runs is decided by the watcher count against the key length.
     #[tokio::test]
     async fn both_lookup_strategies_find_the_same_prefixes() {
         for keys in [1_usize, 64] {

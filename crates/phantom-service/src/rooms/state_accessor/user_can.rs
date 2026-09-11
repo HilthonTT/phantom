@@ -1,10 +1,3 @@
-//! What a user is allowed to do or see in a room.
-//!
-//! Visibility is decided against the state as it was at the event in question,
-//! not as it is now: a user who has since left may still see what they could
-//! see while they were there, and a room that is world-readable today does not
-//! retroactively open what it hid yesterday.
-
 use phantom_core::{Err, Result, error, implement};
 use ruma::{
     EventId, OwnedUserId, RoomId, UserId,
@@ -19,11 +12,6 @@ use ruma::{
     room_version_rules::AuthorizationRules,
 };
 
-/// Whether `sender` may redact `redacts`.
-///
-/// `federation` widens "their own event" to "an event from their own server",
-/// which is what a redaction arriving over federation is judged by: the
-/// sending server vouches for its own users.
 #[implement(super::Service)]
 pub async fn user_can_redact(
     &self,
@@ -97,8 +85,6 @@ pub async fn user_can_redact(
     }
 }
 
-/// Whether `user_id` may see `event_id`, by the room's `history_visibility` at
-/// that event.
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, level = "trace")]
 pub async fn user_can_see_event(
@@ -139,7 +125,6 @@ pub async fn user_can_see_event(
     }
 }
 
-/// Whether `user_id` may read the room's current state.
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, level = "trace")]
 pub async fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> bool {
@@ -162,16 +147,6 @@ pub async fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId
     }
 }
 
-/// The room-version rules and creator set that power levels are read against.
-///
-/// From room version 11 the creator is the sender of `m.room.create` rather
-/// than a field in its content, and from version 12 creators hold power
-/// levels the event itself never states — so both have to come from the
-/// create event before a power level means anything.
-///
-/// A room whose create event cannot be read falls back to the v1 rules with
-/// no creators, which grants nothing: an unreadable room is not one where
-/// everyone is privileged.
 #[implement(super::Service)]
 pub async fn power_level_context(
     &self,
@@ -200,16 +175,6 @@ pub async fn power_level_context(
     (rules, creators)
 }
 
-/// The room's power levels, resolved against the rules of its room version,
-/// with a room that has no `m.room.power_levels` treated as one at its
-/// defaults.
-///
-/// This is the form a caller wants when it is deciding what to do about an
-/// event — pushing it, or authorizing it — since such a caller has no useful
-/// answer to "the room has no power levels event" other than the defaults.
-/// [`get_power_levels`] is the form for a caller that needs to know.
-///
-/// [`get_power_levels`]: Self::get_power_levels
 #[implement(super::Service)]
 pub async fn room_power_levels(&self, room_id: &RoomId) -> RoomPowerLevels {
     let content = self
@@ -226,16 +191,6 @@ pub async fn room_power_levels(&self, room_id: &RoomId) -> RoomPowerLevels {
     RoomPowerLevels::new(RoomPowerLevelsSource::from(content), &rules, creators)
 }
 
-/// The room's power levels, resolved against the rules of its room version.
-///
-/// Errors where the room has no `m.room.power_levels`, which is not the same
-/// as a room whose levels are all at their defaults: a room without the event
-/// is one where the creator holds everything, and what that means for the
-/// question being asked is the caller's to decide. [`power_level_context`]
-/// supplies the creators, since from room version 12 they hold levels the
-/// event never states.
-///
-/// [`power_level_context`]: Self::power_level_context
 #[implement(super::Service)]
 pub async fn get_power_levels(&self, room_id: &RoomId) -> Result<RoomPowerLevels> {
     let content = self

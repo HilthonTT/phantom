@@ -1,7 +1,6 @@
 use super::*;
 
 impl Service {
-    /// Every server with a member in this room.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn room_servers<'a>(
         &'a self,
@@ -21,7 +20,6 @@ impl Service {
         self.db.serverroomids.qry(&key).await.is_ok()
     }
 
-    /// Every room this server knows a given server to be in.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn server_rooms<'a>(
         &'a self,
@@ -35,8 +33,6 @@ impl Service {
         )
     }
 
-    /// Whether a server shares any room with a user, which is what entitles it
-    /// to see that user's profile and device list.
     #[tracing::instrument(skip(self), level = "trace")]
     pub async fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> bool {
         self.server_rooms(server)
@@ -44,8 +40,6 @@ impl Service {
             .await
     }
 
-    /// The servers an invite named as able to serve the room, which is how a
-    /// user joins a room this server has never otherwise heard of.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn servers_invite_via<'a>(
         &'a self,
@@ -53,9 +47,6 @@ impl Service {
     ) -> impl Stream<Item = &'a ServerName> + Send + 'a {
         type KeyVal<'a> = (Ignore, Vec<&'a str>);
 
-        // The key is written as raw bytes below, so it is read back the same
-        // way: serializing a bare id as a query key trips the codec's
-        // top-level string assertion.
         self.db
             .roomid_inviteviaservers
             .raw_stream_prefix(room_id.as_bytes())
@@ -70,10 +61,6 @@ impl Service {
             })
     }
 
-    /// Adds to the servers recorded by [`servers_invite_via`], keeping the
-    /// list sorted and free of duplicates.
-    ///
-    /// [`servers_invite_via`]: Self::servers_invite_via
     #[tracing::instrument(level = "debug", skip(self, servers))]
     pub async fn add_servers_invite_via(&self, room_id: &RoomId, servers: Vec<OwnedServerName>) {
         let mut servers: Vec<_> = self
@@ -98,10 +85,6 @@ impl Service {
             .ok();
     }
 
-    /// Up to five servers likely to still be in the room some time from now,
-    /// which is what a room's permalinks are built from.
-    ///
-    /// See <https://spec.matrix.org/latest/appendices/#routing>.
     #[tracing::instrument(skip(self), level = "trace")]
     pub async fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
         let most_powerful_user_server = self

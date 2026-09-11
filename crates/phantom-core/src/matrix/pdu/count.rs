@@ -177,10 +177,6 @@ impl FromStr for Count {
     }
 }
 
-// Diverges from upstream, which derived these. `from_signed(0)` yields
-// `Backfilled(0)` while `Default` is `Normal(0)`, and arithmetic can land on
-// either, so a derived equality disagreed with `Ord` (which compares the
-// signed value) for zero. Equality and hashing go by the same value.
 impl PartialEq for Count {
     fn eq(&self, other: &Self) -> bool {
         self.into_signed() == other.into_signed()
@@ -217,8 +213,6 @@ mod tests {
 
     use super::Count;
 
-    /// Zero can be reached as `Normal(0)` or `Backfilled(0)`; equality,
-    /// hashing and ordering all have to agree that it is one value.
     #[test]
     fn zero_is_equal_however_it_was_made() {
         let from_signed = Count::from_signed(0);

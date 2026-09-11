@@ -26,13 +26,10 @@ pub(crate) struct Data {
     pub mediaid_user: Arc<Map>,
     pub url_previews: Arc<Map>,
 
-    /// Held for [`Self::txn`], which is the only thing that needs the engine
-    /// the columns live in rather than one column of it.
     #[cfg(feature = "url_preview")]
     pub db: Arc<Database>,
 }
 
-/// Borrowed staging-cache value: written zero-copy from the measured bytes.
 #[cfg(feature = "url_preview")]
 #[derive(Serialize)]
 struct LazyContentRef<'a> {
@@ -42,8 +39,6 @@ struct LazyContentRef<'a> {
     content: &'a [u8],
 }
 
-/// Owned staging-cache value read back at promotion. `ContentDisposition` is
-/// Serialize-only, so the disposition rides as its header string.
 #[cfg(feature = "url_preview")]
 #[derive(Debug, Deserialize)]
 struct LazyContent {
@@ -84,22 +79,14 @@ impl Data {
         }
     }
 
-    /// Records a media id as reserved by a user until `expires_at`, which is
-    /// milliseconds since the epoch.
-    ///
-    /// Keyed by the whole URI rather than by its parts: a reservation is only
-    /// ever looked up by the exact id a client was handed, and it lives for a
-    /// day at most.
     pub(super) fn insert_pending(&self, mxc: &MxcUri, user: &UserId, expires_at: u64) -> Result {
         self.mediaid_pending.raw_put(mxc, (expires_at, user))
     }
 
-    /// Drops a reservation, which filling one finishes with.
     pub(super) fn remove_pending(&self, mxc: &MxcUri) -> Result {
         self.mediaid_pending.remove(mxc.as_str())
     }
 
-    /// Who reserved a media id, and when their claim on it expires.
     pub(super) async fn search_pending(&self, mxc: &MxcUri) -> Result<(OwnedUserId, u64)> {
         self.mediaid_pending
             .get(mxc.as_str())
@@ -108,17 +95,6 @@ impl Data {
             .map(|(expires_at, user): (u64, OwnedUserId)| (user, expires_at))
     }
 
-    /// How many unexpired reservations a user holds as of `now`, and when the
-    /// first of them expires.
-    ///
-    /// Scans the column rather than indexing by user: reservations are few
-    /// and short-lived by construction, since holding many of them is the
-    /// thing this count is read to refuse.
-    ///
-    /// Expired rows are dropped on the way past. Nothing else ever visits
-    /// them — a reservation is looked up only by the id it named — so without
-    /// this the column would grow without bound, and a user who let five
-    /// reservations expire could never make another.
     pub(super) async fn count_pending_for(&self, user: &UserId, now: u64) -> (usize, u64) {
         type KeyVal<'a> = (&'a str, (u64, &'a str));
 
@@ -151,7 +127,7 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-    /// A transaction over this database's columns.
+
     pub(super) fn txn(&self) -> Txn {
         Txn::new(&self.db.engine)
     }
@@ -167,14 +143,12 @@ impl Data {
             .ok_or(err!(Request(NotFound("Expired from cache"))))
     }
 
-    /// Caches a preview under the URL it was generated for.
     pub(super) fn set_url_preview(&self, url: &str, cached: &CachedPreview) -> Result {
         self.url_previews.raw_put(url, Cbor(cached))
     }
 
     #[cfg(feature = "url_preview")]
-    /// Records the external URL a lazy media mxc stands for, so that a client
-    /// asking for it is what fetches it (see `Service::fetch_lazy_media`).
+
     pub(super) fn insert_lazy_media(&self, mxc: &str, url: &str) -> Result {
         debug!(?mxc, ?url, "Registering lazy media");
 
@@ -182,8 +156,7 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-    /// [`Self::insert_lazy_media`] as part of a transaction, for when the
-    /// registration lands together with the bytes it stages.
+
     pub(super) fn queue_lazy_media(&self, txn: &mut Txn, mxc: &str, url: &str) {
         debug!(?mxc, ?url, "Registering lazy media");
 
@@ -191,14 +164,13 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-    /// Drops a lazy media registration, which is what promoting it into the
-    /// media store finishes with.
+
     pub(super) fn remove_lazy_media(&self, txn: &mut Txn, mxc: &str) {
         txn.remove(&self.mediaid_lazy, mxc);
     }
 
     #[cfg(feature = "url_preview")]
-    /// The external URL a lazy media mxc stands for, where it is still one.
+
     pub(super) async fn search_lazy_media(&self, mxc: &str) -> Result<String> {
         self.mediaid_lazy.get(mxc).await.and_then(|handle| {
             std::str::from_utf8(&handle)
@@ -208,8 +180,7 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-    /// Stages the bytes a preview already fetched, so the first client
-    /// download promotes them rather than fetching the origin again.
+
     pub(super) fn set_lazy_content(
         &self,
         txn: &mut Txn,
@@ -232,7 +203,7 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-    /// The staged bytes a preview seeded for a lazy media mxc, if any.
+
     pub(super) async fn get_lazy_content(&self, mxc: &str) -> Result<Media> {
         self.mediaid_lazycontent
             .get(mxc)
@@ -243,8 +214,7 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-    /// Drops staged bytes, which promoting them into the media store finishes
-    /// with — and which is also how a registration with no bytes is cleared.
+
     pub(super) fn remove_lazy_content(&self, txn: &mut Txn, mxc: &str) {
         txn.remove(&self.mediaid_lazycontent, mxc);
     }

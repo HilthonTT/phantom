@@ -1,5 +1,3 @@
-//! Assets which outlive the database they are opened with.
-
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -10,9 +8,6 @@ use rocksdb::{Cache, Env, LruCacheOptions};
 
 use crate::engine::error::or_else;
 
-/// Some components are constructed prior to opening the database and must
-/// outlive it: the block caches the columns read through, and the environment
-/// owning the engine's background threads.
 pub struct Context {
     pub(crate) col_cache: Mutex<BTreeMap<String, Cache>>,
     pub(crate) row_cache: Mutex<Cache>,
@@ -20,27 +15,11 @@ pub struct Context {
     pub(crate) server: Arc<Server>,
 }
 
-/// How many contexts are live.
-///
-/// [`Env::new`] does not build an environment: it hands back the one RocksDB
-/// keeps for the process. Its background threads are therefore shared by every
-/// database open here, and shutting them down is only sound once the last one
-/// has closed — so the teardown in [`Drop`] is driven by this count rather than
-/// by any single context going away. Phantom itself opens one database per
-/// process; the tests open one per test, concurrently.
-///
-/// The count is held across construction as well, so that a context cannot be
-/// built against an environment another is in the middle of tearing down.
 static CONTEXTS: Mutex<usize> = Mutex::new(0);
 
 impl Context {
-    /// The name under which the cache shared by most columns is held in
-    /// `col_cache`. It is not a column name; no column may take it.
     pub(crate) const SHARED_CACHE: &'static str = "Shared";
 
-    /// Builds the shared assets from the config, splitting the operator's
-    /// `db_cache_capacity_mb` evenly between the row cache and the block cache
-    /// the columns share.
     pub fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
         let config = &server.config;
         let cache_capacity_bytes = config.database.db_cache_capacity_mb * 1024.0 * 1024.0;

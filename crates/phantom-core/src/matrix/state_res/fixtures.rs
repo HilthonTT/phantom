@@ -228,7 +228,6 @@ impl<E: Event> TestStore<E> {
             .map_err(Into::into)
     }
 
-    /// Returns a Vec of the related auth events to the given `event`.
     pub(crate) fn auth_event_ids(
         &self,
         room_id: &RoomId,
@@ -604,10 +603,6 @@ pub(crate) mod event {
 
     use crate::matrix::Event;
 
-    /// ruma no longer ships the `events::pdu` types these tests were built on.
-    ///
-    /// Only the room v3 shape was ever constructed here, so this is that one
-    /// struct rather than the enum ruma used to expose.
     #[derive(Clone, Debug, Deserialize, Serialize)]
     pub(crate) struct RoomV3Pdu {
         pub(crate) room_id: OwnedRoomId,
@@ -629,7 +624,6 @@ pub(crate) mod event {
         pub(crate) signatures: ServerSignatures,
     }
 
-    /// Content hashes of a PDU.
     #[derive(Clone, Debug, Deserialize, Serialize)]
     pub(crate) struct EventHash {
         pub(crate) sha256: String,

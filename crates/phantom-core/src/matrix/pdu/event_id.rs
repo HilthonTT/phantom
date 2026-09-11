@@ -3,10 +3,6 @@ use serde_json::value::RawValue as RawJsonValue;
 
 use crate::{Result, err};
 
-/// Generates a correct eventId for the incoming pdu.
-///
-/// Returns a tuple of the new `EventId` and the PDU as a `BTreeMap<String,
-/// CanonicalJsonValue>`.
 pub fn gen_event_id_canonical_json(
     pdu: &RawJsonValue,
     room_version_id: &RoomVersionId,
@@ -22,7 +18,6 @@ pub fn gen_event_id_canonical_json(
     Ok((event_id, value))
 }
 
-/// Generates a correct eventId for the incoming pdu.
 pub fn gen_event_id(
     value: &CanonicalJsonObject,
     room_version_id: &RoomVersionId,

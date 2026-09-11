@@ -1,13 +1,8 @@
-//! The ID token this server issues, and the hash that binds it to its access
-//! token.
-
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as b64};
 use phantom_core::{Result, err, hash::sha256, implement};
 use ring::{rand::SecureRandom, signature::EcdsaKeyPair};
 use serde::{Deserialize, Serialize};
 
-/// The claims of an ID token: who issued it, who it is about, who it is for,
-/// and for how long.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct IdTokenClaims {
     pub iss: String,
@@ -16,19 +11,13 @@ pub struct IdTokenClaims {
     pub exp: u64,
     pub iat: u64,
 
-    /// Echoed back from the authorization request, where the client sent one,
-    /// so it can tell this token answers the request it made.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
 
-    /// Ties the token to the access token issued beside it. See
-    /// [`Server::at_hash`](super::Server::at_hash).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub at_hash: Option<String>,
 }
 
-/// The JOSE header. `ES256` is the only algorithm this server signs with, so
-/// it is written rather than chosen.
 #[derive(Serialize)]
 struct Header<'a> {
     alg: &'static str,
@@ -36,19 +25,11 @@ struct Header<'a> {
     kid: &'a str,
 }
 
-/// Signs `claims` into a compact JWS.
 #[implement(super::Server)]
 pub fn sign_id_token(&self, claims: &IdTokenClaims) -> Result<String> {
     sign_compact(&self.key_pair, &self.rng, &self.key.key_id, claims)
 }
 
-/// Assembles and signs one compact JWS.
-///
-/// The signature is over `header.payload` as the base64url text, which is what
-/// a verifier reconstructs from the token it received — not over the JSON
-/// behind it, so a re-encoding that changes a byte changes the token. `ES256`
-/// signs to the fixed 64-byte `r || s` a JWS wants, which is why the key is
-/// held under the `_FIXED_` algorithm rather than the ASN.1 one.
 fn sign_compact<T>(
     key_pair: &EcdsaKeyPair,
     rng: &dyn SecureRandom,
@@ -78,11 +59,6 @@ where
     Ok(token)
 }
 
-/// The `at_hash` of an access token: the left half of its SHA-256, base64url.
-///
-/// Half of the hash rather than all of it is what OpenID Connect Core §3.1.3.6
-/// specifies: the half is taken from the digest of the hash the signature
-/// algorithm uses, which for `ES256` is SHA-256.
 #[implement(super::Server)]
 #[must_use]
 #[inline]
@@ -109,18 +85,12 @@ mod tests {
         IdTokenClaims, b64, sign_compact,
     };
 
-    /// A fresh signing key, through the same path the server builds its own.
     fn test_key_pair(rng: &SystemRandom) -> ring::signature::EcdsaKeyPair {
         let key = generate_signing_key().expect("generates a key");
 
         load_key_pair(&key.key_der, rng).expect("loads the key it just generated")
     }
 
-    /// The whole point of an ID token is that somebody else can check it, and
-    /// the only thing they are given to check it with is the JWKS. This signs
-    /// a token and verifies it the way a relying party would: reassemble the
-    /// signing input from the token's own text, take the public point out of
-    /// the published JWK, and check the signature against it.
     #[test]
     fn a_signed_id_token_verifies_against_the_published_jwk() {
         let rng = SystemRandom::new();
@@ -156,8 +126,6 @@ mod tests {
         let signature = b64.decode(parts[2]).expect("base64url");
         assert_eq!(signature.len(), 64, "ES256 signs to a fixed r || s");
 
-        // Reconstruct the public key from the JWK rather than from the key
-        // pair, so a coordinate sliced wrong fails here.
         let x = b64
             .decode(jwk["x"].as_str().expect("x"))
             .expect("base64url");
@@ -177,7 +145,6 @@ mod tests {
         );
     }
 
-    /// A token signed by one key must not verify under another.
     #[test]
     fn a_token_does_not_verify_under_a_different_key() {
         let rng = SystemRandom::new();

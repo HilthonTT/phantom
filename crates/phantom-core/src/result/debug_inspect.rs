@@ -1,14 +1,9 @@
 use crate::Result;
 
-/// Inspect Result values with release-mode elision.
 pub trait DebugInspect<T, E> {
-    /// Inspects an Err contained value in debug-mode. In release-mode closure F
-    /// is elided.
     #[must_use]
     fn debug_inspect_err<F: FnOnce(&E)>(self, f: F) -> Self;
 
-    /// Inspects an Ok contained value in debug-mode. In release-mode closure F
-    /// is elided.
     #[must_use]
     fn debug_inspect<F: FnOnce(&T)>(self, f: F) -> Self;
 }

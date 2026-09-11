@@ -1,28 +1,3 @@
-//! Filling the gap before an event.
-//!
-//! An event names the events it came after. A server that has been unreachable
-//! for a while will hand us an event whose predecessors we have none of, and
-//! those predecessors have predecessors, and so on back to the last event we
-//! did see. That gap has to be filled before the new event can be placed,
-//! because the state at it is derived from the state at its predecessors.
-//!
-//! Three things keep that from being unbounded work.
-//!
-//! **A budget.** Filling a week-long gap event by event can take longer than
-//! the room has been quiet. When the budget runs out the remaining
-//! predecessors are left alone: the event still arrives, its state comes from
-//! the sending server instead of from our own record, and the gap stays a gap
-//! until backfill or a later event closes it.
-//!
-//! **An ordering.** The gap is handled oldest first, by the same ordering rule
-//! state resolution uses — power level, then timestamp, then event id — so
-//! that an event's own predecessors are in place by the time it is handled.
-//!
-//! **A limit on the ask.** `/get_missing_events` is asked for a bounded number
-//! of events at a time, and what it returns is validated like anything else. A
-//! server that answers with ten thousand events it invented gets the same
-//! treatment as one that answers with one.
-
 use std::{
     collections::{HashMap, HashSet},
     time::Instant,
@@ -37,17 +12,8 @@ use ruma::{
 
 use super::Service;
 
-/// The most events one `/get_missing_events` call will ask for.
-///
-/// A gap wider than this is closed over several calls, or not at all; the
-/// figure is a bound on what a single remote answer can cost to validate.
 const MISSING_EVENTS_LIMIT: u16 = 20;
 
-/// Fetches and handles whatever predecessors of `incoming_pdu` are missing.
-///
-/// Failures are not propagated. Every one of them means the same thing — the
-/// gap is still there — and the caller's next step, deriving the state at the
-/// event, already copes with that by asking the sending server instead.
 #[implement(Service)]
 #[tracing::instrument(level = "debug", skip_all)]
 pub(super) async fn fill_gap(
@@ -97,8 +63,6 @@ pub(super) async fn fill_gap(
             return;
         }
 
-        // An event older than the room's history here would need the whole
-        // history before it, which is backfill's job and not this one's.
         if pdu.origin_server_ts < first_ts_in_room {
             trace!("Skipping {event_id}, which predates the room's history here");
             continue;
@@ -125,8 +89,6 @@ pub(super) async fn fill_gap(
     }
 }
 
-/// Asks `origin` for the events between what we have and what it sent, and
-/// validates them into the outlier store.
 #[implement(Service)]
 async fn fetch_missing_events(
     &self,
@@ -136,8 +98,6 @@ async fn fetch_missing_events(
     incoming_pdu: &PduEvent,
     missing: &[OwnedEventId],
 ) -> HashMap<OwnedEventId, PduEvent> {
-    // The extremities are what this server already has, and are what the far
-    // end stops at. Without them it would walk back to the room's creation.
     let earliest: Vec<OwnedEventId> = self
         .services
         .state
@@ -179,8 +139,6 @@ async fn fetch_missing_events(
         Err(e) => debug_warn!("{origin} would not fill the gap: {e}"),
     }
 
-    // Whatever `/get_missing_events` did not cover is asked for one at a time.
-    // A server is within its rights to answer that endpoint with nothing.
     for event_id in wanted {
         if let Ok(pdu) = self.services.timeline.get_pdu(&event_id).await {
             found.insert(event_id, pdu);
@@ -190,7 +148,6 @@ async fn fetch_missing_events(
     found
 }
 
-/// Validates one event from a gap and stores it as an outlier.
 #[implement(Service)]
 async fn accept_gap_event(
     &self,
@@ -220,13 +177,6 @@ async fn accept_gap_event(
     }
 }
 
-/// The gap in the order it has to be handled: oldest first.
-///
-/// Ordered by timestamp and then by event id rather than by depth. Depth is a
-/// number the sending server chose and is not comparable across servers;
-/// timestamp is at least a claim about when, and the event id breaks the tie
-/// deterministically so two servers handling the same gap handle it the same
-/// way.
 fn sorted_oldest_first(events: HashMap<OwnedEventId, PduEvent>) -> Vec<(OwnedEventId, PduEvent)> {
     let mut events: Vec<_> = events.into_iter().collect();
 

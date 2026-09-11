@@ -1,17 +1,3 @@
-//! The columns phantom keeps, and what each one's data does.
-//!
-//! This is the schema. A column is named for the shape of its entries —
-//! `roomid_shortroomid` maps a room id to a short room id — and picks an
-//! archetype from [`descriptor`] rather than spelling out three dozen engine
-//! options. The archetype says two things: whether the column is large or
-//! small, and whether writes land across the whole keyspace or at the end of
-//! it. Everything else the engine needs follows from those.
-//!
-//! Adding a column here is all that is required to create it; the engine opens
-//! whatever is listed and leaves anything it finds but does not recognise
-//! alone. Removing one from this list does **not** delete it — see
-//! [`descriptor::DROPPED`].
-
 use std::{collections::BTreeMap, sync::Arc};
 
 use phantom_core::Result;
@@ -26,7 +12,6 @@ pub(crate) type Maps = BTreeMap<MapsKey, MapsVal>;
 pub(crate) type MapsKey = &'static str;
 pub(crate) type MapsVal = Arc<Map>;
 
-/// Opens a handle on each of `maps`, keyed by name.
 #[tracing::instrument(name = "maps", level = "debug", skip_all)]
 pub(crate) fn open_list(db: &Arc<Engine>, maps: &[Descriptor]) -> Result<Maps> {
     maps.iter()
@@ -34,10 +19,6 @@ pub(crate) fn open_list(db: &Arc<Engine>, maps: &[Descriptor]) -> Result<Maps> {
         .collect()
 }
 
-/// Every column the server opens.
-///
-/// Kept in alphabetical order so that a name can be found by eye and a
-/// diff adding one reads as an addition.
 pub(crate) static MAPS: &[Descriptor] = &[
     Descriptor {
         name: "alias_roomid",
@@ -126,15 +107,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
         name: "mediaid_file",
         ..descriptor::RANDOM_SMALL
     },
-    // The external URL a lazily-registered URL-preview mxc stands for, until
-    // a client asks for it and the bytes are promoted into `mediaid_file`.
     Descriptor {
         name: "mediaid_lazy",
         ..descriptor::RANDOM_SMALL
     },
-    // Bytes a preview already fetched in order to measure an `og:image`,
-    // staged so the first download promotes them instead of fetching the
-    // origin a second time. Large values, unlike the other media columns.
     Descriptor {
         name: "mediaid_lazycontent",
         ..descriptor::RANDOM
@@ -315,6 +291,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL_CACHE
     },
     Descriptor {
+        name: "servername_status",
+        ..descriptor::RANDOM_SMALL_CACHE
+    },
+    Descriptor {
         name: "servernameevent_data",
         cache_disp: CacheDisp::Unique,
         ..descriptor::RANDOM
@@ -488,8 +468,6 @@ pub(crate) static MAPS: &[Descriptor] = &[
 mod tests {
     use super::*;
 
-    /// Columns are addressed by name and opened into a map keyed by it, so a
-    /// duplicate would silently shadow rather than fail.
     #[test]
     fn column_names_are_unique() {
         let mut names: Vec<_> = MAPS.iter().map(|desc| desc.name).collect();
@@ -509,8 +487,6 @@ mod tests {
         assert_eq!(names, sorted, "keep the column list alphabetical");
     }
 
-    /// A column sharing another's cache has to name one that exists, or it
-    /// would silently fall back to a cache of its own.
     #[test]
     fn shared_caches_name_a_real_column() {
         for desc in MAPS {
@@ -526,8 +502,6 @@ mod tests {
         }
     }
 
-    /// The name the shared cache is held under is not a column name, and a
-    /// column taking it would collide with it.
     #[test]
     fn no_column_takes_the_shared_cache_name() {
         assert!(
@@ -538,8 +512,6 @@ mod tests {
         );
     }
 
-    /// Nothing in the live list should be carrying the tombstone, which is
-    /// only for columns the engine finds but no longer describes.
     #[test]
     fn no_live_column_is_dropped() {
         for desc in MAPS {

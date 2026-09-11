@@ -1,19 +1,3 @@
-//! This server as an OpenID Connect provider.
-//!
-//! The other half of [`oauth`](super) points outwards, at the providers a user
-//! authenticates against. This one points inwards: it is the provider Matrix
-//! clients speaking next-gen auth (MSC3861 and the MSCs under it) talk to, so
-//! that a client asks *this* server for a token rather than being handed one
-//! by a login endpoint.
-//!
-//! It is optional, and it is built only when it can work — see [`can_build`].
-//! Everything a client needs from a provider is here: registration
-//! ([`client`]), the authorization code flow ([`auth`]), the device flow
-//! ([`device`]), the signing key ([`signing_key`]) and the ID tokens
-//! ([`token`]) and JWKS ([`jwk`]) that go with it.
-//!
-//! [`can_build`]: Server::can_build
-
 mod auth;
 mod client;
 mod device;
@@ -47,18 +31,14 @@ pub struct Server {
     services: Services,
     db: Data,
 
-    /// The public half of [`key`](Self::key), as the JWKS serves it.
     jwk: JsonValue,
 
     key: SigningKey,
 
-    /// [`key`](Self::key) parsed once, rather than per signature.
     key_pair: EcdsaKeyPair,
 
     rng: SystemRandom,
 
-    /// Serializes the read-check-consume of one device grant, so two polls of
-    /// an approved grant cannot both reach issuance. Keyed by `device_code`.
     device_locks: MutexMap<String, ()>,
 }
 
@@ -76,8 +56,6 @@ struct Data {
 }
 
 impl Server {
-    /// Builds the OIDC server, or `None` where this deployment has no use for
-    /// one.
     pub(super) fn build(args: &crate::Args<'_>) -> Result<Option<Self>> {
         if !Self::can_build(args) {
             return Ok(None);
@@ -115,13 +93,6 @@ impl Server {
         }))
     }
 
-    /// Whether this deployment is configured for an OIDC server.
-    ///
-    /// It needs somewhere to be: the issuer and every endpoint under it are
-    /// derived from `well_known_client`, and without that there is no URL to
-    /// publish or to send a client back to. It also needs something to
-    /// authenticate against — an identity provider, or `oidc_native_auth` for
-    /// a server that authenticates users itself.
     fn can_build(args: &crate::Args<'_>) -> bool {
         let config = &args.server.config;
         let has_idp = !config.identity_provider.is_empty();
@@ -147,10 +118,6 @@ impl Server {
     }
 }
 
-/// This server's issuer, which is what every endpoint is derived from.
-///
-/// Always ends in a slash: it is joined against, and a base without one would
-/// have its last path component replaced rather than extended.
 #[implement(Server)]
 pub fn issuer_url(&self) -> Result<String> {
     self.services
@@ -175,29 +142,16 @@ pub fn issuer_url(&self) -> Result<String> {
         })
 }
 
-/// The MSC2967 device scope, stable spelling first.
 const DEVICE_SCOPE_PREFIXES: [&str; 2] = [
     "urn:matrix:client:device:",
     "urn:matrix:org.matrix.msc2967.client:device:",
 ];
 
-/// The MSC2967 API scope, stable spelling first.
 const API_SCOPE_PREFIXES: [&str; 2] = [
     "urn:matrix:client:api:",
     "urn:matrix:org.matrix.msc2967.client:api:",
 ];
 
-/// Narrows a requested scope to what this server grants (RFC 6749 §3.3).
-///
-/// The tokens kept stay in the order they were asked for, since the granted
-/// scope is echoed back to the client. An MSC2967 device scope is pulled out
-/// separately, because the device id in it is what the token will be bound to.
-/// Anything unrecognised is dropped, or refused outright under `strict`.
-///
-/// Asking for two devices at once, or for a device id outside the RFC 6749
-/// scope-token character set, is an error rather than something to narrow: it
-/// is a request this server cannot answer rather than one it can answer less
-/// of.
 pub fn narrow_scope(requested: &str, strict: bool) -> Result<(String, Option<String>)> {
     let mut granted = String::new();
     let mut device_id: Option<&str> = None;
@@ -241,8 +195,6 @@ pub fn narrow_scope(requested: &str, strict: bool) -> Result<(String, Option<Str
     Ok((granted, device_id.map(ToOwned::to_owned)))
 }
 
-/// RFC 6749 appendix A `NQCHAR`: printable ASCII other than space, `"` and
-/// `\`. Wide enough for the unpadded base64 device ids MSC4108 clients use.
 #[inline]
 fn is_scope_char(b: u8) -> bool {
     b.is_ascii_graphic() && !matches!(b, b'"' | b'\\')

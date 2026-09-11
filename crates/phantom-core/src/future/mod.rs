@@ -1,5 +1,3 @@
-//! Extensions to [`futures::Future`] and [`futures::TryFuture`].
-
 mod bool;
 mod option;
 mod option_stream;

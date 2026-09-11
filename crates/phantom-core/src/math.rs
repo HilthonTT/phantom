@@ -1,13 +1,10 @@
-//! Checked arithmetic and fallible numeric conversion.
-
 use num_traits::ops::checked::{CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub};
-use std::{any::type_name, cmp};
+use std::{any::type_name, cmp, num::NonZeroUsize};
 
 pub use checked_ops::checked_ops;
 
 use crate::{Err, Error, Result, err};
 
-/// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
 #[macro_export]
 macro_rules! checked {
 	($($input:tt)+) => {
@@ -16,10 +13,6 @@ macro_rules! checked {
 	};
 }
 
-/// Checked arithmetic expression which panics on failure. This is for
-/// expressions which do not meet the threshold for validated! but the caller
-/// has no realistic expectation for error and no interest in cluttering the
-/// callsite with result handling from checked!.
 #[macro_export]
 macro_rules! expected {
 	($msg:literal, $($input:tt)+) => {
@@ -31,15 +24,11 @@ macro_rules! expected {
 	};
 }
 
-/// Fallible numeric conversion usable in combinator position, e.g.
-/// `get::<u32>(key).and_then(math::try_into)`.
 #[inline]
 pub fn try_into<Dst: TryFrom<Src>, Src>(src: Src) -> Result<Dst> {
     Dst::try_from(src).map_err(try_into_err::<Dst, Src>)
 }
 
-/// Checked arithmetic yielding [`Error::Arithmetic`] rather than panicking or
-/// wrapping.
 pub trait Tried: Sized {
     fn try_add(self, rhs: Self) -> Result<Self>;
     fn try_sub(self, rhs: Self) -> Result<Self>;
@@ -60,13 +49,17 @@ pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T {
     cmp::min(cmp::max(val, min), max)
 }
 
-/// Truncating conversion from a float, rejecting the inputs that have no
-/// `usize` to truncate to.
-///
-/// The reference implementation reaches for `to_int_unchecked`, which is
-/// undefined behaviour for exactly the NaN and out-of-range inputs this
-/// rejects. A saturating `as` cast costs nothing extra once the range has been
-/// checked, so the unsafe block buys no speed here.
+#[inline]
+#[must_use]
+pub fn effective_cap(caller: Option<NonZeroUsize>, config: usize) -> usize {
+    match (caller.map(NonZeroUsize::get), config) {
+        (Some(caller), 0) => caller,
+        (Some(caller), config) => cmp::min(caller, config),
+        (None, 0) => usize::MAX,
+        (None, config) => config,
+    }
+}
+
 #[inline]
 #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 pub fn usize_from_f64(val: f64) -> Result<usize> {
@@ -76,8 +69,6 @@ pub fn usize_from_f64(val: f64) -> Result<usize> {
         ));
     }
 
-    // `usize::MAX as f64` rounds up to 2^64, which itself has no `usize`
-    // to truncate to, so the bound is inclusive.
     if val >= usize::MAX as f64 {
         return Err!(Arithmetic("float exceeds the range of usize"));
     }
@@ -198,8 +189,6 @@ mod tests {
         assert!(usize_from_f64(f64::NAN).is_err(), "NaN");
         assert!(usize_from_f64(f64::INFINITY).is_err(), "infinite");
 
-        // `usize::MAX as f64` rounds up to 2^64, one past the last `usize`; a
-        // saturating cast would silently hand back `usize::MAX` for it.
         assert!(usize_from_f64(usize::MAX as f64).is_err(), "2^64");
     }
 }

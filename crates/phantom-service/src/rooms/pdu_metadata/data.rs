@@ -43,8 +43,6 @@ impl Data {
         }
     }
 
-    /// Records the relation, keyed target first so that an event's relations
-    /// sit together under one prefix.
     pub(super) fn add_relation(&self, from: u64, to: u64) {
         const BUFSIZE: usize = size_of::<u64>() * 2;
 
@@ -52,10 +50,6 @@ impl Data {
         self.tofrom_relation.aput_raw::<BUFSIZE, _, _>(key, []).ok();
     }
 
-    /// The events relating to `target`, as one scan of that prefix.
-    ///
-    /// The transaction id is stripped from every event that is not the
-    /// requesting user's own, since it is only ever meaningful to its sender.
     pub(super) fn get_relations<'a>(
         &'a self,
         user_id: &'a UserId,
@@ -94,7 +88,6 @@ impl Data {
         })
     }
 
-    /// Records every event in `event_ids` as referenced by one in `room_id`.
     #[inline]
     pub(super) fn mark_as_referenced<'a, I>(&self, room_id: &RoomId, event_ids: I)
     where
@@ -106,38 +99,27 @@ impl Data {
         }
     }
 
-    /// Whether any event in `room_id` names `event_id` as a `prev_event`.
     pub(super) async fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> bool {
         let key = (room_id, event_id);
         self.referencedevents.qry(&key).await.is_ok()
     }
 
-    /// Records the event as soft-failed.
     pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) {
         self.softfailedeventids.insert(event_id, []).ok();
     }
 
-    /// Whether the event was soft-failed when it was first seen.
     pub(super) async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
         self.softfailedeventids.get(event_id).await.is_ok()
     }
 
-    /// Drops every record of an event in `room_id` referencing another.
     pub(super) async fn delete_all_referenced(&self, room_id: &RoomId) {
         self.referencedevents.del_prefix(&(room_id, Interfix)).await;
     }
 
-    /// Drops every relation pointing at the event counted `to`.
-    ///
-    /// The column is keyed target first, so one event's relations are a
-    /// prefix. Nothing indexes the other direction: a relation lives in the
-    /// room its target does, so purging a room's events target by target
-    /// leaves none of its pairs behind.
     pub(super) async fn purge_relations(&self, to: &[u8]) {
         self.tofrom_relation.raw_del_prefix(to).await;
     }
 
-    /// Forgets that an event was soft-failed.
     pub(super) fn purge_soft_failed(&self, event_id: &EventId) {
         self.softfailedeventids.remove(event_id).ok();
     }

@@ -1,5 +1,3 @@
-//! Online backups.
-
 use std::fmt::Write;
 
 use phantom_core::{Result, error, implement, info, time::rfc2822_from_seconds};
@@ -10,9 +8,6 @@ use crate::{
     engine::error::{map_err, or_else},
 };
 
-/// Takes a backup into `database_backup_path`, then deletes the oldest until
-/// no more than `database_backups_to_keep` remain. Does nothing when no backup
-/// path is configured.
 #[implement(Engine)]
 #[tracing::instrument(skip(self))]
 pub fn backup(&self) -> Result {
@@ -48,7 +43,6 @@ pub fn backup(&self) -> Result {
     Ok(())
 }
 
-/// The backups present in `database_backup_path`, as a human-readable listing.
 #[implement(Engine)]
 pub fn backup_list(&self) -> Result<String> {
     let Some(path) = backup_path(self) else {
@@ -76,7 +70,6 @@ pub fn backup_list(&self) -> Result<String> {
     Ok(res)
 }
 
-/// The configured backup path, if one is set to anything but the empty string.
 fn backup_path(engine: &Engine) -> Option<&std::path::Path> {
     engine
         .ctx

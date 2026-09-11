@@ -10,14 +10,12 @@ use serde_json::{json, value::Value as JsonValue};
 
 use crate::implement;
 
-/// This only works for events that are also AnyRoomEvents.
 #[must_use]
 #[implement(super::Pdu)]
 pub fn into_any_event(self) -> Raw<AnyTimelineEvent> {
     serde_json::from_value(self.into_any_event_value()).expect("Raw::from_value always works")
 }
 
-/// This only works for events that are also AnyRoomEvents.
 #[implement(super::Pdu)]
 #[must_use]
 #[inline]

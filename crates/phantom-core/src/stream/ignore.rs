@@ -2,15 +2,9 @@ use futures::{Stream, StreamExt, TryStream, future::ready};
 
 use crate::{Error, Result};
 
-/// Drops one half of a fallible stream.
 pub trait TryIgnore<'a, Item> {
-    /// Yields only the successful items.
-    ///
-    /// In a debug build an error panics instead: a stream whose errors are
-    /// worth ignoring in production is still worth noticing while developing.
     fn ignore_err(self) -> impl Stream<Item = Item> + Send + 'a;
 
-    /// Yields only the errors.
     fn ignore_ok(self) -> impl Stream<Item = Error> + Send + 'a;
 }
 

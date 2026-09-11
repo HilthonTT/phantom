@@ -1,76 +1,3 @@
-//! The parts of the admin service that append events, waiting on the write
-//! path they append through.
-//!
-//! This file is deliberately not a module of `admin`: nothing declares `mod
-//! pending_write_path;`, so it is not compiled. It follows the same convention
-//! as `rooms/timeline/pending_write_path.rs`, and for the same reason — this
-//! is conduwuit's code kept close to as-pasted so it can be ported function by
-//! function as its dependencies land, rather than rewritten from memory later.
-//!
-//! Every function here calls
-//! [`rooms::timeline::build_and_append_pdu`](crate::rooms::timeline), which
-//! has since been ported and is no longer what holds this file back. What each
-//! one still waits on:
-//!
-//! - `send_text` / `send_message` / `respond_to_room` / `handle_response`:
-//!   `rooms::state` (the per-room mutex), `rooms::timeline`
-//! - `make_user_admin`: `rooms::state`, `rooms::state_cache`,
-//!   `rooms::state_accessor`, `account_data`, and the `admin_room_tag` and
-//!   `admin_room_notices` config options, which are not in `Config` yet
-//!   because nothing compiled reads them
-//! - `create_admin_room`: `rooms::alias` (`set_alias`), `rooms::short`,
-//!   `rooms::state`, `rooms::timeline`, `users`
-//!
-//! Names to map when porting, beyond `conduwuit` → `phantom_core`:
-//!
-//! - `services.globals.server_user` / `.user_is_local()` / `.server_name()` →
-//!   `services.server_state`, and `services.globals.admin_alias` →
-//!   `server_state.admin_room_id()`, which resolves the alias itself
-//! - `services.state`, `.state_cache`, `.state_accessor`, `.timeline` are
-//!   `Dep`s this service does not hold yet; only `state_cache` is in
-//!   [`super::Services`] today
-//! - `RoomMessageEventContent::text_markdown` needs ruma's `markdown`
-//!   feature, which this workspace does not enable; the welcome message is the
-//!   only caller
-//!
-//! The imports are conduwuit's, left alone for the same reason the bodies are:
-//!
-//! ```ignore
-//! use std::collections::BTreeMap;
-//!
-//! use conduwuit::{
-//!     Err, Error, Result, debug_info, debug_warn, error, error::default_log, implement,
-//!     matrix::pdu::PduBuilder,
-//! };
-//! use futures::FutureExt;
-//! use ruma::{
-//!     RoomId, RoomVersionId, UserId,
-//!     events::{
-//!         RoomAccountDataEventType, StateEventType,
-//!         room::{
-//!             canonical_alias::RoomCanonicalAliasEventContent,
-//!             create::RoomCreateEventContent,
-//!             guest_access::{GuestAccess, RoomGuestAccessEventContent},
-//!             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-//!             join_rules::{JoinRule, RoomJoinRulesEventContent},
-//!             member::{MembershipState, RoomMemberEventContent},
-//!             message::RoomMessageEventContent,
-//!             name::RoomNameEventContent,
-//!             power_levels::RoomPowerLevelsEventContent,
-//!             preview_url::RoomPreviewUrlsEventContent,
-//!             topic::RoomTopicEventContent,
-//!         },
-//!         tag::{TagEvent, TagEventContent, TagInfo},
-//!     },
-//! };
-//!
-//! use crate::rooms::state::RoomMutexGuard;
-//! ```
-
-/// Sends a markdown message to the admin room as the server user.
-///
-/// Not an `m.notice`: a notice does not notify, and the admin room is where
-/// the server says things an operator is meant to see.
 #[implement(super::Service)]
 pub async fn send_text(&self, body: &str) {
     self.send_message(RoomMessageEventContent::text_markdown(body))
@@ -78,7 +5,6 @@ pub async fn send_text(&self, body: &str) {
         .ok();
 }
 
-/// Sends a message to the admin room as the server user.
 #[implement(super::Service)]
 pub async fn send_message(&self, message_content: RoomMessageEventContent) -> Result {
     let user_id = &self.services.server_state.server_user;
@@ -89,9 +15,6 @@ pub async fn send_message(&self, message_content: RoomMessageEventContent) -> Re
         .await
 }
 
-/// Delivers a command's output as a reply to the event that asked for it.
-///
-/// This is what [`super::Service::handle_command`] logs in place of today.
 #[implement(super::Service)]
 async fn handle_response(&self, content: RoomMessageEventContent) -> Result {
     let Some(Relation::Reply { in_reply_to }) = content.relates_to.as_ref() else {
@@ -142,9 +65,6 @@ async fn respond_to_room(
     Ok(())
 }
 
-/// Reports that the output could not be delivered, in the room the output was
-/// for. A command that ran but could not answer is worse than one that failed,
-/// because the operator cannot tell the two apart.
 #[implement(super::Service)]
 async fn handle_response_error(
     &self,
@@ -167,7 +87,6 @@ async fn handle_response_error(
     Ok(())
 }
 
-/// Invites a user to the admin room, which is what granting admin is.
 #[implement(super::Service)]
 pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
     let Ok(room_id) = self.get_admin_room().await else {
@@ -283,8 +202,6 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
     Ok(())
 }
 
-/// Adds a tag to the new admin's copy of the admin room, so their client can
-/// sort it away from their ordinary rooms.
 #[implement(super::Service)]
 async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result {
     let mut event: TagEvent = self
@@ -309,10 +226,6 @@ async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> R
         .await
 }
 
-/// Creates the admin room.
-///
-/// Taking the whole service graph rather than being a method: this runs once,
-/// from startup, and touches more services than the admin service holds.
 pub async fn create_admin_room(services: &Services) -> Result {
     let room_id = RoomId::new(services.server_state.server_name());
     let room_version = &services.server.config.default_room_version;

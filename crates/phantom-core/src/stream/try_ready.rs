@@ -1,7 +1,3 @@
-//! Synchronous combinator extensions to [`futures::TryStream`].
-//!
-//! The fallible counterparts of [`super::ReadyExt`]: the same folding-in of
-//! `ready(..)`, for combinators whose closures return a [`Result`].
 #![allow(clippy::type_complexity)]
 
 use futures::{
@@ -11,7 +7,6 @@ use futures::{
 
 use crate::Result;
 
-/// This interface is not necessarily complete; feel free to add as-needed.
 pub trait TryReadyExt<T, E, S>
 where
     S: TryStream<Ok = T, Error = E, Item = Result<T, E>> + Send + ?Sized,

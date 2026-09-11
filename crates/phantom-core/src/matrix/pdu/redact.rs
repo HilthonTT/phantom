@@ -57,23 +57,6 @@ pub fn is_redacted(&self) -> bool {
     unsigned.redacted_because.is_some()
 }
 
-/// Copies the `redacts` property of the event to the `content` dict and
-/// vice-versa.
-///
-/// This follows the specification's
-/// [recommendation](https://spec.matrix.org/v1.10/rooms/v11/#moving-the-redacts-property-of-mroomredaction-events-to-a-content-property):
-///
-/// > For backwards-compatibility with older clients, servers should add a
-/// > redacts
-/// > property to the top level of m.room.redaction events in when serving
-/// > such events
-/// > over the Client-Server API.
-///
-/// > For improved compatibility with newer clients, servers should add a
-/// > redacts property
-/// > to the content of m.room.redaction events in older room versions when
-/// > serving
-/// > such events over the Client-Server API.
 #[implement(super::Pdu)]
 #[must_use]
 pub fn copy_redacts(&self) -> (Option<OwnedEventId>, Box<RawJsonValue>) {

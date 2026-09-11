@@ -1,28 +1,3 @@
-//! Room aliases: the `#name:server` a room is reached by.
-//!
-//! A room's id is opaque and permanent; an alias is a name pointing at one,
-//! owned by the server in its own server-name half. This service owns the
-//! local ones — who created each, which room it points at, and the reverse
-//! listing per room — and resolves remote ones over federation.
-//!
-//! Three columns, because two questions are asked in both directions and one
-//! of them has to be answered without a scan:
-//!
-//! * `alias_roomid` — localpart to room, which is what resolving an alias
-//!   reads.
-//! * `alias_userid` — localpart to whoever set it, which is what decides
-//!   whether someone else may take it down.
-//! * `aliasid_alias` — `(room, count)` to the alias, so a room's aliases are a
-//!   prefix scan rather than a walk of every alias on the server. The count is
-//!   only there to keep two aliases of one room from colliding on the key.
-//!
-//! Resolution is not only the local column. An appservice may claim a
-//! namespace of aliases and create the room behind one on demand, so an alias
-//! inside such a namespace that is not in the column is put to the appservice
-//! before it is called missing — see [`resolve_alias`].
-//!
-//! [`resolve_alias`]: Service::resolve_alias
-
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt};
@@ -83,7 +58,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Points `alias` at `room_id` as the server itself.
 #[implement(Service)]
 pub fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId) -> Result {
     let server_user = self.services.server_state.server_user.clone();
@@ -91,11 +65,6 @@ pub fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId) -> Result {
     self.set_alias_by(alias, room_id, &server_user)
 }
 
-/// Points `alias` at `room_id`, recording `user_id` as who set it.
-///
-/// The admin alias is the server's own name for its console, so only the
-/// server user may move it; anyone else pointing it elsewhere would be
-/// redirecting every admin command.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn set_alias_by(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result {
@@ -112,9 +81,6 @@ pub fn set_alias_by(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &User
     let count = self.services.server_state.next_count()?;
     let localpart = alias.alias();
 
-    // The room mapping is written last: an alias that resolves to nothing is a
-    // name still free to be taken, while one that resolves with no recorded
-    // creator is a name nobody can take down.
     self.db.alias_userid.insert(localpart, user_id)?;
     self.db.aliasid_alias.put_raw((room_id, count), alias)?;
     self.db.alias_roomid.insert(localpart, room_id)?;
@@ -122,9 +88,6 @@ pub fn set_alias_by(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &User
     Ok(())
 }
 
-/// [`remove_alias`], first checking that `user_id` is allowed to.
-///
-/// [`remove_alias`]: Service::remove_alias
 #[implement(Service)]
 pub async fn remove_alias_by(&self, alias: &RoomAliasId, user_id: &UserId) -> Result {
     if !self.user_can_remove_alias(alias, user_id).await? {
@@ -136,7 +99,6 @@ pub async fn remove_alias_by(&self, alias: &RoomAliasId, user_id: &UserId) -> Re
     self.remove_alias(alias).await
 }
 
-/// Takes `alias` down, freeing the name.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub async fn remove_alias(&self, alias: &RoomAliasId) -> Result {
@@ -145,11 +107,6 @@ pub async fn remove_alias(&self, alias: &RoomAliasId) -> Result {
         return Err!(Request(NotFound("Alias does not exist or is invalid.")));
     };
 
-    // The reverse listing is keyed by room and count, so the entry for this
-    // one alias cannot be addressed directly; the room's entries are scanned
-    // and only the ones naming this alias dropped. The reference clears the
-    // whole prefix, which takes a room's other aliases out of the listing as
-    // well — they keep resolving, but stop being reported as the room's.
     let prefix = (&room_id, Interfix);
     let prefix = serialize_to_vec(prefix).expect("failed to serialize prefix");
     self.db
@@ -169,7 +126,6 @@ pub async fn remove_alias(&self, alias: &RoomAliasId) -> Result {
     Ok(())
 }
 
-/// The room `room` names, which may already be a room id.
 #[implement(Service)]
 #[inline]
 pub async fn maybe_resolve(&self, room: &RoomOrAliasId) -> Result<OwnedRoomId> {
@@ -179,13 +135,6 @@ pub async fn maybe_resolve(&self, room: &RoomOrAliasId) -> Result<OwnedRoomId> {
     }
 }
 
-/// [`maybe_resolve`], carrying the servers to try the room through.
-///
-/// A room id the caller already had comes back with the servers it was given,
-/// since a bare id says nothing about who is in the room; an alias comes back
-/// with whatever the server that owns it named.
-///
-/// [`maybe_resolve`]: Service::maybe_resolve
 #[implement(Service)]
 pub async fn maybe_resolve_with_servers(
     &self,
@@ -198,12 +147,6 @@ pub async fn maybe_resolve_with_servers(
     }
 }
 
-/// The room an alias names, and the servers to reach it through.
-///
-/// A local alias is looked up in the column and then, failing that, put to any
-/// appservice whose namespace covers it: an appservice may create the room on
-/// demand, and the alias only exists once it has. A remote alias is asked of
-/// the server that owns it.
 #[implement(Service)]
 #[tracing::instrument(skip(self), name = "resolve")]
 pub async fn resolve_alias(
@@ -225,7 +168,6 @@ pub async fn resolve_alias(
     Err!(Request(NotFound("Room with alias not found.")))
 }
 
-/// The room a local alias names, without consulting any appservice.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "trace")]
 pub async fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<OwnedRoomId> {
@@ -234,7 +176,6 @@ pub async fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<OwnedRoom
     self.db.alias_roomid.get(alias.alias()).await.deserialized()
 }
 
-/// Every local alias pointing at `room_id`.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn local_aliases_for_room<'a>(
@@ -252,7 +193,6 @@ pub fn local_aliases_for_room<'a>(
         })
 }
 
-/// Every local alias on the server, with the room it points at.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn all_local_aliases(&self) -> impl Stream<Item = (&RoomId, &str)> + Send + '_ {
@@ -268,8 +208,6 @@ pub fn all_local_aliases(&self) -> impl Stream<Item = (&RoomId, &str)> + Send + 
         })
 }
 
-/// Whoever set a local alias, which is one of the things that lets them take
-/// it down again.
 #[implement(Service)]
 pub async fn who_created_alias(&self, alias: &RoomAliasId) -> Result<OwnedUserId> {
     self.check_alias_local(alias)?;
@@ -277,11 +215,6 @@ pub async fn who_created_alias(&self, alias: &RoomAliasId) -> Result<OwnedUserId
     self.db.alias_userid.get(alias.alias()).await.deserialized()
 }
 
-/// Refuses an alias belonging to another server.
-///
-/// Every local operation here goes through this: the columns are keyed by
-/// localpart alone, so a remote alias whose localpart happens to match a local
-/// one would otherwise read and write the local room's entry.
 #[implement(Service)]
 fn check_alias_local(&self, alias: &RoomAliasId) -> Result {
     if !self.services.server_state.alias_is_local(alias) {
@@ -291,11 +224,6 @@ fn check_alias_local(&self, alias: &RoomAliasId) -> Result {
     Ok(())
 }
 
-/// Whether an appservice may claim `room_alias`.
-///
-/// `appservice_info` is the appservice making the request, where one is: it
-/// may only act inside its own namespace. A request from an ordinary user
-/// instead has to stay out of every appservice's exclusive namespace.
 #[implement(Service)]
 #[tracing::instrument(skip(self, appservice_info), level = "trace")]
 pub async fn appservice_checks(
@@ -321,7 +249,6 @@ pub async fn appservice_checks(
     Ok(())
 }
 
-/// Asks the server that owns a remote alias what it points at.
 #[implement(Service)]
 async fn remote_resolve(
     &self,
@@ -335,12 +262,6 @@ async fn remote_resolve(
     Ok((response.room_id, response.servers))
 }
 
-/// Puts an unresolved local alias to the appservices that claim it.
-///
-/// An appservice answering the query is expected to have created the room and
-/// set the alias as a side effect, so the local column is read again rather
-/// than the response being believed: what the appservice says is only that it
-/// is finished, and this server's own record is what a room id comes from.
 #[implement(Service)]
 async fn resolve_appservice_alias(&self, room_alias: &RoomAliasId) -> Result<OwnedRoomId> {
     use ruma::api::appservice::query::query_room_alias;
@@ -377,12 +298,6 @@ async fn resolve_appservice_alias(&self, room_alias: &RoomAliasId) -> Result<Own
     Err!(Request(NotFound("Room does not exist.")))
 }
 
-/// Whether `user_id` may take `alias` down.
-///
-/// Whoever set it may, and so may a server admin. Failing both it is a
-/// question about the room: the alias is the room's public name, so being able
-/// to change `m.room.canonical_alias` is what stands for being able to take a
-/// name away from it.
 #[implement(Service)]
 async fn user_can_remove_alias(&self, alias: &RoomAliasId, user_id: &UserId) -> Result<bool> {
     self.check_alias_local(alias)?;
@@ -410,8 +325,6 @@ async fn user_can_remove_alias(&self, alias: &RoomAliasId, user_id: &UserId) -> 
         return Ok(power_levels.user_can_send_state(user_id, StateEventType::RoomCanonicalAlias));
     }
 
-    // Without a power levels event the room's creator is the only one who
-    // could have sent that state, so they are the only one who may do this.
     if let Ok(create) = self
         .services
         .state_accessor

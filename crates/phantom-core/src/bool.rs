@@ -1,7 +1,3 @@
-//! Extensions to `bool`, for chaining off a condition rather than branching
-//! on it.
-
-/// Boolean extensions and chain.starters
 pub trait BoolExt {
     fn and<T>(self, t: Option<T>) -> Option<T>;
 

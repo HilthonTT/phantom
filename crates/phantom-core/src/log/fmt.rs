@@ -1,17 +1,8 @@
-//! Renderers turning a log record into something a Matrix client can display.
-//!
-//! These back the admin room's log capture, so the message they are handed is
-//! attacker-influenced: it routinely contains room IDs, display names and
-//! remote server errors. Every renderer therefore escapes the message for its
-//! target syntax rather than pasting it in raw. The level and span name are
-//! static strings produced by `tracing` itself and need no escaping.
-
 use std::fmt::Write;
 
 use super::{Level, color};
 use crate::{Result, text::HtmlEscape};
 
-/// Renders one record as a line of HTML, as sent to a Matrix room.
 pub fn html<S>(out: &mut S, level: &Level, span: &str, msg: &str) -> Result<()>
 where
     S: Write + ?Sized,
@@ -31,7 +22,6 @@ where
     Ok(())
 }
 
-/// Renders one record as a line of Markdown.
 pub fn markdown<S>(out: &mut S, level: &Level, span: &str, msg: &str) -> Result<()>
 where
     S: Write + ?Sized,
@@ -45,7 +35,6 @@ where
     Ok(())
 }
 
-/// Renders one record as a row of the table opened by [`markdown_table_head`].
 pub fn markdown_table<S>(out: &mut S, level: &Level, span: &str, msg: &str) -> Result<()>
 where
     S: Write + ?Sized,
@@ -59,7 +48,6 @@ where
     Ok(())
 }
 
-/// Writes the header the rows from [`markdown_table`] belong under.
 pub fn markdown_table_head<S>(out: &mut S) -> Result<()>
 where
     S: Write + ?Sized,
@@ -70,11 +58,6 @@ where
     Ok(())
 }
 
-/// Writes `text` as a Markdown code span with a backtick fence long enough that
-/// the text cannot close it early.
-///
-/// A fixed pair of backticks — what the naive rendering uses — lets any message
-/// containing one escape the span and inject Markdown of its own.
 fn code_span<S>(out: &mut S, text: &str) -> Result<()>
 where
     S: Write + ?Sized,
@@ -94,8 +77,6 @@ where
     Ok(())
 }
 
-/// Writes `text` into a Markdown table cell, neutralising the two characters
-/// that would otherwise end the cell or the row.
 fn table_cell<S>(out: &mut S, text: &str) -> Result<()>
 where
     S: Write + ?Sized,
@@ -111,7 +92,6 @@ where
     Ok(())
 }
 
-/// Length of the longest consecutive run of backticks in `text`.
 fn longest_backtick_run(text: &str) -> usize {
     let mut longest: usize = 0;
     let mut run: usize = 0;

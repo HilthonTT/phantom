@@ -1,22 +1,3 @@
-//! Threaded replies, and who has taken part in them.
-//!
-//! A thread is not a record of its own: it is a root event, and the replies
-//! that point back at it with an `m.thread` relation. What is kept for it is
-//! the summary a client wants before it opens one — how many replies there
-//! are and what the latest is — folded into the root event's
-//! `unsigned.m.relations` as each reply arrives, so a room's threads can be
-//! listed without reading every reply in each of them.
-//!
-//! The one column here is the participant set, keyed by the root event's pdu
-//! id: the users who have posted in that thread, root sender included. It is
-//! written as the ids joined by the separator byte, which is how a sequence
-//! is spelled in this database, so it reads back as a `Vec<OwnedUserId>`.
-//!
-//! `threads_until` walks a room's thread roots newest first. The spec's
-//! `/threads` also honours `include`, returning only the threads the user has
-//! participated in when asked for those; that filtering is not here yet, so
-//! the parameter is ignored and every root in the room is returned.
-
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::{Stream, StreamExt};
@@ -189,12 +170,6 @@ impl Service {
         Ok(stream)
     }
 
-    /// Drops the participant set of every thread in a room.
-    ///
-    /// Keyed by the root event's pdu id, which begins with the room's short
-    /// id, so one room's threads are a single prefix. The thread summaries
-    /// themselves need no sweep: they live in the root events' `unsigned`,
-    /// and those PDUs are going with the rest of the timeline.
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn delete_all_threads(&self, shortroomid: ShortRoomId) {
         self.db.threadid_userids.del_prefix(&shortroomid).await;

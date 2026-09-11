@@ -1,16 +1,3 @@
-//! Writing and deleting entries.
-//!
-//! Writes are synchronous: they go into the memtable and the write-ahead log
-//! on the calling thread, which does not touch the storage. What does is the
-//! log flush afterwards, and that is what a [`Cork`](crate::Cork) holds back —
-//! without one, a run of writes costs a flush each.
-//!
-//! Unlike the reads, these return [`Result`] rather than panicking on a failed
-//! write. A write that fails usually means the database is no longer usable,
-//! and most callers will have nothing better to do than give up; making that
-//! their decision rather than this layer's is what lets the ones that do have
-//! something better to do — an operator command, a migration — take it.
-
 use std::{convert::AsRef, fmt::Debug, io::Write};
 
 use arrayvec::ArrayVec;
@@ -24,7 +11,6 @@ use crate::{
     keyval::{KeyBuf, ValBuf},
 };
 
-/// Writes `val` at `key`, serializing both.
 #[implement(super::Map)]
 #[inline]
 pub fn put<K, V>(&self, key: K, val: V) -> Result
@@ -38,7 +24,6 @@ where
     self.bput(key, val, (&mut key_buf, &mut val_buf))
 }
 
-/// [`Self::put`] with an already-serialized value.
 #[implement(super::Map)]
 #[inline]
 pub fn put_raw<K, V>(&self, key: K, val: V) -> Result
@@ -51,7 +36,6 @@ where
     self.bput_raw(key, val, &mut key_buf)
 }
 
-/// [`Self::put`] with an already-serialized key.
 #[implement(super::Map)]
 #[inline]
 pub fn raw_put<K, V>(&self, key: K, val: V) -> Result
@@ -64,8 +48,6 @@ where
     self.raw_bput(key, val, &mut val_buf)
 }
 
-/// [`Self::put`], serializing both halves into stack buffers. See
-/// [`Map::aqry`](super::Map::aqry) for when the fixed sizes are appropriate.
 #[implement(super::Map)]
 #[inline]
 pub fn aput<const KMAX: usize, const VMAX: usize, K, V>(&self, key: K, val: V) -> Result
@@ -79,7 +61,6 @@ where
     self.bput(key, val, (&mut key_buf, &mut val_buf))
 }
 
-/// [`Self::aput`] with an already-serialized value.
 #[implement(super::Map)]
 #[inline]
 pub fn aput_raw<const KMAX: usize, K, V>(&self, key: K, val: V) -> Result
@@ -92,7 +73,6 @@ where
     self.bput_raw(key, val, &mut key_buf)
 }
 
-/// [`Self::aput`] with an already-serialized key.
 #[implement(super::Map)]
 #[inline]
 pub fn raw_aput<const VMAX: usize, K, V>(&self, key: K, val: V) -> Result
@@ -105,7 +85,6 @@ where
     self.raw_bput(key, val, &mut val_buf)
 }
 
-/// [`Self::put`], serializing into buffers the caller supplies.
 #[implement(super::Map)]
 pub fn bput<K, V, Bk, Bv>(&self, key: K, val: V, mut buf: (Bk, Bv)) -> Result
 where
@@ -119,7 +98,6 @@ where
     self.bput_raw(key, val, &mut buf.0)
 }
 
-/// [`Self::bput`] with an already-serialized value.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, val, buf), level = "trace")]
 pub fn bput_raw<K, V, Bk>(&self, key: K, val: V, mut buf: Bk) -> Result
@@ -133,7 +111,6 @@ where
     self.insert(&key, val)
 }
 
-/// [`Self::bput`] with an already-serialized key.
 #[implement(super::Map)]
 pub fn raw_bput<K, V, Bv>(&self, key: K, val: V, mut buf: Bv) -> Result
 where
@@ -146,7 +123,6 @@ where
     self.insert(&key, val)
 }
 
-/// Writes `val` at `key`, both used as-is.
 #[implement(super::Map)]
 #[tracing::instrument(skip_all, fields(%self), level = "trace")]
 pub fn insert<K, V>(&self, key: &K, val: V) -> Result
@@ -166,12 +142,6 @@ where
     Ok(())
 }
 
-/// Writes every entry of `iter` as one batch.
-///
-/// The batch is atomic and costs a single log flush, which is what makes this
-/// worth reaching for over a run of [`Self::insert`] — but it is held in
-/// memory until it is written, so it is for a bounded run rather than an
-/// unbounded stream.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, iter), fields(%self), level = "trace")]
 pub fn insert_batch<'a, I, K, V>(&'a self, iter: I) -> Result
@@ -198,8 +168,6 @@ where
     Ok(())
 }
 
-/// Deletes the entry at a key built from `key`. Deleting an absent key is not
-/// an error.
 #[implement(super::Map)]
 #[inline]
 pub fn del<K>(&self, key: K) -> Result
@@ -211,7 +179,6 @@ where
     self.bdel(key, &mut buf)
 }
 
-/// [`Self::del`], serializing into a stack buffer of `MAX` bytes.
 #[implement(super::Map)]
 #[inline]
 pub fn adel<const MAX: usize, K>(&self, key: K) -> Result
@@ -223,7 +190,6 @@ where
     self.bdel(key, &mut buf)
 }
 
-/// [`Self::del`], serializing into a buffer the caller supplies.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, buf), level = "trace")]
 pub fn bdel<K, B>(&self, key: K, buf: &mut B) -> Result
@@ -236,7 +202,6 @@ where
     self.remove(key)
 }
 
-/// Deletes the entry at `key`, which is used as-is.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
 pub fn remove<K>(&self, key: &K) -> Result
@@ -252,8 +217,6 @@ where
     self.flush_if_uncorked()
 }
 
-/// Flushes the write-ahead log unless a [`Cork`](crate::Cork) is holding it
-/// back, in which case the cork's drop will do it.
 #[implement(super::Map)]
 #[inline]
 fn flush_if_uncorked(&self) -> Result {

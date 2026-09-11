@@ -1,6 +1,5 @@
 use super::*;
 
-/// Convenience trait for adding event type plus state key to state maps.
 pub trait EventTypeExt {
     fn with_state_key(self, state_key: impl Into<StateKey>) -> (StateEventType, StateKey);
 }

@@ -1,15 +1,3 @@
-//! Fetching many missing keys at once.
-//!
-//! Verifying a batch of events one at a time would ask the network for one
-//! key per event. This gathers what the whole batch needs first, drops what
-//! is already held, and asks for the rest in as few requests as it can — one
-//! per origin server in parallel, and one per notary for all of them at once.
-//!
-//! Nothing here returns the keys: they are written to the database as they
-//! arrive, and the caller reads them back through
-//! [`get`](super::Service::get_event_keys). What it does report, in the log,
-//! is what could not be obtained.
-
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
@@ -30,15 +18,10 @@ use tokio::time::{Instant, timeout_at};
 
 use super::key_exists;
 
-/// A server request is given this long to answer before the keys it was asked
-/// for are counted as missing. It bounds the whole round of origin requests,
-/// not each one: they run together.
 const ORIGIN_TIMEOUT: Duration = Duration::from_secs(45);
 
-/// What is still missing, by server.
 type Batch = BTreeMap<OwnedServerName, Vec<OwnedServerSigningKeyId>>;
 
-/// Acquires every key needed to verify `events`.
 #[implement(super::Service)]
 pub async fn acquire_events_pubkeys<'a, I>(&self, events: I)
 where
@@ -137,7 +120,6 @@ where
     }
 }
 
-/// Whatever of `batch` is not already in the database.
 #[implement(super::Service)]
 async fn acquire_locals<'a, S, K>(&self, batch: S) -> Batch
 where
@@ -159,7 +141,6 @@ where
     missing
 }
 
-/// Asks every server in `batch` for its own keys, all at once.
 #[implement(super::Service)]
 async fn acquire_origins<I>(&self, batch: I) -> Batch
 where
@@ -210,9 +191,6 @@ async fn acquire_origin(
     (origin, key_ids)
 }
 
-/// Asks each notary in turn about everything still missing, so that each one
-/// is asked for less than the last and none is asked at all once nothing is
-/// left to find.
 #[implement(super::Service)]
 async fn acquire_notary<I>(&self, batch: I) -> Batch
 where

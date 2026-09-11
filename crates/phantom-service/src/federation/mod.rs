@@ -1,24 +1,34 @@
-//! Sending a request to another homeserver.
-//!
-//! One request, sent and awaited. There is no queue here and no retry: a
-//! caller that needs the request to survive a restart, or to be retried until
-//! it lands, belongs behind the outgoing queue rather than here. What this
-//! owns is the part every federation request shares — resolving the server
-//! name to an address, signing the request with this server's key so the far
-//! end will accept it, and turning what comes back into the typed response
-//! ruma describes.
-
 mod execute;
+pub mod feds;
+mod peer;
+mod rank;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use phantom_core::{Result, server::Server};
+use phantom_core::{
+    Result, server::Server, time::exponential_backoff::exponential_backoff_streak_cap,
+};
+use phantom_database::Map;
 
-use crate::{Dep, client, moderation, resolver, server_keys};
+pub use self::{
+    peer::{Classification, PeerBackoff, ShouldAttempt},
+    rank::{Candidates, WhenAllBackedOff},
+};
+use crate::{Dep, client, moderation, resolver, rooms, server_keys, server_state};
 
 pub struct Service {
     services: Services,
+
+    statuses: Arc<Map>,
+
+    window_secs: u64,
+
+    n_max: u32,
+
+    grace: Duration,
+
+    max_backoff: Duration,
 }
 
 struct Services {
@@ -27,11 +37,19 @@ struct Services {
     moderation: Dep<moderation::Service>,
     resolver: Dep<resolver::Service>,
     server_keys: Dep<server_keys::Service>,
+    server_state: Dep<server_state::Service>,
+    state_cache: Dep<rooms::state_cache::Service>,
 }
 
 #[async_trait]
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+        let config = &args.server.config.network;
+
+        let window_secs = config.sender_timeout.max(1);
+        let max_backoff = Duration::from_secs(config.sender_retry_backoff_limit);
+        let n_max = exponential_backoff_streak_cap(Duration::from_secs(window_secs), max_backoff);
+
         Ok(Arc::new(Self {
             services: Services {
                 server: args.server.clone(),
@@ -39,7 +57,14 @@ impl crate::Service for Service {
                 moderation: args.depend::<moderation::Service>("moderation"),
                 resolver: args.depend::<resolver::Service>("resolver"),
                 server_keys: args.depend::<server_keys::Service>("server_keys"),
+                server_state: args.depend::<server_state::Service>("server_state"),
+                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
             },
+            statuses: args.db["servername_status"].clone(),
+            window_secs,
+            n_max,
+            grace: Duration::from_secs(config.sender_retry_grace),
+            max_backoff,
         }))
     }
 

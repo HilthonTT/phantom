@@ -34,7 +34,6 @@ pub use self::{
 use super::Event;
 use crate::Result;
 
-/// Persistent Data Unit (Event)
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Pdu {
     pub event_id: OwnedEventId,
@@ -60,10 +59,8 @@ pub struct Pdu {
     pub signatures: Option<Box<RawJsonValue>>,
 }
 
-/// Content hashes of a PDU.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventHash {
-    /// The SHA-256 hash.
     pub sha256: String,
 }
 
@@ -121,24 +118,20 @@ impl Event for Pdu {
     }
 }
 
-/// Prevent derived equality which wouldn't limit itself to event_id
 impl Eq for Pdu {}
 
-/// Equality determined by the Pdu's ID, not the memory representations.
 impl PartialEq for Pdu {
     fn eq(&self, other: &Self) -> bool {
         self.event_id == other.event_id
     }
 }
 
-/// Ordering determined by the Pdu's ID, not the memory representations.
 impl Ord for Pdu {
     fn cmp(&self, other: &Self) -> Ordering {
         self.event_id.cmp(&other.event_id)
     }
 }
 
-/// Ordering determined by the Pdu's ID, not the memory representations.
 impl PartialOrd for Pdu {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))

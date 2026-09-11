@@ -1,5 +1,3 @@
-//! Per-column options, derived from a [`Descriptor`].
-
 use phantom_core::{Config, Result, err};
 use rocksdb::{
     BlockBasedIndexType, BlockBasedOptions, BlockBasedTablePinningTier, Cache,
@@ -12,15 +10,8 @@ use super::{
     descriptor::{CacheDisp, Descriptor},
 };
 
-/// The level the engine reads as "whatever this algorithm calls its default",
-/// since the valid range differs per algorithm. phantom substitutes a level of
-/// its own for any column whose descriptor names one while the config still
-/// holds this.
 pub(super) const SENTINEL_COMPRESSION_LEVEL: i32 = 32767;
 
-/// Options for one column. Takes the result of
-/// [`db_options`](super::database_options::db_options) and narrows it to the column
-/// described by `desc`; the result is what the column is opened with.
 pub(crate) fn cf_options(ctx: &Context, opts: Options, desc: &Descriptor) -> Result<Options> {
     let cache = get_cache(ctx, desc);
     let config = &ctx.server.config;
@@ -169,9 +160,6 @@ fn table_options(desc: &Descriptor, has_cache: bool) -> BlockBasedOptions {
     opts
 }
 
-/// The block cache a column reads through, which is either its own, one it
-/// shares with a named sibling, or the cache shared by every column that asks
-/// for nothing in particular.
 fn get_cache(ctx: &Context, desc: &Descriptor) -> Option<Cache> {
     if desc.dropped {
         return None;
@@ -220,8 +208,6 @@ fn get_cache(ctx: &Context, desc: &Descriptor) -> Option<Cache> {
     }
 }
 
-/// Scales a capacity given in entities by the operator's
-/// `cache_capacity_modifier` and the size of one entity.
 pub(super) fn cache_size_f64(config: &Config, base_size: f64, entity_size: usize) -> Result<usize> {
     let ents =
         phantom_core::math::usize_from_f64(base_size * config.database.cache_capacity_modifier)
@@ -268,8 +254,6 @@ mod tests {
         );
     }
 
-    /// An operator who names a compression level means it, even for a column
-    /// whose descriptor carries one tuned for the default algorithm.
     #[test]
     fn a_configured_compression_level_overrides_the_descriptor() {
         let config = config("rocksdb_compression_level = 9\n");

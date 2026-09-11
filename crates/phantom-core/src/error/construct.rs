@@ -1,37 +1,3 @@
-//! Error construction macros
-//!
-//! These are specialized macros specific to this project's patterns for
-//! throwing Errors; they make Error construction succinct and reduce clutter.
-//! They are developed from folding existing patterns into the macro while
-//! fixing several anti-patterns in the codebase.
-//!
-//! - The primary macros `Err!` and `err!` are provided. `Err!` simply wraps
-//!   `err!` in the Result variant to reduce `Err(err!(...))` boilerplate, thus
-//!   `err!` can be used in any case.
-//!
-//! 1. The macro makes the general Error construction easy: `return
-//!    Err!("something went wrong")` replaces the prior `return
-//!    Err(Error::Err("something went wrong".to_owned()))`.
-//!
-//! 2. The macro integrates format strings automatically: `return
-//!    Err!("something bad: {msg}")` replaces the prior `return
-//!    Err(Error::Err(format!("something bad: {msg}")))`.
-//!
-//! 3. The macro scopes variants of Error: `return Err!(Database("problem with
-//!    bad database."))` replaces the prior `return Err(Error::Database("problem
-//!    with bad database."))`.
-//!
-//! 4. The macro matches and scopes some special-case sub-variants, for example
-//!    with ruma ErrorKind: `return Err!(Request(MissingToken("you must provide
-//!    an access token")))`.
-//!
-//! 5. The macro fixes the anti-pattern of repeating messages in an error! log
-//!    and then again in an Error construction, often slightly different due to
-//!    the Error variant not supporting a format string. Instead `return
-//!    Err(Database(error!("problem with db: {msg}")))` logs the error at the
-//!    callsite and then returns the error with the same string. Caller has the
-//!    option of replacing `error!` with `debug_error!`.
-
 #[macro_export]
 macro_rules! Err {
 	($($args:tt)*) => {
@@ -75,10 +41,6 @@ macro_rules! err {
 		)
 	};
 
-	// Diverges from upstream, which also passed `config = %$item` as a field.
-	// The visitor appends every non-message field to the buffer, so the item
-	// was glued onto the front of the message text; `Error::Config`'s Display
-	// already names the directive.
 	(Config($item:literal, $fmt:literal $(, $($arg:tt)+)?)) => {{
 		let mut buf = String::new();
 		$crate::error::Error::Config($item, $crate::err_log!(
@@ -111,11 +73,6 @@ macro_rules! err {
 	};
 }
 
-/// A trinity of integration between tracing, logging, and Error. This is a
-/// customization of tracing::event! with the primary purpose of sharing the
-/// error string, fieldset parsing and formatting. An added benefit is that we
-/// can share the same callsite metadata for the source of our Error and the
-/// associated logging and tracing event dispatches.
 #[macro_export]
 macro_rules! err_log {
 	($out:ident, $level:ident, $fmt:literal $(, $($arg:tt)+)?) => {

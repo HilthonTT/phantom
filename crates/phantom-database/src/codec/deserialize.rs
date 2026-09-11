@@ -1,5 +1,3 @@
-//! Reading a Rust value back out of the bytes of a key or a value.
-
 use arrayvec::ArrayVec;
 use std::any::type_name;
 
@@ -11,10 +9,6 @@ use serde::{
 
 use super::unhandled;
 
-/// Reads a `T` back out of the bytes it was serialized to.
-///
-/// The counterpart of [`serialize_to_vec`](super::serialize::serialize_to_vec),
-/// and the one path every typed read goes through.
 #[cfg_attr(
 	unabridged,
 	tracing::instrument(
@@ -42,7 +36,6 @@ where
     })
 }
 
-/// Deserialization state.
 pub(crate) struct Deserializer<'de> {
     buf: &'de [u8],
     pos: usize,
@@ -50,21 +43,15 @@ pub(crate) struct Deserializer<'de> {
     seq: bool,
 }
 
-/// Directive to ignore a record. This type can be used to skip deserialization
-/// until the next separator is found.
 #[derive(Debug, Deserialize)]
 pub struct Ignore;
 
-/// Directive to ignore all remaining records. This can be used in a sequence to
-/// ignore the rest of the sequence.
 #[derive(Debug, Deserialize)]
 pub struct IgnoreAll;
 
 impl<'de> Deserializer<'de> {
     const SEP: u8 = super::serialize::SEP;
 
-    /// Determine if the input was fully consumed and error if bytes remaining.
-    /// This is intended for debug assertions; not optimized for parsing logic.
     fn finished(&self) -> Result<()> {
         let pos = self.pos;
         let len = self.buf.len();
@@ -79,16 +66,12 @@ impl<'de> Deserializer<'de> {
             )))
     }
 
-    /// Called at the start of arrays and tuples
     #[inline]
     fn sequence_start(&mut self) {
         debug_assert!(!self.seq, "Nested sequences are not handled at this time");
         self.seq = true;
     }
 
-    /// Consume the current record to ignore it. Inside a sequence the next
-    /// record is skipped but at the top-level all records are skipped such that
-    /// deserialization completes with self.finished() == Ok.
     #[inline]
     fn record_ignore(&mut self) {
         if self.seq {
@@ -98,16 +81,11 @@ impl<'de> Deserializer<'de> {
         }
     }
 
-    /// Consume the current and all remaining records to ignore them. Similar to
-    /// Ignore at the top-level, but it can be provided in a sequence to Ignore
-    /// all remaining elements.
     #[inline]
     fn record_ignore_all(&mut self) {
         self.record_trail();
     }
 
-    /// Consume the current record. The position pointer is moved to the start
-    /// of the next record. Slice of the current record is returned.
     #[inline]
     fn record_next(&mut self) -> &'de [u8] {
         self.buf[self.pos..]
@@ -117,8 +95,6 @@ impl<'de> Deserializer<'de> {
             .expect("remainder of buf even if SEP was not found")
     }
 
-    /// Peek at the first byte of the current record. If all records were
-    /// consumed None is returned instead.
     #[inline]
     fn record_peek_byte(&self) -> Option<u8> {
         let started = self.pos != 0 || self.rec > 0;
@@ -131,8 +107,6 @@ impl<'de> Deserializer<'de> {
         buf.get::<usize>(started.into()).copied()
     }
 
-    /// Consume the record separator such that the position cleanly points to
-    /// the start of the next record. (Case for some sequences)
     #[inline]
     fn record_start(&mut self) {
         let started = self.pos != 0 || self.rec > 0;
@@ -145,8 +119,6 @@ impl<'de> Deserializer<'de> {
         self.inc_rec(1);
     }
 
-    /// Consume all remaining bytes, which may include record separators,
-    /// returning a raw slice.
     #[inline]
     fn record_trail(&mut self) -> &'de [u8] {
         let record = &self.buf[self.pos..];
@@ -154,7 +126,6 @@ impl<'de> Deserializer<'de> {
         record
     }
 
-    /// Increment the position pointer.
     #[inline]
     #[cfg_attr(
 		unabridged,
@@ -177,7 +148,6 @@ impl<'de> Deserializer<'de> {
         self.rec = self.rec.saturating_add(n);
     }
 
-    /// Unconsumed input bytes.
     #[inline]
     fn remaining(&self) -> Result<usize> {
         let pos = self.pos;

@@ -1,5 +1,3 @@
-//! Synchronization primitives phantom needs and `std` does not have.
-
 pub mod mutex_map;
 pub mod two_phase_counter;
 

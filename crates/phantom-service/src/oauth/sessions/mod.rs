@@ -1,31 +1,3 @@
-//! The authorizations, from the redirect out to the tokens they end in.
-//!
-//! A session is one user's authorization at one provider. It is created before
-//! the user is sent to the provider — holding the PKCE verifier and the nonces
-//! the callback is checked against — and outlives the redirect, because what
-//! it carries afterwards is the provider's tokens and the Matrix account the
-//! identity was bound to.
-//!
-//! # The three columns
-//!
-//! `oauthid_session` is the session itself, under the session id. The other
-//! two are indexes onto it: `oauthuniqid_oauthid` from the hash of the
-//! provider's issuer and subject, which is how a returning user is recognised
-//! as the same person, and `userid_oauthid` from a Matrix user to every
-//! session bound to them, which is how the account's authorizations are listed
-//! and revoked. All three move together, in one transaction, so an index never
-//! points at a session that is not there.
-//!
-//! # Why the identity key is locked
-//!
-//! A write batch cannot claim a key conditionally: two logins by the same
-//! person arriving together would each read no association, each mint a
-//! session, and the second would overwrite the first — leaving the earlier
-//! session unreachable from the identity but still bound to the account. The
-//! read and the write are therefore held under [`MutexMap`], keyed by the
-//! identity rather than globally, so only the logins that could collide wait
-//! on each other.
-
 pub mod association;
 
 use std::{sync::Arc, time::SystemTime};
@@ -46,7 +18,6 @@ use super::{Provider, Providers, UserInfo, unique_id as session_unique_id};
 pub struct Sessions {
     association_pending: std::sync::Mutex<association::Pending>,
 
-    /// Serializes the read-check-write of each identity. See the module docs.
     write_locks: MutexMap<String, ()>,
 
     providers: Arc<Providers>,
@@ -60,78 +31,49 @@ struct Data {
     database: Arc<Database>,
 }
 
-/// One authorization at one provider, from the redirect through to the tokens.
-///
-/// Nearly everything is optional because a session is written before any of it
-/// is known: the redirect stores the provider and the PKCE verifier, the
-/// callback adds the tokens, and the account binding arrives last.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Session {
-    /// The provider this authorization is at, by its `client_id`.
     pub idp_id: Option<String>,
 
-    /// This session's own id, which is the key it is stored under.
     pub sess_id: Option<SessionId>,
 
-    /// Token type: `bearer`, `mac`, and so on.
     pub token_type: Option<String>,
 
-    /// The access token the provider granted.
     pub access_token: Option<String>,
 
-    /// The OpenID Connect ID token the provider returned.
     pub id_token: Option<String>,
 
-    /// Seconds the access token was granted for.
     pub expires_in: Option<u64>,
 
-    /// When the access token expires.
     pub expires_at: Option<SystemTime>,
 
-    /// The token the access token is refreshed with.
     pub refresh_token: Option<String>,
 
-    /// Seconds the refresh token was granted for.
     pub refresh_token_expires_in: Option<u64>,
 
-    /// When the refresh token expires.
     pub refresh_token_expires_at: Option<SystemTime>,
 
-    /// The scope actually granted, where the provider reports one.
     pub scope: Option<String>,
 
-    /// Where to send the user once the authorization is complete.
     pub redirect_url: Option<Url>,
 
-    /// The PKCE preimage, whose hash was sent to the provider as the
-    /// challenge.
     pub code_verifier: Option<String>,
 
-    /// A random string held only in the grant cookie, so the callback can tell
-    /// it is the same browser that started the flow.
     pub cookie_nonce: Option<String>,
 
-    /// A random single-use string passed through the provider's redirect.
     pub query_nonce: Option<String>,
 
-    /// When the authorization grant itself expires — the window the user has
-    /// to finish at the provider, not the lifetime of any token.
     pub authorize_expires_at: Option<SystemTime>,
 
-    /// The Matrix account this identity is bound to.
     pub user_id: Option<OwnedUserId>,
 
-    /// The last userinfo the provider answered with.
     pub user_info: Option<UserInfo>,
 }
 
-/// A session's identifier.
 pub type SessionId = String;
 
-/// Characters in the PKCE `code_verifier`. RFC 7636 §4.1 allows 43 to 128.
 pub const CODE_VERIFIER_LENGTH: usize = 64;
 
-/// Characters in a session id.
 pub const SESSION_ID_LENGTH: usize = 32;
 
 impl Sessions {
@@ -150,12 +92,6 @@ impl Sessions {
     }
 }
 
-/// Deletes a session and every index that still points at it.
-///
-/// The identity index is only removed where it still names *this* session: a
-/// newer authorization by the same person will have claimed it, and that
-/// association has to survive the older session being cleaned up. The whole
-/// removal is one transaction.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self))]
 pub async fn delete(&self, sess_id: &str) -> Result {
@@ -163,7 +99,6 @@ pub async fn delete(&self, sess_id: &str) -> Result {
         return Ok(());
     };
 
-    // Hold on to an identity association that a newer session has taken over.
     let unique_id = async {
         let unique_id = unique_id.as_deref()?;
         let assoc_id = self
@@ -211,13 +146,6 @@ pub async fn delete(&self, sess_id: &str) -> Result {
     txn.execute()
 }
 
-/// Reads the session and takes the lock on its identity.
-///
-/// Both have to be true at once: the identity key is derived from the session,
-/// so the session is read to find the key, and the key has to be held before
-/// the session is trusted. The loop closes that gap — after taking the lock it
-/// reads again, and starts over if the identity moved underneath it. `None`
-/// where the session is already gone.
 #[implement(Sessions)]
 async fn lock_for_delete(
     &self,
@@ -252,7 +180,6 @@ async fn lock_for_delete(
     }
 }
 
-/// Writes a session and its indexes, in one transaction.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self))]
 pub async fn put(&self, session: &Session) -> Result {
@@ -271,15 +198,6 @@ pub async fn put(&self, session: &Session) -> Result {
     self.put_locked(session, unique_id.as_deref()).await
 }
 
-/// Builds and commits a session while holding its identity key.
-///
-/// `build` is handed the account the identity was last bound to, if any, and
-/// returns the session to write along with whatever the caller wants to carry
-/// out. Everything from the lookup to the commit is inside the lock, so two
-/// logins by the same person cannot each decide the identity is new.
-///
-/// What comes back is the committed session, the caller's value, and the id of
-/// the session this one displaced — which the caller usually wants to revoke.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn commit_identity_session<T, F, Fut>(
@@ -358,7 +276,6 @@ async fn put_locked(&self, session: &Session, unique_id: Option<&str>) -> Result
     txn.execute()
 }
 
-/// The session an identity is currently associated with.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self), ret(level = "debug"))]
 pub async fn get_by_unique_id(&self, unique_id: &str) -> Result<Session> {
@@ -367,7 +284,6 @@ pub async fn get_by_unique_id(&self, unique_id: &str) -> Result<Session> {
         .await
 }
 
-/// Every session bound to a Matrix account.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self))]
 pub fn get_by_user(&self, user_id: &UserId) -> impl Stream<Item = Result<Session>> + Send {
@@ -375,7 +291,6 @@ pub fn get_by_user(&self, user_id: &UserId) -> impl Stream<Item = Result<Session
         .and_then(async |sess_id| self.get(&sess_id).await)
 }
 
-/// The session of that id.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self), ret(level = "debug"))]
 pub async fn get(&self, sess_id: &str) -> Result<Session> {
@@ -387,7 +302,6 @@ pub async fn get(&self, sess_id: &str) -> Result<Session> {
         .map(|Cbor(session)| session)
 }
 
-/// The ids of the sessions bound to a Matrix account.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self))]
 pub fn get_sess_id_by_user(
@@ -403,7 +317,6 @@ pub fn get_sess_id_by_user(
         .try_flatten_stream()
 }
 
-/// The id of the session an identity is associated with.
 #[implement(Sessions)]
 #[tracing::instrument(level = "debug", skip(self), ret(level = "debug"))]
 pub async fn get_sess_id_by_unique_id(&self, unique_id: &str) -> Result<SessionId> {
@@ -414,7 +327,6 @@ pub async fn get_sess_id_by_unique_id(&self, unique_id: &str) -> Result<SessionI
         .deserialized()
 }
 
-/// Every Matrix account with an authorization on it.
 #[implement(Sessions)]
 pub fn users(&self) -> impl Stream<Item = &UserId> + Send {
     self.db
@@ -424,7 +336,6 @@ pub fn users(&self) -> impl Stream<Item = &UserId> + Send {
         .map(|user_id| <&UserId>::try_from(user_id).expect("valid user id in db"))
 }
 
-/// Every session there is.
 #[implement(Sessions)]
 pub fn stream(&self) -> impl Stream<Item = Session> + Send {
     self.db
@@ -434,7 +345,6 @@ pub fn stream(&self) -> impl Stream<Item = Session> + Send {
         .map(|(_, Cbor(session)): (Ignore, Cbor<Session>)| session)
 }
 
-/// The provider a session was authorized at, discovered.
 #[implement(Sessions)]
 pub async fn provider(&self, session: &Session) -> Result<Provider> {
     let Some(idp_id) = session.idp_id.as_deref() else {
@@ -453,10 +363,6 @@ mod tests {
     use super::{Session, SessionId};
     use crate::oauth::UserInfo;
 
-    /// A session is stored as one CBOR value, so every field in it has to
-    /// survive the round trip — including the ones the codec has no special
-    /// case for. A field that silently does not is a session that cannot be
-    /// read back, which is a login that fails at the last step.
     #[test]
     fn a_session_round_trips_through_the_codec() {
         let expires_at = UNIX_EPOCH + Duration::from_secs(1_757_000_000);
@@ -494,8 +400,6 @@ mod tests {
         );
     }
 
-    /// The default session is what a flow starts from, and it is written
-    /// before all but one of its fields are known.
     #[test]
     fn an_empty_session_round_trips() {
         let bytes = serialize_to_vec(Cbor(&Session::default())).expect("serializes");
@@ -505,8 +409,6 @@ mod tests {
         assert!(read.user_info.is_none());
     }
 
-    /// `userid_oauthid` holds the list of a user's sessions as one value, and
-    /// the delete path rewrites it with an entry removed.
     #[test]
     fn a_session_id_list_round_trips() {
         let sess_ids: Vec<SessionId> = vec!["one".to_owned(), "two".to_owned()];

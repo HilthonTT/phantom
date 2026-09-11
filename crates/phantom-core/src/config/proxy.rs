@@ -3,31 +3,6 @@ use serde::Deserialize;
 
 use crate::Result;
 
-/// ## Examples:
-/// - No proxy (default):
-/// ```toml
-/// proxy ="none"
-/// ```
-/// - Global proxy
-/// ```toml
-/// [global.proxy]
-/// global = { url = "socks5h://localhost:9050" }
-/// ```
-/// - Proxy some domains
-/// ```toml
-/// [global.proxy]
-/// [[global.proxy.by_domain]]
-/// url = "socks5h://localhost:9050"
-/// include = ["*.onion", "matrix.myspecial.onion"]
-/// exclude = ["*.myspecial.onion"]
-/// ```
-/// ## Include vs. Exclude
-/// If include is an empty list, it is assumed to be `["*"]`.
-///
-/// If a domain matches both the exclude and include list, the proxy will only
-/// be used if it was included because of a more specific rule than it was
-/// excluded. In the above example, the proxy would be used for
-/// `ordinary.onion`, `matrix.myspecial.onion`, but not `hello.myspecial.onion`.
 #[derive(Clone, Default, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProxyConfig {
@@ -51,20 +26,9 @@ impl ProxyConfig {
     }
 }
 
-/// Proxy schemes that resolve the destination hostname at the proxy rather
-/// than in this process. `socks5h` and `socks4a` are the resolving spellings
-/// of their families; the plain `socks5` and `socks4` are not.
 const RESOLVES_REMOTELY: [&str; 4] = ["http", "https", "socks4a", "socks5h"];
 
 impl ProxyConfig {
-    /// Whether `url` names a configured proxy endpoint that this process
-    /// would resolve itself.
-    ///
-    /// A request aimed at the proxy's own hostname is indistinguishable, at
-    /// the resolver, from the connection to the proxy — so a URL preview
-    /// pointed at it would be handed the exemption the proxy endpoint has.
-    /// Where the proxy resolves the destination instead, no local lookup
-    /// happens and there is nothing to alias.
     #[must_use]
     pub fn resolver_alias(&self, url: &Url) -> bool {
         let Some(host) = url.host_str() else {
@@ -82,8 +46,6 @@ impl ProxyConfig {
                 .is_none_or(|proxy| !RESOLVES_REMOTELY.contains(&proxy.scheme()))
     }
 
-    /// Every proxy endpoint this configuration names, whichever rule reaches
-    /// it.
     fn endpoints(&self) -> impl Iterator<Item = &Url> {
         let (global, by_domain): (Option<&Url>, &[PartialProxyConfig]) = match self {
             Self::None => (None, &[]),
@@ -96,13 +58,11 @@ impl ProxyConfig {
             .chain(by_domain.iter().map(|proxy| &proxy.url))
     }
 
-    /// Whether a request for `url` would be carried by a proxy.
     #[must_use]
     pub fn intercepts(&self, url: &Url) -> bool {
         self.proxy_for(url).is_some()
     }
 
-    /// The proxy `url` would be carried by, if any.
     fn proxy_for(&self, url: &Url) -> Option<&Url> {
         match self {
             Self::None => None,
@@ -156,7 +116,6 @@ impl PartialProxyConfig {
     }
 }
 
-/// A domain name, that optionally allows a * as its first subdomain.
 #[derive(Clone, Debug)]
 enum WildCardedDomain {
     WildCard,
@@ -227,7 +186,6 @@ mod tests {
         proxy.for_url(&url.parse().expect("valid url")).is_some()
     }
 
-    /// The worked example from this module's doc comment.
     #[test]
     fn more_specific_include_beats_exclude() {
         let proxy = partial(
@@ -254,8 +212,6 @@ mod tests {
         assert!(!matches(&proxy, "http://127.0.0.1:8008"));
     }
 
-    /// A preview aimed at the proxy's own hostname would be resolved here,
-    /// which is the lookup the proxy endpoint is exempt from.
     #[test]
     fn resolver_alias_recognizes_a_locally_resolved_endpoint() {
         let config = ProxyConfig::Global {
@@ -266,8 +222,6 @@ mod tests {
         assert!(!config.resolver_alias(&"http://example.org/".parse().expect("valid url")));
     }
 
-    /// `socks5h` resolves the destination at the proxy, so nothing is looked
-    /// up here and there is no exemption to alias.
     #[test]
     fn resolver_alias_ignores_a_remotely_resolved_endpoint() {
         let config = ProxyConfig::Global {
@@ -277,8 +231,6 @@ mod tests {
         assert!(!config.resolver_alias(&"http://tor.example/".parse().expect("valid url")));
     }
 
-    /// A per-domain proxy only carries the domains it matches, so a URL it
-    /// does not carry is resolved here even when it names the endpoint.
     #[test]
     fn resolver_alias_covers_an_unmatched_by_domain_endpoint() {
         let mut proxy = partial(&["*.onion"], &[]);

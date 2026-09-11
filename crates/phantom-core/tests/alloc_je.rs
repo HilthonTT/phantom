@@ -1,11 +1,7 @@
-//! Runtime probes for `alloc::je`. Only meaningful when jemalloc is the active
-//! allocator, so the whole file is gated on the feature.
 #![cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 
 use phantom_core::alloc::je::this_thread;
 
-/// `allocated()` and `deallocated()` must report distinct counters. They are
-/// both `thread.*p` pointer reads, so a shared mib key silently aliases them.
 #[test]
 fn allocated_and_deallocated_are_distinct_counters() {
     const SIZE: usize = 4 * 1024 * 1024;

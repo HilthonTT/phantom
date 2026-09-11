@@ -1,6 +1,5 @@
 use std::{cmp, time::Duration};
 
-/// Returns false if the exponential backoff has expired based on the inputs
 #[inline]
 #[must_use]
 pub fn continue_exponential_backoff_secs(
@@ -27,11 +26,29 @@ pub fn continue_exponential_backoff(
     elapsed < min
 }
 
+#[inline]
+#[must_use]
+pub fn exponential_backoff_streak_cap(window: Duration, max: Duration) -> u32 {
+    let window = window.as_secs();
+    let max = max.as_secs();
+
+    if window == 0 {
+        return 1;
+    }
+
+    let ratio = max.div_ceil(window);
+
+    u32::try_from(ratio.isqrt().saturating_add(1)).unwrap_or(u32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use super::{continue_exponential_backoff, continue_exponential_backoff_secs};
+    use super::{
+        continue_exponential_backoff, continue_exponential_backoff_secs,
+        exponential_backoff_streak_cap,
+    };
 
     #[test]
     fn backoff_grows_with_the_try_count() {
@@ -100,5 +117,46 @@ mod tests {
         ));
 
         assert!(!continue_exponential_backoff_secs(1, 60, Duration::ZERO, 0));
+    }
+
+    #[test]
+    fn the_streak_cap_is_where_the_curve_saturates() {
+        let window = Duration::from_secs(180);
+        let max = Duration::from_secs(86400);
+
+        let cap = exponential_backoff_streak_cap(window, max);
+        assert_eq!(cap, 22);
+
+        assert!(continue_exponential_backoff(
+            window,
+            max,
+            max - Duration::from_secs(1),
+            cap
+        ));
+        assert!(!continue_exponential_backoff(window, max, max, cap));
+    }
+
+    #[test]
+    fn a_streak_past_the_cap_changes_nothing() {
+        let window = Duration::from_secs(180);
+        let max = Duration::from_secs(86400);
+        let cap = exponential_backoff_streak_cap(window, max);
+
+        for elapsed in [0, 1000, 86399, 86400, 90000] {
+            let elapsed = Duration::from_secs(elapsed);
+
+            assert_eq!(
+                continue_exponential_backoff(window, max, elapsed, cap),
+                continue_exponential_backoff(window, max, elapsed, cap * 10),
+            );
+        }
+    }
+
+    #[test]
+    fn a_zero_window_saturates_immediately() {
+        assert_eq!(
+            exponential_backoff_streak_cap(Duration::ZERO, Duration::from_secs(86400)),
+            1
+        );
     }
 }

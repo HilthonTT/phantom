@@ -1,16 +1,9 @@
-//! Canonical JSON, and the `serde` adapters for values that arrive as
-//! strings.
-
 use std::{fmt, str::FromStr};
 
 use ruma::{CanonicalJsonError, CanonicalJsonObject, canonical_json::try_from_json_map};
 
 use crate::Result;
 
-/// Fallible conversion from any value that implements `Serialize` to a
-/// `CanonicalJsonObject`.
-///
-/// `value` must serialize to an `serde_json::Value::Object`.
 pub fn to_canonical_object<T: serde::Serialize>(
     value: T,
 ) -> Result<CanonicalJsonObject, CanonicalJsonError> {

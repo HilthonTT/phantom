@@ -25,8 +25,6 @@ struct Services {
     server_state: Dep<server_state::Service>,
 }
 
-/// One receipt as sync sends it: whose it is, when it was set, and the event
-/// itself.
 pub type ReceiptItem<'a> = (&'a UserId, u64, Raw<AnySyncEphemeralRoomEvent>);
 
 impl Data {
@@ -43,12 +41,6 @@ impl Data {
         }
     }
 
-    /// Replaces a user's receipt in a room.
-    ///
-    /// The old entry is deleted rather than overwritten, because the key
-    /// carries the counter the receipt was set at — that is what a sync pages
-    /// through, so a new receipt is a new key and the old one would otherwise
-    /// be sent again forever.
     pub(super) async fn readreceipt_update(
         &self,
         user_id: &UserId,
@@ -75,7 +67,6 @@ impl Data {
             .put((room_id, count, user_id), Json(event))
     }
 
-    /// The receipts set in a room after `since`.
     pub(super) fn readreceipts_since<'a>(
         &'a self,
         room_id: &'a RoomId,
@@ -104,10 +95,6 @@ impl Data {
             .ignore_err()
     }
 
-    /// Moves a user's private read marker, and stamps when it moved.
-    ///
-    /// Two writes because they answer two questions: where the marker is, and
-    /// whether it has moved since the token a sync is holding.
     pub(super) fn private_read_set(
         &self,
         room_id: &RoomId,
@@ -140,12 +127,6 @@ impl Data {
             .unwrap_or(0)
     }
 
-    /// Drops every receipt set in a room, public and private alike.
-    ///
-    /// All three columns are keyed room first, so each is one prefix. The
-    /// public receipts go with the rest of the room; the private ones are
-    /// this server's own record and have nothing left to point at once the
-    /// timeline is gone.
     pub(super) async fn delete_all_read_receipts(&self, room_id: &RoomId) {
         let prefix = (room_id, Interfix);
 

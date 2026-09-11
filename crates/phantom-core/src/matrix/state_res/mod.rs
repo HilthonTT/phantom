@@ -52,38 +52,12 @@ use crate::{
     trace, warn,
 };
 
-/// A mapping of event type and state_key to some value `T`, usually an
-/// `EventId`.
 pub type StateMap<T> = HashMap<TypeStateKey, T>;
 pub type StateMapItem<T> = (TypeStateKey, T);
 pub type TypeStateKey = (StateEventType, StateKey);
 
 type Result<T, E = Error> = crate::Result<T, E>;
 
-/// Resolve sets of state events as they come in.
-///
-/// Internally `StateResolution` builds a graph and an auth chain to allow for
-/// state conflict resolution.
-///
-/// ## Arguments
-///
-/// * `state_sets` - The incoming state to resolve. Each `StateMap` represents a
-///   possible fork in the state of a room.
-///
-/// * `auth_chain_sets` - The full recursive set of `auth_events` for each event
-///   in the `state_sets`.
-///
-/// * `event_fetch` - Any event not found in the `event_map` will defer to this
-///   closure to find the event.
-///
-/// * `parallel_fetches` - The number of asynchronous fetch requests in-flight
-///   for any given operation.
-///
-/// ## Invariants
-///
-/// The caller of `resolve` must ensure that all the events are from the same
-/// room. Although this function takes a `RoomId` it does not check that each
-/// event is part of the same room.
 pub async fn resolve<'a, E, Sets, SetIter, Hasher, Fetch, FetchFut, Exists, ExistsFut>(
     room_version: &RoomVersionId,
     state_sets: Sets,
@@ -207,14 +181,6 @@ where
     Ok(resolved_state)
 }
 
-/// Split the events that have no conflicts from those that are conflicting.
-///
-/// The return tuple looks like `(unconflicted, conflicted)`.
-///
-/// State is determined to be conflicting if for the given key (StateEventType,
-/// StateKey) there is not exactly one event ID. This includes missing events,
-/// if one state_set includes an event that none of the other have this is a
-/// conflicting event.
 fn separate<'a, Id>(
     state_sets_iter: impl Iterator<Item = &'a StateMap<Id>>,
 ) -> (StateMap<Id>, StateMap<Vec<Id>>)
@@ -254,7 +220,6 @@ where
     (unconflicted_state, conflicted_state)
 }
 
-/// Returns a Vec of deduped EventIds that appear in some chains but not others.
 #[allow(clippy::arithmetic_side_effects)]
 fn get_auth_chain_diff<Id, Hasher>(
     auth_chain_sets: &[HashSet<Id, Hasher>],

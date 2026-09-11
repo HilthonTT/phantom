@@ -8,38 +8,27 @@ use std::{
 use ruma::{EventId, MilliSecondsSinceUnixEpoch, RoomId, UserId, events::TimelineEventType};
 use serde_json::value::RawValue as RawJsonValue;
 
-/// Abstraction of a PDU so users can have their own PDU types.
 pub trait Event {
     type Id: Clone + Debug + Display + Eq + Ord + Hash + Send + Borrow<EventId>;
 
-    /// The `EventId` of this event.
     fn event_id(&self) -> &Self::Id;
 
-    /// The `RoomId` of this event.
     fn room_id(&self) -> &RoomId;
 
-    /// The `UserId` of this event.
     fn sender(&self) -> &UserId;
 
-    /// The time of creation on the originating server.
     fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch;
 
-    /// The event type.
     fn event_type(&self) -> &TimelineEventType;
 
-    /// The event's content.
     fn content(&self) -> &RawJsonValue;
 
-    /// The state key for this event.
     fn state_key(&self) -> Option<&str>;
 
-    /// The events before this event.
     fn prev_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_;
 
-    /// All the authenticating events for this event.
     fn auth_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_;
 
-    /// If this event is a redaction event this is the event it redacts.
     fn redacts(&self) -> Option<&Self::Id>;
 }
 

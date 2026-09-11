@@ -1,9 +1,3 @@
-//! Synchronous combinator extensions to [`futures::Stream`].
-//!
-//! Most `Stream` combinators take an asynchronous predicate, but steering a
-//! stream like an iterator only needs a synchronous one. Each method here is
-//! its `StreamExt` counterpart with the `ready(..)` wrapping folded in, so
-//! callsites are not littered with closures that immediately return.
 #![allow(clippy::type_complexity)]
 
 use futures::{
@@ -13,7 +7,6 @@ use futures::{
     },
 };
 
-/// This interface is not necessarily complete; feel free to add as-needed.
 pub trait ReadyExt<Item>
 where
     Self: Stream<Item = Item> + Send + Sized,
@@ -39,6 +32,12 @@ where
     ) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
     where
         F: Fn(Item) -> Option<U>;
+
+    fn ready_find_map<F, U>(&mut self, f: F) -> impl Future<Output = Option<U>> + Send
+    where
+        Self: Unpin + Send,
+        F: Fn(Item) -> Option<U> + Send,
+        U: Send;
 
     fn ready_fold<T, F>(
         self,
@@ -131,6 +130,22 @@ where
         F: Fn(Item) -> Option<U>,
     {
         self.filter_map(move |t| ready(f(t)))
+    }
+
+    #[inline]
+    async fn ready_find_map<F, U>(&mut self, f: F) -> Option<U>
+    where
+        Self: Unpin + Send,
+        F: Fn(Item) -> Option<U> + Send,
+        U: Send,
+    {
+        while let Some(item) = self.next().await {
+            if let Some(found) = f(item) {
+                return Some(found);
+            }
+        }
+
+        None
     }
 
     #[inline]

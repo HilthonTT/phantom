@@ -1,5 +1,3 @@
-//! Extensions to [`arrayvec::ArrayVec`].
-
 use ::arrayvec::ArrayVec;
 
 pub trait ArrayVecExt<T> {

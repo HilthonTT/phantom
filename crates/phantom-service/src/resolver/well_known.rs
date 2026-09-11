@@ -1,15 +1,6 @@
-//! Step 3 of resolving a server name: asking the name itself where its
-//! homeserver lives.
-
 use phantom_core::{Result, debug, debug_error, debug_info, debug_warn, implement, trace};
 use ruma::ServerName;
 
-/// The delegated server name `dest` publishes, if it publishes a usable one.
-///
-/// Every failure here is `Ok(None)` rather than an error: not publishing a
-/// `.well-known` is the normal case, and a malformed or oversized one is
-/// answered the same way the spec answers a missing one — by moving on to the
-/// SRV lookup.
 #[implement(super::Service)]
 #[tracing::instrument(name = "well-known", level = "debug", skip(self, dest))]
 pub(super) async fn request_well_known(&self, dest: &str) -> Result<Option<String>> {
@@ -69,6 +60,4 @@ pub(super) async fn request_well_known(&self, dest: &str) -> Result<Option<Strin
     Ok(Some(m_server.to_owned()))
 }
 
-/// A `.well-known` file is a single short JSON object. Anything approaching
-/// this is not one, and is not worth parsing to find that out.
 const MAX_RESPONSE_LEN: usize = 12288;

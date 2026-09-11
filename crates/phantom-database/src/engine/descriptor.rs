@@ -1,16 +1,7 @@
-//! Column descriptions.
-//!
-//! A [`Descriptor`] is the shape of a column: how large its values tend to be,
-//! how its data is written, and therefore how the engine should compact, cache
-//! and compress it. Columns pick one of the archetypes below rather than
-//! spelling out three dozen options each, so that a column's declaration says
-//! what its data does, not how the engine should be tuned for it.
-
 use rocksdb::{DBCompactionStyle as CompactionStyle, DBCompressionType as CompressionType};
 
 use super::column_options::SENTINEL_COMPRESSION_LEVEL;
 
-/// Column descriptor.
 #[derive(Debug, Clone, Copy)]
 pub struct Descriptor {
     pub name: &'static str,
@@ -38,25 +29,16 @@ pub struct Descriptor {
     pub cache_shards: u32,
 }
 
-/// Which file a compaction picks next.
-///
-/// Mirrors the engine's own enumeration, which derives nothing and so cannot
-/// sit in a `Copy` descriptor; [`Self::into_rocksdb`] converts back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompactionPri {
-    /// Prefer larger files, discounted by how many deletions they hold.
     ByCompensatedSize,
-    /// Prefer the file whose data was updated longest ago. Suits a keyspace
-    /// where updates cluster in a few hot ranges.
+
     OldestLargestSeqFirst,
-    /// Prefer the file whose range has gone longest without being compacted
-    /// down a level. Suits updates spread across the whole keyspace.
+
     OldestSmallestSeqFirst,
-    /// Prefer the file that overlaps least with the level below, which is
-    /// usually the cheapest compaction available.
+
     MinOverlappingRatio,
-    /// Walk each level's files in turn, so every file is compacted eventually
-    /// regardless of what it holds.
+
     RoundRobin,
 }
 
@@ -72,8 +54,6 @@ impl CompactionPri {
     }
 }
 
-/// Where a column's block cache comes from: its own, the cache shared by most
-/// columns, or the one belonging to a named sibling.
 #[derive(Debug, Clone, Copy)]
 pub enum CacheDisp {
     Unique,
@@ -81,7 +61,6 @@ pub enum CacheDisp {
     SharedWith(&'static str),
 }
 
-/// Base descriptor supplying common defaults to all derived descriptors.
 static BASE: Descriptor = Descriptor {
     name: "",
     dropped: false,
@@ -108,13 +87,11 @@ static BASE: Descriptor = Descriptor {
     cache_shards: 64,
 };
 
-/// Tombstone descriptor for columns which have been or will be deleted.
 pub static DROPPED: Descriptor = Descriptor {
     dropped: true,
     ..BASE
 };
 
-/// Descriptor for large datasets with random updates across the keyspace.
 pub static RANDOM: Descriptor = Descriptor {
     compaction_pri: CompactionPri::OldestSmallestSeqFirst,
     write_size: 1024 * 1024 * 32,
@@ -124,7 +101,6 @@ pub static RANDOM: Descriptor = Descriptor {
     ..BASE
 };
 
-/// Descriptor for large datasets with updates to the end of the keyspace.
 pub static SEQUENTIAL: Descriptor = Descriptor {
     compaction_pri: CompactionPri::OldestLargestSeqFirst,
     write_size: 1024 * 1024 * 64,
@@ -137,7 +113,6 @@ pub static SEQUENTIAL: Descriptor = Descriptor {
     ..BASE
 };
 
-/// Descriptor for small datasets with random updates across the keyspace.
 pub static RANDOM_SMALL: Descriptor = Descriptor {
     compaction: CompactionStyle::Universal,
     write_size: 1024 * 1024 * 16,
@@ -153,7 +128,6 @@ pub static RANDOM_SMALL: Descriptor = Descriptor {
     ..RANDOM
 };
 
-/// Descriptor for small datasets with updates to the end of the keyspace.
 pub static SEQUENTIAL_SMALL: Descriptor = Descriptor {
     compaction: CompactionStyle::Universal,
     write_size: 1024 * 1024 * 16,
@@ -169,8 +143,6 @@ pub static SEQUENTIAL_SMALL: Descriptor = Descriptor {
     ..SEQUENTIAL
 };
 
-/// Descriptor for small persistent caches with random updates. The oldest
-/// entries are dropped once `limit_size` is reached.
 pub static RANDOM_SMALL_CACHE: Descriptor = Descriptor {
     compaction: CompactionStyle::Fifo,
     cache_disp: CacheDisp::Unique,
@@ -184,8 +156,6 @@ pub static RANDOM_SMALL_CACHE: Descriptor = Descriptor {
 mod tests {
     use super::*;
 
-    /// `column_options` derives the cache's shard count from the base-2 logarithm of
-    /// this figure, and the engine rejects more than 2^10 shards.
     #[test]
     fn cache_shards_are_powers_of_two_within_range() {
         for desc in [
@@ -202,8 +172,6 @@ mod tests {
         }
     }
 
-    /// A shape entry per level, since they are handed to the engine as the
-    /// per-level arrays it expects.
     #[test]
     fn shapes_cover_every_level() {
         for desc in [&RANDOM, &SEQUENTIAL, &RANDOM_SMALL, &SEQUENTIAL_SMALL] {
@@ -211,8 +179,6 @@ mod tests {
         }
     }
 
-    /// The first levels hold the newest and hottest data, where compression
-    /// would cost more in CPU than it saves in storage.
     #[test]
     fn compression_starts_below_the_top_levels() {
         for desc in [

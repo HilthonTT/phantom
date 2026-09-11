@@ -1,14 +1,5 @@
 use super::*;
 
-/// Returns the sorted `to_sort` list of `EventId`s based on a mainline sort
-/// using the depth of `resolved_power_level`, the server timestamp, and the
-/// eventId.
-///
-/// The depth of the given event is calculated based on the depth of it's
-/// closest "parent" power_level event. If there have been two power events the
-/// after the most recent are depth 0, the events before (with the first power
-/// level as a parent) will be marked as depth 1. depth 1 is "older" than depth
-/// 0.
 pub(super) async fn mainline_sort<E, F, Fut>(
     to_sort: &[E::Id],
     resolved_power_level: Option<E::Id>,
@@ -78,8 +69,6 @@ where
     Ok(sort_event_ids)
 }
 
-/// Get the mainline depth from the `mainline_map` or finds a power_level event
-/// that has an associated mainline depth.
 async fn get_mainline_depth<E, F, Fut>(
     mut event: Option<E>,
     mainline_map: &HashMap<E::Id, usize>,

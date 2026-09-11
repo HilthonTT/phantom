@@ -2,7 +2,6 @@ use std::clone::Clone;
 
 use futures::{Stream, StreamExt, stream::Map};
 
-/// [`Iterator::cloned`] for streams of references.
 pub trait Cloned<'a, T, S>
 where
     S: Stream<Item = &'a T>,

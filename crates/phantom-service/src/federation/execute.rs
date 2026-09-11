@@ -1,5 +1,3 @@
-//! Signing, sending, and reading back one federation request.
-
 use std::{fmt::Debug, mem};
 
 use bytes::Bytes;
@@ -14,25 +12,17 @@ use ruma::{
     api::{
         EndpointError, IncomingResponseExt, Metadata, OutgoingRequest, OutgoingRequestExt,
         auth_scheme::NoAuthentication,
-        error::Error as RumaError,
+        error::{Error as RumaError, ErrorBody},
         federation::authentication::{ServerSignatures, XMatrixSigningInput},
         path_builder::SinglePath,
     },
 };
 
+use super::peer::{Classification, classify_error};
 use crate::{moderation::Restriction, resolver::lookup::ResolvedDest};
 
-/// A federation endpoint whose path does not vary by spec version, which in
-/// ruma is every one of them. Naming it is what lets the senders below be
-/// generic over the request type: `SinglePath` needs no input to pick a path,
-/// where a versioned endpoint would need the versions the far end supports.
 type FixedPath = SinglePath;
 
-/// Sends a signed request to another server and awaits its response.
-///
-/// The signature is what authenticates the request: a federation endpoint has
-/// no access token, and the far end decides whether to answer by checking the
-/// `X-Matrix` header against the key it holds for us.
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, name = "request", level = "debug")]
 pub async fn execute<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
@@ -45,13 +35,28 @@ where
     self.execute_with(client, dest, request).await
 }
 
-/// [`Self::execute`] over a caller-chosen client.
-///
-/// The sender pushes its transactions through a client of its own, with the
-/// longer timeouts a transaction the far end has to process in full needs.
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, name = "request", level = "debug")]
 pub async fn execute_with<T>(
+    &self,
+    client: &Client,
+    dest: &ServerName,
+    request: T,
+) -> Result<T::IncomingResponse>
+where
+    T: OutgoingRequest + Metadata<Authentication = ServerSignatures, PathBuilder = FixedPath>,
+    T: Debug + Send,
+{
+    let result = self.execute_uncounted(client, dest, request).await;
+
+    self.record_outcome(dest, verdict(&result)).await;
+
+    result
+}
+
+#[implement(super::Service)]
+#[tracing::instrument(skip_all, name = "request", level = "debug")]
+pub(super) async fn execute_uncounted<T>(
     &self,
     client: &Client,
     dest: &ServerName,
@@ -68,11 +73,19 @@ where
     self.execute_on(client, dest, request, input).await
 }
 
-/// Sends an unauthenticated request to another server.
-///
-/// Only for the endpoints the spec defines as unauthenticated — which is the
-/// key endpoints, and only those: signing a request needs a key, so the
-/// requests that go looking for one cannot themselves be signed.
+fn verdict<T>(result: &Result<T>) -> Option<Option<Classification>> {
+    result.as_ref().err().map(classify_error)
+}
+
+#[implement(super::Service)]
+async fn record_outcome(&self, dest: &ServerName, verdict: Option<Option<Classification>>) {
+    match verdict {
+        None => self.record_success(dest).await,
+        Some(Some(class)) => self.record_failure(dest, class),
+        Some(None) => (),
+    }
+}
+
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, name = "request", level = "debug")]
 pub async fn execute_unsigned<T>(
@@ -85,15 +98,13 @@ where
     T: Debug + Send,
 {
     let client = &self.services.client.federation;
+    let result = self.execute_on(client, dest, request, ()).await;
 
-    self.execute_on(client, dest, request, ()).await
+    self.record_outcome(dest, verdict(&result)).await;
+
+    result
 }
 
-/// [`Self::execute_unsigned`] on the long-timeout client.
-///
-/// A notary asked about many servers at once routinely takes longer to answer
-/// than a federation request has any business taking, and times out against
-/// the ordinary client.
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, name = "synapse", level = "debug")]
 pub async fn execute_unsigned_synapse<T>(
@@ -106,8 +117,11 @@ where
     T: Debug + Send,
 {
     let client = &self.services.client.synapse;
+    let result = self.execute_on(client, dest, request, ()).await;
 
-    self.execute_on(client, dest, request, ()).await
+    self.record_outcome(dest, verdict(&result)).await;
+
+    result
 }
 
 #[implement(super::Service)]
@@ -163,11 +177,34 @@ where
 
     debug!(?method, ?url, "Sending request");
     match client.execute(request).await {
-        Ok(response) => handle_response::<T>(dest, actual, &method, &url, response).await,
+        Ok(response) => handle_response::<T>(dest, actual, &method, &url, response)
+            .await
+            .inspect_err(|error| self.evict_misrouted(dest, actual, error)),
         Err(error) => {
+            self.evict_route(dest, actual);
+
             Err(handle_error(actual, &method, &url, error).expect_err("always returns error"))
         }
     }
+}
+
+#[implement(super::Service)]
+fn evict_misrouted(&self, dest: &ServerName, actual: &ResolvedDest, error: &Error) {
+    let Error::Federation(_, response) = error else {
+        return;
+    };
+
+    if matches!(response.body, ErrorBody::NotJson { .. }) {
+        self.evict_route(dest, actual);
+    }
+}
+
+#[implement(super::Service)]
+fn evict_route(&self, dest: &ServerName, actual: &ResolvedDest) {
+    let cache = &self.services.resolver.cache;
+
+    cache.del_destination(dest).ok();
+    cache.del_override(&actual.dest.hostname()).ok();
 }
 
 #[implement(super::Service)]
@@ -180,14 +217,8 @@ fn prepare(&self, request: http::Request<Vec<u8>>) -> Result<Request> {
     Ok(request)
 }
 
-/// Rejects a destination that resolved to an address the operator denied.
-///
-/// The resolver checks this too, but only for what it looked up: a well-known
-/// naming an address literal reaches here without having gone through it.
 #[implement(super::Service)]
 fn validate_url(&self, url: &Url) -> Result<()> {
-    // `host_str` keeps the brackets around an IPv6 literal, which the
-    // address parser rejects; a bracketed literal skipped the check.
     if let Some(url_host) = url.host_str()
         && let Ok(ip) = IPAddress::parse(url_host.trim_start_matches('[').trim_end_matches(']'))
     {

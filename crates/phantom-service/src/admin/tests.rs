@@ -38,8 +38,6 @@ fn backslash_escapes_the_prefix() {
     );
 }
 
-/// A client that escapes the escape still means the escape: what matters is
-/// that `!admin` follows the backslashes, not how many of them a client added.
 #[test]
 fn repeated_backslashes_still_escape() {
     assert_eq!(
@@ -53,8 +51,6 @@ fn a_backslash_alone_is_not_an_invocation() {
     assert_eq!(invocation("\\so I said", &server_user()), None);
 }
 
-/// The prefix has to start the message. Naming the command mid-sentence is
-/// talking about it, which is what the escape exists for.
 #[test]
 fn the_prefix_has_to_lead() {
     assert_eq!(invocation("try !admin help", &server_user()), None);
