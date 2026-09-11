@@ -13,6 +13,7 @@
 
 pub mod alias;
 pub mod auth_chain;
+pub mod delete;
 pub mod directory;
 pub mod event_handler;
 pub mod lazy_loading;
@@ -38,6 +39,7 @@ use std::sync::Arc;
 /// The room services, grouped.
 pub struct Services {
     pub alias: Arc<alias::Service>,
+    pub delete: Arc<delete::Service>,
     pub directory: Arc<directory::Service>,
     pub event_handler: Arc<event_handler::Service>,
     pub short: Arc<short::Service>,

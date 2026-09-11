@@ -91,6 +91,7 @@ impl Services {
             federation: build!(federation::Service),
             rooms: rooms::Services {
                 alias: build!(rooms::alias::Service),
+                delete: build!(rooms::delete::Service),
                 directory: build!(rooms::directory::Service),
                 event_handler: build!(rooms::event_handler::Service),
                 short: build!(rooms::short::Service),
