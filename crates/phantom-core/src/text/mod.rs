@@ -1,6 +1,3 @@
-//! Working with text: the string combinators phantom leans on, and the
-//! escaping it applies before text reaches a browser.
-
 pub mod between;
 pub mod html;
 pub mod quote;
@@ -13,7 +10,6 @@ pub use self::{
 };
 use crate::{Result, exchange};
 
-/// The empty string, for the combinators that need a `&str` to fall back on.
 pub const EMPTY: &str = "";
 
 #[inline]
@@ -62,19 +58,6 @@ where
         })
 }
 
-/// The longest prefix every one of `choice` starts with.
-///
-/// The prefix ends on a character boundary: the comparison runs over
-/// characters, but what it cuts on is the byte offset past the last one that
-/// matched, since a count of characters is not an index into a string.
-///
-/// ```
-/// use phantom_core::text::common_prefix;
-///
-/// assert_eq!(common_prefix(&["phantom", "phase", "phone"]), "ph");
-/// assert_eq!(common_prefix(&["日本語", "日本茶"]), "日本");
-/// assert_eq!(common_prefix(&[]), "");
-/// ```
 #[must_use]
 #[allow(clippy::string_slice)]
 pub fn common_prefix<'a>(choice: &'a [&str]) -> &'a str {
@@ -93,13 +76,11 @@ pub fn common_prefix<'a>(choice: &'a [&str]) -> &'a str {
     })
 }
 
-/// Parses the bytes into a string.
 pub fn string_from_bytes(bytes: &[u8]) -> Result<String> {
     let str: &str = str_from_bytes(bytes)?;
     Ok(str.to_owned())
 }
 
-/// Parses the bytes into a string.
 #[inline]
 pub fn str_from_bytes(bytes: &[u8]) -> Result<&str> {
     Ok(std::str::from_utf8(bytes)?)
@@ -119,9 +100,6 @@ mod tests {
         assert_eq!(common_prefix(&["ph", "phantom"]), "ph");
     }
 
-    /// The prefix is cut by byte offset, and a multi-byte character is
-    /// several bytes of one match: cutting by the number of characters
-    /// instead lands inside one and panics.
     #[test]
     fn common_prefix_cuts_on_a_character_boundary() {
         assert_eq!(common_prefix(&["日本語", "日本茶"]), "日本");
@@ -129,7 +107,6 @@ mod tests {
         assert_eq!(common_prefix(&["日本", "本日"]), "");
     }
 
-    /// A quote on one end only is not a quoted string, whichever end it is.
     #[test]
     fn unquote_infallible_strips_only_a_matched_pair() {
         use super::Unquote;
@@ -142,11 +119,6 @@ mod tests {
         assert_eq!("".unquote_infallible(), "");
     }
 
-    /// `is_quoted` is the predicate the fallible methods are documented
-    /// against, so it has to agree with them on every input. A lone quote is
-    /// the one that pulls them apart: it starts and ends with a quote without
-    /// being a quoted string, and `Unquoted` deserialization trusts this
-    /// answer before unquoting.
     #[test]
     fn is_quoted_agrees_with_unquote() {
         use super::Unquote;

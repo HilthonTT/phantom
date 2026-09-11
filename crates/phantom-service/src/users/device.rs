@@ -1,7 +1,6 @@
 use super::*;
 
 impl Service {
-    /// Adds a new device to a user.
     pub async fn create_device(
         &self,
         user_id: &UserId,
@@ -27,7 +26,6 @@ impl Service {
         self.set_token(user_id, device_id, token).await
     }
 
-    /// Removes a device from a user.
     pub async fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) {
         let userdeviceid = (user_id, device_id);
 
@@ -40,10 +38,6 @@ impl Service {
 
         self.db.todeviceid_events.del_prefix(&prefix).await;
 
-        // The device's one-time keys and identity keys go with it. Left behind,
-        // a re-created device with the same id would advertise the old
-        // session's identity keys, and peers claiming one of the stale
-        // one-time keys would build Olm sessions the new client cannot open.
         self.db.onetimekeyid_onetimekeys.del_prefix(&prefix).await;
 
         self.db.keyid_key.del(userdeviceid).ok();
@@ -54,7 +48,6 @@ impl Service {
         self.mark_device_key_update(user_id).await;
     }
 
-    /// Returns an iterator over all device ids of this user.
     pub fn all_device_ids<'a>(
         &'a self,
         user_id: &'a UserId,
@@ -72,7 +65,6 @@ impl Service {
         self.db.userdeviceid_token.qry(&key).await.deserialized()
     }
 
-    /// Replaces the access token of one device.
     pub async fn set_token(
         &self,
         user_id: &UserId,
@@ -112,7 +104,6 @@ impl Service {
         Ok(())
     }
 
-    /// Get device metadata.
     pub async fn get_device_metadata(
         &self,
         user_id: &UserId,

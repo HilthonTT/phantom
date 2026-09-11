@@ -1,26 +1,3 @@
-//! Walking a space, one page at a time.
-//!
-//! The walk is depth-first and deterministic: the same space, asked by the
-//! same person with the same parameters, is visited in the same order every
-//! time. That is what makes pagination possible without a server-side session
-//! — a page ends by recording the path to the room it stopped at, and the next
-//! request re-walks from the root and starts emitting when it reaches that
-//! path again.
-//!
-//! Re-walking sounds wasteful, and for a deep space it is: the second page
-//! summarizes everything on the first page again before it emits anything. It
-//! buys statelessness, which is worth more here than the summaries are
-//! expensive — a per-client walk held server-side is memory an unauthenticated
-//! caller can allocate, and it has to expire, and a client that comes back
-//! after it expired gets an error instead of a page. Local summaries are state
-//! reads and remote ones are cached, so the re-walk is cheap in the case that
-//! matters.
-//!
-//! A room is visited once per walk, however many parents name it. That both
-//! keeps a diamond-shaped space from being served exponentially and keeps a
-//! cycle from being walked forever, and because the walk is deterministic the
-//! set of already-visited rooms is reconstructed identically on the next page.
-
 use std::collections::{HashSet, VecDeque};
 
 use phantom_core::{Err, Result, implement};
@@ -29,25 +6,17 @@ use ruma::{OwnedRoomId, OwnedServerName, RoomId, api::client::space::SpaceHierar
 use super::{Asker, Service, SummaryAccessibility, token::PaginationToken};
 use crate::rooms::short::ShortRoomId;
 
-/// One page of a hierarchy.
 pub struct PagedHierarchy {
     pub rooms: Vec<SpaceHierarchyRoomsChunk>,
 
-    /// The token to ask for the next page with, absent when the walk finished.
     pub next_batch: Option<String>,
 }
 
-/// One room whose children have yet to be walked.
 struct Visit {
     short: ShortRoomId,
     children: VecDeque<(OwnedRoomId, Vec<OwnedServerName>)>,
 }
 
-/// Answers `/_matrix/client/v1/rooms/{room_id}/hierarchy`.
-///
-/// `limit` and `max_depth` are taken as given: clamping them to something an
-/// operator will tolerate is the API layer's job, since it is the one that
-/// knows what the client asked for and what the defaults are.
 #[implement(Service)]
 pub async fn client_hierarchy(
     &self,
@@ -76,8 +45,6 @@ pub async fn client_hierarchy(
         )));
     }
 
-    // Nothing is emitted until the walk reaches the path the token recorded;
-    // with no token, emitting starts at the root.
     let target = resume.map(|resume| resume.path);
     let mut emitting = target.is_none();
 
@@ -156,8 +123,6 @@ pub async fn client_hierarchy(
             rooms.push(summary.clone());
         }
 
-        // The depth of a room is the number of rooms above it, so a room at
-        // `max_depth` is described but not descended into.
         if u64::try_from(stack.len()).unwrap_or(u64::MAX) < max_depth {
             stack.push(Visit {
                 short,
@@ -169,7 +134,6 @@ pub async fn client_hierarchy(
     Ok(PagedHierarchy { rooms, next_batch })
 }
 
-/// The next child to visit, unwinding finished parents on the way.
 fn next_child(stack: &mut Vec<Visit>) -> Option<(OwnedRoomId, Vec<OwnedServerName>)> {
     while let Some(visit) = stack.last_mut() {
         match visit.children.pop_front() {

@@ -1,5 +1,3 @@
-//! Broadband stream combinator extensions to [`futures::Stream`].
-
 use std::convert::identity;
 
 use futures::{
@@ -9,10 +7,6 @@ use futures::{
 
 use super::{ReadyExt, band::width};
 
-/// Concurrency extensions to augment [`futures::StreamExt`]. `broad_`
-/// combinators run up to [`automatic_width`] futures at once and yield results
-/// as they finish, so the output order is not the input order. Where order
-/// matters, use the `wide_` combinators in [`super::WidebandExt`] instead.
 pub trait BroadbandExt<Item>
 where
     Self: Stream<Item = Item> + Send + Sized,
@@ -29,7 +23,6 @@ where
         F: Fn(Item) -> Fut + Send,
         Fut: Future<Output = bool> + Send;
 
-    /// Concurrent `filter_map()`; unordered results
     fn broadn_filter_map<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
     where
         N: Into<Option<usize>>,
@@ -177,8 +170,6 @@ mod tests {
 
     #[tokio::test]
     async fn results_are_yielded_as_they_finish() {
-        // An explicit width: the automatic one is a process-wide value that
-        // another test in this binary may be setting to 1 at the same time.
         let out: Vec<u8> = (1_u8..=4)
             .stream()
             .broadn_then(4, |item| async move {

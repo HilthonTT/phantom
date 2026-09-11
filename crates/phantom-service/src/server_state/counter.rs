@@ -1,17 +1,8 @@
-//! The server's monotonic event counter.
-//!
-//! Every PDU and every account-data change is ordered by a number drawn from
-//! here, so it must never repeat and never go backwards. The live value is
-//! held in memory and written through to the `global` column on each draw;
-//! the debug assertions compare the two on every access so that a divergence
-//! surfaces where it was introduced rather than at the next restart.
-
 use std::sync::{Arc, RwLock};
 
 use phantom_core::{Result, bytes};
 use phantom_database::{Engine, Map};
 
-/// The key the count is stored under in the `global` column.
 const COUNTER: &[u8] = b"c";
 
 pub struct Counter {
@@ -31,8 +22,6 @@ impl Counter {
         }
     }
 
-    /// The next number in the sequence, written through before it is handed
-    /// out so that a crash cannot reissue it.
     pub fn next(&self) -> Result<u64> {
         let _cork = self.engine.cork_guard();
         let mut lock = self.count.write().expect("locked");
@@ -51,7 +40,6 @@ impl Counter {
         Ok(*counter)
     }
 
-    /// The last number handed out.
     #[inline]
     pub fn current(&self) -> u64 {
         let lock = self.count.read().expect("locked");

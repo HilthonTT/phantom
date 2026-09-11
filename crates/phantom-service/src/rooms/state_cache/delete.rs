@@ -1,33 +1,8 @@
-//! Dropping a room's membership indexes when the room itself is going.
-//!
-//! Every column here is indexed twice — once to walk a room's members, once
-//! to walk a user's rooms — and only the first of each pair can be reached
-//! from a room id. So the room-keyed half is read for the ids it holds before
-//! anything is deleted, and those ids are what the user-keyed half is deleted
-//! by. Reading first rather than deleting as the scan goes is what keeps the
-//! two halves from parting company if the run is cut short: a key left in
-//! both is a stale membership, a key left in one is an index that disagrees
-//! with itself.
-
 use ruma::{OwnedServerName, OwnedUserId};
 
 use super::*;
 
 impl Service {
-    /// Drops every record of who was in a room and which servers it reached.
-    ///
-    /// `force` decides what happens to the local users who have left. Their
-    /// leave record is what puts the room in the `leave` section of their
-    /// sync, which is how a client learns the room is over rather than
-    /// finding it silently gone; it is kept unless `force`. Remote users'
-    /// leave records are always dropped — no client of this server reads
-    /// them.
-    ///
-    /// The counts are removed rather than recomputed. [`update_joined_count`]
-    /// would write zeroes back, and a room that is being purged should have
-    /// no row at all.
-    ///
-    /// [`update_joined_count`]: Self::update_joined_count
     #[tracing::instrument(skip(self), level = "debug")]
     pub(in crate::rooms) async fn delete_room_memberships(&self, room_id: &RoomId, force: bool) {
         let servers: Vec<OwnedServerName> = self
@@ -89,11 +64,6 @@ impl Service {
     }
 }
 
-/// The users a room-keyed membership column holds for one room.
-///
-/// Collected rather than streamed because the caller deletes out of this very
-/// column as it goes, and a cursor is not the place to be standing while that
-/// happens.
 async fn room_users(map: &Arc<Map>, room_id: &RoomId) -> Vec<OwnedUserId> {
     let prefix = (room_id, Interfix);
 

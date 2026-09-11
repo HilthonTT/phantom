@@ -40,9 +40,6 @@ use super::{
 };
 use crate::{debug, error, trace, warn};
 
-/// `m.room.aliases` was dropped from ruma's `TimelineEventType`, but room
-/// versions 6 and below still give it special auth rules, so the check compares
-/// against the wire type directly.
 const ROOM_ALIASES_TYPE: &str = "m.room.aliases";
 
 #[derive(Deserialize)]
@@ -56,13 +53,6 @@ struct RoomMemberContentFields {
     join_authorised_via_users_server: Option<Raw<OwnedUserId>>,
 }
 
-/// For the given event `kind` what are the relevant auth events that are needed
-/// to authenticate this `content`.
-///
-/// # Errors
-///
-/// This function will return an error if the supplied `content` is not a JSON
-/// object.
 pub fn auth_types_for_event(
     kind: &TimelineEventType,
     sender: &UserId,
@@ -135,16 +125,6 @@ pub fn auth_types_for_event(
     Ok(auth_types)
 }
 
-/// Authenticate the incoming `event`.
-///
-/// The steps of authentication are:
-///
-/// * check that the event is being authenticated for the correct room
-/// * then there are checks for specific event types
-///
-/// The `fetch_state` closure should gather state from a state snapshot. We need
-/// to know if the event passes auth against some state not a recursive
-/// collection of auth_events fields.
 #[tracing::instrument(
 	level = "debug",
 	skip_all,

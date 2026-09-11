@@ -9,8 +9,6 @@ fn server_name() -> OwnedServerName {
     ServerName::parse("phantom.test").expect("valid server name")
 }
 
-/// A registration with one exclusive user namespace, which is the shape
-/// almost every appservice has.
 fn registration(id: &str, sender: &str, token: &str, users: Vec<Namespace>) -> RegistrationInfo {
     let mut namespaces = Namespaces::new();
     namespaces.users = users;
@@ -52,8 +50,6 @@ fn namespaces_match_only_what_they_cover() {
     assert!(!info.is_exclusive_user_match(&other));
 }
 
-/// The pattern is anchored at the start: an id that merely contains it is
-/// not in the namespace, or an appservice could act as any such user.
 #[test]
 fn a_namespace_matches_from_the_start_of_the_id() {
     let info = registration("irc", "irc_bot", "irc", exclusive_users("@irc_.*"));

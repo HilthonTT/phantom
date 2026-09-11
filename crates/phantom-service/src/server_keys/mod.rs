@@ -1,20 +1,3 @@
-//! The signing keys this server has, and the ones it has learned about.
-//!
-//! Every event and every federation request carries a signature, so verifying
-//! either means holding the public key the far end signed with. This service
-//! owns both halves of that: [`keypair`] is this server's own key, loaded or
-//! generated once at startup, and the `server_signingkeys` column is what it
-//! has learned about everyone else's.
-//!
-//! A key is not simply looked up. [`acquire`] fetches what is missing, from
-//! the origin server or from a notary, and [`get`] assembles the key map a
-//! single verification needs; [`request`] is the federation requests those
-//! two make. [`sign`] and [`verify`] are the two uses all of it exists for.
-//!
-//! Keys are never evicted. A server rotating its key publishes the old one as
-//! an `old_verify_key`, and an event signed years ago is still verified
-//! against the key that signed it, so what is learned here is kept.
-
 mod acquire;
 mod get;
 mod keypair;
@@ -64,7 +47,6 @@ pub type VerifyKeys = BTreeMap<OwnedServerSigningKeyId, VerifyKey>;
 pub type PubKeyMap = PublicKeyMap;
 pub type PubKeys = PublicKeySet;
 
-/// Which servers had to be asked for which of their keys.
 type RequiredKeys = BTreeMap<OwnedServerName, Vec<OwnedServerSigningKeyId>>;
 
 #[async_trait]
@@ -127,13 +109,6 @@ pub fn active_verify_key(&self) -> (&ServerSigningKeyId, &VerifyKey) {
         .expect("missing active verify_key")
 }
 
-/// Merges what was just learned about `new_keys.server_name` into what is
-/// already held for it.
-///
-/// Not atomic — a concurrent call can read the same starting point and write
-/// over this one — but the two writers are merging into the same set of keys
-/// rather than replacing it, and a key lost that way is re-fetched the next
-/// time it is needed.
 #[implement(Service)]
 async fn add_signing_keys(&self, new_keys: ServerSigningKeys) -> Result {
     let origin = &new_keys.server_name;
@@ -154,8 +129,6 @@ async fn add_signing_keys(&self, new_keys: ServerSigningKeys) -> Result {
     self.db.server_signingkeys.raw_put(origin, Json(&keys))
 }
 
-/// Whether every key needed to verify `object` is already held, so that
-/// verifying it will not have to go out to the network.
 #[implement(Service)]
 pub async fn required_keys_exist(
     &self,
@@ -227,20 +200,12 @@ pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSignin
     self.db.server_signingkeys.get(origin).await.deserialized()
 }
 
-/// The oldest `valid_until_ts` this server will accept in an answer from a
-/// notary, so that a notary cannot satisfy a query with a cached key that has
-/// long since expired.
 #[implement(Service)]
 fn minimum_valid_ts(&self) -> MilliSecondsSinceUnixEpoch {
     let timepoint = timepoint_from_now(self.minimum_valid).expect("SystemTime should not overflow");
     MilliSecondsSinceUnixEpoch::from_system_time(timepoint).expect("UInt should not overflow")
 }
 
-/// Which key of which server has to be checked to verify `object`.
-///
-/// ruma names the servers whose signature must be checked, but not which key
-/// each of them signed with; that half is only in the event's own
-/// `signatures`. This puts the two back together.
 fn required_keys(object: &CanonicalJsonObject, rules: &SignaturesRules) -> Result<RequiredKeys> {
     use ruma::signatures::required_server_signatures_to_verify_event;
 
@@ -267,12 +232,6 @@ fn required_keys(object: &CanonicalJsonObject, rules: &SignaturesRules) -> Resul
         .collect()
 }
 
-/// The keys a server published, with the ones it has since rotated away from
-/// folded in.
-///
-/// An event is verified against the key that signed it, which for an old
-/// event is a key the server has already replaced. Nothing distinguishes the
-/// two at the point of verification, so they are looked up as one set.
 fn merge_old_keys(mut keys: ServerSigningKeys) -> ServerSigningKeys {
     keys.verify_keys.extend(
         keys.old_verify_keys

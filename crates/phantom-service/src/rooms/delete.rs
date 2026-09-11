@@ -1,38 +1,3 @@
-//! Shutting a room down, and wiping what is left of it.
-//!
-//! Two phases, and a caller may want only the first. [`shutdown_room`] is what
-//! an operator means by "close this room": every local user is put out of it,
-//! its local aliases are freed, and it stops being advertised. The room is
-//! still on disk afterwards, which is the point — an abuse report is
-//! investigated against the history, not against the absence of it.
-//!
-//! [`purge_room`] is the second phase, and it is not reversible. Everything
-//! this server holds for the room goes: the PDUs, the indexes built over them,
-//! the membership records, the receipts. What it deliberately leaves behind is
-//! anything shared with rooms that are staying — the compressed state blocks,
-//! and the short ids assigned to events — because those are reclaimed by
-//! sweeping what nothing points at any more, not by deleting one room.
-//!
-//! Both phases run under the room's state mutex, which the caller takes and
-//! holds across the whole thing. Purging with it released would race an event
-//! arriving over federation: the room's rows would go, and the event would
-//! write a fresh set of them straight afterwards.
-//!
-//! Eviction here sends each local user's own leave event, falling back to
-//! clearing the membership indexes where that cannot be done, which is the
-//! same shape as the account-teardown path in [`deactivate`]. It stops at
-//! this server's users. Telling the remote members' servers that the room is
-//! gone is not a thing the spec offers, and evicting them would need
-//! `make_leave`/`send_leave` on their behalf, which belongs to the planned
-//! `membership` service. The same goes for tuwunel's `delete_if_empty_local`,
-//! the auto-delete hook that fires when the last local user leaves: it is a
-//! caller of this service rather than part of it, and the leave path that
-//! would call it does not exist yet.
-//!
-//! [`deactivate`]: crate::deactivate
-//! [`purge_room`]: Service::purge_room
-//! [`shutdown_room`]: Service::shutdown_room
-
 use std::sync::Arc;
 
 use futures::StreamExt;
@@ -48,7 +13,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Dep, rooms, rooms::state::RoomMutexGuard};
 
-/// What a leaving user is told the room was closed for.
 const LEAVE_REASON: &str = "Room deleted";
 
 pub struct Service {
@@ -70,9 +34,6 @@ struct Services {
     user: Dep<rooms::user::Service>,
 }
 
-/// Records local-user eviction results and aliases targeted for removal.
-///
-/// Its serialized layout matches Synapse's `ShutdownRoom`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ShutdownRoom {
     pub kicked_users: Vec<OwnedUserId>,
@@ -111,11 +72,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// Shuts the room down and then wipes it, returning what the shutdown
-    /// found.
-    ///
-    /// `force` widens the erasure of local users' left-state; see
-    /// [`purge_room`](Self::purge_room).
     #[tracing::instrument(skip(self, state_lock), level = "debug")]
     pub async fn delete_room(
         &self,
@@ -132,13 +88,6 @@ impl Service {
         Ok(summary)
     }
 
-    /// Evicts every local user, frees the room's local aliases, and
-    /// unpublishes it from the directory.
-    ///
-    /// The reversible half of a delete, and the whole of it when an operator
-    /// wants the room closed but kept. Nothing here touches the timeline: the
-    /// room's history survives a shutdown, and so does a local user's record
-    /// of having left it.
     #[tracing::instrument(skip(self, state_lock), level = "debug")]
     pub async fn shutdown_room(
         &self,
@@ -147,9 +96,6 @@ impl Service {
     ) -> ShutdownRoom {
         debug!(%room_id, "Evicting local users");
 
-        // Collected before the first eviction rather than streamed: each one
-        // writes a membership event, which is a write to the very column the
-        // stream would be reading.
         let local_users: Vec<OwnedUserId> = self
             .services
             .state_cache
@@ -196,34 +142,18 @@ impl Service {
             kicked_users,
             failed_to_kick_users,
             local_aliases,
-            // Set by the caller where the shutdown is part of a room upgrade
-            // and the members are being pointed at a replacement.
+
             new_room_id: None,
         }
     }
 
-    /// Wipes everything this server holds for the room.
-    ///
-    /// `force` decides what happens to the local users who have left: their
-    /// leave record is what shows the room in the `leave` section of a sync,
-    /// which is how a client learns the room ended rather than finding it
-    /// silently gone, so it is kept unless `force`.
-    ///
-    /// Failures are logged and stepped over. A column that will not give up
-    /// its rows leaves a fragment of a room behind; stopping there would leave
-    /// the rest of it too.
     #[tracing::instrument(skip(self, state_lock), level = "debug")]
     async fn purge_room(&self, room_id: &RoomId, force: bool, state_lock: &RoomMutexGuard) {
-        // Everything keyed by short room id has to be reached before the room
-        // gives that id up, which is why it is resolved once here and passed
-        // down rather than looked up per column.
         let Ok(shortroomid) = self.services.short.get_shortroomid(room_id).await else {
             debug!(%room_id, "Room has no short id, so there is nothing stored to purge");
             return;
         };
 
-        // The unread counters are keyed by user, so they can only be found
-        // for users that are named. Read before the membership indexes go.
         let members: Vec<OwnedUserId> = self
             .services
             .state_cache
@@ -294,14 +224,6 @@ impl Service {
             .ok();
     }
 
-    /// Puts one local user out of the room by sending their own leave event.
-    ///
-    /// Sent as the user rather than as the server, because a membership event
-    /// is authorized against its state key: a leave the room will accept is
-    /// one the leaving user sent. Where the room will not take it — they are
-    /// not a member as far as its state is concerned, or the event is refused
-    /// — the membership indexes are cleared locally instead, so the room
-    /// stops appearing in their sync either way.
     async fn evict(
         &self,
         user_id: &UserId,
@@ -356,12 +278,6 @@ impl Service {
         }
     }
 
-    /// Records the user as having left, in this server's indexes alone.
-    ///
-    /// The room's other members still see the membership as it was. That is
-    /// the right trade for a room being closed: the local user's client stops
-    /// showing it, and no half-authorized event is forced into a room that
-    /// refused one.
     async fn clear_local_leave(&self, user_id: &UserId, room_id: &RoomId) -> Result {
         let leave_content = RoomMemberEventContent::new(MembershipState::Leave);
 
@@ -379,13 +295,6 @@ mod tests {
 
     use crate::rooms::short::ShortRoomId;
 
-    /// Four of the columns a purge clears are wiped by short room id alone —
-    /// the timeline, the thread participants, the search index and the sync
-    /// tokens — and each one builds its keys itself, without going through a
-    /// shared constructor. All four hold only because a bare `u64` serializes
-    /// to the same eight big-endian bytes those keys open with. Nothing else
-    /// checks that: get it wrong and the prefix matches nothing, so the purge
-    /// reports success over columns it never touched.
     #[test]
     fn a_short_room_id_prefixes_every_key_purged_by_it() {
         const SHORTROOMID: ShortRoomId = 0x0123_4567_89ab_cdef;
@@ -408,8 +317,6 @@ mod tests {
             "a pdu id must be reachable from its room's prefix",
         );
 
-        // As `rooms::search` builds one: the room, the word, and the pdu the
-        // word was found in.
         let mut token_id = Vec::from(SHORTROOMID.to_be_bytes());
         token_id.extend_from_slice(b"word");
         token_id.push(SEP);
@@ -420,8 +327,6 @@ mod tests {
             "a search token must be reachable from its room's prefix",
         );
 
-        // As `rooms::user` builds one: the room, and the sync token held for
-        // it.
         let sync_token: &[u64] = &[SHORTROOMID, 42];
         let sync_token = serialize_to_vec(sync_token).expect("serialized");
 

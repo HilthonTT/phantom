@@ -1,24 +1,3 @@
-//! Building an event of this server's own.
-//!
-//! This is the half of the write path that [`append`](super::append) is the
-//! other end of. An event that arrives over federation is already an event —
-//! it has an id, a sender's signature and a place in the room's graph. One of
-//! this server's own is none of those things until it is built here: given
-//! the room's current forward extremities as its parents, given the auth
-//! events its type and sender demand, checked against those, hashed, signed,
-//! and only then handed to `append_pdu` to become part of the room.
-//!
-//! The order is the spec's and is not ours to rearrange. The auth check runs
-//! against the event as built but *before* it is signed, because a rejected
-//! event must never carry this server's signature. The event id is derived
-//! from the signed canonical JSON, which is why it cannot be filled in until
-//! the end and is a placeholder until then.
-//!
-//! [`build_and_append_pdu`](super::Service::build_and_append_pdu) is the
-//! entry point. It holds the room's state mutex across the whole of building,
-//! appending and installing the new state, which is what makes it the only
-//! way a room's state changes at this server's own initiative.
-
 use std::{borrow::Borrow, cmp, collections::HashSet, iter::once};
 
 use futures::{
@@ -55,24 +34,8 @@ use serde_json::value::to_raw_value;
 use super::Service;
 use crate::rooms::state::RoomMutexGuard;
 
-/// How many of the room's forward extremities a new event names as parents.
-///
-/// A room that has forked badly can have a great many, and naming all of them
-/// would make the event enormous for no gain — the point of naming several is
-/// to heal the fork, and twenty is as much healing as one event needs to do.
 const MAX_PREV_EVENTS: usize = 20;
 
-/// Builds a PDU from `pdu_builder`, authorizes it, and signs it.
-///
-/// Returns the event and the canonical JSON it was signed as. The two are
-/// kept side by side from here on: the JSON is what other servers are given
-/// and what the signature covers, and the struct is what this server reads.
-/// Regenerating one from the other would not be safe, since a round trip
-/// through the struct need not reproduce the exact bytes that were signed.
-///
-/// The mutex guard is taken and not used. It is the caller's proof that the
-/// room's state cannot move between the auth check here and the append that
-/// follows it.
 #[implement(Service)]
 pub async fn create_hash_and_sign_event(
     &self,
@@ -99,9 +62,6 @@ pub async fn create_hash_and_sign_event(
         .collect()
         .await;
 
-    // A room's version is read from its create event, which the create event
-    // itself cannot do — it is what establishes the version, so it carries it
-    // in its own content.
     let room_version_id = match self.services.state.get_room_version(room_id).await {
         Ok(room_version_id) => room_version_id,
         Err(_) if event_type == TimelineEventType::RoomCreate => {
@@ -137,8 +97,6 @@ pub async fn create_hash_and_sign_event(
 
     let mut unsigned = unsigned.unwrap_or_default();
 
-    // A state event carries what it replaced, so that a client which sees only
-    // the new event can still tell what changed.
     if let Some(state_key) = &state_key
         && let Ok(prev_pdu) = self
             .services
@@ -206,9 +164,6 @@ pub async fn create_hash_and_sign_event(
         ))))
     })?;
 
-    // Only the oldest room versions carry the event id in the event itself.
-    // Everywhere else it is derived from the rest, so leaving it in would put
-    // the placeholder above under the signature.
     match room_version_id {
         RoomVersionId::V1 | RoomVersionId::V2 => {}
         _ => {
@@ -244,8 +199,6 @@ pub async fn create_hash_and_sign_event(
         CanonicalJsonValue::String(pdu.event_id.clone().into()),
     );
 
-    // Claim the short id now so that everything downstream of the append can
-    // assume the event has one.
     let _shorteventid = self
         .services
         .short
@@ -255,12 +208,6 @@ pub async fn create_hash_and_sign_event(
     Ok((pdu, pdu_json))
 }
 
-/// Creates a new persisted data unit and adds it to a room.
-///
-/// Takes the room's state mutex, which is what makes this the only way the
-/// room's state changes at this server's initiative: building the event,
-/// writing it, and installing the state it produced are one step, and a
-/// second caller cannot interleave with them.
 #[implement(Service)]
 #[tracing::instrument(skip(self, state_lock), level = "debug")]
 pub async fn build_and_append_pdu(
@@ -278,10 +225,6 @@ pub async fn build_and_append_pdu(
         self.check_pdu_for_admin_room(&pdu, sender).boxed().await?;
     }
 
-    // Redaction is authorized separately from the auth rules: whether a user
-    // may redact a *particular* event depends on who sent that event, which
-    // the auth rules do not look at. Where the redacted id lives moved in room
-    // version 11, from the event to its content.
     if pdu.kind == TimelineEventType::RoomRedaction {
         use RoomVersionId::*;
 
@@ -347,9 +290,6 @@ pub async fn build_and_append_pdu(
         .collect()
         .await;
 
-    // A membership event has to reach the server of whoever it is about, even
-    // when that server is not in the room — a leave or a ban is exactly the
-    // case where they are about to stop being in it.
     if pdu.kind == TimelineEventType::RoomMember
         && let Some(state_key_uid) = &pdu
             .state_key
@@ -369,12 +309,6 @@ pub async fn build_and_append_pdu(
     Ok(pdu.event_id)
 }
 
-/// The extra rules that keep the admin room usable.
-///
-/// The admin room is how an operator reaches the server, so it may not be
-/// encrypted — the server user has no keys to read it with — and it may not be
-/// emptied of local admins, which would lock everyone out of it for good. The
-/// server user itself can never leave or be banned.
 #[implement(Service)]
 #[tracing::instrument(skip_all, level = "debug")]
 async fn check_pdu_for_admin_room(&self, pdu: &PduEvent, sender: &UserId) -> Result<()> {
@@ -430,7 +364,6 @@ async fn check_pdu_for_admin_room(&self, pdu: &PduEvent, sender: &UserId) -> Res
     Ok(())
 }
 
-/// How many local members the admin room would have left without `target`.
 #[implement(Service)]
 async fn remaining_admins(&self, pdu: &PduEvent, target: &str) -> usize {
     self.services

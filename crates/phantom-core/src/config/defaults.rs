@@ -4,8 +4,6 @@ pub(super) fn true_fn() -> bool {
     true
 }
 
-/// `Option<bool>` counterpart to [`true_fn`], for a tri-state option whose
-/// unset and enabled cases have to stay distinguishable.
 pub(super) fn some_true_fn() -> Option<bool> {
     Some(true)
 }
@@ -103,10 +101,6 @@ pub(super) fn default_stream_amplification() -> usize {
     1024
 }
 
-/// RocksDB reads 32767 as "use whatever this algorithm calls its default
-/// level", since the range of valid levels differs per algorithm. It is the
-/// sentinel phantom watches for before substituting a per-column level of its
-/// own.
 pub(super) fn default_rocksdb_compression_level() -> i32 {
     32767
 }
@@ -195,10 +189,6 @@ pub(super) fn default_url_preview_cache_ttl() -> u64 {
     60 * 60 * 24
 }
 
-/// Every range that has no business being reached from the public internet:
-/// loopback, the three private ranges, shared address space, IETF protocol
-/// assignments, link-local, 6to4 relay anycast, benchmarking, the three
-/// documentation ranges, and multicast — then the v6 equivalents.
 pub(super) fn default_ip_range_denylist() -> Vec<String> {
     [
         "127.0.0.0/8",
@@ -277,6 +267,18 @@ pub(super) fn default_sender_retry_backoff_limit() -> u64 {
     86400
 }
 
+pub(super) fn default_sender_retry_grace() -> u64 {
+    30
+}
+
+pub(super) fn default_feds_max_width() -> usize {
+    32
+}
+
+pub(super) fn default_feds_timeout() -> u64 {
+    15
+}
+
 pub(super) fn default_sender_shutdown_timeout() -> u64 {
     5
 }
@@ -317,8 +319,6 @@ pub(super) fn default_dns_timeout() -> u64 {
     10
 }
 
-/// Scales a per-core figure by the parallelism actually available to this
-/// process, which is what the memory defaults above are expressed in.
 pub(super) fn parallelism_scaled_f64(val: f64) -> f64 {
     #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
     let cores = crate::sys::compute::available_parallelism() as f64;
@@ -326,8 +326,6 @@ pub(super) fn parallelism_scaled_f64(val: f64) -> f64 {
     val * cores
 }
 
-/// [`parallelism_scaled_f64`] for the cache capacities, which are counts of
-/// entries rather than megabytes.
 pub(super) fn parallelism_scaled_u32(val: u32) -> u32 {
     let cores = crate::sys::compute::available_parallelism();
 
@@ -356,8 +354,6 @@ pub(super) fn default_redaction_retention_seconds() -> u64 {
     60 * 60 * 24 * 60
 }
 
-/// Discovery documents, token responses and userinfo all fit in a fraction of
-/// this; it is a ceiling, not a budget.
 pub(super) fn default_oidc_max_response_size() -> usize {
     256 * 1024
 }

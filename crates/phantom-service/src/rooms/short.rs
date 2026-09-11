@@ -1,11 +1,3 @@
-//! Long identifiers mapped to compact ones.
-//!
-//! Event ids, room ids and state keys are strings, and the database stores
-//! them in keys that are read constantly and compared byte by byte. Each is
-//! given a `u64` the first time it is seen, and it is those that the hot
-//! columns are keyed on; the mapping back is kept alongside so a stored id can
-//! be spelled out again.
-
 use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
 use futures::{Stream, StreamExt};
@@ -225,7 +217,6 @@ where
         .map(Deserialized::deserialized)
 }
 
-/// Returns (shortstatehash, already_existed)
 #[implement(Service)]
 pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (ShortStateHash, bool) {
     const BUFSIZE: usize = size_of::<ShortStateHash>();
@@ -288,12 +279,7 @@ pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> ShortRoomId {
             short
         })
 }
-/// Drops a room's short id, which is the last thing a purge removes.
-///
-/// The event mappings — `eventid_shorteventid` and its reverse — are left
-/// alone. A short event id is referenced from columns no longer scoped to the
-/// room it was assigned in, the auth chain index among them, so reclaiming
-/// them is a sweep of its own rather than part of deleting one room.
+
 #[implement(Service)]
 pub(super) fn delete_shortroomid(&self, room_id: &RoomId) -> Result {
     self.db.roomid_shortroomid.remove(room_id)

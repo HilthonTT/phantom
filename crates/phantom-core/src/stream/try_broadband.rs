@@ -1,12 +1,8 @@
-//! Broadband combinator extensions to [`futures::TryStream`].
-
 use futures::{TryFuture, TryStream, TryStreamExt};
 
 use super::band::width;
 use crate::Result;
 
-/// Concurrency extensions to augment [`futures::TryStreamExt`]. `broad_`
-/// combinators produce out-of-order results; the first error ends the stream.
 pub trait TryBroadbandExt<T, E>
 where
     Self: TryStream<Ok = T, Error = E, Item = Result<T, E>> + Send + Sized,

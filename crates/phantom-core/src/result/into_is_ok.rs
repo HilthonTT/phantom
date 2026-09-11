@@ -1,9 +1,5 @@
 use super::Result;
 
-/// [`Result::is_ok`] by value, for combinator position.
-///
-/// `Result::is_ok` borrows, so it cannot be named as the function in
-/// `.map(..)`/`.then(..)` over owned results without a closure.
 pub trait IntoIsOk<T, E> {
     fn into_is_ok(self) -> bool;
 }

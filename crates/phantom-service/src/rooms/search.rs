@@ -1,19 +1,3 @@
-//! Full-text search over the messages in a room.
-//!
-//! One inverted index, in the `tokenids` column: a message is split into words
-//! and each word gets a key of `(shortroomid, word, pdu_id)` with an empty
-//! value, so the words a query names can be looked up by prefix and the sets
-//! of events they appear in intersected.
-//!
-//! The index is deliberately dumb — no stemming, no ranking, no phrase
-//! matching. What a client asks for is which events in one room contain every
-//! word it typed, newest first, which a prefix scan answers directly; anything
-//! cleverer would have to be reindexed when it changed its mind.
-//!
-//! Only the events a user may see come back. The intersection is done on event
-//! ids first and the visibility check second, because the check reads room
-//! state per event and the intersection is what makes that a short list.
-
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
@@ -52,10 +36,6 @@ struct Services {
     timeline: Dep<rooms::timeline::Service>,
 }
 
-/// One room's worth of a client's search request.
-///
-/// A search spans rooms, but the index is per room and so is the visibility
-/// check, so the caller splits its request into one of these per room.
 #[derive(Clone, Debug)]
 pub struct RoomQuery<'a> {
     pub room_id: &'a RoomId,
@@ -69,9 +49,6 @@ type TokenId = ArrayVec<u8, TOKEN_ID_MAX_LEN>;
 
 const TOKEN_ID_MAX_LEN: usize = size_of::<ShortRoomId>() + WORD_MAX_LEN + 1 + size_of::<RawPduId>();
 
-/// Longer words are not indexed. A word that long is a URL, a hash or a
-/// base64 blob rather than something anyone will search for, and the key is a
-/// fixed-size buffer.
 const WORD_MAX_LEN: usize = 50;
 
 impl crate::Service for Service {
@@ -94,11 +71,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Adds a message to the index.
-///
-/// One batch rather than a write per word: a message is a bounded number of
-/// tokens, and the whole message appearing in the index at once is what keeps
-/// a concurrent search from matching half of it.
 #[implement(Service)]
 pub fn index_pdu(&self, shortroomid: ShortRoomId, pdu_id: &RawPduId, message_body: &str) -> Result {
     self.db.tokenids.insert_batch(
@@ -108,7 +80,6 @@ pub fn index_pdu(&self, shortroomid: ShortRoomId, pdu_id: &RawPduId, message_bod
     )
 }
 
-/// Removes a message from the index, which is what a redaction does to it.
 #[implement(Service)]
 pub fn deindex_pdu(
     &self,
@@ -125,25 +96,12 @@ pub fn deindex_pdu(
     Ok(())
 }
 
-/// Drops every indexed token of a room's messages.
-///
-/// A token key begins with the room's short id, so the whole index for one
-/// room is a single prefix. This is the wholesale form of
-/// [`deindex_pdu`](Self::deindex_pdu), which a purge uses instead of
-/// deindexing each message in turn: it does not need the message bodies, and
-/// a redacted message's tokens are gone from the index while its PDU is still
-/// in the timeline, so walking the PDUs would miss them.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub(super) async fn delete_all_tokenids(&self, shortroomid: ShortRoomId) {
     self.db.tokenids.del_prefix(&shortroomid).await;
 }
 
-/// The events in one room matching a query, and how many there were.
-///
-/// The count is of what the index matched, before the filter and the
-/// visibility check, which is what upstream reports and what a client pages
-/// through.
 #[implement(Service)]
 pub async fn search_pdus<'a>(
     &'a self,
@@ -177,7 +135,6 @@ pub async fn search_pdus<'a>(
     Ok((count, pdus))
 }
 
-/// The ids of the events containing every word of the query.
 #[implement(Service)]
 pub async fn search_pdu_ids(
     &self,
@@ -192,10 +149,6 @@ pub async fn search_pdu_ids(
     Ok(set::intersection(iters).stream())
 }
 
-/// One list of event ids per word of the query.
-///
-/// Collected rather than streamed, because intersecting them means holding all
-/// of them at once anyway, and the shortest is what bounds the answer.
 #[implement(Service)]
 async fn search_pdu_ids_query_room(
     &self,
@@ -213,7 +166,6 @@ async fn search_pdu_ids_query_room(
         .await
 }
 
-/// The events containing one word, newest first.
 #[implement(Service)]
 fn search_pdu_ids_query_words<'a>(
     &'a self,
@@ -224,10 +176,6 @@ fn search_pdu_ids_query_words<'a>(
         .map(move |key| -> RawPduId { key[prefix_len(word)..].into() })
 }
 
-/// The raw keys of one word's entries, newest first.
-///
-/// Scanned backwards from the highest event id that key could have, since the
-/// event id is the last part of the key and orders by when the event arrived.
 #[implement(Service)]
 fn search_pdu_ids_query_word(
     &self,
@@ -250,25 +198,13 @@ fn search_pdu_ids_query_word(
         .ready_take_while(move |key| key.starts_with(&prefix))
 }
 
-/// Splits a string into the tokens used as keys in the inverted index.
-///
-/// The same function tokenizes a message being indexed and a query being run,
-/// which is the only thing that makes the two agree on what a word is.
 fn tokenize(body: &str) -> impl Iterator<Item = String> + Send + '_ {
-    // The length limit is checked after lowercasing: it is the lowercased
-    // word that goes into the fixed-capacity key, and lowercasing can grow
-    // a word in bytes.
     body.split_terminator(|c: char| !c.is_alphanumeric())
         .filter(|s| !s.is_empty())
         .map(str::to_lowercase)
         .filter(|word| word.len() <= WORD_MAX_LEN)
 }
 
-/// The key one word of one event is indexed under.
-///
-/// The event id carries the short room id again, after the copy this key
-/// starts with. That is redundant, and it is on disk: changing it would mean
-/// reindexing every room.
 fn make_tokenid(shortroomid: ShortRoomId, word: &str, pdu_id: &RawPduId) -> TokenId {
     let mut key = make_prefix(shortroomid, word);
     key.extend_from_slice(pdu_id.as_ref());
@@ -293,9 +229,6 @@ fn prefix_len(word: &str) -> usize {
 mod tests {
     use super::{WORD_MAX_LEN, make_prefix, tokenize};
 
-    /// Lowercasing can grow a word in bytes (`İ` is two bytes, its lowercase
-    /// three), and the lowercased word is what goes into the fixed-capacity
-    /// key: the length check has to see that form or the key overflows.
     #[test]
     fn tokens_are_limited_after_lowercasing() {
         let word = "İ".repeat(WORD_MAX_LEN / 2);

@@ -1,5 +1,3 @@
-//! Runtime metrics for the tokio scheduler and the request path.
-
 use std::sync::atomic::AtomicU32;
 
 use tokio::runtime;

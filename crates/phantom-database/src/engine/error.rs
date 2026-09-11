@@ -1,39 +1,23 @@
-//! Adapting the database engine's error type to phantom's.
-
 use std::io;
 
 use phantom_core::{Error, Result};
 use rocksdb::ErrorKind;
-/// Lifts an engine result into a phantom one.
+
 #[inline]
 pub(crate) fn result<T>(res: Result<T, rocksdb::Error>) -> Result<T> {
     res.map_err(map_err)
 }
 
-/// [`result`] in combinator position, for `.or_else(or_else)` on the engine
-/// results that are more naturally handled where they are produced.
 #[inline]
 pub(crate) fn or_else<T>(e: rocksdb::Error) -> Result<T> {
     Err(map_err(e))
 }
 
-/// Whether the engine gave up rather than failed.
-///
-/// The read paths ask the engine for cache-only reads first, and a miss comes
-/// back as this rather than as an error: the data is not absent, it just was
-/// not reachable without going to disk. Callers take it as the signal to
-/// re-issue the read on the pool, where blocking is allowed.
 #[inline]
 pub(crate) fn is_incomplete(e: &rocksdb::Error) -> bool {
     e.kind() == ErrorKind::Incomplete
 }
 
-/// Translates an engine error into [`Error::Io`].
-///
-/// The engine reports failures as a string plus a coarse kind. Mapping that
-/// kind onto [`io::ErrorKind`] keeps the distinction between, say, a busy
-/// column and a corrupt one legible to callers that would otherwise only see
-/// prose.
 pub(crate) fn map_err(e: rocksdb::Error) -> Error {
     let kind = io_error_kind(&e.kind());
     let string = e.into_string();
@@ -63,8 +47,6 @@ fn io_error_kind(e: &ErrorKind) -> io::ErrorKind {
 mod tests {
     use super::*;
 
-    /// The cache-only read paths key off this and would otherwise treat a
-    /// cache miss as a hard failure.
     #[test]
     fn incomplete_is_distinguished_from_other_kinds() {
         assert_eq!(

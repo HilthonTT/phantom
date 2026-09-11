@@ -13,11 +13,6 @@ use serde_json::{Error, from_str as from_json_str};
 use super::{Result, RoomVersion};
 use crate::error;
 
-/// Deserialize the `users` map of a power levels event into a vector sorted by
-/// user id, so lookups can binary-search it instead of hashing.
-///
-/// ruma only ships the `BTreeMap` forms of these; a `BTreeMap` already iterates
-/// in key order, so collecting one keeps the vector sorted.
 fn vec_deserialize_v1_powerlevel_values<'de, D>(de: D) -> Result<Vec<(OwnedUserId, Int)>, D::Error>
 where
     D: Deserializer<'de>,
@@ -26,8 +21,6 @@ where
         .map(|map: BTreeMap<OwnedUserId, Int>| map.into_iter().collect())
 }
 
-/// The integer-only counterpart of [`vec_deserialize_v1_powerlevel_values`],
-/// for room versions that reject stringified power levels.
 fn vec_deserialize_int_powerlevel_values<'de, D>(de: D) -> Result<Vec<(OwnedUserId, Int)>, D::Error>
 where
     D: Deserializer<'de>,

@@ -1,5 +1,3 @@
-//! Server-wide runtime state.
-
 use std::{
     sync::{
         Arc,
@@ -13,39 +11,25 @@ use tokio::{runtime, sync::broadcast};
 
 use crate::{Err, Result, config, config::Config, log::Log, metrics::Metrics};
 
-/// Server runtime state; public portion
 pub struct Server {
-    /// Configured name of server. This is the same as the one in the config
-    /// but developers can (and should) reference this string instead.
     pub name: OwnedServerName,
 
-    /// Server-wide configuration instance
     pub config: config::Manager,
 
-    /// Timestamp server was started; used for uptime.
     pub started: SystemTime,
 
-    /// Reload/shutdown pending indicator; server is shutting down. This is an
-    /// observable used on shutdown and should not be modified.
     pub stopping: AtomicBool,
 
-    /// Reload/shutdown desired indicator; when false, shutdown is desired. This
-    /// is an observable used on shutdown and modifying is not recommended.
     pub reloading: AtomicBool,
 
-    /// Restart desired; when true, restart it desired after shutdown.
     pub restarting: AtomicBool,
 
-    /// Handle to the runtime
     pub runtime: Option<runtime::Handle>,
 
-    /// Reload/shutdown signal
     pub signal: broadcast::Sender<&'static str>,
 
-    /// Logging subsystem state
     pub log: Log,
 
-    /// Metrics subsystem state
     pub metrics: Metrics,
 }
 
@@ -69,18 +53,10 @@ impl Server {
         }
     }
 
-    /// Swaps the server's modules for freshly built ones without dropping
-    /// connections.
-    ///
-    /// Reloading relies on the dynamic module loading phantom does not
-    /// implement yet, so this always fails; it exists so callers — the admin
-    /// room, a signal handler — can offer the command and report why rather
-    /// than not having one.
     pub fn reload(&self) -> Result {
         Err!("Reloading is not supported by this build; restart instead.")
     }
 
-    /// Shuts the server down, to be started again by the supervising process.
     pub fn restart(&self) -> Result {
         if self.restarting.swap(true, Ordering::AcqRel) {
             return Err!("Restart already in progress");
@@ -91,7 +67,6 @@ impl Server {
         })
     }
 
-    /// Begins an orderly shutdown.
     pub fn shutdown(&self) -> Result {
         if self.stopping.swap(true, Ordering::AcqRel) {
             return Err!("Shutdown already in progress");
@@ -102,10 +77,6 @@ impl Server {
         })
     }
 
-    /// Broadcasts a signal to everything waiting on one.
-    ///
-    /// Fails when nothing is listening: a shutdown nobody will act on is a
-    /// failed shutdown, and the callers above roll their state back on it.
     pub fn signal(&self, sig: &'static str) -> Result {
         if let Err(e) = self.signal.send(sig) {
             return Err!("Failed to send signal: {e}");
@@ -114,7 +85,6 @@ impl Server {
         Ok(())
     }
 
-    /// Resolves once the server is shutting down.
     #[inline]
     pub async fn until_shutdown(self: &Arc<Self>) {
         let mut signal = self.signal.subscribe();
@@ -129,9 +99,6 @@ impl Server {
         }
     }
 
-    /// How long the server has been up.
-    ///
-    /// Zero if the system clock has moved backwards past the start time.
     #[inline]
     #[must_use]
     pub fn uptime(&self) -> Duration {
@@ -145,8 +112,6 @@ impl Server {
             .expect("runtime handle available in Server")
     }
 
-    /// `Ok` while the server is running, so a long operation can bail out of a
-    /// loop with `?` once shutdown starts.
     #[inline]
     pub fn check_running(&self) -> Result {
         use std::{io, io::ErrorKind::Interrupted};
@@ -181,7 +146,6 @@ impl Server {
         self.restarting.load(Ordering::Relaxed)
     }
 
-    /// Whether `name` is this server, i.e. whether a room or user is local.
     #[inline]
     #[must_use]
     pub fn is_ours(&self, name: &str) -> bool {

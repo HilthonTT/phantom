@@ -1,6 +1,3 @@
-//! Randomness: shuffling, identifiers, and the jittered expiry times the
-//! caches use so that everything learned at once does not expire at once.
-
 use arrayvec::ArrayString;
 use rand::{RngExt, rng, seq::SliceRandom};
 use std::{
@@ -21,12 +18,6 @@ pub fn string(length: usize) -> String {
         .collect()
 }
 
-/// A random string of `length` characters drawn from `charset`.
-///
-/// For the identifiers a person has to read off one screen and type into
-/// another, where the alphabet is chosen to keep the confusable characters out
-/// rather than to pack the most entropy into each one. `charset` must be
-/// non-empty and ASCII; the entropy per character is its length, not 62.
 pub fn string_from(charset: &[u8], length: usize) -> String {
     debug_assert!(!charset.is_empty(), "the charset must have something in it");
     debug_assert!(charset.is_ascii(), "the charset must be ASCII");

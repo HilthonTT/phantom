@@ -1,5 +1,3 @@
-//! The set of captures the log layer is currently feeding.
-
 use std::sync::{
     Arc, RwLock,
     atomic::{AtomicUsize, Ordering},
@@ -7,14 +5,9 @@ use std::sync::{
 
 use super::Capture;
 
-/// Shared state between [`super::Layer`] and the captures using it.
 pub struct State {
     pub(super) active: RwLock<Vec<Arc<Capture>>>,
 
-    /// How many captures are active, readable without touching the lock.
-    ///
-    /// Every event in the process passes through the layer, so the common case
-    /// — no capture running — must not contend on a shared lock.
     count: AtomicUsize,
 }
 
@@ -33,7 +26,6 @@ impl State {
         }
     }
 
-    /// Whether any capture is running.
     #[inline]
     #[must_use]
     pub fn is_active(&self) -> bool {

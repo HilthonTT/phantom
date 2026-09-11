@@ -1,13 +1,3 @@
-//! The name resolver itself, and the hook that lets reqwest read the
-//! destination cache.
-//!
-//! [`Resolver`] is a plain hickory resolver configured from the system's own
-//! settings and the `dns_*` config options. [`Hooked`] wraps it with a lookup
-//! in [`super::cache`] first, and is what the federation clients resolve
-//! through: by the time a federation request is made, the spec procedure in
-//! [`super::lookup`] has already decided which address the connection belongs
-//! to, and asking DNS again could answer differently.
-
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use futures::FutureExt;
@@ -108,8 +98,6 @@ impl Resolver {
         }))
     }
 
-    /// Empties hickory's own in-memory cache. The destination cache in the
-    /// database is separate; see [`super::Service::clear_cache`].
     #[inline]
     pub fn clear_cache(&self) {
         self.resolver.clear_cache();

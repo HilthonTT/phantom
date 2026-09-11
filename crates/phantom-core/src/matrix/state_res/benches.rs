@@ -1,16 +1,3 @@
-//! Benchmarks for state resolution.
-//!
-//! `#[bench]` is still nightly-only, so the whole module sits behind the
-//! `phantom_bench` cfg and is not built by the pinned stable toolchain. Run it
-//! with a nightly compiler:
-//!
-//! ```sh
-//! RUSTFLAGS='--cfg phantom_bench' cargo +nightly bench -p phantom-core
-//! ```
-//!
-//! The fixtures come from [`super::fixtures`] rather than being restated
-//! here, so the benches and the tests exercise the same graphs.
-
 extern crate test;
 
 use std::{
@@ -131,8 +118,6 @@ fn resolve_deeper_event_set(c: &mut test::Bencher) {
     });
 }
 
-/// Collect the named events out of `events` into the state map shape `resolve`
-/// takes.
 fn state_map(
     events: &HashMap<OwnedEventId, Arc<PduEvent>>,
     ids: &[&str],
@@ -152,7 +137,6 @@ fn state_map(
         .collect()
 }
 
-/// A power level change plus a ban, layered on top of [`INITIAL_EVENTS`].
 #[allow(non_snake_case)]
 fn BAN_STATE_SET() -> HashMap<OwnedEventId, Arc<PduEvent>> {
     vec![

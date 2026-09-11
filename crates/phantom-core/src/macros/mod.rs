@@ -1,21 +1,7 @@
-//! Small declarative macros shared across the crate.
-//!
-//! They are grouped by what they produce: [`predicate`] for the closures that
-//! read as combinator arguments, [`tuple`] for the ones that pick a field
-//! apart, and [`defer`] for scope-exit bookkeeping. Everything here is
-//! `#[macro_export]`ed, so the module path matters only for finding the
-//! definition — callers spell them as `phantom_core::at!` and friends.
-//!
-//! Error construction lives in [`crate::error::construct`] instead; `err!` and
-//! `Err!` come from there.
-
 pub mod defer;
 pub mod predicate;
 pub mod tuple;
 
-/// Formats `$s` only when it actually looks like a format string, so callers
-/// can pass either a plain literal or a format string without paying for a
-/// `format!` on the former.
 #[macro_export]
 macro_rules! format_maybe {
     ($s:literal $(,)?) => {
@@ -27,7 +13,6 @@ macro_rules! format_maybe {
     };
 }
 
-/// Const expression deciding whether a literal is a format string.
 #[macro_export]
 macro_rules! is_format {
     ($s:literal) => {
@@ -39,8 +24,6 @@ macro_rules! is_format {
     };
 }
 
-/// Expands to `Some(value)` for the named enum variants and `None` for
-/// anything else, e.g. `extract_variant!(event, Event::Left | Event::Right)`.
 #[macro_export]
 macro_rules! extract_variant {
     ( $e:expr, $( $variant:path )|* ) => {
@@ -51,8 +34,6 @@ macro_rules! extract_variant {
     };
 }
 
-/// Backs [`is_format!`]. A `const fn` rather than a `const_str::contains!` so
-/// the crate does not need a proc-macro dependency for this one check.
 #[must_use]
 pub const fn has_braces(s: &str) -> bool {
     let bytes = s.as_bytes();

@@ -5,79 +5,55 @@ use super::{Error, Result};
 #[derive(Debug)]
 #[allow(clippy::exhaustive_enums)]
 pub enum RoomDisposition {
-    /// A room version that has a stable specification.
     Stable,
-    /// A room version that is not yet fully specified.
+
     Unstable,
 }
 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum EventFormatVersion {
-    /// $id:server event id format
     V1,
-    /// MSC1659-style $hash event id format: introduced for room v3
+
     V2,
-    /// MSC1884-style $hash format: introduced for room v4
+
     V3,
 }
 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum StateResolutionVersion {
-    /// State resolution for rooms at version 1.
     V1,
-    /// State resolution for room at version 2 or later.
+
     V2,
 }
 
 #[non_exhaustive]
 #[allow(clippy::struct_excessive_bools)]
 pub struct RoomVersion {
-    /// The stability of this room.
     pub disposition: RoomDisposition,
-    /// The format of the EventId.
+
     pub event_format: EventFormatVersion,
-    /// Which state resolution algorithm is used.
+
     pub state_res: StateResolutionVersion,
     pub enforce_key_validity: bool,
 
-    /// `m.room.aliases` had special auth rules and redaction rules
-    /// before room version 6.
-    ///
-    /// before MSC2261/MSC2432,
     pub special_case_aliases_auth: bool,
-    /// Strictly enforce canonical json, do not allow:
-    /// * Integers outside the range of [-2 ^ 53 + 1, 2 ^ 53 - 1]
-    /// * Floats
-    /// * NaN, Infinity, -Infinity
+
     pub strict_canonicaljson: bool,
-    /// Verify notifications key while checking m.room.power_levels.
-    ///
-    /// bool: MSC2209: Check 'notifications'
+
     pub limit_notifications_power_levels: bool,
-    /// Extra rules when verifying redaction events.
+
     pub extra_redaction_checks: bool,
-    /// Allow knocking in event authentication.
-    ///
-    /// See [room v7 specification](https://spec.matrix.org/latest/rooms/v7/) for more information.
+
     pub allow_knocking: bool,
-    /// Adds support for the restricted join rule.
-    ///
-    /// See: [MSC3289](https://github.com/matrix-org/matrix-spec-proposals/pull/3289) for more information.
+
     pub restricted_join_rules: bool,
-    /// Adds support for the knock_restricted join rule.
-    ///
-    /// See: [MSC3787](https://github.com/matrix-org/matrix-spec-proposals/pull/3787) for more information.
+
     pub knock_restricted_join_rule: bool,
-    /// Enforces integer power levels.
-    ///
-    /// See: [MSC3667](https://github.com/matrix-org/matrix-spec-proposals/pull/3667) for more information.
+
     pub integer_power_levels: bool,
-    /// Determine the room creator using the `m.room.create` event's `sender`,
-    /// instead of the event content's `creator` field.
-    ///
-    /// See: [MSC2175](https://github.com/matrix-org/matrix-spec-proposals/pull/2175) for more information.
+
     pub use_room_create_sender: bool,
 }
 

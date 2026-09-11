@@ -60,12 +60,6 @@ impl Data {
         self.servernameevent_data.raw_del_prefix(&prefix).await;
     }
 
-    /// Moves queued events into the in-flight column.
-    ///
-    /// One transaction rather than a write and a delete per event: the two
-    /// columns are the same fact seen from either side, and a crash between
-    /// them would leave an event either queued and in flight at once — sent
-    /// twice — or in neither, and dropped.
     pub(super) fn mark_as_active<'a, I>(&self, events: I) -> Result
     where
         I: Iterator<Item = &'a QueueItem>,
@@ -184,7 +178,6 @@ impl Data {
 }
 
 fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, SendingEvent)> {
-    // Appservices start with a plus
     Ok::<_, Error>(if key.starts_with(b"+") {
         let mut parts = key[1..].splitn(2, |&b| b == 0xFF);
 
@@ -229,7 +222,6 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
             if value.is_empty() {
                 SendingEvent::Pdu(event.into())
             } else {
-                // I'm pretty sure this should never be called
                 SendingEvent::Edu(value.into())
             },
         )

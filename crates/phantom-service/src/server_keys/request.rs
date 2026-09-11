@@ -1,9 +1,3 @@
-//! The federation requests this service makes to obtain keys.
-//!
-//! Three endpoints, in increasing order of how much they answer at once: ask
-//! a server for its own keys, ask a notary about one server, or ask a notary
-//! about many servers in one request.
-
 use std::{collections::BTreeMap, fmt::Debug};
 
 use phantom_core::{Err, Result, debug, implement};
@@ -16,12 +10,6 @@ use ruma::{
     },
 };
 
-/// Asks `notary` about the keys of many servers at once.
-///
-/// Split into several requests where the batch is larger than
-/// `trusted_server_batch_size`: a notary answers for every server named in
-/// one request, and a large enough query takes long enough that the response
-/// is worth having in pieces.
 #[implement(super::Service)]
 pub(super) async fn batch_notary_request<'a, S, K>(
     &self,
@@ -90,7 +78,6 @@ where
     Ok(results)
 }
 
-/// Asks `notary` about the keys of one server.
 #[implement(super::Service)]
 pub async fn notary_request(
     &self,
@@ -114,7 +101,6 @@ pub async fn notary_request(
     Ok(response)
 }
 
-/// Asks a server for its own keys.
 #[implement(super::Service)]
 pub async fn server_request(&self, target: &ServerName) -> Result<ServerSigningKeys> {
     use get_server_keys::v2::Request;

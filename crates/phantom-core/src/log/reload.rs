@@ -1,5 +1,3 @@
-//! Runtime reloading of log filters.
-
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -9,23 +7,9 @@ use tracing_subscriber::{EnvFilter, reload};
 
 use crate::{Err, Result, error};
 
-/// Forwards to [`reload::Handle::reload`] without naming the handle's type.
-///
-/// A `reload::Handle<L, S>` carries the type of the subscriber's preceding
-/// layers in `S`, which in our case includes unnameable `impl Trait` types, so
-/// the handles cannot be stored as themselves. This trait drops `S` so they can
-/// be stored as trait objects instead.
-///
-/// The `S` parameter is gone in the unreleased tracing-subscriber from the
-/// master branch[1], which would make this unnecessary — but adopting it means
-/// a version of tracing incompatible with the rest of our dependencies.
-///
-/// [1]: <https://github.com/tokio-rs/tracing/pull/1035/commits/8a87ea52425098d3ef8f56d92358c2f6c144a28f>
 pub trait ReloadHandle<L> {
-    /// The value currently installed, if the layer still exists.
     fn current(&self) -> Option<L>;
 
-    /// Replaces the installed value.
     fn reload(&self, new_value: L) -> Result<(), reload::Error>;
 }
 
@@ -44,17 +28,12 @@ impl<L: Clone, S> ReloadHandle<L> for reload::Handle<L, S> {
 type Handle = Box<dyn ReloadHandle<EnvFilter> + Send + Sync>;
 type HandleMap = HashMap<String, Handle>;
 
-/// The log filters that can be swapped while the server runs, by name.
-///
-/// Cloning shares the handles: every clone reloads the same layers.
 #[derive(Clone, Default)]
 pub struct LogLevelReloadHandles {
     handles: Arc<Mutex<HandleMap>>,
 }
 
 impl LogLevelReloadHandles {
-    /// Registers a layer's reload handle under `name`, replacing any handle
-    /// already registered under it.
     pub fn add<H>(&self, name: &str, handle: H)
     where
         H: ReloadHandle<EnvFilter> + Send + Sync + 'static,
@@ -65,13 +44,6 @@ impl LogLevelReloadHandles {
             .insert(name.into(), Box::new(handle));
     }
 
-    /// Installs `new_value` on the named layers, or on every layer when `names`
-    /// is `None`.
-    ///
-    /// Reloading is attempted for every named layer even if one fails, and the
-    /// first failure is returned once they have all been tried. An unknown name
-    /// is an error in itself: the reference implementation quietly reloaded
-    /// nothing, which reads as success at the callsite.
     pub fn reload(&self, new_value: &EnvFilter, names: Option<&[&str]>) -> Result {
         let handles = self.handles.lock().expect("locked");
 
@@ -98,7 +70,6 @@ impl LogLevelReloadHandles {
         failure.map_or(Ok(()), |error| Err(error.into()))
     }
 
-    /// The filter currently installed on the named layer.
     #[must_use]
     pub fn current(&self, name: &str) -> Option<EnvFilter> {
         self.handles
@@ -108,7 +79,6 @@ impl LogLevelReloadHandles {
             .and_then(|handle| handle.current())
     }
 
-    /// The names every registered layer is known by.
     #[must_use]
     pub fn names(&self) -> Vec<String> {
         let mut names: Vec<_> = self
@@ -129,8 +99,6 @@ mod tests {
 
     use super::*;
 
-    /// Stands in for a layer's reload handle, recording what it was asked to
-    /// install and optionally refusing to install it.
     struct MockHandle {
         current: Mutex<EnvFilter>,
         reloads: Arc<Mutex<Vec<String>>>,

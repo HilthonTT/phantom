@@ -1,11 +1,3 @@
-//! The auth chain of an event: every event authorizing it, transitively.
-//!
-//! State resolution asks for this constantly and walking it hits the database
-//! once per event, so the answers are cached twice over: per event, and per
-//! bucket of events resolved together. Chains are held as short ids rather
-//! than event ids because that is what state resolution compares, and because
-//! eight bytes per entry is what makes a cache of this size affordable.
-
 mod data;
 
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
@@ -35,7 +27,6 @@ struct Services {
     timeline: Dep<rooms::timeline::Service>,
 }
 
-/// Starting events sharing a cache entry, as (short id, event id).
 type Bucket<'a> = BTreeSet<(ShortEventId, &'a EventId)>;
 
 impl crate::Service for Service {
@@ -235,14 +226,12 @@ async fn auth_chain_for_event(
     Ok(found.into_iter().collect())
 }
 
-/// The cached chain for these starting events, if one is cached.
 #[implement(Service)]
 #[inline]
 pub async fn cached_auth_chain(&self, key: &[ShortEventId]) -> Result<Arc<[ShortEventId]>> {
     self.db.cached_auth_chain(key).await
 }
 
-/// Caches the chain these starting events resolved to.
 #[implement(Service)]
 #[tracing::instrument(skip_all, level = "debug")]
 pub fn cache_auth_chain<I>(&self, key: Vec<ShortEventId>, auth_chain: I)

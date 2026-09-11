@@ -1,27 +1,3 @@
-//! What the room's state was when an event happened, and what it is now that
-//! the event has.
-//!
-//! An event is authorized against the state of the room *at that event*, which
-//! is not the state now and not necessarily a state this server ever held.
-//! There are three ways to arrive at it, tried in this order because that is
-//! their order of cost and of trustworthiness:
-//!
-//! 1. The event has one predecessor and we have it. Then the state at the
-//!    event is the state after that predecessor, which is a lookup.
-//! 2. The event has several predecessors and we have them all. Their states
-//!    may disagree — that is what several predecessors means — so they are
-//!    resolved against each other. Still no network.
-//! 3. We do not have the predecessors. Then the only source is the server that
-//!    sent us the event, which is asked for the state at it; every event in
-//!    the answer is fetched and validated before any of it is believed.
-//!
-//! Afterwards the room's own state has to move on. [`resolve_state`] takes the
-//! state the room was in and the state the new event implies, and resolves the
-//! two, which is what stops a fork in the room from becoming a fork in this
-//! server's idea of it.
-//!
-//! [`resolve_state`]: Service::resolve_state
-
 use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet},
@@ -49,13 +25,8 @@ use crate::rooms::{
     state_compressor::CompressedState,
 };
 
-/// The room's state at an event, keyed the way the compressor wants it.
 pub(super) type StateAtEvent = HashMap<ShortStateKey, OwnedEventId>;
 
-/// The state at an event whose single predecessor this server holds.
-///
-/// `None` where the predecessor is not held, or is held without a record of
-/// the state at it — an outlier, most often.
 #[implement(Service)]
 pub(super) async fn state_at_incoming_degree_one(
     &self,
@@ -85,9 +56,6 @@ pub(super) async fn state_at_incoming_degree_one(
         return Ok(None);
     };
 
-    // The state *after* the predecessor includes the predecessor itself, where
-    // it was a state event. The stored hash is the state it was authorized
-    // against, which is the state before it.
     if let Some(state_key) = &prev_pdu.state_key {
         let shortstatekey = self
             .services
@@ -101,10 +69,6 @@ pub(super) async fn state_at_incoming_degree_one(
     Ok(Some(state))
 }
 
-/// The state at an event with several predecessors, by resolving theirs.
-///
-/// `None` where any predecessor is missing: resolving a subset of the forks
-/// would produce a state that looks authoritative and is not.
 #[implement(Service)]
 pub(super) async fn state_at_incoming_resolved(
     &self,
@@ -177,14 +141,6 @@ pub(super) async fn state_at_incoming_resolved(
     Ok(Some(self.shorten(resolved).await))
 }
 
-/// The state at an event as the server that sent it says it was.
-///
-/// Every event named in the answer is fetched and validated as an outlier
-/// before any of it is used: the sending server is being asked what the state
-/// was, not being trusted about it. State ids are asked for rather than the
-/// state itself for the same reason — the events have to be fetched and
-/// checked either way, and asking for ids does not invite a server to hand us
-/// a megabyte of state it invented.
 #[implement(Service)]
 pub(super) async fn fetch_state(
     &self,
@@ -242,8 +198,6 @@ pub(super) async fn fetch_state(
             .get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)
             .await;
 
-        // Two events at one state key is a state the room could never have
-        // been in, so the answer is not usable as a whole.
         if state
             .insert(shortstatekey, pdu.event_id.clone())
             .is_some_and(|previous| previous != pdu.event_id)
@@ -253,8 +207,6 @@ pub(super) async fn fetch_state(
         }
     }
 
-    // A room's state always contains its create event. An answer without one
-    // is not a state, whatever else is in it.
     let create_key = self
         .services
         .short
@@ -269,10 +221,6 @@ pub(super) async fn fetch_state(
     Ok(Some(state))
 }
 
-/// Resolves the room's current state against the state a new event implies,
-/// and stores the result.
-///
-/// Returns the resolved state compressed, ready to become the room's.
 #[implement(Service)]
 #[tracing::instrument(level = "debug", skip_all)]
 pub(super) async fn resolve_state(
@@ -334,7 +282,6 @@ pub(super) async fn resolve_state(
     Ok(Arc::new(compressed))
 }
 
-/// The auth chain of a set of events, as event ids.
 #[implement(Service)]
 async fn auth_chain_of<'a, I>(&self, room_id: &RoomId, starting_events: I) -> Vec<OwnedEventId>
 where
@@ -355,7 +302,6 @@ where
     self.spell_out_short(chain).await
 }
 
-/// Short event ids spelled back out.
 #[implement(Service)]
 async fn spell_out_short(&self, short_ids: Vec<ShortEventId>) -> Vec<OwnedEventId> {
     self.services
@@ -366,10 +312,6 @@ async fn spell_out_short(&self, short_ids: Vec<ShortEventId>) -> Vec<OwnedEventI
         .await
 }
 
-/// A state keyed by short state key, keyed by type and state key instead.
-///
-/// State resolution works in the spec's terms rather than this server's short
-/// ids, since what it compares is what the room's rules are written about.
 #[implement(Service)]
 async fn spell_out(&self, state: StateAtEvent) -> StateMap<OwnedEventId> {
     let mut spelled = StateMap::with_capacity(state.len());
@@ -390,9 +332,6 @@ async fn spell_out(&self, state: StateAtEvent) -> StateMap<OwnedEventId> {
     spelled
 }
 
-/// The inverse of [`spell_out`].
-///
-/// [`spell_out`]: Service::spell_out
 #[implement(Service)]
 async fn shorten(&self, state: StateMap<OwnedEventId>) -> StateAtEvent {
     let mut shortened = StateAtEvent::with_capacity(state.len());
@@ -410,17 +349,11 @@ async fn shorten(&self, state: StateMap<OwnedEventId>) -> StateAtEvent {
     shortened
 }
 
-/// The event fetcher state resolution is given.
 #[implement(Service)]
 async fn fetch_for_resolution(&self, event_id: OwnedEventId) -> Option<PduEvent> {
     self.services.timeline.get_pdu(&event_id).await.ok()
 }
 
-/// The existence check state resolution is given.
-///
-/// Separate from the fetcher because resolution asks about far more events
-/// than it reads, and answering with a key lookup rather than a value read is
-/// most of what makes the conflicted set affordable.
 #[implement(Service)]
 async fn exists_for_resolution(&self, event_id: OwnedEventId) -> bool {
     self.services.timeline.pdu_exists(&event_id).await

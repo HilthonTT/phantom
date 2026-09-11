@@ -1,13 +1,9 @@
-//! Validation applied to a [`Config`] once it has been deserialized.
-
 use ruma::ServerName;
 use tracing::{debug, warn};
 
 use super::{Config, DEPRECATED_KEYS};
 use crate::{Result, err};
 
-/// Performs [`validate`] with the additional constraints that apply when
-/// swapping a running server's config for a freshly loaded one.
 pub fn validate_reload(old: &Config, new: &Config) -> Result {
     validate(new)?;
 
@@ -21,8 +17,6 @@ pub fn validate_reload(old: &Config, new: &Config) -> Result {
     Ok(())
 }
 
-/// Rejects configs that cannot work, and warns about ones that probably are
-/// not what the operator intended.
 pub fn validate(config: &Config) -> Result {
     if config.server_name.is_empty() {
         return Err(err!("`server_name` must be set"));
@@ -52,10 +46,6 @@ pub fn validate(config: &Config) -> Result {
     Ok(())
 }
 
-/// The database options the engine cannot fall back from. Each of these is
-/// rejected here, where the option that caused it can be named, rather than
-/// deep inside the engine where the reference implementation panics or quietly
-/// substitutes a different value.
 fn check_database(config: &Config) -> Result {
     if config.database.rocksdb_max_log_files == 0 {
         return Err(err!(Config(
@@ -92,13 +82,8 @@ fn check_database(config: &Config) -> Result {
     Ok(())
 }
 
-/// Compression algorithms the engine can be asked for, in the spelling the
-/// config takes.
 const COMPRESSION_ALGOS: &[&str] = &["zstd", "zlib", "bz2", "lz4", "lz4hc", "snappy", "none"];
 
-/// The registration secrets, which are worth rejecting here rather than at
-/// first use: an empty token is almost always a half-finished config, and it
-/// would otherwise be discovered by someone registering an account with it.
 fn check_registration(config: &Config) -> Result {
     if config.auth.registration_token.as_deref() == Some("") {
         return Err(err!(Config(
@@ -125,8 +110,6 @@ fn check_registration(config: &Config) -> Result {
     Ok(())
 }
 
-/// `"*"` in a URL preview allowlist turns this server into an open fetcher for
-/// any URL a user can put in a message, including hosts only it can reach.
 fn warn_url_previews(config: &Config) {
     let wildcarded = [
         (
@@ -153,9 +136,6 @@ fn warn_url_previews(config: &Config) {
     }
 }
 
-/// Options that give up a guarantee the rest of the server is built on. None
-/// of them is an error — each has a legitimate use while developing — but
-/// none should ever be quiet.
 fn warn_insecure(config: &Config) {
     if config.network.allow_invalid_tls_certificates {
         warn!(
@@ -174,8 +154,6 @@ fn warn_insecure(config: &Config) {
     }
 }
 
-/// Iterates over all the keys in the config file and warns if there is a
-/// deprecated key specified
 fn warn_deprecated(config: &Config) {
     debug!("Checking for deprecated config keys");
 
@@ -197,8 +175,6 @@ fn warn_deprecated(config: &Config) {
     }
 }
 
-/// Iterates over all the catchall keys (unknown config options) and warns if
-/// there are any.
 fn warn_unknown_key(config: &Config) {
     debug!("Checking for unknown config keys");
 

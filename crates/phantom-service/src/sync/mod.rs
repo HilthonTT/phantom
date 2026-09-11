@@ -1,31 +1,3 @@
-//! What a client is waiting for, and what it has already been told.
-//!
-//! Sync is the endpoint a Matrix client spends its life in, and two things it
-//! needs are awkward enough that neither belongs in the endpoint itself.
-//!
-//! **Waiting.** A client asks for everything new and, when there is nothing
-//! new, expects the request to hang until there is. [`watch`] is that wait: it
-//! parks on every database prefix the answer would be drawn from and returns
-//! the moment any of them is written. Parking is what makes it correct as well
-//! as cheap — a poll on a timer would either burn the server's time or add its
-//! own interval to how long a message takes to arrive.
-//!
-//! **Remembering.** Sliding sync is defined as a conversation rather than a
-//! request: a client sends the parts of its query that changed, and the server
-//! answers against the whole query. That means the server holds the query, and
-//! holds what it has already sent, per connection. [`connections`] is that
-//! state.
-//!
-//! It is deliberately in memory and deliberately lost on restart. A client
-//! whose connection the server has forgotten is told so — the response carries
-//! no position it recognizes — and starts a new one, which is a round trip.
-//! Persisting it would trade that round trip for a database write on every
-//! sync from every device, which is the most frequent request a homeserver
-//! serves.
-//!
-//! [`watch`]: Service::watch
-//! [`connections`]: Service::connections
-
 mod connection;
 mod watch;
 
@@ -44,13 +16,6 @@ pub use self::connection::{Connection, ConnectionKey};
 use crate::{Dep, rooms, users};
 
 pub struct Service {
-    /// The sliding sync conversations in progress, by user, device and the
-    /// connection id the client chose.
-    ///
-    /// One lock over all of them rather than a lock per connection: what is
-    /// held is a clone of a small struct, the critical section is a map lookup,
-    /// and a per-connection lock would cost an allocation per device to save
-    /// contention that a sync request's own frequency does not create.
     connections: Mutex<BTreeMap<ConnectionKey, Connection>>,
 
     services: Services,
@@ -110,11 +75,6 @@ impl crate::Service for Service {
     }
 }
 
-/// The key a sliding sync conversation is held under.
-///
-/// A device may hold several at once — a client that syncs its room list and
-/// its open room separately is the ordinary case — which is what the client's
-/// own connection id distinguishes.
 pub(crate) fn connection_key(
     user_id: &OwnedUserId,
     device_id: &OwnedDeviceId,

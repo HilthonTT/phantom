@@ -1,12 +1,3 @@
-//! The [spec procedure][spec] for resolving a server name, in the order the
-//! spec gives it.
-//!
-//! The numbered steps in the comments below are the numbered bullets there.
-//! Each is its own function, so a log line naming a step is enough to say
-//! which branch a destination took.
-//!
-//! [spec]: https://spec.matrix.org/latest/server-server-api/#resolving-server-names
-
 use std::{
     fmt::Debug,
     net::{IpAddr, SocketAddr},
@@ -25,8 +16,6 @@ use super::{
     },
 };
 
-/// Where a federation request to a server goes, and what its `Host` header
-/// should say.
 #[derive(Clone, Debug)]
 pub struct ResolvedDest {
     pub dest: Destination,
@@ -48,8 +37,6 @@ impl super::Service {
         Ok(ResolvedDest { dest, host })
     }
 
-    /// The cached destination for `server_name`, resolving it if there is
-    /// none. The flag says whether the answer came from the cache.
     pub async fn lookup_destination(&self, server_name: &ServerName) -> Result<(CachedDest, bool)> {
         if let Ok(result) = self.cache.get_destination(server_name).await {
             return Ok((result, true));
@@ -72,8 +59,6 @@ impl super::Service {
             .await
     }
 
-    /// Runs the procedure itself. `cache` is what the admin command that
-    /// resolves a name without disturbing the cache passes as false.
     #[tracing::instrument(name = "procedure", level = "debug", skip(self, cache))]
     pub async fn resolve_destination(&self, dest: &ServerName, cache: bool) -> Result<CachedDest> {
         self.validate_dest(dest)?;
@@ -85,13 +70,6 @@ impl super::Service {
                 if let Some(pos) = dest.as_str().find(':') {
                     self.step_2(dest, cache, pos).await?
                 } else {
-                    // Diverges from upstream, which first resolved `dest`
-                    // itself and cached that as its override. The well-known
-                    // client does not use the hooked resolver, so nothing
-                    // needed it, and step 4 then found the override already
-                    // present and never resolved the SRV target: a name with
-                    // its own A records and an SRV record pointing elsewhere
-                    // was connected to at its own address.
                     self.services.server.check_running()?;
 
                     match self.request_well_known(dest.as_str()).await? {
@@ -274,8 +252,6 @@ impl super::Service {
             .await
     }
 
-    /// Resolves `hostname` and stores the result under `untername`, which is
-    /// the name a connection will later be opened to.
     #[tracing::instrument(name = "ip", level = "debug", skip(self))]
     async fn query_and_cache_override(
         &self,
@@ -303,8 +279,6 @@ impl super::Service {
         }
     }
 
-    /// The SRV records for `hostname`, under the current name and then the
-    /// deprecated one.
     #[tracing::instrument(name = "srv", level = "debug", skip(self))]
     async fn query_srv_record(&self, hostname: &'_ str) -> Result<Option<Destination>> {
         let hostnames = [
@@ -367,7 +341,6 @@ impl super::Service {
         }
     }
 
-    /// Rejects a destination before anything is resolved for it.
     fn validate_dest(&self, dest: &ServerName) -> Result<()> {
         if dest == self.services.server.name
             && !self.services.server.config.federation.federation_loopback
@@ -389,8 +362,6 @@ impl super::Service {
             "Destination is not an IP literal"
         );
 
-        // `host()` keeps the brackets around an IPv6 literal, which the
-        // address parser does not accept.
         let host = dest.host().trim_start_matches('[').trim_end_matches(']');
         let ip = IPAddress::parse(host).map_err(|e| {
             err!(BadServerResponse(
@@ -412,13 +383,10 @@ impl super::Service {
     }
 }
 
-/// A port as it is stored on a [`Destination::Named`], with the leading colon.
 fn port_string(port: u16) -> PortString {
     PortString::from(format!(":{port}").as_str()).unwrap_or_else(|_| Destination::default_port())
 }
 
-/// The port out of a `":1234"` split off a hostname, falling back to the
-/// default where it is not a number.
 fn parse_port(port: &str) -> u16 {
     port.strip_prefix(':')
         .unwrap_or(port)

@@ -1,5 +1,3 @@
-//! hmalloc allocator
-
 #[global_allocator]
 static HMALLOC: hardened_malloc_rs::HardenedMalloc = hardened_malloc_rs::HardenedMalloc;
 

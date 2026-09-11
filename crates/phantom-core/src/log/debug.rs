@@ -1,15 +1,5 @@
-//! Logging that is loud in debug builds and quiet in release ones.
-//!
-//! The macros here log at their nominal level when debug assertions are on and
-//! collapse to `DEBUG` when they are not, so a message that is worth an
-//! `ERROR` while developing does not become one in production. Everything
-//! keyed off that decision lives here; the debugger integration itself is in
-//! [`crate::debugger`].
-
 use tracing::Level;
 
-/// Log event at given level in debug-mode (when debug-assertions are enabled).
-/// In release-mode it becomes DEBUG level, and possibly subject to elision.
 #[macro_export]
 macro_rules! debug_event {
     ( $level:expr, $($x:tt)+ ) => {
@@ -21,9 +11,6 @@ macro_rules! debug_event {
     };
 }
 
-/// Log message at the ERROR level in debug-mode (when debug-assertions are
-/// enabled). In release-mode it becomes DEBUG level, and possibly subject to
-/// elision.
 #[macro_export]
 macro_rules! debug_error {
     ( $($x:tt)+ ) => {
@@ -31,9 +18,6 @@ macro_rules! debug_error {
     };
 }
 
-/// Log message at the WARN level in debug-mode (when debug-assertions are
-/// enabled). In release-mode it becomes DEBUG level, and possibly subject to
-/// elision.
 #[macro_export]
 macro_rules! debug_warn {
     ( $($x:tt)+ ) => {
@@ -41,9 +25,6 @@ macro_rules! debug_warn {
     };
 }
 
-/// Log message at the INFO level in debug-mode (when debug-assertions are
-/// enabled). In release-mode it becomes DEBUG level, and possibly subject to
-/// elision.
 #[macro_export]
 macro_rules! debug_info {
     ( $($x:tt)+ ) => {
@@ -51,16 +32,12 @@ macro_rules! debug_info {
     };
 }
 
-/// The level an `#[instrument]` span carries when it should be visible while
-/// developing but not in production.
 pub const INFO_SPAN_LEVEL: Level = if cfg!(debug_assertions) {
     Level::INFO
 } else {
     Level::DEBUG
 };
 
-/// Whether [`debug_event!`] and friends log at their nominal level rather than
-/// collapsing to `DEBUG`.
 #[must_use]
 #[inline]
 pub const fn logging() -> bool {

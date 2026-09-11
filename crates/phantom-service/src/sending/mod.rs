@@ -1,11 +1,3 @@
-//! Outbound federation, appservice, and push traffic.
-//!
-//! Everything the server sends elsewhere is queued here and pushed out by a
-//! pool of worker tasks. A destination always lands on the same worker, which
-//! is what keeps the transactions to one server in order. Queued events are
-//! persisted, so what is in flight when the server stops goes out at the
-//! next start.
-
 mod data;
 mod dest;
 mod sender;
@@ -64,9 +56,9 @@ struct Services {
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SendingEvent {
-    Pdu(RawPduId), // pduid
-    Edu(EduBuf),   // edu json
-    Flush,         // none
+    Pdu(RawPduId),
+    Edu(EduBuf),
+    Flush,
 }
 
 pub type EduBuf = SmallVec<[u8; EDU_BUF_CAP]>;
@@ -275,18 +267,6 @@ impl Service {
         })
     }
 
-    /// Sends one EDU to every appservice that should hear about `room_id`.
-    ///
-    /// The EDU is built per appservice rather than once and cloned: each is a
-    /// separate transaction whose id is the hash of its own contents, and a
-    /// closure is what lets the caller decide the shape without this having to
-    /// know it. `serializer` must write the appservice `EphemeralData` form,
-    /// which is not the federation `Edu` form the other senders here carry.
-    ///
-    /// An appservice hears about a room if it claims the room id, if one of
-    /// its users is in the room, or if it claims one of the room's aliases —
-    /// and, before any of those, only if its registration asked for ephemeral
-    /// events at all.
     #[tracing::instrument(skip(self, serializer), level = "debug")]
     pub async fn send_edu_room_appservices<F>(&self, room_id: &RoomId, serializer: F) -> Result
     where
@@ -294,10 +274,6 @@ impl Service {
     {
         let registrations = self.services.appservice.read().await;
 
-        // The ids are taken while the guard is held and the guard dropped
-        // before anything is queued: the registrations are read under the same
-        // lock a registration is added under, and holding it across the writes
-        // would block that for as long as the fan-out takes.
         let interested: Vec<String> = registrations
             .values()
             .stream()
@@ -318,7 +294,6 @@ impl Service {
         Ok(())
     }
 
-    /// Whether `appservice` should be told what happens in `room_id`.
     async fn appservice_hears_about(
         &self,
         room_id: &RoomId,
@@ -380,10 +355,6 @@ impl Service {
         Ok(())
     }
 
-    /// Cleans up the queued and in-flight requests for every destination
-    /// that starts with `prefix`. What it runs over is the raw queue key, so
-    /// the only sensible callers are the ones removing a server or an
-    /// appservice.
     pub async fn cleanup_events(
         &self,
         appservice_id: Option<String>,
@@ -431,22 +402,11 @@ impl Service {
         sender.try_send(msg).map_err(|e| err!("{e}"))
     }
 
-    /// Which worker this destination's traffic goes through.
     pub(super) fn shard_id(&self, dest: &Destination) -> usize {
         shard_id(dest, self.channels.len())
     }
 }
 
-/// [`Service::shard_id`] against a given number of workers.
-///
-/// The destination is hashed rather than read as an integer out of the leading
-/// bytes of its queue prefix. Those bytes are not a `u64` to begin with — the
-/// prefix of the appservice `irc` is the five bytes `+irc\xFF` — and they are
-/// not a spread either, since every appservice prefix opens with the same
-/// sigil and the servers of one hosting provider share a suffix, not a prefix.
-///
-/// What matters is only that a destination always comes out the same, which is
-/// what keeps one server's transactions on one worker and so in order.
 fn shard_id(dest: &Destination, senders: usize) -> usize {
     if senders <= 1 {
         return 0;
@@ -461,8 +421,6 @@ fn shard_id(dest: &Destination, senders: usize) -> usize {
 fn num_senders(args: &crate::Args<'_>) -> usize {
     const MIN_SENDERS: usize = 1;
 
-    // Limit the number of senders to the number of workers threads or number of
-    // cores, conservatively.
     let max_senders = args
         .server
         .metrics
@@ -470,8 +428,6 @@ fn num_senders(args: &crate::Args<'_>) -> usize {
         .min(phantom_core::sys::compute::available_parallelism())
         .max(MIN_SENDERS);
 
-    // If the user doesn't override the default 0, this is intended to then
-    // default to 1 for now as multiple senders is experimental.
     args.server
         .config
         .network
@@ -498,10 +454,6 @@ mod tests {
         )
     }
 
-    /// A queue prefix is not eight bytes long just because a `u64` is: the
-    /// appservice `irc` has the five-byte prefix `+irc\xFF`, and so does the
-    /// server `a.io`. Reading a shard out of the first eight bytes of one of
-    /// those is reading past the end of it.
     #[test]
     fn short_destinations_shard_like_any_other() {
         let dests = [
@@ -520,9 +472,6 @@ mod tests {
         }
     }
 
-    /// One server's transactions stay ordered only because they all go through
-    /// the same worker, so the shard has to be a function of the destination
-    /// alone.
     #[test]
     fn a_destination_always_lands_on_the_same_worker() {
         let dest = federation("matrix.org");
@@ -533,9 +482,6 @@ mod tests {
         }
     }
 
-    /// Every appservice prefix opens with the same sigil and every push prefix
-    /// with another, so a shard taken from the leading bytes would pile each
-    /// kind onto one worker.
     #[test]
     fn destinations_of_one_kind_spread_over_the_workers() {
         const SENDERS: usize = 4;
@@ -555,7 +501,6 @@ mod tests {
         assert!(pushers.len() > 1, "every pusher on one worker");
     }
 
-    /// A single worker takes everything, and is the default.
     #[test]
     fn one_worker_takes_every_destination() {
         assert_eq!(shard_id(&federation("matrix.org"), 1), 0);

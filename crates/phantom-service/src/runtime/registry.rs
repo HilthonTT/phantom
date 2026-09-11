@@ -1,11 +1,3 @@
-//! The map every built service is recorded in, and how one reaches another.
-//!
-//! Services hold each other through [`Dep`] rather than directly: two of them
-//! may depend on each other, and a pair of `Arc`s pointing both ways is a
-//! cycle that never drops. The map keeps only weak references — the strong
-//! ones belong to [`super::Services`] — so a lookup can find a service without
-//! keeping it alive past shutdown.
-
 use std::{
     any::Any,
     collections::BTreeMap,
@@ -22,23 +14,6 @@ pub type MapType = BTreeMap<MapKey, MapVal>;
 pub type MapVal = (Weak<dyn Service>, Weak<dyn Any + Send + Sync>);
 pub type MapKey = String;
 
-/// Dep is a reference to a service used within another service.
-/// Circular-dependencies between services require this indirection.
-///
-/// This is `Sync` by inference: `Service` is bound `Send + Sync`, so the
-/// `OnceLock` and the `Weak` below are too. The reference asserts it with an
-/// `unsafe impl` instead, because proving it means walking the whole service
-/// graph — every service holding `Dep`s on services that hold `Dep`s back —
-/// and that can exhaust the recursion limit. If it ever does here,
-/// `#![recursion_limit = "192"]` on this crate is the answer; unsafety is not.
-///
-/// For the same reason the bound here is `T: Service` and not
-/// `T: Service + Send + Sync`. [`Service`] already carries both as
-/// supertraits, so the longer spelling tells rustc nothing new, but it does
-/// ask every user of the bound to prove the auto traits structurally over
-/// that whole graph. rust-analyzer's solver gives up on that sooner than
-/// rustc's, and when it does the [`Deref`] below stops applying: no method
-/// reached through any `Dep` field completes in the editor.
 pub struct Dep<T: Service> {
     dep: OnceLock<Arc<T>>,
     service: Weak<Map>,
@@ -46,9 +21,6 @@ pub struct Dep<T: Service> {
 }
 
 impl<T: Service> Dep<T> {
-    /// A lazy handle on the service registered under `name`. Nothing is looked
-    /// up until the handle is first dereferenced, which is what lets a service
-    /// take one on a service built after it.
     #[inline]
     pub(super) fn new(service: &Arc<Map>, name: &'static str) -> Self {
         Self {
@@ -72,7 +44,6 @@ impl<T: Service> Dep<T> {
 impl<T: Service> Deref for Dep<T> {
     type Target = Arc<T>;
 
-    /// Dereference a dependency. The dependency must be ready or panics.
     #[inline]
     fn deref(&self) -> &Self::Target {
         self.dep.get_or_init(
@@ -82,11 +53,6 @@ impl<T: Service> Deref for Dep<T> {
     }
 }
 
-/// Record a constructed Service under its own name, so that the services built
-/// after it can reference it.
-///
-/// Both handles are weak: the map is what services look each other up through,
-/// not what keeps them alive. The caller owns the strong references.
 pub fn add(map: &Map, service: Arc<dyn Service>, any: Arc<dyn Any + Send + Sync>) {
     let name = service.name().to_owned();
     let mut map = map.write().expect("locked for writing");
@@ -96,8 +62,6 @@ pub fn add(map: &Map, service: Arc<dyn Service>, any: Arc<dyn Any + Send + Sync>
     map.insert(name, (Arc::downgrade(&service), Arc::downgrade(&any)));
 }
 
-/// Reference a Service by name. Panics if the Service does not exist or was
-/// incorrectly cast.
 #[inline]
 pub(super) fn require<T: Service>(map: &Map, name: &str) -> Arc<T> {
     try_get::<T>(map, name)
@@ -105,12 +69,6 @@ pub(super) fn require<T: Service>(map: &Map, name: &str) -> Arc<T> {
         .expect("Failed to reference service required by another service.")
 }
 
-/// Reference a Service by name. Returns None if the Service does not exist, but
-/// panics if incorrectly cast.
-///
-/// # Panics
-/// Incorrect type is not a silent failure (None) as the type never has a reason
-/// to be incorrect.
 pub fn get<T>(map: &Map, name: &str) -> Option<Arc<T>>
 where
     T: Any + Send + Sync + Sized,
@@ -126,8 +84,6 @@ where
         })?
 }
 
-/// Reference a Service by name. Returns Err if the Service does not exist or
-/// was incorrectly cast.
 pub fn try_get<T>(map: &Map, name: &str) -> Result<Arc<T>>
 where
     T: Any + Send + Sync + Sized,
@@ -149,8 +105,6 @@ where
         )
 }
 
-/// A service's name: its module path with the crate name stripped off, e.g.
-/// `resolver` for `phantom_service::resolver`. See [`Service::name`].
 #[inline]
 pub fn make_name(module_path: &str) -> &str {
     module_path.split_once_infallible("::").1

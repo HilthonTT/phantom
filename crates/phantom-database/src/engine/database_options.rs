@@ -1,5 +1,3 @@
-//! Database-wide options.
-
 use std::cmp;
 
 use phantom_core::{Config, Result, math, sys::compute::available_parallelism};
@@ -7,11 +5,6 @@ use rocksdb::{Cache, DBRecoveryMode, Env, LogLevel, Options, statistics::StatsLe
 
 use super::column_options::cache_size_f64;
 
-/// Options for opening the database as a whole.
-///
-/// These also stand in as the default column options, so every column is
-/// opened by passing this result through
-/// [`cf_options`](super::column_options::cf_options) first.
 pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Result<Options> {
     const DEFAULT_STATS_LEVEL: StatsLevel = if cfg!(debug_assertions) {
         StatsLevel::ExceptDetailedTimers
@@ -88,11 +81,6 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
     Ok(opts)
 }
 
-/// Configures where the engine's own log goes and how much of it is kept.
-///
-/// The engine writes these to `LOG` files inside the database directory rather
-/// than through phantom's tracing subscriber: routing them into tracing needs
-/// a callback logger the crates.io bindings do not expose.
 fn set_logging_defaults(opts: &mut Options, config: &Config) {
     let rocksdb_log_level = match config.database.rocksdb_log_level.as_ref() {
         "debug" => LogLevel::Debug,
@@ -109,8 +97,6 @@ fn set_logging_defaults(opts: &mut Options, config: &Config) {
     opts.set_stats_dump_period_sec(0);
 }
 
-/// The thread count for the engine's background work, which the operator may
-/// leave at 0 to mean "one per logical CPU".
 fn num_threads<T: TryFrom<usize>>(config: &Config) -> Result<T> {
     const MIN_PARALLELISM: usize = 2;
 
@@ -150,8 +136,6 @@ mod tests {
         );
     }
 
-    /// A single background thread cannot both flush and compact, so the engine
-    /// is never given fewer than two however few are asked for.
     #[test]
     fn one_thread_is_raised_to_the_minimum() {
         let config = config("rocksdb_parallelism_threads = 1\n");

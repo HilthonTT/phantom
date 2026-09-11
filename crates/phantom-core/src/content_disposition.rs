@@ -1,18 +1,9 @@
-//! Deciding what a `Content-Disposition` header should say for a piece of
-//! media.
-//!
-//! Media is served from the same origin as everything else, so what a browser
-//! does with a file is decided here rather than by the uploader: only a short
-//! list of types is served inline, everything else is an attachment, and the
-//! filename is stripped of anything a header cannot carry safely.
-
 use std::borrow::Cow;
 
 use ruma::http_headers::{ContentDisposition, ContentDispositionType};
 
 use crate::debug_info;
 
-/// as defined by MSC2702
 const ALLOWED_INLINE_CONTENT_TYPES: [&str; 26] = [
     "application/json",
     "application/ld+json",
@@ -42,9 +33,6 @@ const ALLOWED_INLINE_CONTENT_TYPES: [&str; 26] = [
     "video/webm",
 ];
 
-/// Returns a Content-Disposition of `attachment` or `inline`, depending on the
-/// Content-Type against MSC2702 list of safe inline Content-Types
-/// (`ALLOWED_INLINE_CONTENT_TYPES`)
 #[must_use]
 pub fn content_disposition_type(content_type: Option<&str>) -> ContentDispositionType {
     let Some(content_type) = content_type else {
@@ -74,8 +62,6 @@ pub fn content_disposition_type(content_type: Option<&str>) -> ContentDispositio
     }
 }
 
-/// sanitises the file name for the Content-Disposition using
-/// `sanitize_filename` crate
 #[tracing::instrument(level = "debug")]
 pub fn sanitise_filename(filename: &str) -> String {
     sanitize_filename::sanitize_with_options(
@@ -87,14 +73,6 @@ pub fn sanitise_filename(filename: &str) -> String {
     )
 }
 
-/// creates the final Content-Disposition based on whether the filename exists
-/// or not, or if a requested filename was specified (media download with
-/// filename)
-///
-/// if filename exists:
-/// `Content-Disposition: attachment/inline; filename=filename.ext`
-///
-/// else: `Content-Disposition: attachment/inline`
 pub fn make_content_disposition(
     content_disposition: Option<&ContentDisposition>,
     content_type: Option<&str>,

@@ -2033,6 +2033,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
+name = "loole"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a3932a13b27d6b2d37efec3e4047017d59a8c9f2283a29bde29151d22f00fe9"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+]
+
+[[package]]
 name = "loop9"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2629,6 +2639,7 @@ dependencies = [
  "ipaddress",
  "lettre",
  "libc",
+ "loole",
  "lru-cache",
  "phantom-core",
  "phantom-database",

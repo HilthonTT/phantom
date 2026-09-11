@@ -1,34 +1,3 @@
-//! Spaces: rooms whose purpose is to hold other rooms.
-//!
-//! A space is an ordinary room with `type: m.space` in its create event, whose
-//! `m.space.child` state names the rooms in it. There is no separate storage
-//! here and no separate index — a space's children are its state, read like
-//! any other state.
-//!
-//! What is here is the walk over that structure, which is harder than it
-//! sounds for three reasons.
-//!
-//! **A child may live on another server.** The `m.space.child` event carries
-//! `via` servers precisely because the space's own server may know nothing
-//! about the room beyond its id. Summarizing such a child means a federation
-//! request, so a summary fetched that way is cached; a local one is not, since
-//! rebuilding it is a state read and caching it would only mean showing a
-//! stale room name after a rename.
-//!
-//! **Not every child may be shown to everyone.** A hierarchy is answered for
-//! somebody — a user over the client API, another server over federation — and
-//! a room they could not peek or join is omitted rather than described. That
-//! is [`accessible_to`], and it is evaluated per asker on every request rather
-//! than cached, because the answer changes the moment someone joins a room.
-//!
-//! **The structure may not be a tree.** Nothing stops two spaces being each
-//! other's child, and a walk that believed the structure was a tree would not
-//! terminate. The walk in [`hierarchy`] carries the path it took and refuses
-//! to descend into a room already on it.
-//!
-//! [`accessible_to`]: Service::accessible_to
-//! [`hierarchy`]: Service::client_hierarchy
-
 mod hierarchy;
 mod token;
 
@@ -60,12 +29,6 @@ use crate::{
 };
 
 pub struct Service {
-    /// Summaries fetched from other servers.
-    ///
-    /// Keyed by `suggested_only` as well as by room, because that flag is sent
-    /// to the far end and decides which children come back in the summary; one
-    /// cache entry answering both would hand a caller children it filtered
-    /// out, or hide children it asked for.
     cache: Mutex<LruCache<CacheKey, SpaceHierarchyRoomsChunk>>,
     services: Services,
 }
@@ -84,31 +47,15 @@ struct Services {
 
 type CacheKey = (OwnedRoomId, bool);
 
-/// Who a hierarchy is being answered for.
-///
-/// The two arms are not interchangeable: a user is in a room or is not, while
-/// a server is in a room if any of its users are. Passing the wrong one would
-/// show one user's rooms to a whole server, so the distinction is in the type
-/// rather than left to a boolean beside a name.
 #[derive(Clone, Copy, Debug)]
 pub enum Asker<'a> {
-    /// A user of this server, asking over the client API.
     User(&'a UserId),
 
-    /// Another server, asking over federation.
     Server(&'a ServerName),
 }
 
-/// A room's summary, or the fact that it exists and may not be shown.
-///
-/// Distinct from the absence of a summary, which means the room could not be
-/// described at all — nothing local, and no server willing to say. A caller
-/// walking a hierarchy skips both, but a caller answering for one room owes
-/// the asker a 403 for the first and a 404 for the second.
 #[derive(Clone, Debug)]
 pub enum SummaryAccessibility {
-    /// Boxed because a summary is some 240 bytes and the other arm is empty;
-    /// a walk moves one of these per room it visits.
     Accessible(Box<SpaceHierarchyRoomsChunk>),
     Inaccessible,
 }
@@ -159,12 +106,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Describes one room for a hierarchy, from local state or from a server that
-/// knows it.
-///
-/// `via` are the servers the `m.space.child` event named, tried in order; the
-/// room's own server is tried too, since a child event with a stale `via` is
-/// common and the room id names a server by construction.
 #[implement(Service)]
 pub async fn summary(
     &self,
@@ -184,7 +125,6 @@ pub async fn summary(
     Some(self.accessibility(room_id, summary, asker).await)
 }
 
-/// Describes a room this server is in, from its current state.
 #[implement(Service)]
 async fn local_summary(&self, room_id: &RoomId) -> SpaceHierarchyRoomsChunk {
     let summary = self.services.state_accessor.room_summary(room_id).await;
@@ -193,15 +133,6 @@ async fn local_summary(&self, room_id: &RoomId) -> SpaceHierarchyRoomsChunk {
     SpaceHierarchyRoomsChunk::new(summary, children_state)
 }
 
-/// The `m.space.child` events of a space, stripped for a hierarchy response.
-///
-/// Ordered as the spec orders children — by `order`, then by the child's
-/// timestamp, then by room id — so that two servers answering for the same
-/// space list it the same way, and so a client paginating gets a stable
-/// sequence rather than whatever order the state happened to be read in.
-///
-/// A child whose `via` is empty is dropped: it names a room with no way to
-/// reach it, which the spec says is not a child at all.
 #[implement(Service)]
 pub async fn children_state(&self, room_id: &RoomId) -> Vec<Raw<HierarchySpaceChildEvent>> {
     let Ok(shortstatehash) = self.services.state.get_room_shortstatehash(room_id).await else {
@@ -229,12 +160,6 @@ pub async fn children_state(&self, room_id: &RoomId) -> Vec<Raw<HierarchySpaceCh
     children.into_iter().map(|(_, raw)| raw).collect()
 }
 
-/// Asks the servers that might know the room to describe it.
-///
-/// The whole `/hierarchy` answer is taken, not just the room asked about: the
-/// children summaries that come with it are the ones a walk is about to ask
-/// for next, so caching them turns a request per child into one request per
-/// space.
 #[implement(Service)]
 async fn remote_summary(
     &self,
@@ -269,9 +194,6 @@ async fn remote_summary(
         let chunk =
             SpaceHierarchyRoomsChunk::new(response.room.summary, response.room.children_state);
 
-        // The children come back without children_state of their own, which is
-        // exactly right: they are summaries, and a walk that descends into one
-        // asks that room's own server for its children.
         for child in response.children {
             let room_id = child.room_id.clone();
 
@@ -292,7 +214,6 @@ async fn remote_summary(
     None
 }
 
-/// The servers to ask about a room, `via` first and the room's own last.
 #[implement(Service)]
 fn candidates(&self, room_id: &RoomId, via: &[OwnedServerName]) -> Vec<OwnedServerName> {
     let own = room_id.server_name().map(ToOwned::to_owned);
@@ -310,11 +231,6 @@ fn candidates(&self, room_id: &RoomId, via: &[OwnedServerName]) -> Vec<OwnedServ
         })
 }
 
-/// Drops any cached summary of a room, at both settings of `suggested_only`.
-///
-/// Called when the room's own `m.space.child` state changes: only summaries
-/// fetched from elsewhere are cached, but a room joined after such a fetch has
-/// one in the cache that its own state now contradicts.
 #[implement(Service)]
 pub fn forget(&self, room_id: &RoomId) {
     let mut cache = self.cache.lock().expect("locked");
@@ -340,7 +256,6 @@ fn cache_summary(&self, room_id: &RoomId, suggested_only: bool, summary: SpaceHi
         .insert((room_id.to_owned(), suggested_only), summary);
 }
 
-/// Wraps a summary in whether the asker may be shown it.
 #[implement(Service)]
 async fn accessibility(
     &self,
@@ -355,11 +270,6 @@ async fn accessibility(
     }
 }
 
-/// Whether `asker` may be shown this room in a hierarchy.
-///
-/// The spec's rule, in the order that answers soonest: already in the room;
-/// the room is world-readable; the room can be joined or knocked on by anyone;
-/// or the room is restricted to members of a room the asker is already in.
 #[implement(Service)]
 pub async fn accessible_to(
     &self,
@@ -378,9 +288,6 @@ pub async fn accessible_to(
     match &summary.join_rule {
         JoinRuleSummary::Public | JoinRuleSummary::Knock => true,
         JoinRuleSummary::Restricted(restricted) | JoinRuleSummary::KnockRestricted(restricted) => {
-            // Knock-restricted is knockable by anyone, but a server answering
-            // for it still owes the narrower check first: the allowed rooms are
-            // what the asker is likely to be in, and the check is local.
             for allowed in &restricted.allowed_room_ids {
                 if self.is_in_room(allowed, asker).await {
                     return true;
@@ -393,8 +300,6 @@ pub async fn accessible_to(
     }
 }
 
-/// Whether the asker is in the room — joined or invited for a user, holding
-/// any member for a server.
 #[implement(Service)]
 async fn is_in_room(&self, room_id: &RoomId, asker: Asker<'_>) -> bool {
     match asker {
@@ -411,11 +316,6 @@ async fn is_in_room(&self, room_id: &RoomId, asker: Asker<'_>) -> bool {
     }
 }
 
-/// Answers `/_matrix/federation/v1/hierarchy` for a space this server holds.
-///
-/// One level only: the asking server walks the tree itself, descending through
-/// the `children_state` of what it is given here, which is what stops a walk
-/// from fanning out across servers on somebody else's behalf.
 #[implement(Service)]
 pub async fn federation_hierarchy(
     &self,
@@ -438,10 +338,7 @@ pub async fn federation_hierarchy(
         match self.summary(&child, asker, &[], suggested_only).await {
             Some(SummaryAccessibility::Accessible(chunk)) => children.push(chunk.summary),
             Some(SummaryAccessibility::Inaccessible) => inaccessible.push(child),
-            // A child this server knows nothing about is left out entirely,
-            // rather than reported as inaccessible: "we refuse to describe it"
-            // and "we have never heard of it" are different answers, and only
-            // the first belongs in `inaccessible_children`.
+
             None => {}
         }
     }
@@ -456,12 +353,6 @@ pub async fn federation_hierarchy(
     Ok(response)
 }
 
-/// The children a summary names, with the servers to reach each through.
-///
-/// Already ordered: [`children_state`] sorted them when the summary was built,
-/// and a remote server is required to have done the same.
-///
-/// [`children_state`]: Service::children_state
 #[implement(Service)]
 fn children_of(
     &self,

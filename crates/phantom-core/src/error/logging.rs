@@ -1,9 +1,3 @@
-//! Logging an error where it is handled, in combinator position.
-//!
-//! Each of these logs and then does something with the error — swallows it for
-//! a default, converts it, or passes it through — so that `.map_err(map_log)`
-//! reads as "log it and convert it" without a block.
-
 use std::{convert::Infallible, fmt};
 
 use tracing::Level;

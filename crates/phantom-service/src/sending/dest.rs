@@ -3,14 +3,11 @@ use ruma::{OwnedServerName, OwnedUserId};
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Destination {
     Appservice(String),
-    Push(OwnedUserId, String), // user and pushkey
+    Push(OwnedUserId, String),
     Federation(OwnedServerName),
 }
 
 impl Destination {
-    /// The database key prefix under which this destination's queued and
-    /// active events are stored. Every prefix ends in `0xFF`, and appservice
-    /// and push prefixes carry a sigil so the three kinds cannot collide.
     #[must_use]
     pub(super) fn get_prefix(&self) -> Vec<u8> {
         match self {

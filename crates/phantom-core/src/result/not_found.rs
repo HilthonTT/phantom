@@ -1,10 +1,6 @@
 use super::Result;
 use crate::Error;
 
-/// Whether a [`Result`] failed because something was not found.
-///
-/// The check is often used to turn an `Err` back into the `Ok(None)` a caller
-/// wanted, where a lookup that misses is not an error.
 pub trait NotFound<T> {
     #[must_use]
     fn is_not_found(&self) -> bool;

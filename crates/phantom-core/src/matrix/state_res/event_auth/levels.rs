@@ -1,10 +1,5 @@
 use super::*;
 
-/// Is the user allowed to send a specific event based on the rooms power
-/// levels.
-///
-/// Does the event have the correct userId as its state_key if it's not the ""
-/// state_key.
 pub(super) fn can_send_event(event: impl Event, ple: Option<impl Event>, user_level: Int) -> bool {
     let event_type_power_level = get_send_level(event.event_type(), event.state_key(), ple);
 
@@ -28,7 +23,6 @@ pub(super) fn can_send_event(event: impl Event, ple: Option<impl Event>, user_le
     true
 }
 
-/// Confirm that the event sender has the required power levels.
 pub(super) fn check_power_levels(
     room_version: &RoomVersion,
     power_event: impl Event,
@@ -134,11 +128,6 @@ pub(super) fn check_power_levels(
         }
     }
 
-    // Diverges from upstream, which round-tripped both contents through
-    // serde_json and compared whatever keys were present on both sides. Ruma
-    // skips serializing a level at its default, so any change to or from a
-    // default value was silently not checked. The typed fields carry the
-    // defaults, and the spec only examines entries that are being changed.
     for (old_lvl, new_lvl) in [
         (old_state.users_default, new_state.users_default),
         (old_state.events_default, new_state.events_default),
@@ -164,8 +153,6 @@ pub(super) fn check_power_levels(
     Some(true)
 }
 
-/// Does the event redacting come from a user with enough power to redact the
-/// given event.
 pub(super) fn check_redaction(
     _room_version: &RoomVersion,
     redaction_event: impl Event,
@@ -190,8 +177,6 @@ pub(super) fn check_redaction(
     Ok(false)
 }
 
-/// Helper function to fetch the power level needed to send an event of type
-/// `e_type` based on the rooms "m.room.power_level" event.
 fn get_send_level(
     e_type: &TimelineEventType,
     state_key: Option<&str>,

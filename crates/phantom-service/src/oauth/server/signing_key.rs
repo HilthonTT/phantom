@@ -1,13 +1,3 @@
-//! The key this server signs its own ID tokens with.
-//!
-//! Generated on first use and kept in `oidc_signingkey` from then on. It has
-//! to survive restarts: a client that fetched the JWKS holds the public half,
-//! and a key regenerated under it invalidates every token already issued.
-//!
-//! ECDSA on P-256, which is `ES256` — the algorithm every OpenID Connect
-//! client is required to implement, so it is the one choice that never needs
-//! negotiating.
-
 use phantom_core::{Result, err, info, rand};
 use phantom_database::{Cbor, Deserialized};
 use ring::{
@@ -18,26 +8,16 @@ use serde::{Deserialize, Serialize};
 
 use super::Data;
 
-/// The signing key as it is stored: the PKCS#8 private key and the id clients
-/// select it by in the JWKS.
 #[derive(Deserialize, Serialize)]
 pub(super) struct SigningKey {
     pub(super) key_id: String,
     pub(super) key_der: Vec<u8>,
 }
 
-/// The single key in `oidc_signingkey`. The column holds one entry; the name
-/// is what it is stored under.
 const SIGNING_KEY_DB_KEY: &str = "oidc_signing_key";
 
-/// Characters in a key id. Not a secret — it is published in the JWKS — only
-/// distinct enough that a rotated key never collides with the one it replaced.
 const KEY_ID_LENGTH: usize = 16;
 
-/// Loads the signing key, generating and storing one if there is none.
-///
-/// Runs during service construction, before there is a runtime to defer to,
-/// which is why the read blocks.
 pub(super) fn init_signing_key(db: &Data) -> Result<SigningKey> {
     if let Ok(Cbor(key)) = db
         .oidc_signingkey
@@ -58,7 +38,6 @@ pub(super) fn init_signing_key(db: &Data) -> Result<SigningKey> {
     Ok(key)
 }
 
-/// Parses a stored key back into something that can sign.
 pub(super) fn load_key_pair(key_der: &[u8], rng: &SystemRandom) -> Result<EcdsaKeyPair> {
     EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, key_der, rng)
         .map_err(|e| err!(error!("Failed to load the OIDC signing key: {e}")))

@@ -1,16 +1,3 @@
-//! The HTTP clients every outbound request is made through.
-//!
-//! One client per kind of request rather than one for all of them. Each keeps
-//! its own connection pool and its own timeouts, so a push gateway that has
-//! stopped answering cannot hold connections a federation request needs, and
-//! a URL preview cannot wait as long as a room join legitimately does.
-//!
-//! Requests are resolved through [`crate::resolver`] rather than through
-//! reqwest's own DNS: the federation clients get the resolver's hooked
-//! variant, which answers from the destination cache that
-//! [`resolver::Service::resolve_destination`] fills in, so the address a
-//! server name resolved to is the address the connection is made to.
-
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
@@ -28,51 +15,28 @@ use reqwest::{Url, redirect};
 use crate::resolver;
 
 pub struct Service {
-    /// Requests with no deadline of their own: URL previews and the
-    /// announcement check.
     pub default: reqwest::Client,
 
-    /// URL previews, which are the only requests aimed at an address a user
-    /// chose. Bound to `url_preview_bound_interface` where one is configured.
     pub url_preview: reqwest::Client,
 
-    /// Media fetched from another server on a user's behalf.
     pub extern_media: reqwest::Client,
 
-    /// `.well-known/matrix/server` lookups. Short timeouts and no pooling:
-    /// this runs while a federation request is already waiting on it, and the
-    /// answer is cached for hours afterwards.
     pub well_known: reqwest::Client,
 
-    /// Federation requests this server makes in the foreground.
     pub federation: reqwest::Client,
 
-    /// Synapse's admin API, which some migration paths read from. Its
-    /// endpoints stream for minutes, so the read timeout is its own.
     pub synapse: reqwest::Client,
 
-    /// Transactions the sender pushes to other servers.
     pub sender: reqwest::Client,
 
-    /// Requests to appservices, which usually sit on the same network.
     pub appservice: reqwest::Client,
 
-    /// Requests to push gateways.
     pub pusher: reqwest::Client,
 
-    /// Requests to an OpenID Connect identity provider: discovery, the token
-    /// exchange, userinfo, revocation. Reached while a user is waiting in a
-    /// browser redirect, so the timeouts are short, and redirects are not
-    /// followed — an endpoint that has moved is a configuration error rather
-    /// than something to chase.
     pub oauth: reqwest::Client,
 
-    /// `ip_range_denylist`, parsed once. See [`Self::valid_cidr_range`].
     pub cidr_range_denylist: Vec<IPAddress>,
 
-    /// The proxy policy these clients were built against, kept so that a
-    /// request can be asked whether it would be proxied without rebuilding
-    /// one. See [`ProxyConfig::resolver_alias`].
     pub proxy: ProxyConfig,
 }
 
@@ -186,25 +150,13 @@ impl crate::Service for Service {
     }
 }
 
-/// Synapse's admin endpoints stream their results, and a large one can be
-/// several minutes of trickle. Fixed rather than configured: nothing but a
-/// migration reads them, and it is not a knob worth carrying in the config.
 const SYNAPSE_READ_TIMEOUT: u64 = 305;
 
-/// A provider is reached while a person waits in a redirected browser, so a
-/// provider that has stopped answering has to fail rather than hold the tab
-/// open. Fixed rather than configured: every request made on this client is a
-/// small JSON round trip.
 const OAUTH_CONNECT_TIMEOUT: u64 = 10;
 const OAUTH_READ_TIMEOUT: u64 = 30;
 
-/// An appservice that is up answers a connection immediately — it is on the
-/// same network in every deployment that makes sense. `appservice_timeout`
-/// covers the work it does once connected.
 const APPSERVICE_CONN_TIMEOUT: u64 = 5;
 
-/// The settings every client starts from, before the ones that differ per
-/// kind of request are applied over them.
 fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
     let builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(config.network.request_conn_timeout))
@@ -226,7 +178,6 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
     }
 }
 
-/// Binds the builder to a network interface by name.
 #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
 fn builder_interface(
     builder: reqwest::ClientBuilder,
@@ -238,10 +189,6 @@ fn builder_interface(
     }
 }
 
-/// Rejects an interface name, which only the platforms above can bind to.
-/// Reported here rather than ignored: the option exists to keep preview
-/// traffic off a network, and silently not binding would do the opposite of
-/// what it was set for.
 #[cfg(not(any(target_os = "android", target_os = "fuchsia", target_os = "linux")))]
 fn builder_interface(
     builder: reqwest::ClientBuilder,
@@ -259,12 +206,6 @@ fn builder_interface(
     }
 }
 
-/// Whether an address may be connected to, per `ip_range_denylist`.
-///
-/// This is a backstop rather than a boundary — it is enforced in phantom, so
-/// anything that reaches the network another way is not covered, and a proxy
-/// is not accounted for at all. A firewall is what actually contains the
-/// server.
 #[inline]
 #[must_use]
 #[implement(Service)]
@@ -274,8 +215,6 @@ pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
         .all(|cidr| !cidr.includes(ip))
 }
 
-/// [`valid_cidr_range`](Self::valid_cidr_range) for a standard-library
-/// address, which is the form a socket and a URL host both hand back.
 #[inline]
 #[must_use]
 #[implement(Service)]
@@ -283,12 +222,6 @@ pub fn valid_cidr_range_ip(&self, ip: IpAddr) -> bool {
     self.valid_cidr_range(&ipaddress_from_std(ip))
 }
 
-/// Whether a response's peer may be talked to, per `ip_range_denylist`.
-///
-/// A proxied request connected to the proxy rather than to the destination,
-/// so its peer address is the proxy's and screening it would deny every
-/// request the proxy carries. The destination is screened before the request
-/// is made instead.
 #[inline]
 #[must_use]
 #[implement(Service)]
@@ -296,7 +229,6 @@ pub fn valid_cidr_range_remote_addr(&self, url: &Url, remote_addr: SocketAddr) -
     self.valid_cidr_range_ip(remote_addr.ip()) || self.proxied(url)
 }
 
-/// Whether a request for `url` goes through a proxy.
 #[inline]
 #[must_use]
 #[implement(Service)]
@@ -304,11 +236,6 @@ pub fn proxied(&self, url: &Url) -> bool {
     self.proxy.intercepts(url)
 }
 
-/// `ipaddress`'s representation of a standard-library address.
-///
-/// It parses from text, so the address is printed and read back. An IPv6
-/// address is printed without the brackets a URL would carry, which is the
-/// form the parser wants.
 #[must_use]
 fn ipaddress_from_std(ip: IpAddr) -> IPAddress {
     let (proto, text) = match ip {
@@ -321,11 +248,6 @@ fn ipaddress_from_std(ip: IpAddr) -> IPAddress {
     })
 }
 
-/// Reads a response body, refusing one over `limit`.
-///
-/// The advertised length is checked before anything is allocated, and the
-/// read loop checks again as it goes: a peer is free to advertise a length it
-/// does not honour, or none at all.
 pub async fn read_response_capped(mut response: reqwest::Response, limit: usize) -> Result<Bytes> {
     let mut body = match response.content_length() {
         Some(len) if len > limit.try_into().unwrap_or(u64::MAX) => {

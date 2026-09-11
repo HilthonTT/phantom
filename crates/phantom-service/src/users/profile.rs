@@ -1,13 +1,10 @@
 use super::*;
 
 impl Service {
-    /// Returns the displayname of a user on this homeserver.
     pub async fn displayname(&self, user_id: &UserId) -> Result<String> {
         self.db.userid_displayname.get(user_id).await.deserialized()
     }
 
-    /// Sets a new displayname or removes it if displayname is None. You still
-    /// need to nofify all rooms of this change.
     pub fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) {
         if let Some(displayname) = displayname {
             self.db.userid_displayname.insert(user_id, displayname).ok();
@@ -16,12 +13,10 @@ impl Service {
         }
     }
 
-    /// Get the `avatar_url` of a user.
     pub async fn avatar_url(&self, user_id: &UserId) -> Result<OwnedMxcUri> {
         self.db.userid_avatarurl.get(user_id).await.deserialized()
     }
 
-    /// Sets a new avatar_url or removes it if avatar_url is None.
     pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) {
         match avatar_url {
             Some(avatar_url) => {
@@ -33,12 +28,10 @@ impl Service {
         }
     }
 
-    /// Get the blurhash of a user.
     pub async fn blurhash(&self, user_id: &UserId) -> Result<String> {
         self.db.userid_blurhash.get(user_id).await.deserialized()
     }
 
-    /// Sets a new avatar_url or removes it if avatar_url is None.
     pub fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) {
         if let Some(blurhash) = blurhash {
             self.db.userid_blurhash.insert(user_id, blurhash).ok();
@@ -47,7 +40,6 @@ impl Service {
         }
     }
 
-    /// Gets a specific user profile key
     pub async fn profile_key(
         &self,
         user_id: &UserId,
@@ -61,7 +53,6 @@ impl Service {
             .deserialized()
     }
 
-    /// Gets all the user's profile keys and values in an iterator
     pub fn all_profile_keys<'a>(
         &'a self,
         user_id: &'a UserId,
@@ -76,7 +67,6 @@ impl Service {
             .map(|((_, key), val): KeyVal| (key, val))
     }
 
-    /// Sets a new profile key value, removes the key if value is None
     pub fn set_profile_key(
         &self,
         user_id: &UserId,
@@ -92,14 +82,6 @@ impl Service {
         }
     }
 
-    /// Removes every part of a user's profile: displayname, avatar URL,
-    /// blurhash, and all profile keys.
-    ///
-    /// The rooms the user is in are not told. A profile is also carried by
-    /// each of the user's `m.room.member` events, and bringing those in line
-    /// means sending a member event to every room, which is the caller's to
-    /// do — [`deactivate`](crate::deactivate) leaves the rooms outright
-    /// rather than announcing an emptied profile to each of them first.
     pub async fn clear_profile(&self, user_id: &UserId) {
         self.set_displayname(user_id, None);
         self.set_avatar_url(user_id, None);
@@ -111,7 +93,6 @@ impl Service {
             .await;
     }
 
-    /// Get the timezone of a user.
     pub async fn timezone(&self, user_id: &UserId) -> Result<String> {
         let unstable_key = (user_id, "us.cloke.msc4175.tz");
         let stable_key = (user_id, "m.tz");
@@ -123,7 +104,6 @@ impl Service {
             .deserialized()
     }
 
-    /// Sets a new timezone or removes it if timezone is None.
     pub fn set_timezone(&self, user_id: &UserId, timezone: Option<String>) {
         let key = (user_id, "us.cloke.msc4175.tz");
 

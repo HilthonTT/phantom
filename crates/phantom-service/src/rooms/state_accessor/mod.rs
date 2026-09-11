@@ -1,25 +1,3 @@
-//! Reading a room's state.
-//!
-//! [`state_compressor`] can hand back the set of events that make up a room's
-//! state at some version, and [`short`] can turn the short ids in it back into
-//! event ids. This is what sits on top of the pair: everything that wants to
-//! know something about a room asks it here, by state key, by type, or as a
-//! whole.
-//!
-//! Two families of method, differing only in where the version comes from.
-//! `room_state_*` in [`room_state`] takes a room and reads its current state;
-//! `state_*` in [`state`] takes a shortstatehash and reads the state at that
-//! version, which is what answers a question about a room as it was at some
-//! event rather than as it is now. The former is the latter with the room's
-//! current version looked up first.
-//!
-//! The visibility checks in [`user_can`] and [`server_can`] are here for the
-//! same reason: `history_visibility` is state, and whether someone may see an
-//! event turns on that state as it was at that event, not as it is now.
-//!
-//! [`short`]: crate::rooms::short
-//! [`state_compressor`]: crate::rooms::state_compressor
-
 mod room_state;
 mod server_can;
 mod state;
@@ -92,18 +70,12 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// The room's name, from `m.room.name`.
     pub async fn get_name(&self, room_id: &RoomId) -> Result<String> {
         self.room_state_get_content(room_id, &StateEventType::RoomName, "")
             .await
             .map(|c: RoomNameEventContent| c.name)
     }
 
-    /// The room's avatar.
-    ///
-    /// [`JsOption`] rather than [`Option`] because the event distinguishes a
-    /// room that never had an avatar from one whose avatar was explicitly
-    /// cleared, and a client is shown different things for the two.
     pub async fn get_avatar(&self, room_id: &RoomId) -> JsOption<RoomAvatarEventContent> {
         let content = self
             .room_state_get_content(room_id, &StateEventType::RoomAvatar, "")
@@ -113,7 +85,6 @@ impl Service {
         JsOption::from_option(content)
     }
 
-    /// A user's membership event content in the room's current state.
     pub async fn get_member(
         &self,
         room_id: &RoomId,
@@ -123,7 +94,6 @@ impl Service {
             .await
     }
 
-    /// Whether the room's content can be read without joining it.
     pub async fn is_world_readable(&self, room_id: &RoomId) -> bool {
         self.room_state_get_content(room_id, &StateEventType::RoomHistoryVisibility, "")
             .await
@@ -132,14 +102,12 @@ impl Service {
             })
     }
 
-    /// Whether guests may join the room.
     pub async fn guest_can_join(&self, room_id: &RoomId) -> bool {
         self.room_state_get_content(room_id, &StateEventType::RoomGuestAccess, "")
             .await
             .is_ok_and(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
     }
 
-    /// The room's primary alias, from `m.room.canonical_alias`.
     pub async fn get_canonical_alias(&self, room_id: &RoomId) -> Result<OwnedRoomAliasId> {
         self.room_state_get_content(room_id, &StateEventType::RoomCanonicalAlias, "")
             .await
@@ -149,23 +117,18 @@ impl Service {
             })
     }
 
-    /// The room's topic.
     pub async fn get_room_topic(&self, room_id: &RoomId) -> Result<String> {
         self.room_state_get_content(room_id, &StateEventType::RoomTopic, "")
             .await
             .map(|c: RoomTopicEventContent| c.topic)
     }
 
-    /// The room's join rule, defaulting to `Invite` where there is no valid
-    /// `m.room.join_rules` — which is the closed end of the range, so a room
-    /// whose state cannot be read is not thereby thrown open.
     pub async fn get_join_rules(&self, room_id: &RoomId) -> JoinRule {
         self.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
             .await
             .map_or(JoinRule::Invite, |c: RoomJoinRulesEventContent| c.join_rule)
     }
 
-    /// The room's type, where it has one — a space, rather than a room.
     pub async fn get_room_type(&self, room_id: &RoomId) -> Result<RoomType> {
         self.room_state_get_content(room_id, &StateEventType::RoomCreate, "")
             .await
@@ -176,14 +139,12 @@ impl Service {
             })
     }
 
-    /// The room's encryption algorithm, where the room is encrypted.
     pub async fn get_room_encryption(&self, room_id: &RoomId) -> Result<EventEncryptionAlgorithm> {
         self.room_state_get_content(room_id, &StateEventType::RoomEncryption, "")
             .await
             .map(|content: RoomEncryptionEventContent| content.algorithm)
     }
 
-    /// Whether the room is encrypted at all.
     pub async fn is_encrypted_room(&self, room_id: &RoomId) -> bool {
         self.room_state_get(room_id, &StateEventType::RoomEncryption, "")
             .await

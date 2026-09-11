@@ -1,25 +1,3 @@
-//! A room's state, stored as a stack of diffs rather than a copy per version.
-//!
-//! Every event that changes state produces a new version of the whole state,
-//! and a busy room produces thousands. Storing each in full would store the
-//! same membership event over and over, so a version is stored as what it
-//! added and removed relative to a parent version, and the full state is
-//! rebuilt by walking down to the bottom layer and applying each diff on the
-//! way back up.
-//!
-//! The layers are rebalanced as they grow: a diff that has become large
-//! relative to its parent is merged into that parent instead of stacked on
-//! top of it, which keeps the walk short. [`save_state_from_diff`] is where
-//! that decision is made.
-//!
-//! State is held here as [`CompressedStateEvent`] — a shortstatekey and a
-//! shorteventid packed into sixteen bytes — because the whole point is to fit
-//! a room's entire state in memory, and because a `BTreeSet` of those sorts by
-//! state key, which is what makes "the event at this state key" a range query
-//! rather than a scan.
-//!
-//! [`save_state_from_diff`]: Service::save_state_from_diff
-
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::{Debug, Write},
@@ -46,12 +24,6 @@ use crate::{
 };
 
 pub struct Service {
-    /// The layer stack behind a shortstatehash, keyed by that hash.
-    ///
-    /// Public because the admin surface reports on it; it is not a way in for
-    /// other services, which go through [`load_shortstatehash_info`].
-    ///
-    /// [`load_shortstatehash_info`]: Service::load_shortstatehash_info
     pub stateinfo_cache: Mutex<StateInfoLruCache>,
     db: Data,
     services: Services,
@@ -66,8 +38,6 @@ struct Data {
     shortstatehash_statediff: Arc<Map>,
 }
 
-/// One version of a room's state, as stored: what it changed and where it
-/// changed from.
 #[derive(Clone)]
 struct StateDiff {
     parent: Option<ShortStateHash>,
@@ -75,8 +45,6 @@ struct StateDiff {
     removed: Arc<CompressedState>,
 }
 
-/// One layer of the stack, with the full state as of that layer already
-/// applied.
 #[derive(Clone, Default)]
 pub struct ShortStateInfo {
     pub shortstatehash: ShortStateHash,
@@ -85,7 +53,6 @@ pub struct ShortStateInfo {
     pub removed: Arc<CompressedState>,
 }
 
-/// What a state change amounted to, as returned by [`Service::save_state`].
 #[derive(Clone, Default)]
 pub struct HashSetCompressStateEvent {
     pub shortstatehash: ShortStateHash,
@@ -97,16 +64,8 @@ pub type StateInfoLruCache = LruCache<ShortStateHash, ShortStateInfoVec>;
 type ShortStateInfoVec = Vec<ShortStateInfo>;
 type ParentStatesVec = Vec<ShortStateInfo>;
 
-/// A room's state at one version, sorted by state key.
 pub type CompressedState = BTreeSet<CompressedStateEvent>;
 
-/// A shortstatekey and a shorteventid, big-endian, one after the other.
-///
-/// Big-endian and in that order so that the natural byte ordering sorts by
-/// state key, which is what lets [`state_get_shortid`] find the event at a
-/// state key with a range query.
-///
-/// [`state_get_shortid`]: crate::rooms::state_accessor::Service::state_get_shortid
 pub type CompressedStateEvent = [u8; 2 * size_of::<ShortId>()];
 
 #[async_trait]
@@ -166,10 +125,6 @@ impl crate::Service for Service {
     }
 }
 
-/// The layer stack for `shortstatehash`, bottom layer first.
-///
-/// The last frame is the one asked for, and its `full_state` is the room's
-/// whole state at that version.
 #[implement(Service)]
 #[tracing::instrument(name = "load", level = "debug", skip(self))]
 pub async fn load_shortstatehash_info(
@@ -195,10 +150,6 @@ pub async fn load_shortstatehash_info(
     Ok(stack)
 }
 
-/// [`load_shortstatehash_info`] for a stack that was not cached: walk to the
-/// bottom layer and apply each diff on the way back up.
-///
-/// [`load_shortstatehash_info`]: Service::load_shortstatehash_info
 #[implement(Service)]
 async fn new_shortstatehash_info(
     &self,
@@ -240,7 +191,6 @@ async fn new_shortstatehash_info(
     Ok(stack)
 }
 
-/// Compresses a state map, creating a short id for any event that lacks one.
 #[implement(Service)]
 pub fn compress_state_events<'a, I>(
     &'a self,
@@ -263,9 +213,6 @@ where
         .map(|(shortstatekey, shorteventid)| compress_state_event(*shortstatekey, shorteventid))
 }
 
-/// [`compress_state_events`] for one event.
-///
-/// [`compress_state_events`]: Service::compress_state_events
 #[implement(Service)]
 pub async fn compress_state_event(
     &self,
@@ -281,23 +228,6 @@ pub async fn compress_state_event(
     compress_state_event(shortstatekey, shorteventid)
 }
 
-/// Stores `shortstatehash` as a diff, choosing which layer to put it on.
-///
-/// Layer 0 holds a full state and each layer above it holds a diff against
-/// the one below. A diff that has grown large relative to its parent is
-/// merged into that parent rather than stacked on top of it, which keeps the
-/// stack shallow; merging can in turn make the parent too large, so this
-/// recurses.
-///
-/// * `shortstatehash` — the version being stored
-/// * `statediffnew` — what this version adds to the layer below
-/// * `statediffremoved` — what it removes from the layer below
-/// * `diff_to_sibling` — roughly how much a diff on this layer grows each time,
-///   which is what "large relative to its parent" is measured against
-/// * `parent_states` — the stack below, as [`load_shortstatehash_info`] returns
-///   it
-///
-/// [`load_shortstatehash_info`]: Service::load_shortstatehash_info
 #[implement(Service)]
 pub fn save_state_from_diff(
     &self,
@@ -368,10 +298,6 @@ pub fn save_state_from_diff(
     Ok(())
 }
 
-/// Records a room's new state, and reports what changed.
-///
-/// The version is derived from the state itself, so a state this server has
-/// seen before is recognized rather than stored twice.
 #[implement(Service)]
 #[tracing::instrument(skip(self, new_state_ids_compressed), level = "debug")]
 pub async fn save_state(
@@ -442,12 +368,6 @@ pub async fn save_state(
     })
 }
 
-/// Reads one layer back out of the column.
-///
-/// The stored form is the parent's hash, then the added events, then — only
-/// if anything was removed — a zero word and the removed events. Zero is
-/// usable as the separator because it is never a valid shortstatekey, the
-/// counter every short id comes from starting at one.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug", name = "get")]
 async fn get_statediff(&self, shortstatehash: ShortStateHash) -> Result<StateDiff> {
@@ -497,7 +417,6 @@ async fn get_statediff(&self, shortstatehash: ShortStateHash) -> Result<StateDif
     })
 }
 
-/// The write half of [`get_statediff`](Service::get_statediff).
 #[implement(Service)]
 fn save_statediff(&self, shortstatehash: ShortStateHash, diff: &StateDiff) {
     const WORD: usize = size_of::<ShortStateHash>();
@@ -533,11 +452,6 @@ fn save_statediff(&self, shortstatehash: ShortStateHash, diff: &StateDiff) {
         .ok();
 }
 
-/// Applies a child's diff onto its parent's, yielding the diff the parent
-/// would have had if the child had never been a layer of its own.
-///
-/// A change that the child undoes is dropped rather than recorded twice: an
-/// event the parent added and the child removed is simply not in the result.
 fn merge_into_parent(
     parent: &ShortStateInfo,
     statediffnew: &CompressedState,
@@ -561,7 +475,6 @@ fn merge_into_parent(
     (parent_new, parent_removed)
 }
 
-/// Packs a state key and an event id into one [`CompressedStateEvent`].
 #[inline]
 #[must_use]
 pub(crate) fn compress_state_event(
@@ -578,7 +491,6 @@ pub(crate) fn compress_state_event(
         .expect("failed to create CompressedStateEvent")
 }
 
-/// The inverse of [`compress_state_event`].
 #[inline]
 #[must_use]
 pub(crate) fn parse_compressed_state_event(

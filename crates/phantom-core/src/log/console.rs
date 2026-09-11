@@ -1,5 +1,3 @@
-//! The console (stdout/stderr) log layer's writer and event format.
-
 use std::{env, io, sync::LazyLock};
 
 use tracing::{
@@ -18,9 +16,6 @@ use tracing_subscriber::{
 
 use crate::Config;
 
-/// Whether this process was started by systemd, as opposed to inheriting the
-/// variables from one that was. `SYSTEMD_EXEC_PID` holds the PID systemd
-/// started, so comparing it to our own tells the two apart.
 static SYSTEMD_MODE: LazyLock<bool> = LazyLock::new(|| {
     env::var("JOURNAL_STREAM").is_ok()
         && env::var("SYSTEMD_EXEC_PID")
@@ -29,15 +24,12 @@ static SYSTEMD_MODE: LazyLock<bool> = LazyLock::new(|| {
             .is_some_and(|pid| pid == std::process::id())
 });
 
-/// True when phantom is running as a systemd unit with its output connected to
-/// the journal.
 #[inline]
 #[must_use]
 pub fn is_systemd_mode() -> bool {
     *SYSTEMD_MODE
 }
 
-/// Writer for the console layer, picking the stream the logs belong on.
 pub struct ConsoleWriter {
     stdout: io::Stdout,
     stderr: io::Stderr,
@@ -81,13 +73,6 @@ impl io::Write for &'_ ConsoleWriter {
     }
 }
 
-/// Event format for the console layer.
-///
-/// Errors are rendered in the `pretty` format — the extra file, line and thread
-/// context is worth the vertical space when something has gone wrong — and
-/// everything else in the compact `full` format. Events from the `debug_*`
-/// macros carry a `_debug` field and are exempt, since in a debug build those
-/// are ordinary diagnostics that happen to be logged at ERROR.
 #[derive(Clone)]
 pub struct ConsoleFormat {
     full: Format<Full>,
@@ -153,13 +138,10 @@ impl<'writer> FormatFields<'writer> for ConsoleFormat {
     }
 }
 
-/// Field visitor hiding the internal fields — those named with a leading
-/// underscore, such as the `_debug` marker — from console output.
 struct ConsoleVisitor<'a> {
     visitor: DefaultVisitor<'a>,
 }
 
-/// Fields whose names start with this are ours, not the operator's.
 const INTERNAL_PREFIX: char = '_';
 
 impl Visit for ConsoleVisitor<'_> {
@@ -193,8 +175,6 @@ fn is_internal(field: &Field) -> bool {
     field.name().starts_with(INTERNAL_PREFIX)
 }
 
-/// The device and inode of the journal socket this process' output is connected
-/// to, when systemd provided one.
 fn journal_stream() -> Option<(u64, u64)> {
     is_systemd_mode()
         .then(|| env::var("JOURNAL_STREAM").ok())
@@ -203,7 +183,6 @@ fn journal_stream() -> Option<(u64, u64)> {
         .and_then(parse_journal_stream)
 }
 
-/// Parses the `device:inode` pair systemd puts in `JOURNAL_STREAM`.
 fn parse_journal_stream(var: &str) -> Option<(u64, u64)> {
     let (device, inode) = var.split_once(':')?;
 

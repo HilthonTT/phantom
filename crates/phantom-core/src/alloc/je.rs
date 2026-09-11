@@ -1,5 +1,3 @@
-//! jemalloc allocator
-
 #![allow(unsafe_code)]
 
 use std::{
@@ -248,11 +246,6 @@ pub mod this_thread {
         super::get_by_arena(Some(arena_id()?), key)
     }
 
-    /// `mallctl!` caches the translated mib in a thread-local declared at its
-    /// expansion site, so the key must be produced by the caller's closure.
-    /// Expanding it inside this shared helper gives every counter the single
-    /// key belonging to whichever name was requested first, silently aliasing
-    /// `allocated` and `deallocated` onto the same jemalloc value.
     fn init_tls_cell<F>(cell: &OnceCell<&'static u64>, key: F) -> &'static u64
     where
         F: FnOnce() -> Key,

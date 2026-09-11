@@ -1,13 +1,3 @@
-//! Reading a room's state at one version.
-//!
-//! Everything here starts from a shortstatehash and goes through
-//! [`load_full_state`], which is the one place the compressed state behind
-//! that version is loaded. A single state key is a range query over that set
-//! rather than a scan, because [`CompressedStateEvent`] puts the state key
-//! first and big-endian.
-//!
-//! [`load_full_state`]: load_full_state
-
 use std::{borrow::Borrow, ops::Deref, sync::Arc};
 
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, future::try_join, pin_mut};
@@ -33,14 +23,12 @@ use crate::rooms::{
     state_compressor::{CompressedState, compress_state_event, parse_compressed_state_event},
 };
 
-/// Whether the user was a joined member at this version of the state.
 #[implement(super::Service)]
 #[inline]
 pub async fn user_was_joined(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
     self.user_membership(shortstatehash, user_id).await == MembershipState::Join
 }
 
-/// Whether the user was invited or joined at this version of the state.
 #[implement(super::Service)]
 #[inline]
 pub async fn user_was_invited(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
@@ -48,10 +36,6 @@ pub async fn user_was_invited(&self, shortstatehash: ShortStateHash, user_id: &U
     s == MembershipState::Join || s == MembershipState::Invite
 }
 
-/// A user's membership at this version of the state.
-///
-/// Absent membership reads as `Leave`, which is what the spec says a user with
-/// no `m.room.member` event in a room has.
 #[implement(super::Service)]
 pub async fn user_membership(
     &self,
@@ -69,7 +53,6 @@ pub async fn user_membership(
     })
 }
 
-/// The content of the state event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 pub async fn state_get_content<T>(
     &self,
@@ -85,7 +68,6 @@ where
         .and_then(|event| event.get_content())
 }
 
-/// Whether the state holds an event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 pub async fn state_contains(
     &self,
@@ -106,7 +88,6 @@ pub async fn state_contains(
         .await
 }
 
-/// Whether the state holds any event of `event_type`, at any state key.
 #[implement(super::Service)]
 pub async fn state_contains_type(
     &self,
@@ -119,9 +100,6 @@ pub async fn state_contains_type(
     state_keys.next().await.is_some()
 }
 
-/// [`state_contains`] for a state key whose short id is already in hand.
-///
-/// [`state_contains`]: Self::state_contains
 #[implement(super::Service)]
 pub async fn state_contains_shortstatekey(
     &self,
@@ -138,7 +116,6 @@ pub async fn state_contains_shortstatekey(
         .is_some()
 }
 
-/// The state event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 pub async fn state_get(
     &self,
@@ -153,7 +130,6 @@ pub async fn state_get(
         .await
 }
 
-/// The event id of the state event at (`event_type`, `state_key`).
 #[implement(super::Service)]
 pub async fn state_get_id<Id>(
     &self,
@@ -175,12 +151,6 @@ where
         .await
 }
 
-/// [`state_get_id`] without spelling the event id back out.
-///
-/// The compressed state is sorted by state key, so the event at one is the
-/// first entry in the range that key spans.
-///
-/// [`state_get_id`]: Self::state_get_id
 #[implement(super::Service)]
 pub async fn state_get_shortid(
     &self,
@@ -210,7 +180,6 @@ pub async fn state_get_shortid(
         .await?
 }
 
-/// Every state key of `event_type` in the state, with the event at it.
 #[implement(super::Service)]
 pub fn state_keys_with_ids<'a, Id>(
     &'a self,
@@ -247,9 +216,6 @@ where
         .ready_filter_map(|(eid, sk)| eid.map(move |eid| (sk, eid)).ok())
 }
 
-/// [`state_keys_with_ids`] without spelling the event ids back out.
-///
-/// [`state_keys_with_ids`]: Self::state_keys_with_ids
 #[implement(super::Service)]
 pub fn state_keys_with_shortids<'a>(
     &'a self,
@@ -287,7 +253,6 @@ pub fn state_keys_with_shortids<'a>(
         })
 }
 
-/// Every state key of `event_type` in the state.
 #[implement(super::Service)]
 pub fn state_keys<'a>(
     &'a self,
@@ -308,7 +273,6 @@ pub fn state_keys<'a>(
         })
 }
 
-/// The state events present at `.0` but not at `.1`.
 #[implement(super::Service)]
 #[inline]
 pub fn state_removed(
@@ -318,7 +282,6 @@ pub fn state_removed(
     self.state_added((shortstatehash.1, shortstatehash.0))
 }
 
-/// The state events present at `.1` but not at `.0`.
 #[implement(super::Service)]
 pub fn state_added(
     &self,
@@ -335,7 +298,6 @@ pub fn state_added(
         .map(parse_compressed_state_event)
 }
 
-/// The whole state at this version, keyed by type and state key.
 #[implement(super::Service)]
 pub fn state_full(
     &self,
@@ -345,7 +307,6 @@ pub fn state_full(
         .ready_filter_map(|pdu| Some(((pdu.kind.to_string().into(), pdu.state_key.clone()?), pdu)))
 }
 
-/// The whole state at this version, as bare PDUs.
 #[implement(super::Service)]
 pub fn state_full_pdus(
     &self,
@@ -365,7 +326,6 @@ pub fn state_full_pdus(
         })
 }
 
-/// The whole state at this version, as short state key to event id.
 #[implement(super::Service)]
 pub fn state_full_ids<'a, Id>(
     &'a self,
@@ -401,10 +361,6 @@ where
         .ready_filter_map(|(event_id, shortstatekey)| Some((shortstatekey, event_id.ok()?)))
 }
 
-/// The whole state at this version, as pairs of short ids.
-///
-/// This is the bottom of the module: everything above it is these pairs with
-/// one half or the other spelled back out.
 #[implement(super::Service)]
 pub fn state_full_shortids(
     &self,
@@ -425,10 +381,6 @@ pub fn state_full_shortids(
         .boxed()
 }
 
-/// The compressed state at this version.
-///
-/// The top layer of the stack carries the full state, the layers below it
-/// being the diffs it was rebuilt from.
 #[implement(super::Service)]
 #[tracing::instrument(name = "load", level = "debug", skip(self))]
 async fn load_full_state(&self, shortstatehash: ShortStateHash) -> Result<Arc<CompressedState>> {
@@ -440,7 +392,6 @@ async fn load_full_state(&self, shortstatehash: ShortStateHash) -> Result<Arc<Co
         .await
 }
 
-/// The version of the room's state that this event was accepted against.
 #[implement(super::Service)]
 pub async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<ShortStateHash> {
     const BUFSIZE: usize = size_of::<ShortEventId>();

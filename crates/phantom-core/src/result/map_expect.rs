@@ -2,10 +2,7 @@ use std::fmt::Debug;
 
 use super::Result;
 
-/// Calls `expect(msg)` on a [`Result`] nested inside another container, without
-/// a closure at the callsite.
 pub trait MapExpect<'a, T> {
-    /// Unwraps the inner [`Result`], panicking with `msg` if it is an `Err`.
     fn map_expect(self, msg: &'a str) -> T;
 }
 

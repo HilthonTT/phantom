@@ -1,7 +1,3 @@
-//! Macros for taking tuples apart in combinator position.
-
-/// Expands to a closure taking field `$idx` of its argument, e.g.
-/// `.map(at!(0))` over an iterator of tuples.
 #[macro_export]
 #[collapse_debuginfo(yes)]
 macro_rules! at {
@@ -10,7 +6,6 @@ macro_rules! at {
     };
 }
 
-/// [`at!`] borrowing the field rather than moving it.
 #[macro_export]
 #[collapse_debuginfo(yes)]
 macro_rules! ref_at {
@@ -19,7 +14,6 @@ macro_rules! ref_at {
     };
 }
 
-/// [`at!`] over a reference to the tuple, copying the field out.
 #[macro_export]
 #[collapse_debuginfo(yes)]
 macro_rules! val_at {
@@ -28,7 +22,6 @@ macro_rules! val_at {
     };
 }
 
-/// [`at!`] dereferencing the field it takes.
 #[macro_export]
 #[collapse_debuginfo(yes)]
 macro_rules! deref_at {
@@ -37,8 +30,6 @@ macro_rules! deref_at {
     };
 }
 
-/// Expands to a pair of the given type or of the given value, so a symmetric
-/// pair need not name its half twice.
 #[macro_export]
 macro_rules! pair_of {
     ($decl:ty) => {
@@ -50,8 +41,6 @@ macro_rules! pair_of {
     };
 }
 
-/// Expands to a closure applying a function to every element of a tuple of
-/// `$n` elements, e.g. `.map(apply!(2, str::parse))` over a pair of strings.
 #[macro_export]
 macro_rules! apply {
     (1, $($f:tt)+) => {

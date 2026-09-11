@@ -1,29 +1,9 @@
-//! Keeping one async function's codegen out of its callers.
-
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Error, FnArg, ItemFn, Meta, ReturnType};
 
 use crate::Result;
 
-/// Splits an `async fn` into a boxed-future wrapper and a private body.
-///
-/// An `async fn` is a generic future type, so every caller monomorphises the
-/// whole body into itself. On a call graph as deep as a request handler's that
-/// compounds: build times grow, and the futures get large enough that holding
-/// one across an await costs real stack. Type-erasing the future behind a
-/// `Box<dyn Future>` cuts the chain — the body is compiled once, where it is
-/// defined — at the cost of one allocation per call, which is why this is an
-/// opt-in on the few functions worth it rather than a blanket policy.
-///
-/// Attributes below this one ride the body, so a `tracing` span still sees the
-/// bindings it names; give such a span an explicit `name`, because the body is
-/// the hidden inner function and would otherwise be logged under its mangled
-/// name. Doc comments stay on the wrapper, which is the item callers see.
-///
-/// A single declared lifetime bounds the boxed future, and `'_` where there is
-/// none or more than one. Borrows that must outlive the future together have to
-/// be unified under one lifetime for that bound to hold.
 pub(super) fn async_noinline(item: ItemFn, _args: &[Meta]) -> Result<TokenStream> {
     let ItemFn {
         attrs,
@@ -63,9 +43,6 @@ pub(super) fn async_noinline(item: ItemFn, _args: &[Meta]) -> Result<TokenStream
         .iter()
         .any(|arg| matches!(arg, FnArg::Receiver(_)));
 
-    // The wrapper's parameters are renamed: a pattern binding in the original
-    // signature is destructuring, which the wrapper has nothing to destructure
-    // yet, so each becomes one plain binding forwarded whole.
     let (wrapper_inputs, call_args): (Vec<_>, Vec<Option<_>>) = sig
         .inputs
         .iter()

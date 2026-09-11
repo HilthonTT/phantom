@@ -1,14 +1,3 @@
-//! Reading values by key, as bytes the caller already has.
-//!
-//! Keys that have to be built from a typed value go through
-//! [`qry`](super::qry) and [`qry_batch`](super::qry_batch), which serialize
-//! and then come back here.
-//!
-//! Every read here tries the block cache on the calling thread first. A hit
-//! costs a lock and a memcmp; a miss comes back as `Incomplete` rather than as
-//! an error, and is re-issued on [`the pool`](crate::pool), where blocking
-//! until the storage answers is allowed.
-
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
 use futures::{Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt, future::ready};
@@ -26,7 +15,6 @@ use crate::{
     pool,
 };
 
-/// Reads the value at `key`, which is used as-is.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
 pub fn get<K>(
@@ -56,12 +44,6 @@ where
         .boxed()
 }
 
-/// Reads the values at each of `keys`, in order.
-///
-/// Keys are gathered into batches so that one submission to the pool covers
-/// many of them, and the batches run concurrently. Both figures come from
-/// [`the stream tuning`](phantom_core::stream), which the pool sets
-/// from the storage topology at startup.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
 pub fn get_batch<'a, S, K>(
@@ -84,11 +66,6 @@ where
         .try_flatten()
 }
 
-/// Reads the value at `key`, blocking until the storage answers.
-///
-/// For callers already on a thread where blocking is allowed — a pool worker,
-/// or an operator command running on its own thread. Everything reached from a
-/// tokio worker should use [`Self::get`].
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), name = "blocking", level = "trace")]
 pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>
@@ -98,8 +75,6 @@ where
     handle_from(self.get_blocking_opts(key, &self.read_options))
 }
 
-/// [`Self::get_blocking`] over many keys at once, which lets the engine sort
-/// the reads and coalesce those landing in the same block.
 #[implement(super::Map)]
 #[tracing::instrument(name = "batch_blocking", level = "trace", skip_all)]
 pub(crate) fn get_batch_blocking<'a, 'b, I, K>(
@@ -114,10 +89,6 @@ where
         .map(handle_from)
 }
 
-/// Reads the value at `key` if the block cache already holds it.
-///
-/// `Ok(None)` is a cache miss — the value may well exist on disk — whereas a
-/// `NotFound` error is the cache answering that it does not.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), name = "cached", level = "trace")]
 pub(crate) fn get_cached<K>(&self, key: &K) -> Result<Option<Handle<'_>>>
@@ -149,8 +120,6 @@ where
     I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
     K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,
 {
-    /// The engine can skip its own sort where the keys already arrive in the
-    /// column's order. Callers do not promise that, so it does the sort.
     const SORTED: bool = false;
 
     self.db
@@ -159,7 +128,6 @@ where
         .into_iter()
 }
 
-/// A read that was allowed to go to disk: absent means absent.
 #[inline]
 pub(super) fn handle_from(
     result: Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>,
@@ -170,7 +138,6 @@ pub(super) fn handle_from(
         .ok_or_else(|| err!(Request(NotFound("Not found in database"))))
 }
 
-/// A cache-only read, where absent and unknown are different answers.
 #[inline]
 pub(super) fn cached_handle_from(
     result: Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>,

@@ -1,16 +1,3 @@
-//! Who is online, and for how long they still count as online.
-//!
-//! Presence is a claim a client makes about a person and then stops
-//! refreshing, so nothing ever arrives to say a user went away — the server
-//! has to decide that itself. Every update schedules a timer, and when the
-//! timer fires the user is moved on: online to unavailable after
-//! `presence_idle_timeout_s`, unavailable to offline after
-//! `presence_offline_timeout_s`.
-//!
-//! The timers live in one worker rather than a task each, and the state they
-//! carry is a user id and a duration, so a user who keeps pinging simply gets
-//! another timer rather than an existing one being found and rescheduled.
-
 mod data;
 mod record;
 
@@ -34,13 +21,8 @@ use crate::{Dep, server_state, users};
 pub struct Service {
     timer_sender: mpsc::UnboundedSender<TimerType>,
 
-    /// Held behind a lock because the worker takes it and the trait hands the
-    /// worker a shared reference; a second worker would be a bug, and this is
-    /// what makes it one that cannot happen.
     timer_receiver: Mutex<mpsc::UnboundedReceiver<TimerType>>,
 
-    /// Signalled by [`Service::interrupt`], which is not async and so cannot
-    /// reach the receiver to close it.
     interrupt: Notify,
 
     timeout_remote_users: bool,
@@ -117,7 +99,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// Returns the latest presence event for the given user.
     #[inline]
     pub async fn get_presence(&self, user_id: &UserId) -> Result<PresenceEvent> {
         self.db
@@ -126,8 +107,6 @@ impl Service {
             .await
     }
 
-    /// Pings the presence of the given user in the given room, setting the
-    /// specified state.
     pub async fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
         const REFRESH_TIMEOUT: u64 = 60 * 1000;
 
@@ -163,7 +142,6 @@ impl Service {
         .await
     }
 
-    /// Adds a presence event which will be saved until a new event replaces it.
     pub async fn set_presence(
         &self,
         user_id: &UserId,
@@ -211,9 +189,6 @@ impl Service {
         Ok(())
     }
 
-    /// Removes the presence record for the given user from the database.
-    ///
-    /// TODO: Why is this not used?
     #[allow(dead_code)]
     pub async fn remove_presence(&self, user_id: &UserId) -> Result<()> {
         self.db.remove_presence(user_id).await
@@ -266,8 +241,6 @@ impl Service {
         }
     }
 
-    /// Returns the most recent presence updates that happened after the event
-    /// with id `since`.
     pub fn presence_since(
         &self,
         since: u64,

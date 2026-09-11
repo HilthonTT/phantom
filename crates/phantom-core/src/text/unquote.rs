@@ -1,18 +1,10 @@
 const QUOTE: char = '"';
 
-/// Slice a string between quotes
 pub trait Unquote<'a> {
-    /// Whether the input is quoted. If this is false the fallible methods of
-    /// this interface will fail.
     fn is_quoted(&self) -> bool;
 
-    /// Unquotes a string. The input must be quoted on each side for Some to be
-    /// returned
     fn unquote(&self) -> Option<&'a str>;
 
-    /// Unquotes a string. If the input is not quoted it is simply returned
-    /// as-is. If the input is partially quoted on either end that quote is not
-    /// removed.
     fn unquote_infallible(&self) -> &'a str;
 }
 
@@ -24,16 +16,11 @@ impl<'a> Unquote<'a> for &'a str {
 
     #[inline]
     fn is_quoted(&self) -> bool {
-        // Asked of `unquote` rather than of the two ends separately: a lone
-        // quote both starts and ends with one, and answering true for it
-        // promises an unquoting that `unquote` then refuses to do.
         self.unquote().is_some()
     }
 
     #[inline]
     fn unquote_infallible(&self) -> &'a str {
-        // Diverges from upstream, which stripped a lone trailing quote but
-        // kept a lone leading one. Both ends are all-or-nothing here.
         self.unquote().unwrap_or(self)
     }
 }

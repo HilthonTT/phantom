@@ -1,5 +1,3 @@
-//! What the open database is holding in memory.
-
 use std::fmt::Write;
 
 use phantom_core::{Result, implement};
@@ -8,11 +6,6 @@ use rocksdb::perf::MemoryUsageBuilder;
 use super::Engine;
 use crate::engine::error::or_else;
 
-/// A human-readable breakdown of the engine's memory, for the admin command
-/// that reports it.
-///
-/// Built through [`MemoryUsageBuilder`] rather than `get_memory_usage_stats`,
-/// which only accepts a single-threaded database handle.
 #[implement(Engine)]
 pub fn memory_usage(&self) -> Result<String> {
     let row_cache = self.ctx.row_cache.lock()?;
@@ -45,10 +38,6 @@ pub fn memory_usage(&self) -> Result<String> {
     Ok(res)
 }
 
-/// Bytes as mebibytes.
-///
-/// The reference implementation routes this through `u32`, which silently
-/// reports anything past 4 TiB as zero.
 #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 fn mibs(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0)

@@ -1,42 +1,3 @@
-//! Taking an event another server sent us and deciding what it means.
-//!
-//! This is the hard half of federation. A server hands us an event and claims
-//! it belongs in a room; everything about that claim has to be checked, and
-//! most of the checking needs events we do not have and have to go and ask
-//! for. The work divides into five questions, one per submodule:
-//!
-//! 1. **Is the event what it says it is?** Its id is the hash of its content,
-//!    so it is recomputed rather than trusted, and its signatures are checked
-//!    against the keys of the servers that claim to have signed it. That, plus
-//!    checking it against its own `auth_events`, is [`outliers`] — an outlier
-//!    being an event we believe but cannot yet place.
-//! 2. **May that server speak here at all?** [`acl`], against the room's
-//!    `m.room.server_acl`.
-//! 3. **What came before it?** An event names its predecessors, and we may
-//!    have none of them. [`prev`] fetches the gap and handles it oldest first,
-//!    under a budget, because a server that has been offline for a week can
-//!    hand us a gap we would spend the rest of the day filling.
-//! 4. **What was the room's state when it happened?** [`state`] — from our own
-//!    record where the predecessors are known, by resolving their states where
-//!    they disagree, and by asking the sending server where we know nothing.
-//! 5. **Is it allowed?** [`upgrade`] authorizes the event against the state at
-//!    it, decides whether it also passes against the room's *current* state —
-//!    an event that fails only the second is soft-failed rather than rejected
-//!    — resolves the room's new state, and appends it.
-//!
-//! Two things are shared across all of that and live here.
-//!
-//! [`mutex_federation`] serializes handling per room. Two events arriving at
-//! once for the same room would each resolve state against a room the other
-//! is in the middle of changing, and the loser's work would be wasted at best.
-//!
-//! [`bad_events`] remembers events that could not be fetched or would not
-//! validate. Without it a room with one unreachable predecessor re-asks for it
-//! on every event that references it, which is every event in the room.
-//!
-//! [`mutex_federation`]: Service::mutex_federation
-//! [`bad_events`]: Service::bad_events
-
 mod acl;
 mod outliers;
 mod parse;
@@ -66,15 +27,10 @@ use crate::{
 };
 
 pub struct Service {
-    /// Held for as long as one event is being handled for a room.
     pub mutex_federation: RoomMutexMap,
 
-    /// Events that would not fetch or would not validate, and how many times
-    /// we have tried, so a retry can be held off exponentially.
     pub bad_events: RwLock<HashMap<OwnedEventId, (Instant, u32)>>,
 
-    /// How long [`prev`] may spend filling a gap before it gives up on the
-    /// rest of it.
     prev_event_budget: Duration,
 
     services: Services,
@@ -102,13 +58,8 @@ struct Data {
 
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
 
-/// The shortest a bad event is held off for, doubling with each further
-/// failure up to [`MAX_BACKOFF`].
 const MIN_BACKOFF: u64 = 60;
 
-/// The longest a bad event is held off for. An event still unfetchable after
-/// this long is very likely gone for good, but the room is not, so retrying
-/// once an hour costs nothing and recovers from an outage that has ended.
 const MAX_BACKOFF: u64 = 60 * 60;
 
 #[async_trait]
@@ -162,18 +113,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Handles an event that arrived from `origin`, putting it in the room where
-/// it belongs.
-///
-/// `Some(id)` means this call put the event in the timeline. `None` means it
-/// did not, which covers three quite different things — the event was already
-/// there, it was soft-failed, or it is older than anything this server holds
-/// for the room — and none of them is an error: all three end with the room in
-/// a consistent state and nothing for the sender to do.
-///
-/// `is_timeline_event` says whether the event was sent to us as part of the
-/// room's timeline, rather than pulled in as somebody's predecessor or auth
-/// event. Only a timeline event is worth filling a gap for.
 #[implement(Service)]
 #[tracing::instrument(name = "handle", level = "info", skip_all, fields(%origin, %room_id, %event_id))]
 pub async fn handle_incoming_pdu(
@@ -184,8 +123,6 @@ pub async fn handle_incoming_pdu(
     value: CanonicalJsonObject,
     is_timeline_event: bool,
 ) -> Result<Option<RawPduId>> {
-    // Already in the timeline: nothing to do, and in particular nothing to
-    // fetch. A server resending a transaction is the ordinary way here.
     if self.services.timeline.pdu_exists(event_id).await {
         debug!("Event is already in the timeline");
         return Ok(None);
@@ -201,9 +138,6 @@ pub async fn handle_incoming_pdu(
         )));
     }
 
-    // Two different refusals, asked in the order of whose decision it is. The
-    // room's ACL is the room's business and applies to every server in it; the
-    // moderation list is this operator's, and applies whatever the room says.
     self.acl_check(origin, room_id).await?;
 
     if self
@@ -216,9 +150,6 @@ pub async fn handle_incoming_pdu(
         )));
     }
 
-    // The create event decides the room version, and the room version decides
-    // how everything below reads the event. A room without one is a room this
-    // server should not have a record of.
     let create_event = self
         .services
         .state_accessor
@@ -241,9 +172,6 @@ pub async fn handle_incoming_pdu(
         .handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false)
         .await?;
 
-    // An event older than anything this server holds for the room would need
-    // the whole history before it to be placed, which is backfill's job and
-    // not something to do in the middle of receiving a transaction.
     if is_timeline_event && incoming_pdu.origin_server_ts < first_ts_in_room {
         debug!("Event predates the room's history on this server");
         return Ok(None);
@@ -263,8 +191,6 @@ pub async fn handle_incoming_pdu(
         .await
 }
 
-/// Whether an event should be left alone for now because the last attempt at
-/// it failed recently.
 #[implement(Service)]
 fn is_backed_off(&self, event_id: &EventId) -> bool {
     let bad = self.bad_events.read().expect("locked");
@@ -274,7 +200,6 @@ fn is_backed_off(&self, event_id: &EventId) -> bool {
     })
 }
 
-/// Records that an event could not be obtained or would not validate.
 #[implement(Service)]
 fn mark_bad(&self, event_id: &EventId) {
     self.bad_events
@@ -288,13 +213,11 @@ fn mark_bad(&self, event_id: &EventId) {
         .or_insert((Instant::now(), 1));
 }
 
-/// Forgets that an event was bad, once it has been obtained after all.
 #[implement(Service)]
 fn mark_good(&self, event_id: &EventId) {
     self.bad_events.write().expect("locked").remove(event_id);
 }
 
-/// Whether the event was accepted by the room but withheld from it.
 #[implement(Service)]
 pub async fn is_soft_failed(&self, event_id: &EventId) -> bool {
     self.db.softfailedeventids.get(event_id).await.is_ok()

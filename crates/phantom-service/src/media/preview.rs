@@ -1,24 +1,3 @@
-//! What a URL in a message is shown as.
-//!
-//! A preview is OpenGraph metadata read out of the page's `<head>`, fetched by
-//! this server rather than by the client — which is the whole point: the
-//! client never contacts a host named by somebody else's message, so it never
-//! hands one its address. The cost is that *this* server contacts it, which is
-//! why every URL is screened twice, before the request and again against the
-//! address it actually connected to.
-//!
-//! **The media a preview names is not downloaded.** A page declaring a
-//! gigabyte of video costs the preview nothing: the URL is recorded against a
-//! freshly minted `mxc://` and fetched only if a client asks for it. The one
-//! exception is `og:image`, which is fetched because a preview has to report
-//! its size — so its bytes are staged, and the client that asks for them is
-//! served from the staging area instead of the origin.
-//!
-//! Everything here is gated on `url_preview`, but at the item level rather
-//! than the module level: the feature switches the dependencies and nulls the
-//! results out through the interface it would otherwise implement, so the rest
-//! of the server compiles the same either way.
-
 use std::{
     net::IpAddr,
     time::{Duration, SystemTime},
@@ -45,7 +24,6 @@ use crate::media::Service;
 #[cfg(feature = "url_preview")]
 use crate::{client::read_response_capped, media::MXC_LENGTH};
 
-/// A media type as declared by a page, inline for every common spelling.
 type MediaType = SmallString<[u8; 32]>;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -156,16 +134,10 @@ impl CachedPreview {
     }
 }
 
-/// Which configured agent a preview request speaks as.
-///
-/// Origins commonly gate a page and the media it references differently, so
-/// the two are configured separately.
 #[derive(Clone, Copy)]
 pub(super) enum Agent {
     Page,
 
-    /// Only ever asked for by the paths that fetch media, which are the
-    /// paths the `url_preview` feature switches on.
     #[cfg_attr(
         not(feature = "url_preview"),
         expect(
@@ -176,8 +148,6 @@ pub(super) enum Agent {
     Media,
 }
 
-/// Hosts whose pages carry their `<head>` metadata only for an allowlisted
-/// crawler, and which answer oEmbed for any agent.
 const YOUTUBE_HOSTS: [&str; 5] = [
     "youtu.be",
     "youtube.com",
@@ -186,27 +156,14 @@ const YOUTUBE_HOSTS: [&str; 5] = [
     "music.youtube.com",
 ];
 
-/// Consent state that suppresses the interstitial Google serves in place of
-/// the page in some regions.
-///
-/// `SOCS` is the cookie Google reads today and `CONSENT` the one older
-/// endpoints still honor.
 const YOUTUBE_CONSENT_COOKIE: &str = "SOCS=CAI; CONSENT=PENDING+999";
 
-/// Endpoint answering oEmbed for every host in `YOUTUBE_HOSTS`, including
-/// the short and subdomain forms.
 #[cfg(feature = "url_preview")]
 const YOUTUBE_OEMBED: &str = "https://www.youtube.com/oembed";
 
-/// An oEmbed document runs to a few hundred bytes; the cap bounds only a
-/// hostile origin.
 #[cfg(feature = "url_preview")]
 const OEMBED_MAX_SIZE: usize = 64 * 1024;
 
-/// The oEmbed fields a preview can carry.
-///
-/// Every other field of the document is ignored, and each of these is
-/// optional in the specification.
 #[cfg(feature = "url_preview")]
 #[derive(Deserialize)]
 struct Oembed {
@@ -225,7 +182,6 @@ pub async fn get_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
         return Ok(cached.preview);
     }
 
-    // Ensure that only one request is made per URL.
     let _request_lock = self.url_preview_mutex.lock(url.as_str()).await;
 
     match self.db.get_url_preview(url.as_str()).await {
@@ -248,11 +204,6 @@ pub async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 
     self.check_remote_addr(&response)?;
 
-    // An upstream error response must not be turned into a cached preview.
-    // Origins commonly gate pages and media differently by agent, so when a
-    // distinct media agent is configured, a page-agent rejection is not
-    // final: the URL may be a direct media link acceptable to the media
-    // client. See `media_refetch` for the successful counterpart.
     let status = response.status();
 
     let (response, via_media_client) = if status.is_success() {
@@ -281,8 +232,6 @@ pub async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 
     let data = match content_type.as_str() {
         html if html.starts_with("text/html") => {
-            // Pages are only crawled with the page client; its rejection
-            // stands even when the media client was served a page.
             if via_media_client {
                 return Err!(Request(NotFound(debug_warn!(
                     "URL preview request for {url} failed: {status}"
@@ -326,8 +275,6 @@ pub async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
     Ok(cached.preview)
 }
 
-/// Build a preview request through the preview client, carrying the headers
-/// `preview_headers` applies.
 #[implement(Service)]
 pub(super) fn preview_get(&self, url: &Url, agent: Agent) -> reqwest::RequestBuilder {
     let request = self.services.client.url_preview.get(url.as_str());
@@ -335,11 +282,6 @@ pub(super) fn preview_get(&self, url: &Url, agent: Agent) -> reqwest::RequestBui
     self.preview_headers(request, url, agent)
 }
 
-/// Apply the configured `User-Agent` and any origin-specific headers to a
-/// preview request.
-///
-/// Both are read per request rather than baked into the client, so a
-/// configuration reload takes effect without restarting the server.
 #[implement(Service)]
 fn preview_headers(
     &self,
@@ -363,28 +305,18 @@ fn preview_headers(
         None => request,
     };
 
-    // The consent cookie is scoped to the hosts that gate on it, so it never
-    // travels to another origin.
     match is_youtube(url) {
         true => request.header(COOKIE, HeaderValue::from_static(YOUTUBE_CONSENT_COOKIE)),
         false => request,
     }
 }
 
-/// Whether the URL is served by one of the hosts in [`YOUTUBE_HOSTS`].
-///
-/// The host is compared whole. A suffix match would let
-/// `youtube.com.example.invalid` collect the consent cookie, which is a
-/// different origin entirely.
 #[must_use]
 fn is_youtube(url: &Url) -> bool {
     url.host_str()
         .is_some_and(|host| YOUTUBE_HOSTS.contains(&host))
 }
 
-/// Screen a preview response's peer address against the CIDR denylist.
-///
-/// A missing peer address cannot be screened, so it fails closed.
 #[implement(Service)]
 fn check_remote_addr(&self, response: &reqwest::Response) -> Result {
     let Some(remote_addr) = response.remote_addr() else {
@@ -406,17 +338,9 @@ fn check_remote_addr(&self, response: &reqwest::Response) -> Result {
         })
 }
 
-/// Recover a preview from the origin's oEmbed endpoint when the page yielded
-/// nothing usable.
-///
-/// Some origins serve their `<head>` metadata only to an agent they recognise
-/// as a link-preview crawler, while answering oEmbed for anyone. A page that
-/// parsed to nothing is therefore worth one much smaller second request, and
-/// the original preview stands if that request fails too.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 async fn oembed_recover(&self, url: &Url, data: UrlPreviewData) -> UrlPreviewData {
-    // An already-staged image would be orphaned by replacing the preview.
     if data.title.is_some() || data.image.is_some() {
         return data;
     }
@@ -438,7 +362,6 @@ async fn oembed_recover(&self, _url: &Url, data: UrlPreviewData) -> UrlPreviewDa
     data
 }
 
-/// The oEmbed endpoint answering for `url`, when its origin has one.
 #[cfg(feature = "url_preview")]
 fn oembed_endpoint(url: &Url) -> Option<Url> {
     is_youtube(url)
@@ -448,15 +371,9 @@ fn oembed_endpoint(url: &Url) -> Option<Url> {
         .and_then(Result::ok)
 }
 
-/// Fetch an oEmbed document and render it as a preview.
-///
-/// The document names a thumbnail rather than carrying one, so the image is
-/// measured and staged through the same path an `og:image` takes.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 async fn oembed_preview(&self, endpoint: &Url, page: &Url) -> Result<UrlPreviewData> {
-    // This host is chosen here rather than named by the page, so the
-    // operator's own allowlist decides whether it may be contacted at all.
     if !self.url_preview_allowed(endpoint) {
         return Err!(Request(Forbidden(debug_warn!(
             "oEmbed endpoint {endpoint} is not allowed for previewing"
@@ -482,8 +399,6 @@ async fn oembed_preview(&self, endpoint: &Url, page: &Url) -> Result<UrlPreviewD
     let oembed: Oembed = serde_json::from_slice(&body)
         .map_err(|e| err!(Request(Unknown("Invalid oEmbed document: {e}"))))?;
 
-    // oEmbed carries no description; the author is the only other prose the
-    // document offers, and reads as a byline in every client that shows one.
     let image = self.oembed_image(oembed.thumbnail_url.as_deref()).await;
 
     Ok(UrlPreviewData {
@@ -496,22 +411,11 @@ async fn oembed_preview(&self, endpoint: &Url, page: &Url) -> Result<UrlPreviewD
     })
 }
 
-/// Translate an oEmbed `video` document into the type a preview can carry.
-///
-/// oEmbed hands back an HTML player rather than a media file, so the player
-/// type is all a preview can report. Clients read that type on its own to
-/// mark the preview playable at the origin.
 #[cfg(feature = "url_preview")]
 fn video_type(kind: Option<&str>) -> Option<&'static str> {
     kind.eq(&Some("video")).then_some("text/html")
 }
 
-/// Translate an oEmbed `type` into the OpenGraph vocabulary the preview
-/// response is defined in.
-///
-/// oEmbed names its own kinds (`video`, `photo`, `link`, `rich`), none of
-/// which is an OpenGraph type; anything without a counterpart takes the
-/// OpenGraph default the page path would have produced.
 #[cfg(feature = "url_preview")]
 fn og_type(kind: Option<&str>) -> Option<String> {
     kind.map(|kind| match kind {
@@ -521,11 +425,6 @@ fn og_type(kind: Option<&str>) -> Option<String> {
     .map(ToOwned::to_owned)
 }
 
-/// Measure an oEmbed thumbnail, yielding an empty preview when it is absent
-/// or unusable.
-///
-/// A thumbnail failure must not cost the textual preview the document has
-/// already provided.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 async fn oembed_image(&self, thumbnail_url: Option<&str>) -> UrlPreviewData {
@@ -539,12 +438,6 @@ async fn oembed_image(&self, thumbnail_url: Option<&str>) -> UrlPreviewData {
     self.preview_image(&thumbnail).await.unwrap_or_default()
 }
 
-/// Fetch and measure a preview image, keeping the textual preview when the
-/// origin refuses it.
-///
-/// The measurement is a media fetch: it carries the media agent, or the
-/// origin could serve the measurement different content than it serves the
-/// relayed mxc.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 async fn preview_image(&self, image_url: &Url) -> Result<UrlPreviewData> {
@@ -554,8 +447,6 @@ async fn preview_image(&self, image_url: &Url) -> Result<UrlPreviewData> {
 
     self.check_remote_addr(&response)?;
 
-    // A failing preview image must not become a preview mxc the relay is
-    // guaranteed to reject; skip it and keep the textual preview.
     if !response.status().is_success() {
         debug!(
             %image_url,
@@ -569,12 +460,6 @@ async fn preview_image(&self, image_url: &Url) -> Result<UrlPreviewData> {
     self.download_image(response).await
 }
 
-/// Measure a preview image, staging its bytes for the client that asks.
-///
-/// The image is fetched here because a preview has to report its dimensions
-/// and size. Having paid for it once, the bytes are staged against the mxc
-/// they are minted for, so the first download promotes them instead of
-/// fetching the origin a second time.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 pub async fn download_image(&self, response: reqwest::Response) -> Result<UrlPreviewData> {
@@ -607,9 +492,6 @@ pub async fn download_image(&self, response: reqwest::Response) -> Result<UrlPre
         },
     };
 
-    // The registration and the bytes it stands for land together or not at
-    // all: a registration without its bytes would refetch the origin, and
-    // bytes without a registration are unreachable.
     let mut txn = self.db.txn();
 
     let mxc = self.queue_lazy_media(&mut txn, url.as_str());
@@ -640,11 +522,6 @@ pub async fn download_image(&self, _response: reqwest::Response) -> Result<UrlPr
     Err!(FeatureDisabled("url_preview"))
 }
 
-/// Fetch a URL with the media client, applying the same address and status
-/// screening as the page fetch.
-///
-/// Direct preview media is measured and registered from the media client's
-/// response so that it matches what the relay will serve.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 async fn media_response(&self, url: &Url) -> Result<reqwest::Response> {
@@ -670,11 +547,6 @@ async fn media_response(&self, _url: &Url) -> Result<reqwest::Response> {
     Err!(FeatureDisabled("url_preview"))
 }
 
-/// Replace a page-client response with the media client's for a direct media
-/// URL.
-///
-/// When no distinct media agent is configured the two clients are identical
-/// and the original response is used as-is, avoiding a second request.
 #[implement(Service)]
 async fn media_refetch(
     &self,
@@ -696,13 +568,6 @@ async fn media_refetch(
     self.media_response(url).await
 }
 
-/// Fetch the file a lazy media mxc stands for, as the media agent.
-///
-/// Called when a client asks for a URI a preview minted and nothing was
-/// staged for it — a page's `og:video`, say, which was recorded rather than
-/// downloaded. The same screening the preview did is repeated, because the
-/// registration may be hours old and the address behind the name may not be
-/// the one that was checked.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 pub(super) async fn fetch_preview_media(&self, url: &Url) -> Result<super::Media> {
@@ -745,12 +610,6 @@ pub(super) async fn fetch_preview_media(&self, url: &Url) -> Result<super::Media
     })
 }
 
-/// Drop a lazy media registration and anything staged under it, reporting
-/// whether there was one.
-///
-/// A URI a preview minted but nothing has downloaded yet has no file and no
-/// metadata, so the ordinary delete finds nothing to remove and would report
-/// a URI this server does know about as unknown.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 pub(super) async fn forget_lazy_media(&self, mxc: &str) -> Result<bool> {
@@ -768,9 +627,6 @@ pub(super) async fn forget_lazy_media(&self, mxc: &str) -> Result<bool> {
     Ok(true)
 }
 
-/// Mint a local `mxc://` URI that resolves to `url` on first download (see
-/// `Service::fetch_lazy_media`), keeping preview generation independent of
-/// the underlying file size while routing clients through this server.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 fn register_lazy_media(&self, url: &str) -> Result<String> {
@@ -781,8 +637,6 @@ fn register_lazy_media(&self, url: &str) -> Result<String> {
     Ok(mxc)
 }
 
-/// [`register_lazy_media`](Service::register_lazy_media) as part of a
-/// transaction, for when the registration lands with the bytes it stages.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 fn queue_lazy_media(&self, txn: &mut Txn, url: &str) -> String {
@@ -802,14 +656,6 @@ fn mint_lazy_media(&self) -> String {
     format!("mxc://{server_name}/{media_id}")
 }
 
-/// Mint an `mxc://` URI for a page's declared media, or nothing when it is not
-/// relayable.
-///
-/// The URL is recorded rather than fetched, so a page naming a large video
-/// costs the preview request no bandwidth; it is fetched and checked only once
-/// a client asks for the resulting URI. Screening IP literals here as well
-/// keeps a preview from handing out a URI that the same check at relay time is
-/// guaranteed to refuse.
 #[cfg(feature = "url_preview")]
 #[implement(Service)]
 fn lazy_media(&self, page: &Url, obj: &OpengraphObject, class: &str) -> Option<String> {
@@ -825,11 +671,6 @@ fn lazy_media(&self, page: &Url, obj: &OpengraphObject, class: &str) -> Option<S
         })
 }
 
-/// Whether an OpenGraph media object's declared type belongs to `class`.
-///
-/// A missing `og:*:type` is accepted, since most origins omit it. A type
-/// outside the class means the URL addresses a player page rather than a
-/// file, which the relay cannot serve as media.
 #[cfg(feature = "url_preview")]
 fn declares_media_type(obj: &OpengraphObject, class: &str) -> bool {
     obj.properties
@@ -883,8 +724,6 @@ pub async fn download_audio(&self, _response: reqwest::Response) -> Result<UrlPr
     Err!(FeatureDisabled("url_preview"))
 }
 
-/// Parse a direct-file preview's advertised size, refusing one over the cap so
-/// we never register an mxc the relay is guaranteed to reject at fetch time.
 #[cfg(feature = "url_preview")]
 fn checked_media_size(response: &reqwest::Response, limit: usize) -> Result<Option<usize>> {
     let size = response
@@ -908,8 +747,6 @@ async fn download_html(&self, url: &Url, response: reqwest::Response) -> Result<
     let limit = self.services.config.media.url_preview_max_spider_size;
     let (bytes, truncated) = spider_body(response, limit).await?;
 
-    // the parser needs an owned string, so the read buffer becomes one rather
-    // than being copied into a second buffer of the same size
     let body = String::from_utf8(bytes)
         .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned());
 
@@ -917,8 +754,6 @@ async fn download_html(&self, url: &Url, response: reqwest::Response) -> Result<
         return Err!(Request(Unknown("Failed to parse HTML")));
     };
 
-    // twitter:* card tags mirror og:; some pages emit only the twitter set,
-    // or (fixvx) an empty og: value beside the real twitter: one
     let twitter = |key| {
         html.meta
             .get(key)
@@ -926,8 +761,6 @@ async fn download_html(&self, url: &Url, response: reqwest::Response) -> Result<
             .filter(|content| !content.is_empty())
     };
 
-    // `webpage` does not resolve relative URLs in `og:` meta tags; resolve
-    // against the page URL, then keep only the http(s) ones we can fetch
     let image_url = html
         .opengraph
         .images
@@ -949,7 +782,6 @@ async fn download_html(&self, url: &Url, response: reqwest::Response) -> Result<
     if let Some(obj) = html.opengraph.videos.first()
         && !obj.url.is_empty()
     {
-        // the declared type is reported even when the URL cannot be relayed
         data.video_type = obj
             .properties
             .get("type")
@@ -988,8 +820,6 @@ async fn download_html(&self, url: &Url, response: reqwest::Response) -> Result<
     data.og_type = Some(html.opengraph.og_type);
     data.og_url = props.get("url").cloned();
 
-    // a page whose head metadata sits past the cap parses clean and yields
-    // nothing, which is indistinguishable from a page carrying no tags
     if truncated && data.title.is_none() && data.description.is_none() && data.image.is_none() {
         debug_warn!(
             %url,
@@ -1009,11 +839,6 @@ async fn download_html(&self, _url: &Url, _response: reqwest::Response) -> Resul
     Err!(FeatureDisabled("url_preview"))
 }
 
-/// Read a page body up to `limit`, reporting whether the cap cut it short.
-///
-/// An advertised length seeds the buffer, and growth past that stays
-/// geometric but never exceeds the cap, so a truncated page costs the cap
-/// rather than the next power of two above it.
 #[cfg(feature = "url_preview")]
 async fn spider_body(mut response: reqwest::Response, limit: usize) -> Result<(Vec<u8>, bool)> {
     let hint = response
@@ -1037,11 +862,6 @@ async fn spider_body(mut response: reqwest::Response, limit: usize) -> Result<(V
     Ok((bytes, false))
 }
 
-/// Reserve `want` more bytes, growing geometrically but never past `limit`.
-///
-/// `want` is expected to be clamped to the remaining budget by the caller; a
-/// larger value is honored rather than dropped, since refusing to reserve it
-/// would only move the allocation into the following `extend_from_slice`.
 #[cfg(feature = "url_preview")]
 fn reserve_capped(bytes: &mut Vec<u8>, want: usize, limit: usize) {
     let need = bytes.len().saturating_add(want);
@@ -1071,8 +891,6 @@ pub(super) fn check_url_host(&self, url: &Url) -> Result {
         .ok_or_else(|| err!(Request(Unknown("URL has no host"))))?;
 
     let ip = match host {
-        // A name is screened by the resolver when it is looked up, which is
-        // the only point at which the address it stands for is known.
         Host::Domain(_) => return Ok(()),
         Host::Ipv4(v4) => IpAddr::V4(v4),
         Host::Ipv6(v6) => IpAddr::V6(v6),
@@ -1087,9 +905,6 @@ pub(super) fn check_url_host(&self, url: &Url) -> Result {
     Ok(())
 }
 
-/// Verify a possibly-refetched preview response still carries the content type
-/// class the page response was dispatched on, so a media-client refetch that
-/// substitutes a different type is not mis-registered.
 fn require_media_type(response: &reqwest::Response, class: &str) -> Result {
     response
         .headers()
@@ -1170,10 +985,6 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
             return true;
         }
 
-        // The entry is a substring *of the host*, which is what the option
-        // documents and what makes "google.com" also cover
-        // "notgoogle.com.example". Comparing the other way round would allow
-        // only the host that happens to be a substring of the entry.
         if allowlist_domain_contains
             .iter()
             .any(|domain_s| host.contains(domain_s))
@@ -1277,8 +1088,6 @@ mod tests {
         }
     }
 
-    /// The names are what a client reads the preview by, so they are a wire
-    /// format rather than an internal one.
     #[test]
     fn preview_wire_keys_unchanged() {
         let value = serde_json::to_value(sample()).expect("json");
@@ -1348,8 +1157,6 @@ mod tests {
             assert!(is_youtube(&url(page)), "{page}");
         }
 
-        // a host merely containing the domain is a different origin, and must
-        // not be handed the consent cookie
         let other = [
             "https://youtube.com.evil.example/watch?v=abc",
             "https://notyoutube.com/watch?v=abc",
@@ -1422,7 +1229,6 @@ mod tests {
 
         assert_eq!(bytes.len(), LIMIT);
 
-        // geometric growth, not one reallocation per chunk
         assert!(reallocs < 12, "{reallocs} reallocations");
     }
 

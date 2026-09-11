@@ -1,12 +1,3 @@
-//! Assembling the key map one verification needs.
-//!
-//! [`get_event_keys`](super::Service::get_event_keys) is the entry point: it
-//! works out which keys an event has to be checked against and gathers
-//! exactly those, fetching what is missing. Where a batch of events is about
-//! to be verified, calling
-//! [`acquire_events_pubkeys`](super::Service::acquire_events_pubkeys) over the
-//! batch first is much cheaper than letting each event here fetch on its own.
-
 use std::borrow::Borrow;
 
 use phantom_core::{Err, Result, implement};
@@ -60,12 +51,6 @@ where
     keys
 }
 
-/// The keys of `origin` named by `key_ids`, skipping any that could not be
-/// obtained.
-///
-/// A key missing from the result is not an error here: an event only has to
-/// carry one signature this server can check, so verification decides whether
-/// what was gathered is enough.
 #[implement(super::Service)]
 pub async fn get_pubkeys_for<'a, I>(&self, origin: &ServerName, key_ids: I) -> PubKeys
 where
@@ -81,12 +66,6 @@ where
     keys
 }
 
-/// One key, from the database if it is held and from the network otherwise.
-///
-/// Which of the origin server and the notaries is asked first is the
-/// operator's call: asking the origin first means a compromised notary is
-/// only ever consulted for keys the origin could not answer for, while asking
-/// the notaries first is faster, since one of them answers for many servers.
 #[implement(super::Service)]
 pub async fn get_verify_key(
     &self,

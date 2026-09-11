@@ -1,22 +1,13 @@
-//! Temporary silencing of console logging.
-
 use std::sync::Arc;
 
 use super::EnvFilter;
 use crate::{error, server::Server};
 
-/// The layer console output goes through.
 const HANDLE: &str = "console";
 
-/// Silences the console for as long as it is held.
-///
-/// Used where phantom writes to the terminal itself — the interactive console
-/// command line — and a log line arriving mid-prompt would corrupt the display.
 pub struct Suppress {
     server: Arc<Server>,
 
-    /// The filter to put back, or `None` when suppression never took effect and
-    /// there is nothing to restore.
     restore: Option<EnvFilter>,
 }
 
@@ -73,7 +64,6 @@ mod tests {
     };
     use crate::{Config, Result};
 
-    /// Stands in for the console layer's reload handle.
     struct MockHandle(Mutex<EnvFilter>);
 
     impl ReloadHandle<EnvFilter> for MockHandle {

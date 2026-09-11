@@ -1,20 +1,3 @@
-//! Who is in a room, and which rooms a user is in.
-//!
-//! Membership is state like any other, and [`state_accessor`] can read it out
-//! of a room's state at any version. That is the wrong shape for almost every
-//! question actually asked of it: sync wants the rooms one user is joined to,
-//! federation wants the servers to send an event to, and both want the answer
-//! without loading a room's state at all. So the current membership is kept
-//! denormalized here, indexed both ways round — `roomuserid_*` to walk a
-//! room's members, `userroomid_*` to walk a user's rooms — and written
-//! through [`update_membership`] whenever a membership event lands.
-//!
-//! Nothing here is authoritative. The state is, and a disagreement means the
-//! index is stale rather than that the membership changed.
-//!
-//! [`state_accessor`]: crate::rooms::state_accessor
-//! [`update_membership`]: Service::update_membership
-
 mod delete;
 mod members;
 mod membership;
@@ -54,10 +37,6 @@ use ruma::{
 use crate::{Dep, account_data, appservice::RegistrationInfo, rooms, server_state, users};
 
 pub struct Service {
-    /// Whether an appservice is in a room, by room and then registration id.
-    ///
-    /// Answering it means scanning a room's members against the appservice's
-    /// user namespace, and it is asked once per appservice per event.
     appservice_in_room_cache: AppServiceInRoomCache,
     services: Services,
     db: Data,
@@ -131,8 +110,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// Whether an appservice is party to a room, by its own user being joined
-    /// or by any member falling in its user namespace.
     #[tracing::instrument(level = "trace", skip_all)]
     pub async fn appservice_in_room(
         &self,
@@ -190,11 +167,6 @@ impl Service {
             .clear();
     }
 
-    /// Recounts a room's members and reconciles the server list with them.
-    ///
-    /// The counts are denormalized, so they are recomputed rather than
-    /// adjusted: a missed increment would otherwise be wrong for as long as
-    /// the room exists.
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn update_joined_count(&self, room_id: &RoomId) {
         let mut joinedcount = 0_u64;
@@ -245,8 +217,6 @@ impl Service {
             .remove(room_id);
     }
 
-    /// The next value of the event counter, which orders a membership change
-    /// against everything else that happened.
     fn next_count(&self) -> u64 {
         self.services
             .server_state
@@ -255,8 +225,6 @@ impl Service {
     }
 }
 
-/// Which membership a `mark_as_*` write is keeping, for
-/// [`Service::clear_other_memberships`].
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Membership {
     Joined,
@@ -265,24 +233,14 @@ enum Membership {
     Left,
 }
 
-/// The key one `roomuseroncejoinedids` entry is written under.
-///
-/// Spelled once rather than at each of the three uses, so that the writer,
-/// the point read and the prefix scan cannot drift apart. Building it the
-/// other way round is not an error anywhere: the scan in
-/// [`Service::room_useroncejoined`] would simply return nothing forever,
-/// since a user id can never fall under a room id's prefix.
 fn once_joined_key<'a>(room_id: &'a RoomId, user_id: &'a UserId) -> (&'a RoomId, &'a UserId) {
     (room_id, user_id)
 }
 
-/// The prefix every [`once_joined_key`] for one room falls under.
 fn once_joined_prefix(room_id: &RoomId) -> (&RoomId, Interfix) {
     (room_id, Interfix)
 }
 
-/// The rooms in a column of stripped state keyed by (user, room), with that
-/// state deserialized.
 fn stripped_rooms<'a>(
     map: &'a Arc<Map>,
     user_id: &'a UserId,
@@ -306,14 +264,6 @@ mod tests {
 
     use super::{once_joined_key, once_joined_prefix};
 
-    /// `roomuseroncejoinedids` is written a key at a time by
-    /// [`Service::mark_as_once_joined`] and read a room at a time by
-    /// [`Service::room_useroncejoined`], so the key one builds has to fall
-    /// inside the prefix the other scans. Swapping the halves is not an error
-    /// anywhere — the scan just comes back empty forever.
-    ///
-    /// [`Service::mark_as_once_joined`]: super::Service::mark_as_once_joined
-    /// [`Service::room_useroncejoined`]: super::Service::room_useroncejoined
     #[test]
     fn once_joined_keys_fall_under_the_room_prefix() {
         let user_id = UserId::parse("@alice:phantom.test").expect("valid user id");

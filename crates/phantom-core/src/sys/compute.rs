@@ -1,5 +1,3 @@
-//! System utilities related to compute/processing
-
 use std::{cell::Cell, fmt::Debug, path::PathBuf, sync::LazyLock};
 
 use crate::{Result, is_equal_to};
@@ -11,25 +9,17 @@ type Masks = [Mask; MASK_BITS];
 
 const MASK_BITS: usize = 128;
 
-/// The mask of logical cores available to the process (at startup).
 static CORES_AVAILABLE: LazyLock<Mask> = LazyLock::new(|| into_mask(query_cores_available()));
 
-/// Stores the mask of logical-cores with thread/HT/SMT association. Each group
-/// here makes up a physical-core.
 static SMT_TOPOLOGY: LazyLock<Masks> = LazyLock::new(init_smt_topology);
 
-/// Stores the mask of logical-core associations on a node/socket. Bits are set
-/// for all logical cores within all physical cores of the node.
 static NODE_TOPOLOGY: LazyLock<Masks> = LazyLock::new(init_node_topology);
 
 thread_local! {
-    /// Tracks the affinity for this thread. This is updated when affinities
-    /// are set via our set_affinity() interface.
+
     static CORE_AFFINITY: Cell<Mask> = Cell::default();
 }
 
-/// Set the core affinity for this thread. The ID should be listed in
-/// CORES_AVAILABLE. Empty input is a no-op; prior affinity unchanged.
 #[tracing::instrument(
 	level = "debug",
 	skip_all,
@@ -69,62 +59,50 @@ where
     }
 }
 
-/// Get the core affinity for this thread.
 pub fn get_affinity() -> impl Iterator<Item = Id> {
     from_mask(CORE_AFFINITY.get())
 }
 
-/// List the cores sharing SMT-tier resources
 pub fn smt_siblings() -> impl Iterator<Item = Id> {
     from_mask(get_affinity().fold(0_u128, |mask, id| {
         mask | SMT_TOPOLOGY.get(id).expect("ID must not exceed max cpus")
     }))
 }
 
-/// List the cores sharing Node-tier resources relative to this threads current
-/// affinity.
 pub fn node_siblings() -> impl Iterator<Item = Id> {
     from_mask(get_affinity().fold(0_u128, |mask, id| {
         mask | NODE_TOPOLOGY.get(id).expect("Id must not exceed max cpus")
     }))
 }
 
-/// Get the cores sharing SMT resources relative to id.
 #[inline]
 pub fn smt_affinity(id: Id) -> impl Iterator<Item = Id> {
     from_mask(*SMT_TOPOLOGY.get(id).expect("ID must not exceed max cpus"))
 }
 
-/// Get the cores sharing Node resources relative to id.
 #[inline]
 pub fn node_affinity(id: Id) -> impl Iterator<Item = Id> {
     from_mask(*NODE_TOPOLOGY.get(id).expect("ID must not exceed max cpus"))
 }
 
-/// Get the number of threads which could execute in parallel based on hardware
-/// constraints of this system.
 #[inline]
 #[must_use]
 pub fn available_parallelism() -> usize {
     cores_available().count()
 }
 
-/// Gets the ID of the nth core available. This bijects our sequence of cores to
-/// actual ID's which may have gaps for cores which are not available.
 #[inline]
 #[must_use]
 pub fn nth_core_available(i: usize) -> Option<Id> {
     cores_available().nth(i)
 }
 
-/// Determine if core (by id) is available to the process.
 #[inline]
 #[must_use]
 pub fn is_core_available(id: Id) -> bool {
     cores_available().any(is_equal_to!(id))
 }
 
-/// Get the list of cores available. The values were recorded at program start.
 #[inline]
 pub fn cores_available() -> impl Iterator<Item = Id> {
     from_mask(*CORES_AVAILABLE)
@@ -138,10 +116,6 @@ pub fn getcpu() -> Result<usize> {
 
     let ret: i32 = unsafe { libc::sched_getcpu() };
 
-    // Diverges from upstream, which asserted `ret >= 0` to the optimiser
-    // *before* testing for -1. That told the compiler the error branch was
-    // unreachable, so a failing sched_getcpu(2) (ENOSYS, seccomp) was
-    // undefined behaviour rather than an Err.
     if ret < 0 {
         return Err(Error::from_errno());
     }
@@ -155,11 +129,6 @@ pub fn getcpu() -> Result<usize> {
     Err(crate::Error::Io(std::io::ErrorKind::Unsupported.into()))
 }
 
-/// Set this thread's affinity to every one of the given cores at once.
-///
-/// `core_affinity` only offers [`core_affinity::set_for_current()`], which pins
-/// to a single core and replaces the prior affinity rather than adding to it,
-/// so the multi-core case goes through `sched_setaffinity(2)` directly.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 #[expect(unsafe_code, reason = "building a cpu_set_t for sched_setaffinity(2)")]
 fn set_each_for_current<I>(ids: I) -> bool
@@ -188,8 +157,6 @@ where
     ret == 0
 }
 
-/// Best-effort fallback for platforms without `sched_setaffinity(2)`. Each call
-/// replaces the prior affinity, so the thread ends up on the last core only.
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn set_each_for_current<I>(ids: I) -> bool
 where

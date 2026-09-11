@@ -5,14 +5,10 @@ use tracing::Level;
 use super::Result;
 use crate::error;
 
-/// Logs the error in an `Err` and passes the result through, for the common
-/// case of a failure worth reporting but not worth propagating.
 pub trait LogErr<T, E: Display> {
-    /// Logs an `Err` at `level`.
     #[must_use]
     fn err_log(self, level: Level) -> Self;
 
-    /// Logs an `Err` at [`Level::ERROR`].
     #[must_use]
     fn log_err(self) -> Self
     where

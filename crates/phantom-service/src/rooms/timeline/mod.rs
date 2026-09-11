@@ -1,16 +1,3 @@
-//! The PDUs of a room, in order.
-//!
-//! The read path is here — looking a PDU up by event id or by the id it is
-//! stored under, and streaming a room's PDUs in either direction. The write
-//! path is in two halves: [`build`], which turns a `PduBuilder` into a signed,
-//! authorized event of this server's own, and [`append`], which is where an
-//! event — built here or arrived over federation — becomes part of a room
-//! rather than merely being known about.
-//!
-//! What is still parked in `pending_write_path.rs`, which is not a module of
-//! this one, is backfill: asking another server for the history before what
-//! this server holds.
-
 mod append;
 mod build;
 mod data;
@@ -35,13 +22,6 @@ pub use self::data::PdusIterItem;
 use crate::{Dep, account_data, admin, appservice, rooms, sending, server_state, users};
 
 pub struct Service {
-    /// Held across assigning an event its position in a room and writing it
-    /// there.
-    ///
-    /// Distinct from the state mutex a caller already holds: that one orders
-    /// changes to a room's *state*, and this one orders the counter. An event
-    /// with no state key never touches the first and still must not share a
-    /// position with another.
     mutex_insert: RoomMutexMap,
     services: Services,
     db: Data,
@@ -144,70 +124,54 @@ pub async fn last_timeline_count(
     self.db.last_timeline_count(sender_user, room_id).await
 }
 
-/// Returns the `count` of this pdu's id.
 #[implement(Service)]
 pub async fn get_pdu_count(&self, event_id: &EventId) -> Result<PduCount> {
     self.db.get_pdu_count(event_id).await
 }
 
-/// Returns the json of a pdu.
 #[implement(Service)]
 pub async fn get_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
     self.db.get_pdu_json(event_id).await
 }
 
-/// Returns the json of a pdu, without checking the outliers.
 #[implement(Service)]
 #[inline]
 pub async fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
     self.db.get_non_outlier_pdu_json(event_id).await
 }
 
-/// Returns the pdu's id.
 #[implement(Service)]
 #[inline]
 pub async fn get_pdu_id(&self, event_id: &EventId) -> Result<RawPduId> {
     self.db.get_pdu_id(event_id).await
 }
 
-/// Returns the pdu, without checking the outliers.
 #[implement(Service)]
 #[inline]
 pub async fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
     self.db.get_non_outlier_pdu(event_id).await
 }
 
-/// Returns the pdu.
-///
-/// Checks `eventid_outlierpdu` if it is not found in the timeline.
 #[implement(Service)]
 pub async fn get_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
     self.db.get_pdu(event_id).await
 }
 
-/// Returns the pdu.
-///
-/// This does __NOT__ check the outliers.
 #[implement(Service)]
 pub async fn get_pdu_from_id(&self, pdu_id: &RawPduId) -> Result<PduEvent> {
     self.db.get_pdu_from_id(pdu_id).await
 }
 
-/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
 #[implement(Service)]
 pub async fn get_pdu_json_from_id(&self, pdu_id: &RawPduId) -> Result<CanonicalJsonObject> {
     self.db.get_pdu_json_from_id(pdu_id).await
 }
 
-/// Whether the pdu exists.
-///
-/// Checks `eventid_outlierpdu` if it is not found in the timeline.
 #[implement(Service)]
 pub fn pdu_exists<'a>(&'a self, event_id: &'a EventId) -> impl Future<Output = bool> + Send + 'a {
     self.db.pdu_exists(event_id).is_ok()
 }
 
-/// Removes a pdu and creates a new one with the same id.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub async fn replace_pdu(
@@ -219,8 +183,6 @@ pub async fn replace_pdu(
     self.db.replace_pdu(pdu_id, pdu_json, pdu).await
 }
 
-/// Returns an iterator over all PDUs in a room. Unknown rooms produce no
-/// items.
 #[implement(Service)]
 #[inline]
 pub fn all_pdus<'a>(
@@ -231,7 +193,6 @@ pub fn all_pdus<'a>(
     self.pdus(Some(user_id), room_id, None).ignore_err()
 }
 
-/// Reverse iteration starting at `until`.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn pdus_rev<'a>(
@@ -244,7 +205,6 @@ pub fn pdus_rev<'a>(
         .pdus_rev(user_id, room_id, until.unwrap_or_else(PduCount::max))
 }
 
-/// Forward iteration starting at `from`.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn pdus<'a>(

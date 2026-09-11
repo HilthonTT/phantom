@@ -1,15 +1,3 @@
-//! The way back in when every admin account is locked out.
-//!
-//! The server posts as a user of its own, and that account is normally
-//! unusable — no password, deactivated. Setting `emergency_password` turns it
-//! into an account an operator can log into and use to recover a real admin
-//! account, since the server user is in the admin room already.
-//!
-//! It is applied once at startup rather than watched for, so recovery is
-//! deliberate: setting it takes a restart, and clearing it takes another,
-//! which is what closes the account again and logs out whatever was opened
-//! with it.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -62,11 +50,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Opens or closes the server user's account, according to the config.
-///
-/// The push rules go with the password: an account nobody can log into has no
-/// use for a ruleset, and one an operator is about to use needs the default
-/// one so what happens in the admin room reaches them.
 #[implement(Service)]
 async fn set_emergency_access(&self) -> Result {
     let server_user = &self.services.server_state.server_user;

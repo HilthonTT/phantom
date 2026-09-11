@@ -12,1505 +12,814 @@
 
 [global]
 
-# The server_name is the pretty name of this server. It is used as a
-# suffix for user and room IDs/aliases.
-#
-# YOU NEED TO EDIT THIS. THIS CANNOT BE CHANGED AFTER WITHOUT A DATABASE
-# WIPE.
-#
-# example: "phantom.chat"
+# This item is undocumented. Please contribute documentation for it.
 #
 #server_name =
 
-# The default address (IPv4 or IPv6) phantom will listen on.
+# This item is undocumented. Please contribute documentation for it.
 #
-# To listen on multiple addresses, specify a vector e.g. ["127.0.0.1",
-# "::1"]
-#
-#address = ["127.0.0.1", "::1"]
+#address =
 
-# The port(s) phantom will listen on.
+# This item is undocumented. Please contribute documentation for it.
 #
-# To listen on multiple ports, specify a vector e.g. [8080, 8448]
-#
-#port = 8008
+#port =
 
-# Path a push gateway is expected to serve its notify endpoint at. Only
-# the appservice-style pushers that do not carry their own URL use it.
+# This item is undocumented. Please contribute documentation for it.
 #
-#notification_push_path = "/_matrix/push/v1/notify"
+#notification_push_path =
 
-# Password set on the server's own user account so an operator locked out
-# of every admin account can log in as it and recover one.
-#
-# While this is set the server user is a usable account with the default
-# push ruleset. Unset it once recovery is done: clearing it deactivates
-# the account again and logs out every session that was opened with it.
+# This item is undocumented. Please contribute documentation for it.
 #
 #emergency_password =
 
-# Admin commands to run once the server has started, in order, as if
-# they had been typed into the admin room.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Each entry is one command without its `!admin` prefix. Their output
-# goes to the log, since there is nobody in a room to answer, and a
-# command that fails stops startup unless
-# `admin_execute_errors_ignore` is set.
-#
-# This build registers no command set, so anything listed here fails.
-# The option is here because the schedule belongs to the admin service
-# and the commands do not.
-#
-# example: ["users create-user @admin:example.com", "server memory-usage"]
-#
-#admin_execute = []
+#admin_execute = false
 
-# Admin commands to run every time the server is sent SIGUSR2, in the
-# same form as `admin_execute`.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Unlike the startup list this one is re-read each time, so a reloaded
-# config changes what the next signal runs.
-#
-#admin_signal_execute = []
+#admin_signal_execute = false
 
-# Carry on when one of the commands above fails, instead of treating the
-# failure as fatal to startup.
+# This item is undocumented. Please contribute documentation for it.
 #
 #admin_execute_errors_ignore = false
 
-# Let an admin run a command outside the admin room by escaping it with a
-# backslash, as `\!admin ...`.
-#
-# The command and its output are both visible to that room, which is the
-# point: it is how an admin answers a question where it was asked. Only
-# local admins can do it, escaped or not.
+# This item is undocumented. Please contribute documentation for it.
 #
 #admin_escape_commands = true
 
-# Reload the configuration when the server is sent SIGUSR1.
-#
-# Only `server_name` is fixed for the life of the process; every other
-# option is re-read. Has no effect where the platform has no SIGUSR1.
+# This item is undocumented. Please contribute documentation for it.
 #
 #config_reload_signal = true
 
-# A shared secret required to register an account.
+# This item is undocumented. Please contribute documentation for it.
 #
 #registration_token =
 
-# Path to a file holding the registration token instead of writing it
-# into the config. The contents are read once at startup, with
-# surrounding whitespace trimmed, and take priority over
-# `registration_token`.
-#
-# example: "/etc/phantom/.reg_token"
+# This item is undocumented. Please contribute documentation for it.
 #
 #registration_token_file =
 
-# Seconds an OpenID token stays valid for.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The token proves to an integration that the bearer holds the account it
-# names, so it wants to be long enough to be exchanged and no longer.
-#
-#openid_token_ttl = 3600
+#openid_token_ttl =
 
-# Text appended to a user's displayname when they register, after a
-# space. Leave it empty to append nothing.
+# This item is undocumented. Please contribute documentation for it.
 #
-# example: "🏳️‍⚧️"
-#
-#new_user_displayname_suffix = ""
+#new_user_displayname_suffix = false
 
-# The base URL clients reach this server on, as published in
-# `/.well-known/matrix/client`.
-#
-# The OpenID Connect server derives its issuer and its endpoint URLs from
-# this, and it is what an identity provider's callback URL is built from
-# when one is not configured explicitly. Without it neither next-gen auth
-# nor SSO login can be offered, because a provider has nowhere to send
-# the user back to.
-#
-# example: "https://matrix.example.com/"
+# This item is undocumented. Please contribute documentation for it.
 #
 #well_known_client =
 
-# Path to the directory holding the database.
-#
-# YOU NEED TO EDIT THIS.
-#
-# example: "/var/lib/phantom"
+# This item is undocumented. Please contribute documentation for it.
 #
 #database_path =
 
-# Path phantom writes online database backups to. The backups are taken
-# through RocksDB's backup engine, so the server does not have to be
-# stopped to take one.
-#
-# Leave this unset to disable backups.
-#
-# example: "/opt/phantom-db-backups"
+# This item is undocumented. Please contribute documentation for it.
 #
 #database_backup_path =
 
-# How many online backups to retain under `database_backup_path` before
-# the oldest is deleted. A negative value retains every backup.
+# This item is undocumented. Please contribute documentation for it.
 #
-#database_backups_to_keep = 1
+#database_backups_to_keep =
 
-# Megabytes of memory the database engine is told it may use for read
-# caches. Raising this trades memory for fewer disk reads.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Like the individual caches, the default scales with the CPU core count.
-#
-#db_cache_capacity_mb = 128.0 + (64.0 * CPU core count)
+#db_cache_capacity_mb =
 
-# Megabytes of memory the database engine is told it may use for write
-# buffers, across all columns.
+# This item is undocumented. Please contribute documentation for it.
 #
-#db_write_buffer_capacity_mb = 48.0 + (4.0 * CPU core count)
+#db_write_buffer_capacity_mb =
 
-# Multiplier applied to every cache capacity phantom derives from the
-# options above. Lower it to cut memory use across the board without
-# tuning each cache, raise it to spend more.
+# This item is undocumented. Please contribute documentation for it.
 #
-#cache_capacity_modifier = 1.0
+#cache_capacity_modifier =
 
-# Entries kept in the in-memory auth chain cache.
+# This item is undocumented. Please contribute documentation for it.
 #
-# An auth chain is the set of events authorizing one event, and
-# recomputing it walks the room's state; caching them is what keeps state
-# resolution off the database. Entries are small, so the default is
-# generous, and cache_capacity_modifier scales it along with every other
-# cache.
-#
-#auth_chain_cache_capacity = 100000 + (10000 * CPU core count)
+#auth_chain_cache_capacity =
 
-# Room summaries kept in the in-memory space hierarchy cache.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Only summaries fetched from another server are cached — a local room is
-# summarized from state that is already in memory, and caching it would
-# only mean showing a stale name after a rename. Entries are small, and
-# cache_capacity_modifier scales this along with every other cache.
-#
-#space_hierarchy_cache_capacity = 1000
+#space_hierarchy_cache_capacity =
 
-# Entries kept in the in-memory state-info cache.
+# This item is undocumented. Please contribute documentation for it.
 #
-# One entry is the stack of compressed-state layers behind a single
-# shortstatehash, so an entry is far larger than an auth chain's and the
-# default is correspondingly smaller. Every read of a room's state goes
-# through it, so a miss costs a walk down the diff layers to the full
-# state at the bottom. cache_capacity_modifier scales it along with every
-# other cache.
-#
-#stateinfo_cache_capacity = 100 + (10 * CPU core count)
+#stateinfo_cache_capacity =
 
-# Number of database read workers to spawn per hardware queue, where
-# phantom could not learn the queue's own depth from the operating
-# system.
+# This item is undocumented. Please contribute documentation for it.
 #
-# These are operating-system threads, not tokio tasks: a read that misses
-# the block cache blocks until the storage answers, and doing that on a
-# tokio worker would stall every other task sharing it.
-#
-#db_pool_workers = 32
+#db_pool_workers =
 
-# Ceiling on the workers derived for one hardware queue, per CPU core
-# that queue serves.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Only bites where the storage reports a queue depth far above what the
-# cores feeding it could keep busy.
-#
-#db_pool_workers_limit = 64
+#db_pool_workers_limit =
 
-# Requests a queue accepts per worker servicing it, before submitting
-# blocks.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The queue is the handoff between the tokio workers producing requests
-# and the pool workers draining them. Backpressure here is deliberate: it
-# is what stops a burst of requests from being read off the network
-# faster than the storage can answer them.
-#
-#db_pool_queue_mult = 4
+#db_pool_queue_mult =
 
-# Pin each pool worker to the cores its hardware queue is served by.
-#
-# Keeps a request, its worker, and the queue that will carry it to the
-# device on the same node. Has no effect where there is one queue.
+# This item is undocumented. Please contribute documentation for it.
 #
 #db_pool_affinity = true
 
-# Scales the concurrency the stream combinators run at, which phantom
-# derives from the pool topology once the database is open.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Zero leaves the built-in defaults alone.
-#
-#stream_width_scale = 1.0
+#stream_width_scale =
 
-# Requests a stream gathers before handing a batch to the database.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Batching is what lets one queue submission cover many keys; the cost is
-# latency for the first key in a batch.
-#
-#stream_amplification = 1024
+#stream_amplification =
 
-# Enables atomic flush in RocksDB. Not intended for general use: it may
-# improve database integrity across an unclean shutdown at the cost of
-# write throughput, and it disables pipelined writes.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_atomic_flush = false
 
-# Compress the bottommost level, where the oldest and least-read data
-# settles.
-#
-# Costs CPU during compaction and saves storage. Best paired with zstd.
-#
-# See https://github.com/facebook/rocksdb/wiki/Compression for details.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_bottommost_compression = true
 
-# Compression level for the bottommost level. 32767 is RocksDB's magic
-# number for "the algorithm's own default", which differs per algorithm.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Since the bottommost level is the least-read data, a level far more
-# aggressive than the default is often worth the compaction cost. phantom
-# substitutes its own per-column levels while this holds the default.
-#
-#rocksdb_bottommost_compression_level = 32767
+#rocksdb_bottommost_compression_level =
 
-# Verify block checksums on read. Checksumming is usually hardware
-# accelerated and cheap; older or slower platforms may gain from
-# disabling it, at the cost of not detecting corruption on read.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_checksums = true
 
-# Run background compaction.
-#
-# You should never need to turn this off. A database that is not
-# compacted grows without bound, reads slow down as levels pile up, and
-# both startup and shutdown get slower.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_compaction = true
 
-# Run compaction threads at idle I/O priority, so compaction cannot
-# starve request handling of disk bandwidth.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_compaction_ioprio_idle = true
 
-# Run compaction threads at idle CPU priority. Off by default: on a busy
-# server it lets compaction fall arbitrarily far behind.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_compaction_prio_idle = false
 
-# Compression algorithm for the database.
+# This item is undocumented. Please contribute documentation for it.
 #
-# One of "zstd", "zlib", "bz2", "lz4", "lz4hc", "snappy", or "none".
-#
-# zstd is the best balance of speed, storage, and CPU. lz4 spends less
-# CPU for less compression. "none" disables compression entirely.
-#
-# See https://github.com/facebook/rocksdb/wiki/Compression for details.
-#
-#rocksdb_compression_algo = "zstd"
+#rocksdb_compression_algo =
 
-# Compression level for `rocksdb_compression_algo`. 32767 is RocksDB's
-# magic number for "the algorithm's own default", which differs per
-# algorithm. phantom substitutes its own per-column levels while this
-# holds the default.
+# This item is undocumented. Please contribute documentation for it.
 #
-#rocksdb_compression_level = 32767
+#rocksdb_compression_level =
 
-# Bypass the system page cache with direct I/O.
-#
-# Set this to false when the database lives on a filesystem that handles
-# direct I/O poorly or not at all, such as FUSE mounts and some ZFS
-# setups.
-#
-# See https://github.com/facebook/rocksdb/wiki/Direct-IO for details.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_direct_io = true
 
-# Log level for the database engine itself, which is separate from
-# phantom's `log`. These messages land in `LOG` files inside the database
-# directory. Accepts "debug", "info", "warn", "error", or "fatal".
+# This item is undocumented. Please contribute documentation for it.
 #
-#rocksdb_log_level = "error"
+#rocksdb_log_level =
 
-# Seconds before the database engine rotates its `LOG` file regardless of
-# size. 0 disables time-based rotation.
+# This item is undocumented. Please contribute documentation for it.
 #
-#rocksdb_log_time_to_roll = 0
+#rocksdb_log_time_to_roll = false
 
-# Size in bytes a `LOG` file may reach before it is rotated.
+# This item is undocumented. Please contribute documentation for it.
 #
-#rocksdb_max_log_file_size = 4194304
+#rocksdb_max_log_file_size =
 
-# How many `LOG` files to keep. Must be at least 1.
+# This item is undocumented. Please contribute documentation for it.
 #
-#rocksdb_max_log_files = 3
+#rocksdb_max_log_files =
 
-# Tune the database for rotational storage.
-#
-# This skips the file-size and statistics checks that make opening a
-# database on a hard drive slow, and stops phantom from reading ahead as
-# aggressively as it would on an SSD.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_optimize_for_spinning_disks = false
 
-# Threads the database engine may use for background work: compaction,
-# flushes, syncs, and cleanup. 0 means one per logical CPU.
+# This item is undocumented. Please contribute documentation for it.
 #
-#rocksdb_parallelism_threads = 0
+#rocksdb_parallelism_threads = false
 
-# Run paranoid SST file checks. Catches more corruption at the cost of
-# doing more work on every file the engine touches.
-#
-# See https://github.com/facebook/rocksdb/wiki/Online-Verification for
-# details.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_paranoid_file_checks = false
 
-# Open the database read-only. Writes fail; useful for inspecting a
-# database without risking it.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_read_only = false
 
-# How the engine recovers from a corrupt write-ahead log, for when the
-# server reports corruption and refuses to start:
+# This item is undocumented. Please contribute documentation for it.
 #
-# 0 = AbsoluteConsistency — never roll anything back; fail instead.
-# 1 = TolerateCorruptedTailRecords — drop a torn trailing record.
-# 2 = PointInTime — resume from the last consistent point, losing the
-#     seconds or minutes before the crash. Use this to recover.
-# 3 = SkipAnyCorruptedRecord — skip past corruption anywhere in the log.
-#     A last resort that can leave the database inconsistent.
-#
-# Mode 1 is the default: a Matrix homeserver can re-fetch what a torn
-# tail record loses over federation. After recovering with mode 2 or 3,
-# set this back to 1 and restart.
-#
-# See https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes.
-#
-#rocksdb_recovery_mode = 1
+#rocksdb_recovery_mode =
 
-# Repair the database on startup, for when corruption is reported while
-# running rather than at startup — errors naming SST files, typically.
-# Try `rocksdb_recovery_mode` first if the server will not start at all.
-#
-# Back the database directory up before repairing, and turn this back off
-# once the repair has succeeded.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_repair = false
 
-# Open the database as a secondary instance of a primary held by another
-# process. The instance is read-only and catches up on demand.
+# This item is undocumented. Please contribute documentation for it.
 #
 #rocksdb_secondary = false
 
-# How much statistics the engine collects, from 0 to 6. Some admin
-# commands need this above 0; higher levels cost performance.
+# This item is undocumented. Please contribute documentation for it.
 #
-# 0 = none.
-# 1 = none in release builds, all but the detailed timers in debug ones.
-# 2 to 3 = statistics with no measurable impact.
-# 4 to 5 = statistics with a possible impact.
-# 6 = everything.
-#
-#rocksdb_stats_level = 1
+#rocksdb_stats_level =
 
-# Entries the in-process DNS cache holds. Entries vary in size, so raise
-# this carefully. Lower it only where a real external cache sits in
-# front of phantom — systemd-resolved is not one.
+# This item is undocumented. Please contribute documentation for it.
 #
-#dns_cache_entries = 32768
+#dns_cache_entries =
 
-# Seconds a resolved name is held even if its record says less.
+# This item is undocumented. Please contribute documentation for it.
 #
-#dns_min_ttl = 10800
+#dns_min_ttl =
 
-# Seconds an NXDOMAIN is held. Three days by default, and deliberately:
-# a name that does not resolve is almost never about to, and rechecking
-# each one is what makes a server with dead remotes in its rooms slow.
+# This item is undocumented. Please contribute documentation for it.
 #
-#dns_min_ttl_nxdomain = 259200
+#dns_min_ttl_nxdomain =
 
-# Attempts made at a nameserver before the query is given up on.
+# This item is undocumented. Please contribute documentation for it.
 #
-#dns_attempts = 10
+#dns_attempts =
 
-# Seconds phantom waits for a nameserver to answer. Recursive queries
-# take seconds on some domains, so a low value here reads as a DNS
-# outage.
+# This item is undocumented. Please contribute documentation for it.
 #
-#dns_timeout = 10
+#dns_timeout =
 
-# Retry a query over TCP when the UDP one errors or is truncated.
+# This item is undocumented. Please contribute documentation for it.
 #
 #dns_tcp_fallback = true
 
-# Query the configured nameservers over TCP only. Some container
-# networks need this, where UDP replies are truncated or dropped.
+# This item is undocumented. Please contribute documentation for it.
 #
 #query_over_tcp_only = false
 
-# Keep asking the remaining nameservers after one says the name does not
-# exist, rather than trusting the first negative answer.
+# This item is undocumented. Please contribute documentation for it.
 #
 #query_all_nameservers = true
 
-# Which address records to look up, and in what order.
+# This item is undocumented. Please contribute documentation for it.
 #
-# One of "ipv4-only", "ipv6-only", "ipv4-and-ipv6" (both at once, first
-# answer wins), "ipv6-then-ipv4", or "ipv4-then-ipv6".
-#
-# On a host with no IPv6 route, "ipv4-only" saves a lookup whose answer
-# could never be connected to.
-#
-#ip_lookup_strategy = "ipv4-then-ipv6"
+#ip_lookup_strategy = false
 
-# Serve this server's public room directory to other servers over
-# federation.
-#
-# Leaving this off keeps the directory from being crawled by remote
-# spiders, at the cost of your rooms not appearing in other servers'
-# directory searches.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_public_room_directory_over_federation = false
 
-# Send device display names to other servers, so remote users see what a
-# local user named their session.
-#
-# Off by default: the names are frequently identifying, and nothing in
-# the protocol needs them.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_device_name_federation = false
 
-# Notary servers to gather other servers' public keys from, when this
-# server does not already hold a key it needs.
+# This item is undocumented. Please contribute documentation for it.
 #
-# example: ["matrix.org", "tchncs.de"]
-#
-#trusted_servers = ["matrix.org"]
+#trusted_servers =
 
-# Ask the notaries in `trusted_servers` for a key before asking the
-# server the key belongs to.
-#
-# Asking the origin first is the safer order: a notary that has been
-# compromised can only answer for keys it was asked about, and it is
-# only asked once the origin has failed to answer. Asking the notaries
-# first is faster, since one notary can answer for many servers at once.
+# This item is undocumented. Please contribute documentation for it.
 #
 #query_trusted_key_servers_first = false
 
-# Ask the notaries first, but only while joining a room.
-#
-# A join gathers keys from every server in the room, which is where the
-# per-origin round trips are most noticeable; this bounds the exposure
-# to a compromised notary to that one operation. Ignored where
-# `query_trusted_key_servers_first` is already on.
+# This item is undocumented. Please contribute documentation for it.
 #
 #query_trusted_key_servers_first_on_join = true
 
-# Only ever ask the notaries in `trusted_servers` for keys, and never
-# the server a key belongs to.
-#
-# For a cluster behind a notary it operates itself. With no reachable
-# notary holding a key, that key is simply never acquired.
+# This item is undocumented. Please contribute documentation for it.
 #
 #only_query_trusted_key_servers = false
 
-# Servers to ask a notary about in one batched request.
+# This item is undocumented. Please contribute documentation for it.
 #
-#trusted_server_batch_size = 256
+#trusted_server_batch_size =
 
-# Send federation requests to other servers.
-#
-# With this off the server still answers what arrives, but never
-# initiates a request of its own, which includes fetching the signing
-# keys needed to verify a remote event.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_federation = true
 
-# Servers this server refuses to send federation requests to, as regular
-# expressions matched against the server name.
+# This item is undocumented. Please contribute documentation for it.
 #
-# A plain word is a valid pattern, and matches anywhere in the name.
-#
-# example: ["badserver\\.tld$", "badphrase", "19dollarfortnitecards"]
-#
-#forbidden_remote_server_names = []
+#forbidden_remote_server_names = false
 
-# How long the server will spend fetching and placing the events before
-# an event that arrived with a gap in front of it, in seconds.
+# This item is undocumented. Please contribute documentation for it.
 #
-# A server that has been unreachable for a while hands back an event
-# whose history this server is missing entirely, and closing that gap
-# event by event can take longer than the outage did. When the budget
-# runs out the event is still accepted — its state comes from the sending
-# server rather than from this server's own record — and the rest of the
-# gap is left to backfill.
-#
-#federation_prev_event_budget_s = 300
+#federation_prev_event_budget_s =
 
-# Servers whose public room directory this server will neither query nor
-# republish, as regular expressions matched against the server name.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Narrower than `forbidden_remote_server_names`, which already covers
-# the directory along with everything else — this is for a server worth
-# federating with whose room directory is not worth showing.
-#
-# example: ["nsfwserver\\.tld$"]
-#
-#forbidden_remote_room_directory_server_names = []
+#forbidden_remote_room_directory_server_names = false
 
-# Servers this server will not download media from, as regular
-# expressions matched against the server name.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Narrower than `forbidden_remote_server_names` in the same way: the
-# server is federated with, but nothing it hosts is fetched onto this
-# server's disk. Media already downloaded is not removed — the admin
-# command that purges it is.
-#
-# example: ["badserver\\.tld$"]
-#
-#forbidden_remote_media_server_names = []
+#forbidden_remote_media_server_names = false
 
-# Send federation requests to this server itself, which nothing but a
-# bug or a development setup has a reason to do.
+# This item is undocumented. Please contribute documentation for it.
 #
 #federation_loopback = false
 
-# Enable the built-in metrics endpoint.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_metrics = false
 
-# Max log level for phantom. Allows debug, info, warn, or error.
+# This item is undocumented. Please contribute documentation for it.
 #
-# See also:
-# https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
-#
-# **Caveat**:
-# For release builds, the tracing crate is configured to only implement
-# levels higher than error to avoid unnecessary overhead in the compiled
-# binary from trace macros. For debug builds, this restriction is not
-# applied.
-#
-#log = "info"
+#log =
 
-# Output logs with ANSI colours. Colours are omitted regardless of this
-# setting when running under systemd, where they would be stored verbatim
-# in the journal.
+# This item is undocumented. Please contribute documentation for it.
 #
 #log_colors = true
 
-# Configures the span events which will be outputted with the log.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Accepts one or more of "new", "enter", "exit", "close", "active",
-# "full" or "none", separated by commas.
-#
-#log_span_events = "none"
+#log_span_events =
 
-# Configures whether `log` matches values using regular expressions. See
-# the tracing_subscriber documentation on Directives.
+# This item is undocumented. Please contribute documentation for it.
 #
 #log_filter_regex = true
 
-# Toggles the display of ThreadId in tracing log output.
+# This item is undocumented. Please contribute documentation for it.
 #
 #log_thread_ids = false
 
-# Milliseconds a login token stays valid for.
+# This item is undocumented. Please contribute documentation for it.
 #
-# This is the `m.login.token` handed out to complete a login started
-# elsewhere, so it is spent within seconds of being issued; the spec caps
-# it at five minutes.
-#
-#login_token_ttl = 120000
+#login_token_ttl =
 
-# Path to the directory holding uploaded and cached media files.
-#
-# Media is kept as files rather than in the database because it is large,
-# written once and read whole — everything a filesystem is better at than
-# a key-value store. What the database holds is the metadata pointing at
-# them, so the two must be backed up and restored together.
-#
-# Leave this unset to use a `media` directory under `database_path`.
-#
-# example: "/var/lib/phantom/media"
+# This item is undocumented. Please contribute documentation for it.
 #
 #media_path =
 
-# Check at startup that every file the media metadata names is present.
-#
-# Answers a request for media that is not there with "gone" rather than
-# with an error, which is what a client can act on. The check reads one
-# directory entry per stored file, so an installation with a very large
-# media store may prefer to turn it off and accept the worse error.
+# This item is undocumented. Please contribute documentation for it.
 #
 #media_startup_check = true
 
-# Largest picture, in pixels, the thumbnailer will decode.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Dimensions cost memory whatever the encoded file weighs — a few
-# kilobytes of PNG can declare a picture that costs gigabytes to hold —
-# so a picture declaring more than this is served without a thumbnail
-# rather than decoded. A frame extracted from a video inherits the
-# resolution of the video it came from and is bounded here too.
-#
-# 50 megapixels is roughly four 8K frames, and more than any ordinary
-# camera produces. Each pixel is budgeted four bytes, so the default
-# admits a decode of about 200 MiB. The budget is per decode in flight,
-# which is what to size it against: thumbnail requests are not otherwise
-# limited in number.
-#
-#media_thumbnail_max_pixels = 50000000
+#media_thumbnail_max_pixels =
 
-# Program that extracts a still frame from a video, so that a video can
-# be given a thumbnail. Phantom decodes no video itself; the frame the
-# program writes is thumbnailed as an ordinary picture and cached as an
-# ordinary thumbnail.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The list is an argument vector whose first entry is the program and
-# whose remaining entries are its arguments. It is executed directly and
-# never through a shell, so no quoting or expansion applies. Every
-# argument has these tokens substituted before each call:
-#
-# - `{input}` the path of a temporary file holding the source video.
-# - `{width}` and `{height}` the requested thumbnail dimensions.
-#
-# The program writes one frame to standard output in any format the
-# thumbnailer decodes: PNG, JPEG, WebP or GIF. While the list is empty,
-# videos are served without a thumbnail.
-#
-# example: [
-# "ffmpeg", "-loglevel", "error", "-i", "{input}", "-vf", "thumbnail",
-# "-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1",
-# ]
-#
-#media_video_thumbnail_command = []
+#media_video_thumbnail_command = false
 
-# List of storage providers to use for media. Providers can be configured
-# below in respective sections designated by
-# `global.storage_provider.<NAME>.<brand>` where `NAME` can be listed
-# here.
+# This item is undocumented. Please contribute documentation for it.
 #
-# For advanced features and future extensions involving multiple providers
-# the list may contain multiple entries. You MUST take note of other
-# configuration options when listing multiple providers or resource
-# duplication costs and poor performance can result.
-#
-# The list defaults to `["media"]` which is an implicit storage provider
-# representing the media directory on the local filesystem. It can be
-# altered by configuring `global.storage_provider.media.local` explicitly
-# or disabled by omitting it from this list entirely. Users with existing
-# deployments are advised to continue listing "media" as a fallback along
-# with their new provider.
-#
-# reloadable: yes
-#
-#media_storage_providers = ["media"]
+#media_storage_providers =
 
-# Seconds a video thumbnail request may spend extracting its frame.
+# This item is undocumented. Please contribute documentation for it.
 #
-# One deadline spans the wait for a free slot, staging the video and the
-# program itself, so a queue cannot compound it into a multiple of what
-# is configured here. On expiry the program and anything it spawned are
-# killed and the video is served without a thumbnail.
-#
-#media_video_thumbnail_timeout = 30
+#media_video_thumbnail_timeout =
 
-# Frame extractions permitted to run at once.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Decoding video costs far more than scaling a picture, so requests past
-# this limit wait for a slot rather than piling load onto the host. A
-# slot is held from staging the video through to the program exiting, so
-# this also bounds how many staged videos occupy the staging directory at
-# once. Raise it where cores are spare.
-#
-#media_video_thumbnail_concurrency = 1
+#media_video_thumbnail_concurrency =
 
-# Largest video, in bytes, staged for the thumbnail program, and largest
-# frame read back from it.
+# This item is undocumented. Please contribute documentation for it.
 #
-# A video past this is served without a thumbnail rather than written
-# out, and a frame past it is refused rather than decoded from what would
-# be a truncation.
-#
-#media_video_thumbnail_max_size = 134217728
+#media_video_thumbnail_max_size =
 
-# Directory a video is staged in for the thumbnail program to read.
-#
-# One file per running program, removed as soon as it exits, and any left
-# behind by a killed server are reclaimed at startup. Leave this unset to
-# use a `tmp` directory under `database_path`, which keeps videos off the
-# memory-backed `/tmp` a service manager commonly provides.
-#
-# example: "/var/tmp/phantom"
+# This item is undocumented. Please contribute documentation for it.
 #
 #media_video_thumbnail_path =
 
-# Media IDs one user may hold reserved but unfilled at a time.
+# This item is undocumented. Please contribute documentation for it.
 #
-# A client may ask for a media ID before it has the file, so that it can
-# send the message naming it first. Each reservation is a promise to
-# serve something at that URI, so a user cannot hold an unbounded number
-# of them.
-#
-#max_pending_media_uploads = 5
+#max_pending_media_uploads =
 
-# Seconds a reserved media ID stays fillable before it expires.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Past this the reservation is refused rather than filled, and the ID
-# stays permanently unresolvable: a client that reserves one and loses
-# the file must reserve another.
-#
-#media_create_unused_expiration_time = 86400
+#media_create_unused_expiration_time =
 
-# Media IDs a user may reserve per second, sustained.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Reserving one costs nothing but the record, which is what makes it
-# worth rate limiting separately from the upload it precedes. Zero
-# disables the limit.
-#
-#media_rc_create_per_second = 10
+#media_rc_create_per_second =
 
-# Media ID reservations a user may make in a burst.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The allowance refills at `media_rc_create_per_second`, so this is what
-# a client may spend at once after a quiet period. Zero disables the
-# limit.
-#
-#media_rc_create_burst_count = 50
+#media_rc_create_burst_count =
 
-# Domains phantom may fetch URL previews from, matched as a substring of
-# the URL's host.
+# This item is undocumented. Please contribute documentation for it.
 #
-# "google.com" matches `https://google.com` and also
-# `http://notgoogle.com.example`, so prefer
-# `url_preview_domain_explicit_allowlist` where you can. "*" allows
-# every domain, which lets any user aim this server at any host on its
-# network.
-#
-#url_preview_domain_contains_allowlist = []
+#url_preview_domain_contains_allowlist = false
 
-# Domains phantom may fetch URL previews from, matched exactly.
+# This item is undocumented. Please contribute documentation for it.
 #
-# "google.com" matches `https://google.com` but not
-# `https://notgoogle.com.example`. See
-# `url_preview_check_root_domain` for matching subdomains too.
-#
-#url_preview_domain_explicit_allowlist = []
+#url_preview_domain_explicit_allowlist = false
 
-# Domains phantom may never fetch URL previews from, matched exactly.
-# Checked before either allowlist, so it always wins.
+# This item is undocumented. Please contribute documentation for it.
 #
-#url_preview_domain_explicit_denylist = []
+#url_preview_domain_explicit_denylist = false
 
-# URLs phantom may fetch previews from, matched as a substring of the
-# whole URL rather than of its host.
+# This item is undocumented. Please contribute documentation for it.
 #
-# This matches anywhere in the URL, so "google.com" also matches
-# `https://example.invalid/google.com`. "*" allows every URL.
-#
-#url_preview_url_contains_allowlist = []
+#url_preview_url_contains_allowlist = false
 
-# Bytes of a page phantom reads before giving up on finding its preview
-# metadata.
+# This item is undocumented. Please contribute documentation for it.
 #
-#url_preview_max_spider_size = 256000
+#url_preview_max_spider_size =
 
-# Bytes of a single media item phantom will fetch or relay for a URL
-# preview: the `og:image` it measures, and the file behind each
-# `mxc://` a preview hands out.
+# This item is undocumented. Please contribute documentation for it.
 #
-# A file whose advertised length is over this is not registered at all,
-# so a client is never given a URI the relay is bound to refuse.
-#
-#url_preview_max_media_size = 52428800
+#url_preview_max_media_size =
 
-# Seconds a fetched URL preview stays cached, an empty one included.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Raising it spares the origins named in a room whose history is read
-# often, at the cost of serving metadata a page has since changed. Zero
-# fetches on every request.
-#
-#url_preview_cache_ttl = 86400
+#url_preview_cache_ttl =
 
-# `User-Agent` phantom sends when fetching a page to read its OpenGraph
-# tags. Unset sends the ordinary server agent.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Some origins serve those tags only to an agent they recognise as a
-# link-preview crawler, and serve everyone else a page whose tags sit
-# past `url_preview_max_spider_size`.
-#
-#url_preview_user_agent =
+#url_preview_user_agent = false
 
-# `User-Agent` phantom sends when fetching the media a preview names —
-# `og:image`, `og:video`, `og:audio`, and a URL that is itself a file —
-# as opposed to the page they appear on. Unset falls back to
-# `url_preview_user_agent`.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Setting this is also what makes a page-agent rejection non-final: a
-# URL the page client is refused is retried with this one, since an
-# origin that gates its pages often does not gate its files.
-#
-#url_preview_media_user_agent =
+#url_preview_media_user_agent = false
 
-# Apply the domain allowlists to a URL's root domain rather than to the
-# host it names, so that allowing "wikipedia.org" also allows
-# "en.m.wikipedia.org". Does not affect
-# `url_preview_url_contains_allowlist`.
+# This item is undocumented. Please contribute documentation for it.
 #
 #url_preview_check_root_domain = false
 
-# Address, or the name of a network interface, that URL preview requests
-# are sent from. Unset lets the operating system pick.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Interface names work on Linux, Android and Fuchsia; elsewhere only an
-# address is accepted, and a name is rejected at startup.
-#
-# example: "eth0" or "1.2.3.4"
-#
-#url_preview_bound_interface =
+#url_preview_bound_interface = false
 
-# CIDR ranges phantom will not send an outbound request to, which is
-# what keeps a URL preview or a media fetch from being aimed at the
-# network this server is on.
+# This item is undocumented. Please contribute documentation for it.
 #
-# This is enforced in phantom, so it is a backstop rather than a
-# boundary: a firewall is what actually contains the server. Requests
-# through a proxy are not checked against it. Set it to `[]` to disable.
-#
-# The default covers the loopback, private, link-local, shared-address,
-# documentation, benchmarking, multicast and unique-local ranges of both
-# address families.
-#
-# "192.168.0.0/16", "100.64.0.0/10", "192.0.0.0/24", "169.254.0.0/16",
-# "192.88.99.0/24", "198.18.0.0/15", "192.0.2.0/24", "198.51.100.0/24",
-# "203.0.113.0/24", "224.0.0.0/4", "::1/128", "fe80::/10", "fc00::/7",
-# "2001:db8::/32", "ff00::/8", "fec0::/10"]
-#
-#ip_range_denylist = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
+#ip_range_denylist =
 
-# Proxy the outbound requests go through.
+# This item is undocumented. Please contribute documentation for it.
 #
-# `"none"` sends them directly. A table under `[global.proxy]` either
-# proxies everything:
-#
-# ```toml
-# [global.proxy]
-# global = { url = "socks5h://localhost:9050" }
-# ```
-#
-# or proxies the domains that match a rule, which is what reaching
-# `.onion` servers over Tor while everything else goes direct looks
-# like:
-#
-# ```toml
-# [[global.proxy.by_domain]]
-# url = "socks5h://localhost:9050"
-# include = ["*.onion", "matrix.myspecial.onion"]
-# exclude = ["*.myspecial.onion"]
-# ```
-#
-# An empty `include` reads as `["*"]`. Where a domain matches both
-# lists, the more specific rule decides — above, the proxy is used for
-# `ordinary.onion` and `matrix.myspecial.onion`, but not for
-# `hello.myspecial.onion`.
-#
-# Note that `ip_range_denylist` is not applied to a proxied request.
-#
-#proxy = "none"
+#proxy = false
 
-# Seconds phantom waits to establish a connection, for the requests that
-# have no timeout of their own: URL previews and the announcement check.
+# This item is undocumented. Please contribute documentation for it.
 #
-#request_conn_timeout = 10
+#request_conn_timeout =
 
-# Seconds phantom waits for more data on one of those connections before
-# giving up on the response.
+# This item is undocumented. Please contribute documentation for it.
 #
-#request_timeout = 35
+#request_timeout =
 
-# Seconds one of those requests may take in total. Deliberately far
-# above `request_timeout`: this is the backstop that stops a request
-# from living forever, not the one that should normally fire.
+# This item is undocumented. Please contribute documentation for it.
 #
-#request_total_timeout = 320
+#request_total_timeout =
 
-# Seconds an unused connection is kept in the pool for those requests.
+# This item is undocumented. Please contribute documentation for it.
 #
-#request_idle_timeout = 5
+#request_idle_timeout =
 
-# Unused connections kept per host for those requests. One is usually
-# right: the next request to a host can reuse the connection the last
-# one left.
+# This item is undocumented. Please contribute documentation for it.
 #
-#request_idle_per_host = 1
+#request_idle_per_host =
 
-# Seconds phantom waits to connect while resolving another server's
-# `.well-known/matrix/server`.
+# This item is undocumented. Please contribute documentation for it.
 #
-#well_known_conn_timeout = 6
+#well_known_conn_timeout =
 
-# Seconds a `.well-known` request may take in total.
+# This item is undocumented. Please contribute documentation for it.
 #
-#well_known_timeout = 10
+#well_known_timeout =
 
-# Seconds phantom waits for more data from another homeserver.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Worth keeping high: a join to a large room is one request, and the
-# remote server may be some time assembling the response.
-#
-#federation_timeout = 300
+#federation_timeout =
 
-# Seconds an unused federation connection is kept in the pool.
+# This item is undocumented. Please contribute documentation for it.
 #
-#federation_idle_timeout = 25
+#federation_idle_timeout =
 
-# Unused federation connections kept per remote server.
+# This item is undocumented. Please contribute documentation for it.
 #
-#federation_idle_per_host = 1
+#federation_idle_per_host =
 
-# Seconds a transaction the sender pushes to another server may take.
-# The remote server has to process everything in it before answering.
+# This item is undocumented. Please contribute documentation for it.
 #
-#sender_timeout = 180
+#sender_timeout =
 
-# Seconds an unused sender connection is kept in the pool.
+# This item is undocumented. Please contribute documentation for it.
 #
-#sender_idle_timeout = 180
+#sender_idle_timeout =
 
-# Longest a remote server that keeps failing is left alone between
-# attempts. The wait after a failure doubles each time, starting from
-# `sender_timeout`, and stops growing here.
+# This item is undocumented. Please contribute documentation for it.
 #
-#sender_retry_backoff_limit = 86400
+#sender_retry_backoff_limit =
 
-# Seconds the sender waits for its in-flight transactions to finish at
-# shutdown before giving up on them. Nothing is lost either way: what
-# was not acknowledged is sent again at the next start.
+# This item is undocumented. Please contribute documentation for it.
 #
-#sender_shutdown_timeout = 5
+#sender_retry_grace =
 
-# Worker tasks the sender spreads its destinations over. Each remote
-# server always lands on the same worker, so ordering to one server is
-# kept. Never more than the runtime has threads.
+# This item is undocumented. Please contribute documentation for it.
 #
-# 0 runs a single worker.
-#
-#sender_workers = 0
+#feds_max_width =
 
-# Send the transactions that were still in flight when the server last
-# stopped as soon as it starts. Off, they wait until there is something
-# new to send to that server.
+# This item is undocumented. Please contribute documentation for it.
+#
+#feds_timeout =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#sender_shutdown_timeout =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#sender_workers = false
+
+# This item is undocumented. Please contribute documentation for it.
 #
 #startup_netburst = true
 
-# Events per remote server the startup burst may carry; the rest are
-# dropped. Servers that were unreachable for a long time can have a lot
-# queued, and sending all of it at once is rarely wanted. -1 keeps
-# everything.
+# This item is undocumented. Please contribute documentation for it.
 #
-#startup_netburst_keep = 50
+#startup_netburst_keep =
 
-# Seconds a request to an appservice may take. Appservices usually sit
-# on the same network, so this is about the work they do rather than the
-# distance.
+# This item is undocumented. Please contribute documentation for it.
 #
-#appservice_timeout = 35
+#appservice_timeout =
 
-# Seconds an unused appservice connection is kept in the pool.
+# This item is undocumented. Please contribute documentation for it.
 #
-#appservice_idle_timeout = 300
+#appservice_idle_timeout =
 
-# Seconds an unused push gateway connection is kept in the pool.
+# This item is undocumented. Please contribute documentation for it.
 #
-#pusher_idle_timeout = 15
+#pusher_idle_timeout =
 
-# Accept and decompress gzip-encoded responses.
-#
-# Compression on a TLS connection can leak plaintext to someone watching
-# the sizes; see https://en.wikipedia.org/wiki/BREACH. Off unless the
-# bandwidth matters more.
+# This item is undocumented. Please contribute documentation for it.
 #
 #gzip_compression = false
 
-# Accept and decompress brotli-encoded responses. See
-# `gzip_compression`.
+# This item is undocumented. Please contribute documentation for it.
 #
 #brotli_compression = false
 
-# Accept and decompress zstd-encoded responses. See `gzip_compression`.
+# This item is undocumented. Please contribute documentation for it.
 #
 #zstd_compression = false
 
-# Skip TLS certificate validation on every outbound request.
-#
-# There is no safe use of this outside a lab: it hands anyone who can
-# intercept the connection everything that goes over it, federation
-# traffic included. `validate` refuses to let it pass quietly.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_invalid_tls_certificates = false
 
-# Offer this server's own OpenID Connect provider without any upstream
-# identity provider behind it.
-#
-# The OIDC server is built whenever an `identity_provider` is configured.
-# Turning this on builds it for a server that has none, so that clients
-# speaking next-gen auth can log in against local passwords. Requires
-# `well_known_client`.
+# This item is undocumented. Please contribute documentation for it.
 #
 #oidc_native_auth = false
 
-# Requests per second one client address may make to the OIDC endpoints.
+# This item is undocumented. Please contribute documentation for it.
 #
-# This and `oidc_rc_burst_count` are a token bucket: the rate is how fast
-# it refills, the burst is how deep it is. Leaving either at `0` turns
-# the throttle off. It is off by default because these endpoints are
-# reached through a browser, where a redirect chain can look like a
-# burst; the device-code endpoints are throttled regardless.
-#
-#oidc_rc_per_second = 0
+#oidc_rc_per_second = false
 
-# How many OIDC requests one client address may make at once.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The depth of the bucket `oidc_rc_per_second` refills. Ignored while
-# that is `0`.
-#
-#oidc_rc_burst_count = 0
+#oidc_rc_burst_count = false
 
-# Cap on the size of a response read back from an identity provider.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Discovery documents, token responses and userinfo are all small; the
-# cap is what stops a provider — or something answering in its place —
-# from streaming until this server runs out of memory.
-#
-#oidc_max_response_size = 262144
+#oidc_max_response_size =
 
-# Seconds a user may be idle before their presence is moved from
-# "online" to "unavailable".
+# This item is undocumented. Please contribute documentation for it.
 #
-# The clock starts at the last presence update the user's client sent,
-# so a client that pings while a person is away keeps them online.
-#
-#presence_idle_timeout_s = 300
+#presence_idle_timeout_s =
 
-# Seconds a user may stay "unavailable" before their presence is moved
-# to "offline".
+# This item is undocumented. Please contribute documentation for it.
 #
-# Measured from the same last update as `presence_idle_timeout_s`
-# rather than from the move to "unavailable", so it wants to be the
-# larger of the two.
-#
-#presence_offline_timeout_s = 1800
+#presence_offline_timeout_s =
 
-# Time out remote users' presence as well as local users'.
-#
-# A remote server sends presence for its own users and stops sending
-# when they go quiet, which leaves them showing as online here forever.
-# Timing them out locally is what clears that, at the cost of a timer
-# per remote user this server has heard about.
+# This item is undocumented. Please contribute documentation for it.
 #
 #presence_timeout_remote_users = true
 
-# Send local users' presence to the other servers in their rooms.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_outgoing_presence = true
 
-# Send local users' read receipts to the other servers in their rooms.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_outgoing_read_receipts = true
 
-# Send local users' typing notifications to the other servers in their
-# rooms.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_outgoing_typing = true
 
-# Makes leaving a room also forget it, rather than leaving it in the
-# user's `leave` section of sync until they forget it themselves.
-#
-# Banned and admin-disabled rooms are forgotten on leave either way.
+# This item is undocumented. Please contribute documentation for it.
 #
 #forget_forced_upon_leave = false
 
-# Allow ordinary users to create rooms. Admins and appservices may
-# always create them regardless of this.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_room_creation = true
 
-# Keep the original of an event before a redaction strips it.
-#
-# A redaction removes content the spec does not require the event to
-# keep, and the copy retained here is what a moderator reviewing a report
-# reads afterwards. Leaving this off makes a redaction final on arrival.
+# This item is undocumented. Please contribute documentation for it.
 #
 #save_unredacted_events = true
 
-# Seconds an original retained by `save_unredacted_events` is kept before
-# it is swept.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The default is 60 days. Zero keeps the originals indefinitely, which
-# grows without bound — set it only where something else prunes them.
-#
-#redaction_retention_seconds = 5184000
+#redaction_retention_seconds =
 
-# Room aliases and room IDs that may not be created, as regular
-# expressions. A plain word is a valid pattern, and matches anywhere in
-# the alias.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Checked when an alias or a custom room ID is created, and at startup
-# against the aliases already in the database, which are reported as
-# warnings rather than removed.
-#
-# example: ["19dollarfortnitecards", "b[4a]droom", "badphrase"]
-#
-#forbidden_alias_names = []
+#forbidden_alias_names = false
 
-# Usernames that may not be registered, as regular expressions. A plain
-# word is a valid pattern, and matches anywhere in the username.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Checked on the availability request and on registration, and at
-# startup against the users already in the database, which are reported
-# as warnings rather than removed.
-#
-# example: ["administrator", "b[a4]dusernam[3e]", "badphrase"]
-#
-#forbidden_usernames = []
+#forbidden_usernames = false
 
-# Static TURN username handed to clients, for a TURN server that
-# authenticates with fixed credentials rather than `turn_secret`.
+# This item is undocumented. Please contribute documentation for it.
 #
-#turn_username = ""
+#turn_username = false
 
-# Static TURN password handed to clients. See `turn_username`.
+# This item is undocumented. Please contribute documentation for it.
 #
-#turn_password = ""
+#turn_password = false
 
-# TURN servers to hand to clients, as URIs. Use the `turns:` scheme
-# rather than `turn:` for TURN over TLS.
+# This item is undocumented. Please contribute documentation for it.
 #
-# example: ["turn:example.turn.uri?transport=udp",
-# "turn:example.turn.uri?transport=tcp"]
-#
-#turn_uris = []
+#turn_uris = false
 
-# Shared secret the TURN server is configured with, from which phantom
-# derives the time-limited credentials it hands each client.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Preferred over the static `turn_username`/`turn_password` pair, since
-# a credential phantom derives expires on its own.
-#
-#turn_secret = ""
+#turn_secret = false
 
-# Path to a file holding the TURN shared secret instead of writing it
-# into the config. The contents are read once at startup, with
-# surrounding whitespace trimmed, and take priority over `turn_secret`;
-# a file that cannot be read falls back to it.
-#
-# example: "/etc/phantom/.turn_secret"
+# This item is undocumented. Please contribute documentation for it.
 #
 #turn_secret_file =
 
-# How long, in seconds, a TURN credential phantom derives stays valid.
+# This item is undocumented. Please contribute documentation for it.
 #
-#turn_ttl = 86400
+#turn_ttl =
 
-# Periodically fetch phantom's announcement feed, which carries security
-# and release notices. Despite the name this checks for announcements,
-# not for a newer version to install.
+# This item is undocumented. Please contribute documentation for it.
 #
 #allow_check_for_updates = false
 
-# Where the announcement feed is fetched from.
+# This item is undocumented. Please contribute documentation for it.
 #
-# The feed is a JSON document of `{"announcements": [{"id": 1, "message":
-# "..."}]}`, read in ascending `id` order; an operator running their own
-# fork points this at their own file.
-#
-#check_for_updates_url = "https://raw.githubusercontent.com/HilthonTT/phantom/main/announcements.json"
+#check_for_updates_url =
 
-# How long to wait between fetches of the announcement feed, in seconds.
+# This item is undocumented. Please contribute documentation for it.
 #
-#check_for_updates_interval_s = 7200
+#check_for_updates_interval_s =
 
 [global.identity_provider.example]
 
-# The brand of the service (`github`, `gitlab`, `google`) or of the
-# software (`keycloak`, `mas`) behind this provider.
-#
-# A recognised brand supplies defaults, and for some it selects the
-# workarounds that provider needs — GitHub is not an OpenID Connect
-# provider at all and only works because it is named here. Matching is
-# case-insensitive.
-#
-# Several providers may share a brand. Where exactly one carries a brand,
-# that brand also names it, which is the short spelling a login page
-# uses; where more than one does, only the `client_id` names it.
-#
-# example: "github"
+# This item is undocumented. Please contribute documentation for it.
 #
 #brand =
 
-# The client ID the provider issued when this application was registered.
-#
-# This is also the provider's identifier here, so it must not change: the
-# identities associated with a provider are keyed against it.
+# This item is undocumented. Please contribute documentation for it.
 #
 #client_id =
 
-# The client secret the provider issued alongside the `client_id`.
-#
-# Unlike the ID this may be rotated freely.
+# This item is undocumented. Please contribute documentation for it.
 #
 #client_secret =
 
-# Read the client secret from this file instead of writing it here.
-#
-# Ignored where `client_secret` is set. The file is read on each exchange
-# rather than held in memory, must be non-empty, and is trimmed of
-# surrounding whitespace.
-#
-# example: "/etc/phantom/.client_secret"
+# This item is undocumented. Please contribute documentation for it.
 #
 #client_secret_file =
 
-# The issuer URL the provider publishes.
-#
-# Optional only for the brands with a known issuer; required for anything
-# self-hosted. It must match what the provider claims in its discovery
-# document, and it must never change, because an identity is associated
-# to the pair of issuer and subject.
+# This item is undocumented. Please contribute documentation for it.
 #
 #issuer_url =
 
-# The callback URL registered with the provider.
-#
-# Derived from `well_known_client` when unset, as
-# `/_matrix/client/unstable/login/sso/callback/<client_id>`. The provider
-# must be configured with exactly the same URL.
+# This item is undocumented. Please contribute documentation for it.
 #
 #callback_url =
 
-# Treat this provider as the default.
-#
-# Which provider `/_matrix/client/v3/login/sso/redirect` — the form with
-# no provider on the end — sends a user to. With one provider configured
-# it is the default whether or not this is set.
+# This item is undocumented. Please contribute documentation for it.
 #
 #default = false
 
-# The name users see for this provider on the login page.
-#
-# Defaults to `brand`, which is enough unless several providers share
-# one.
+# This item is undocumented. Please contribute documentation for it.
 #
 #name =
 
-# The scopes to ask the provider for.
+# This item is undocumented. Please contribute documentation for it.
 #
-# Empty sends `openid email profile`, except for `brand = "mas"`, which
-# is sent only `openid`: MAS rejects `profile`, and its userinfo returns
-# nothing but the subject and username either way.
-#
-#scope = []
+#scope = false
 
-# Extra path components between the `issuer_url` and the `.well-known`
-# directory discovery reads.
-#
-# Empty for a provider that follows the specification. A path starting
-# with a slash replaces the issuer's path rather than extending it, and
-# the path must end with one.
+# This item is undocumented. Please contribute documentation for it.
 #
 #base_path =
 
-# Whether to discover this provider's endpoints.
-#
-# On, a provider that cannot be discovered is a configuration error and
-# no authorization is attempted against it. Off, every endpoint below
-# must either be set or be derivable from the issuer.
+# This item is undocumented. Please contribute documentation for it.
 #
 #discovery = true
 
-# Where the provider's `openid-configuration` is, if it is not where the
-# issuer says it should be. Rarely needed.
+# This item is undocumented. Please contribute documentation for it.
 #
 #discovery_url =
 
-# Overrides the discovered authorization endpoint.
+# This item is undocumented. Please contribute documentation for it.
 #
 #authorization_url =
 
-# Overrides the discovered token endpoint.
+# This item is undocumented. Please contribute documentation for it.
 #
 #token_url =
 
-# Overrides the discovered revocation endpoint.
+# This item is undocumented. Please contribute documentation for it.
 #
 #revocation_url =
 
-# Overrides the discovered introspection endpoint.
+# This item is undocumented. Please contribute documentation for it.
 #
 #introspection_url =
 
-# Overrides the discovered userinfo endpoint.
+# This item is undocumented. Please contribute documentation for it.
 #
 #userinfo_url =
 
 [global.smtp]
 
-# Connection URL for the outbound SMTP relay used to send email
-# verification messages. Setting this enables the email subsystem;
-# without it no mail is sent.
-#
-# Use a `smtp://` URL for an unencrypted or STARTTLS connection and a
-# `smtps://` URL for implicit TLS. Credentials and the host go inline:
-# `smtps://user:pass@host:port`. The port defaults per scheme when
-# omitted.
-#
-# The userinfo component is URL-encoded, so an `@` inside the username
-# must be written as `%40` (for example a login of `bot@example.com`
-# becomes `smtps://bot%40example.com:pass@host:465`). Other reserved
-# characters in the username or password are percent-encoded the same
-# way.
-#
-# example: "smtps://user:pass@mail.example.com:465"
+# This item is undocumented. Please contribute documentation for it.
 #
 #connection_uri =
 
-# The mailbox that outbound verification messages are sent from. Accepts
-# either a bare address or a display-name form.
-#
-# example: "Example <noreply@example.com>"
+# This item is undocumented. Please contribute documentation for it.
 #
 #sender =
 
-# Require a verified email address to complete registration. When set,
-# the registration flow does not finish until the user proves control of
-# an email address.
+# This item is undocumented. Please contribute documentation for it.
 #
 #require_email_for_registration = false
 
-# Require a verified email address when registering with a registration
-# token. When set, token-based registration also demands a verified
-# email address.
+# This item is undocumented. Please contribute documentation for it.
 #
 #require_email_for_token_registration = false
 
 [global.storage_provider.<ID>.local]
 
-# Absolute path to this local filesystem storage provider. Technically the
-# provider exists at the filesystem root, and the base_path is prefixed to
-# all objects.
+# This item is undocumented. Please contribute documentation for it.
 #
 #base_path =
 
-# Creates the directory on the local filesystem if missing. This is not
-# recommended to prevent misconfigured environments and missing mounts
-# from silently succeeding.
+# This item is undocumented. Please contribute documentation for it.
 #
 #create_if_missing = false
 
-# Toggles the preservation of a directory after its last file contents are
-# removed.
+# This item is undocumented. Please contribute documentation for it.
 #
 #delete_empty_directories = true
 
-# Enables checks performed at startup determining the usability of the
-# local directory. Failures will abort the server's startup.
+# This item is undocumented. Please contribute documentation for it.
 #
 #startup_check = true
 
 [global.storage_provider.<ID>.s3]
 
-# Supply an s3 URL e.g. "s3://bucket/path". These URLs may contain one
-# or all of `bucket`, `region`, and `path` . When not supplied, such
-# additional items can be supplied below individually.
+# This item is undocumented. Please contribute documentation for it.
 #
 #url =
 
-# The name of the S3 bucket. e.g. "bucketname-123456789-us-west-2-an".
+# This item is undocumented. Please contribute documentation for it.
 #
 #bucket =
 
-# The region of the S3 bucket. e.g. "us-west-2".
+# This item is undocumented. Please contribute documentation for it.
 #
-#region = "us-east-1"
+#region =
 
-# Your amazon IAM Key ID with access granted to this bucket.
-# e.g. "ABCDEFG1X1ZZYYXXWWVV"
+# This item is undocumented. Please contribute documentation for it.
 #
 #key =
 
-# The secret key component which is approx 40 characters of base64.
+# This item is undocumented. Please contribute documentation for it.
 #
-#secret =
+#secret = false
 
-# Optional path prefix within the bucket where all our operations will
-# take place.
+# This item is undocumented. Please contribute documentation for it.
 #
 #base_path =
 
-# (expert use) Override the location of s3 applied after components of the
-# parsed `url` (or when none set).
+# This item is undocumented. Please contribute documentation for it.
 #
 #endpoint =
 
-# (expert use) Override this property useful for some self-hosted
-# environments. By default it is derived when parsing the primary `url`.
+# This item is undocumented. Please contribute documentation for it.
 #
 #use_vhost_request = false
 
-# (expert use) Alternative session-token authentication method.
+# This item is undocumented. Please contribute documentation for it.
 #
-#token =
+#token = false
 
-# (expert use) Associated SSE-KMS key material.
+# This item is undocumented. Please contribute documentation for it.
 #
 #kms =
 
-# (expert use) When configured for the bucket it should be reflected here.
+# This item is undocumented. Please contribute documentation for it.
 #
 #use_bucket_key =
 
-# (expert use) Threshold size for switching to Multi-part uploads. This is
-# a quirk of the S3 protocol which requires us to use a different approach
-# for "large" uploads. This value determines what a "large" upload is. The
-# default value should be sufficient for most providers. The value is a
-# parsed string allowing SI or IEC units for convenience.
+# This item is undocumented. Please contribute documentation for it.
 #
-#multipart_threshold = 100 MiB
+#multipart_threshold =
 
-# (expert use) Size of each individual part within a Multi-part upload.
-# Once an upload exceeds `multipart_threshold` the payload is split into
-# parts of this size, each sent as a separate HTTP PUT. Smaller values
-# keep individual requests under per-request timeouts on slow uplinks at
-# the cost of more round-trips. S3 requires every part except the last
-# to be at least 5 MiB. The value is a parsed string allowing SI or IEC
-# units for convenience.
+# This item is undocumented. Please contribute documentation for it.
 #
-#multipart_part_size = 10 MiB
+#multipart_part_size =
 
-# (developer use) Allows relaxing default requirement forcing HTTPS.
+# This item is undocumented. Please contribute documentation for it.
 #
-#use_https = true
+#use_https =
 
-# (developer_use) Allows skipping request header signatures (will be
-# reejected by AWS).
+# This item is undocumented. Please contribute documentation for it.
 #
-#use_signatures = true
+#use_signatures =
 
-# (developer_use) Allows disabling request payload signatures.
+# This item is undocumented. Please contribute documentation for it.
 #
-#use_payload_signatures = true
+#use_payload_signatures =
 
-# (developer use) Enables checks performed at startup such as pinging the
-# provider. Failures are considered critical startup errors which abort
-# startup. When set to false, faulty providers are only discovered with
-# first use and will not be fatal errors.
-#
-# Only set this to false if you expect a provider to be down at startup or
-# for development/testing purposes; checks are disabled when the server
-# is started in '--maintenance' mode.
+# This item is undocumented. Please contribute documentation for it.
 #
 #startup_check = true

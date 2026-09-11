@@ -1,4 +1,3 @@
-//! Extended external extensions to futures::TryFutureExt
 #![allow(clippy::type_complexity)]
 #![allow(clippy::wrong_self_convention)]
 
@@ -9,7 +8,6 @@ use futures::{
     future::{MapOkOrElse, TrySelect, UnwrapOrElse},
 };
 
-/// This interface is not necessarily complete; feel free to add as-needed.
 pub trait TryExt<T, E>
 where
     Self: TryFuture<Ok = T, Error = E> + Send,

@@ -1,12 +1,3 @@
-//! Sizing the pool after the storage device rather than the CPU.
-//!
-//! A pool worker spends its life waiting on the device, so the useful number
-//! of them is set by how many requests the device will accept at once, not by
-//! how many cores are free. Linux publishes that: a block device has one or
-//! more hardware queues, each with a tag count — its depth — and a list of the
-//! CPUs whose requests it carries. That is what is read here, and where it
-//! cannot be read the configured fallback stands in.
-
 use std::sync::Arc;
 
 use phantom_core::{
@@ -23,8 +14,6 @@ use phantom_core::{
 
 use super::{QUEUE_LIMIT, WORKER_LIMIT};
 
-/// The number of workers to spawn, the depth of each queue, and the core-to-
-/// queue map the workers take their affinity from.
 pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>) {
     let config = &server.config;
     let path = config.database.database_path.as_path();
@@ -89,11 +78,6 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
     (total_workers, queue_sizes, topology)
 }
 
-/// Workers to give each of the device's hardware queues.
-///
-/// A queue's depth is the ceiling, but a queue whose cores are all masked off
-/// from this process cannot be reached at all, and one reachable through a
-/// single core does not want its full depth in threads.
 fn worker_counts(device: &Parallelism, per_core_limit: usize) -> impl Iterator<Item = usize> + '_ {
     device
         .mq
@@ -115,14 +99,7 @@ fn worker_counts(device: &Parallelism, per_core_limit: usize) -> impl Iterator<I
         })
 }
 
-/// Maps each core to the queue that serves it.
-///
-/// Cores unavailable to this process keep the default of queue zero: nothing
-/// will ever submit from them, and a hole would only need handling at every
-/// lookup.
 fn topology(device: &Parallelism) -> Vec<usize> {
-    /// Long enough for any core id we expect to be scheduled on. Reads past
-    /// it fall back to the first queue rather than growing this.
     const CORES: usize = 128;
 
     device.mq.iter().fold(vec![0; CORES], |mut topology, mq| {
@@ -137,11 +114,6 @@ fn topology(device: &Parallelism) -> Vec<usize> {
     })
 }
 
-/// Retunes the stream combinators to the pool that was just derived.
-///
-/// Their defaults are guesses made before anything is known about the host;
-/// the width the storage will actually absorb is workers per queue, since that
-/// is how many requests can be outstanding on one queue at a time.
 #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: usize) {
     let config = &server.config;
@@ -188,8 +160,6 @@ mod tests {
         }
     }
 
-    /// The device is what bounds the pool: more tags than the cores feeding a
-    /// queue could keep busy should not turn into more threads.
     #[test]
     fn a_deep_queue_is_capped_by_the_cores_that_feed_it() {
         let device = Parallelism {
@@ -204,7 +174,6 @@ mod tests {
         );
     }
 
-    /// And the reverse: a shallow queue is not padded out to the limit.
     #[test]
     fn a_shallow_queue_keeps_its_own_depth() {
         let device = Parallelism {
@@ -215,8 +184,6 @@ mod tests {
         assert_eq!(worker_counts(&device, 64).collect::<Vec<_>>(), [4]);
     }
 
-    /// `nr_requests` is the whole device's budget, so it caps a queue even
-    /// where the cores would allow more.
     #[test]
     fn the_device_request_budget_caps_a_queue() {
         let device = Parallelism {
@@ -227,8 +194,6 @@ mod tests {
         assert_eq!(worker_counts(&device, 64).collect::<Vec<_>>(), [8]);
     }
 
-    /// Cores this process cannot be scheduled on are not cores that will
-    /// submit requests.
     #[test]
     fn a_queue_reachable_from_no_available_core_is_skipped() {
         let device = Parallelism {
@@ -259,8 +224,6 @@ mod tests {
         }
     }
 
-    /// Out-of-range core ids come from a machine wider than the table, and
-    /// must not panic the server at startup.
     #[test]
     fn topology_ignores_cores_beyond_the_table() {
         let device = Parallelism {

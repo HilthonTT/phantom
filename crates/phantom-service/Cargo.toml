@@ -116,6 +116,7 @@ smallstr = { version = "0.3.1", features = ["serde"] }
 url = "2.5.7"
 serde_bytes = "0.11.19"
 lettre = { version = "0.11.23", features = ["tokio1", "tokio1-native-tls"] }
+loole = "0.4.1"
 
 # `killpg`, so that a video thumbnail program overrunning its deadline cannot
 # leave behind whatever a wrapper script spawned. Only reachable through the

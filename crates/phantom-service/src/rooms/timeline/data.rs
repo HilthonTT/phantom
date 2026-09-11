@@ -80,14 +80,12 @@ impl Data {
             .ok_or_else(|| err!(Request(NotFound("no PDU's found in room"))))
     }
 
-    /// Returns the `count` of this pdu's id.
     pub(super) async fn get_pdu_count(&self, event_id: &EventId) -> Result<PduCount> {
         self.get_pdu_id(event_id)
             .await
             .map(|pdu_id| pdu_id.pdu_count())
     }
 
-    /// Returns the json of a pdu.
     pub(super) async fn get_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
         let accepted = self.get_non_outlier_pdu_json(event_id).boxed();
         let outlier = self
@@ -99,7 +97,6 @@ impl Data {
         select_ok([accepted, outlier]).await.map(at!(0))
     }
 
-    /// Returns the json of a pdu.
     pub(super) async fn get_non_outlier_pdu_json(
         &self,
         event_id: &EventId,
@@ -109,7 +106,6 @@ impl Data {
         self.pduid_pdu.get(&pduid).await.deserialized()
     }
 
-    /// Returns the pdu's id.
     #[inline]
     pub(super) async fn get_pdu_id(&self, event_id: &EventId) -> Result<RawPduId> {
         self.eventid_pduid
@@ -118,24 +114,18 @@ impl Data {
             .map(|handle| RawPduId::from(&*handle))
     }
 
-    /// Returns the pdu directly from `eventid_pduid` only.
     pub(super) async fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
         let pduid = self.get_pdu_id(event_id).await?;
 
         self.pduid_pdu.get(&pduid).await.deserialized()
     }
 
-    /// Like get_non_outlier_pdu(), but without the expense of fetching and
-    /// parsing the PduEvent
     pub(super) async fn non_outlier_pdu_exists(&self, event_id: &EventId) -> Result {
         let pduid = self.get_pdu_id(event_id).await?;
 
         self.pduid_pdu.exists(&pduid).await
     }
 
-    /// Returns the pdu.
-    ///
-    /// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
     pub(super) async fn get_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
         let accepted = self.get_non_outlier_pdu(event_id).boxed();
         let outlier = self
@@ -147,14 +137,11 @@ impl Data {
         select_ok([accepted, outlier]).await.map(at!(0))
     }
 
-    /// Like get_non_outlier_pdu(), but without the expense of fetching and
-    /// parsing the PduEvent
     #[inline]
     pub(super) async fn outlier_pdu_exists(&self, event_id: &EventId) -> Result {
         self.eventid_outlierpdu.exists(event_id).await
     }
 
-    /// Like get_pdu(), but without the expense of fetching and parsing the data
     pub(super) async fn pdu_exists(&self, event_id: &EventId) -> Result {
         let non_outlier = self.non_outlier_pdu_exists(event_id).boxed();
         let outlier = self.outlier_pdu_exists(event_id).boxed();
@@ -162,14 +149,10 @@ impl Data {
         select_ok([non_outlier, outlier]).await.map(at!(0))
     }
 
-    /// Returns the pdu.
-    ///
-    /// This does __NOT__ check the outliers `Tree`.
     pub(super) async fn get_pdu_from_id(&self, pdu_id: &RawPduId) -> Result<PduEvent> {
         self.pduid_pdu.get(pdu_id).await.deserialized()
     }
 
-    /// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
     pub(super) async fn get_pdu_json_from_id(
         &self,
         pdu_id: &RawPduId,
@@ -206,7 +189,6 @@ impl Data {
         self.eventid_outlierpdu.remove(event_id).ok();
     }
 
-    /// Removes a pdu and creates a new one with the same id.
     pub(super) async fn replace_pdu(
         &self,
         pdu_id: &RawPduId,
@@ -222,9 +204,6 @@ impl Data {
         Ok(())
     }
 
-    /// Returns an iterator over all events and their tokens in a room that
-    /// happened before the event with id `until` in reverse-chronological
-    /// order.
     pub(super) fn pdus_rev<'a>(
         &'a self,
         user_id: Option<&'a UserId>,

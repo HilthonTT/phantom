@@ -1,17 +1,3 @@
-//! The still frame that stands in for a video.
-//!
-//! Phantom decodes no video itself. Video is a moving target of formats and
-//! codecs, and a decoder for it is a large piece of attack surface to link
-//! into a server that mostly moves JSON around. Instead an operator-configured
-//! program is handed one video and asked for one frame, which the ordinary
-//! image thumbnailer then treats as the source picture.
-//!
-//! That program is a stranger. It is given a deadline, a slot it has to wait
-//! for, a size limit on what it may write back, and its own process group so
-//! that killing it kills whatever it spawned. A video it fails on is
-//! remembered, so that the next request for another size does not spend the
-//! same time reaching the same verdict.
-
 use std::{
     borrow::Cow,
     fs::{read_dir, remove_file},
@@ -36,47 +22,26 @@ use tokio::{
 
 use super::{Service, thumbnail::Dim};
 
-/// Tokens replaced in every configured argument before each call.
 const INPUT: &str = "{input}";
 const WIDTH: &str = "{width}";
 const HEIGHT: &str = "{height}";
 
-/// The content type prefix a still frame is extracted from.
 const VIDEO: &str = "video/";
 
-/// Distinguishes a staged video from anything else in the staging directory,
-/// so that the startup sweep reclaims only what this module wrote.
 const STAGED: &str = "phantom-video-";
 
 const NAME_LENGTH: usize = 16;
 
-/// How much of the program's standard error is kept to report with a failure.
 const DIAGNOSTIC_LEN: u64 = 4096;
 
-/// How long a video whose extraction failed is left alone.
-///
-/// Retrying at once would spend a slot to fail again, and at the default
-/// concurrency of one that is the slot every other video is waiting for.
 const FAILURE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
-/// Videos remembered as having failed.
 pub(super) const FAILURES: usize = 1024;
 
-/// The fraction of the deadline a program must still have to be worth running
-/// — and to be held answerable for missing.
 const FAIR_SHARE: f64 = 4.0;
 
-/// Videos whose frame extraction failed, against the time it last did.
-///
-/// Bounded, because forgetting an entry early costs no more than a retry.
 pub(super) type Failures = LruCache<String, Instant>;
 
-/// Kills the program's process group on every exit that leaves it running, so
-/// that a shutdown or a client hanging up takes a wrapper's descendants with
-/// it exactly as an expired deadline does.
-///
-/// Disarmed once the child is reaped, past which the identifier could name a
-/// group this server never spawned.
 struct Reaper {
     group: Option<u32>,
 }
@@ -95,12 +60,6 @@ impl Drop for Reaper {
     }
 }
 
-/// The still frame standing in for a video, or `None` where the media is not
-/// a video, no program is configured, or the extraction failed.
-///
-/// Failure is not an error here: a video without a frame is served as itself,
-/// which is what happens for every video on a server that has configured no
-/// program at all.
 #[phantom_core::implement(Service)]
 #[tracing::instrument(
     name = "video",
@@ -133,8 +92,6 @@ pub(super) async fn video_frame(
         .ok()
 }
 
-/// Whether this video failed within the cooldown, where trying again would
-/// spend a slot to reach the same failure.
 #[phantom_core::implement(Service)]
 fn failed_recently(&self, mxc: &MxcUri) -> bool {
     let Some(cooldown) = Instant::now().checked_sub(FAILURE_COOLDOWN) else {
@@ -161,9 +118,6 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
     let config = &self.services.config;
     let timeout = Duration::from_secs(config.media.media_video_thumbnail_timeout);
 
-    // One deadline spans the wait for a slot, the staging write and the
-    // program, so that a queue cannot compound into a multiple of the
-    // configured timeout.
     let deadline = Instant::now().checked_add(timeout).ok_or_else(|| {
         err!(Config(
             "media_video_thumbnail_timeout",
@@ -192,9 +146,6 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
 
     staged?;
 
-    // A residue of the deadline is not a fair trial: the program would fail
-    // on time the queue spent, and be remembered below for someone else's
-    // load.
     if deadline.saturating_duration_since(Instant::now()) < timeout.div_f64(FAIR_SHARE) {
         return Err!("Too little of the deadline remained to run the video thumbnail program.");
     }
@@ -208,9 +159,6 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
     let limit = u64::try_from(config.media.media_video_thumbnail_max_size).unwrap_or(u64::MAX);
     let frame = run(program, args, limit, deadline).await;
 
-    // The program reached a verdict on this video, so a failure is the
-    // video's and worth remembering. The paths above are contention, and say
-    // nothing about the video itself.
     if frame.is_err() {
         self.remember_failure(mxc);
     }
@@ -218,8 +166,6 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
     frame
 }
 
-/// Videos are staged beside the database rather than in the system temporary
-/// directory, which is commonly memory-backed and sized for small files.
 fn staging_dir(config: &Config) -> Cow<'_, Path> {
     config.media_video_thumbnail_path.as_deref().map_or_else(
         || config.database.database_path.join("tmp").into(),
@@ -227,12 +173,6 @@ fn staging_dir(config: &Config) -> Cow<'_, Path> {
     )
 }
 
-/// Reclaims videos staged by a previous run.
-///
-/// The scope guard that unlinks them survives neither a kill nor the exec of
-/// an in-place restart. This runs during construction, before a request can
-/// stage a file it would race — which is also before the service graph exists
-/// to read the configuration through, hence the config by argument.
 #[tracing::instrument(name = "sweep", level = "debug", skip_all)]
 pub(super) fn sweep_staging_dir(config: &Config) {
     let Ok(dir) = read_dir(staging_dir(config).as_ref()) else {
@@ -252,10 +192,6 @@ pub(super) fn sweep_staging_dir(config: &Config) {
         });
 }
 
-/// Writes the video to a fresh private file.
-///
-/// A file rather than a pipe because the program needs a seekable input:
-/// formats whose index trails the media cannot be read from a stream.
 async fn stage(path: &Path, content: &[u8]) -> Result {
     if let Some(dir) = path.parent() {
         create_dir_all(dir).await?;
@@ -264,8 +200,6 @@ async fn stage(path: &Path, content: &[u8]) -> Result {
     let mut options = OpenOptions::new();
     options.create_new(true).write(true);
 
-    // Nobody but this server reads a staged video, except the program it is
-    // staged for, which runs as this server.
     #[cfg(unix)]
     options.mode(0o600);
 
@@ -277,9 +211,6 @@ async fn stage(path: &Path, content: &[u8]) -> Result {
     Ok(())
 }
 
-/// One configured argument with its tokens filled in.
-///
-/// An argument with no `{` is handed on as it stands, which is most of them.
 pub(super) fn substitute<'a>(
     arg: &'a str,
     input: &Path,
@@ -296,11 +227,6 @@ pub(super) fn substitute<'a>(
         .into()
 }
 
-/// Runs the program and collects the frame it writes to standard output.
-///
-/// A frame past the limit is refused rather than decoded from what would be a
-/// truncation. The program runs in its own process group, so that a wrapper
-/// overrunning the deadline cannot orphan the work it spawned.
 #[tracing::instrument(
     level = "debug",
     skip(args),
@@ -336,15 +262,11 @@ where
     let stdout = child.stdout.take().expect("stdout is piped");
     let stderr = child.stderr.take().expect("stderr is piped");
 
-    // One byte past the limit is what distinguishes an exact fit from a
-    // truncation.
     let collect = try_join(
         drain(stdout, limit.saturating_add(1)),
         drain(stderr, DIAGNOSTIC_LEN),
     );
 
-    // The child is reaped only once both pipes reach EOF, so that a wrapper
-    // exiting while a descendant still holds them does not read as finished.
     let outcome = timeout_at(deadline, async {
         let collected = collect.await?;
         let status = child.wait().await?;
@@ -353,10 +275,6 @@ where
     })
     .await;
 
-    // Tokio clears the identifier on reaping, which by the above means
-    // nothing still holds the pipes. Signalling the group past that point
-    // could reach one this server never spawned, so a descendant that closed
-    // them is let go.
     if child.id().is_none() {
         reaper.disarm();
     }
@@ -385,7 +303,6 @@ where
     Ok(frame)
 }
 
-/// Reads a pipe to its end, keeping at most `limit` bytes of it.
 async fn drain<Pipe>(mut pipe: Pipe, limit: u64) -> Result<Vec<u8>, io::Error>
 where
     Pipe: AsyncRead + Unpin + Send,
@@ -394,9 +311,6 @@ where
 
     (&mut pipe).take(limit).read_to_end(&mut buf).await?;
 
-    // The pipe stays open past the limit: closing it signals a program that
-    // is still writing, turning an oversized frame or a chatty log into a
-    // kill.
     copy(&mut pipe, &mut sink()).await?;
 
     Ok(buf)
@@ -408,9 +322,6 @@ fn kill_group(group: u32) {
         return;
     };
 
-    // SAFETY: the group holds only what this child spawned, and its
-    // identifier cannot be reused before the child is reaped, so the signal
-    // reaches that subtree alone.
     #[allow(unsafe_code)]
     unsafe {
         killpg(group, SIGKILL);

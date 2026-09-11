@@ -1,24 +1,3 @@
-//! Turning a believed event into part of the room.
-//!
-//! Everything up to here established that the event is genuine and worked out
-//! what the room looked like when it happened. What is left is the decision
-//! the room's rules make, and it has two halves that are easy to confuse.
-//!
-//! **Against the state at the event**, the rules say whether the event was
-//! ever valid. An event that fails here never happened as far as this server
-//! is concerned, and is rejected outright.
-//!
-//! **Against the room's current state**, the rules say whether it is valid
-//! *now*. An event that passes the first check and fails this one is
-//! soft-failed: the rest of the room accepted it, so this server records that
-//! it exists and lets later events build on it, but does not show it to anyone
-//! and does not let it change the room's state. The usual cause is an event
-//! from someone who has since been banned, arriving late.
-//!
-//! Only after both is the room's state moved on, and only then is the event
-//! appended — in that order, so that nothing can read the event out of a room
-//! whose state does not yet account for it.
-
 use std::{borrow::Borrow, collections::HashSet, iter::once, sync::Arc};
 
 use futures::StreamExt;
@@ -35,10 +14,6 @@ use ruma::{CanonicalJsonObject, OwnedEventId, RoomId, ServerName, events::StateE
 use super::{Service, state::StateAtEvent};
 use crate::rooms::state_compressor::CompressedState;
 
-/// Places a validated outlier in the room's timeline.
-///
-/// `Some(id)` where the event was appended, `None` where it was soft-failed or
-/// was already there.
 #[implement(Service)]
 #[tracing::instrument(level = "debug", skip_all, fields(event_id = %incoming_pdu.event_id))]
 pub(super) async fn upgrade_outlier_to_timeline_pdu(
@@ -58,9 +33,6 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
         return Ok(None);
     }
 
-    // An event already soft-failed once stays soft-failed. Re-deciding it
-    // against a state that has moved on since would let a banned user's event
-    // appear because the ban was later lifted.
     if self.is_soft_failed(&incoming_pdu.event_id).await {
         debug!("Event was soft failed before");
         return Ok(None);
@@ -93,8 +65,6 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
         .authorized_against_current(&room_version, &incoming_pdu, room_id)
         .await?;
 
-    // The state after the event is the state at it, plus the event itself
-    // where the event is a state event.
     let state_after = self
         .state_after(&incoming_pdu, state_at_event.clone())
         .await;
@@ -125,8 +95,6 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
         return Ok(None);
     }
 
-    // A state event moves the room on; a message does not, and resolving state
-    // for one would be work with a foregone conclusion.
     if incoming_pdu.state_key.is_some() {
         let resolved = self
             .resolve_state(room_id, &room_version_id, state_after)
@@ -153,8 +121,6 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
     Ok(pdu_id)
 }
 
-/// The state at the event, from our own record where possible and from the
-/// sending server where not.
 #[implement(Service)]
 async fn state_at_event(
     &self,
@@ -190,7 +156,6 @@ async fn state_at_event(
     })
 }
 
-/// Runs the room's rules over the event against a state given as short ids.
 #[implement(Service)]
 async fn authorized_against(
     &self,
@@ -198,9 +163,6 @@ async fn authorized_against(
     incoming_pdu: &PduEvent,
     state: &StateAtEvent,
 ) -> Result<bool> {
-    // The closure owns what it is given rather than borrowing it: the state
-    // resolution API hands it a reference per call, and a future holding that
-    // reference cannot outlive the call that made it.
     let fetch = |event_type: &StateEventType, state_key: &str| {
         let event_type = event_type.clone();
         let state_key = state_key.to_owned();
@@ -224,7 +186,6 @@ async fn authorized_against(
         .map_err(Into::into)
 }
 
-/// Runs the room's rules over the event against the room as it stands.
 #[implement(Service)]
 async fn authorized_against_current(
     &self,
@@ -250,7 +211,6 @@ async fn authorized_against_current(
         .map_err(Into::into)
 }
 
-/// The state at the event with the event itself applied.
 #[implement(Service)]
 async fn state_after(&self, incoming_pdu: &PduEvent, mut state: StateAtEvent) -> StateAtEvent {
     if let Some(state_key) = &incoming_pdu.state_key {
@@ -266,12 +226,6 @@ async fn state_after(&self, incoming_pdu: &PduEvent, mut state: StateAtEvent) ->
     state
 }
 
-/// The room's forward extremities once this event is in it.
-///
-/// The event's own predecessors stop being extremities — the event is now what
-/// comes after them — and the event itself becomes one. Anything else that was
-/// an extremity stays one, unless this server never had it, which happens when
-/// an extremity was recorded from a state fetch rather than from an event.
 #[implement(Service)]
 async fn extremities(&self, room_id: &RoomId, incoming_pdu: &PduEvent) -> Vec<OwnedEventId> {
     let superseded: HashSet<&OwnedEventId> = incoming_pdu.prev_events.iter().collect();
@@ -301,7 +255,6 @@ async fn extremities(&self, room_id: &RoomId, incoming_pdu: &PduEvent) -> Vec<Ow
     kept
 }
 
-/// Compresses a state so it can be stored against the event.
 #[implement(Service)]
 async fn compress(&self, state: &StateAtEvent) -> Arc<CompressedState> {
     let compressed: CompressedState = self
@@ -314,7 +267,6 @@ async fn compress(&self, state: &StateAtEvent) -> Arc<CompressedState> {
     Arc::new(compressed)
 }
 
-/// Makes a resolved state the room's, where it differs from what the room has.
 #[implement(Service)]
 async fn install_state(
     &self,

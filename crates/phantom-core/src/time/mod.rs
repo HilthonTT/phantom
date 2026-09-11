@@ -1,6 +1,3 @@
-//! Clock readings, durations parsed from config, and the retry schedules
-//! built on them.
-
 pub mod exponential_backoff;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -91,9 +88,6 @@ pub fn pretty(d: Duration) -> String {
     }
 }
 
-/// Return a pair of (whole part, frac part) from a duration where. The whole
-/// part is the largest Unit containing a non-zero value, the frac part is a
-/// rational remainder left over.
 #[must_use]
 #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 pub fn whole_and_frac(d: Duration) -> (Unit, f64) {
@@ -114,8 +108,6 @@ pub fn whole_and_frac(d: Duration) -> (Unit, f64) {
     )
 }
 
-/// Return the largest Unit which represents the duration. The value is
-/// rounded-down, but never zero.
 #[must_use]
 pub fn whole_unit(d: Duration) -> Unit {
     use Unit::*;
@@ -166,9 +158,6 @@ mod tests {
         assert_eq!(whole_unit(Duration::from_nanos(999)), Unit::Nanos(999));
     }
 
-    /// The remainder is a fraction of the whole unit, so it must stay below 1
-    /// even for the sub-second units, whose `subsec_*` accessors are relative
-    /// to the second rather than to the unit above them.
     #[test]
     fn frac_is_always_below_one() {
         let cases = [

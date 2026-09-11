@@ -1,9 +1,3 @@
-//! Reading many serialized keys at once.
-//!
-//! The batch counterpart to [`qry`](super::qry): keys are gathered into
-//! batches so that one submission to the pool covers many of them, and the
-//! batches run concurrently.
-
 use std::{fmt::Debug, sync::Arc};
 
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -15,15 +9,11 @@ use serde::Serialize;
 
 use crate::{Handle, codec::serialize::serialize_to, keyval::KeyBuf, pool};
 
-/// [`Map::qry_batch`](super::Map::qry_batch) written the other way round, so
-/// that a stream of keys reads as `keys.qry(&map)` where the keys are what the
-/// caller already has in hand.
 pub trait Qry<'a, K, S>
 where
     S: Stream<Item = K> + Send + 'a,
     K: Serialize + Debug,
 {
-    /// Reads the value at each key of this stream from `map`.
     fn qry(self, map: &'a Arc<super::Map>) -> impl Stream<Item = Result<Handle<'a>>> + Send + 'a;
 }
 
@@ -39,12 +29,6 @@ where
     }
 }
 
-/// [`Map::get_batch`](super::Map::get_batch) over keys that are serialized
-/// first.
-///
-/// Both the batch size and how many batches are in flight come from
-/// [`the stream tuning`](phantom_core::stream), which the pool sets from the
-/// storage topology at startup.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
 pub fn qry_batch<'a, S, K>(

@@ -1,14 +1,3 @@
-//! How far each user has read in a room.
-//!
-//! Two markers, kept apart because they are told to different people. A public
-//! receipt is an event everyone in the room sees, and is federated; a private
-//! one is only ever sent back to the user who set it, and never leaves this
-//! server.
-//!
-//! Both are stored as the counter they were set at rather than as an event id,
-//! so a sync can ask what moved since the token it holds without reading the
-//! receipts themselves.
-
 mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -58,7 +47,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Replaces a user's public read receipt in a room.
 #[implement(Service)]
 pub async fn readreceipt_update(
     &self,
@@ -69,10 +57,6 @@ pub async fn readreceipt_update(
     self.db.readreceipt_update(user_id, room_id, event).await
 }
 
-/// The user's own private read receipt, as a sync event.
-///
-/// Built here rather than stored: what is kept is the counter the marker sits
-/// at, and the event a client expects names the PDU at that counter.
 #[implement(Service)]
 pub async fn private_read_get(
     &self,
@@ -120,7 +104,6 @@ pub async fn private_read_get(
     Ok(Raw::from_json(event))
 }
 
-/// The receipts set in a room after `since`.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -132,7 +115,6 @@ pub fn readreceipts_since<'a>(
     self.db.readreceipts_since(room_id, since)
 }
 
-/// Moves a user's private read marker to PDU `count`.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -140,7 +122,6 @@ pub fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -
     self.db.private_read_set(room_id, user_id, count)
 }
 
-/// Where a user's private read marker sits.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -148,19 +129,12 @@ pub async fn private_read_get_count(&self, room_id: &RoomId, user_id: &UserId) -
     self.db.private_read_get_count(room_id, user_id).await
 }
 
-/// The counter the user's private marker last moved at, or zero where it never
-/// has — which is before any real counter, so a sync sees it as unchanged.
 #[implement(Service)]
 #[inline]
 pub async fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
     self.db.last_privateread_update(user_id, room_id).await
 }
 
-/// Folds many receipt events into the single one a sync response carries.
-///
-/// A receipt that will not parse is dropped rather than failing the batch: it
-/// is one user's read marker, and losing the rest of the room's over it would
-/// be the worse outcome.
 #[must_use]
 pub fn pack_receipts<I>(receipts: I) -> Raw<SyncEphemeralRoomEvent<ReceiptEventContent>>
 where
@@ -186,7 +160,6 @@ where
     )
 }
 
-/// Drops every receipt set in a room, public and private alike.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]

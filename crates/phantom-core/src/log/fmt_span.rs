@@ -1,10 +1,7 @@
-//! Parsing for the `log_span_events` config option.
-
 use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{Err, Result};
 
-/// Every name [`from_str`] accepts, in the order they are documented.
 const NAMES: &[(&str, FmtSpan)] = &[
     ("none", FmtSpan::NONE),
     ("new", FmtSpan::NEW),
@@ -15,13 +12,6 @@ const NAMES: &[(&str, FmtSpan)] = &[
     ("full", FmtSpan::FULL),
 ];
 
-/// Parses the span lifecycle points to log.
-///
-/// Several may be combined with `,` or `|`, e.g. `"new,close"`; the reference
-/// implementation took a single name and silently fell back to `none` for
-/// anything it did not recognise, which turned a typo into missing logs. Here a
-/// bad name is an error the caller can attribute to the config option it came
-/// from.
 pub fn from_str(str: &str) -> Result<FmtSpan> {
     str.split([',', '|'])
         .map(str::trim)

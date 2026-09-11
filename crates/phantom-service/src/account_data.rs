@@ -1,10 +1,3 @@
-//! The account data a user has set, global or per-room.
-//!
-//! One event per (user, room, type), where the global scope is the room-less
-//! one. Each write is stamped with a number from the server counter and
-//! indexed by it, so that a sync can ask for everything a user changed since
-//! the token it last saw rather than re-reading the whole account.
-
 use std::sync::Arc;
 
 use futures::{Stream, StreamExt, TryFutureExt, future::join};
@@ -40,12 +33,6 @@ struct Services {
     server_state: Dep<server_state::Service>,
 }
 
-/// One account data event still in the form it was stored in.
-///
-/// The two halves of account data are distinct event enums, but a sync
-/// response carries them in one stream and passes them through without
-/// looking inside, so they are kept raw and only tagged with which side of
-/// the split they came from.
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 pub enum AnyRawAccountDataEvent {
@@ -71,8 +58,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Places one event in the account data of the user and removes the
-/// previous entry.
 #[allow(clippy::needless_pass_by_value)]
 #[implement(Service)]
 pub async fn update(
@@ -110,15 +95,6 @@ pub async fn update(
     Ok(())
 }
 
-/// Erases every account data event a user has, in one room or globally.
-///
-/// This is the erasure MSC4025 asks for when a user deactivates and requests
-/// it: the account data they set is theirs and goes with them, unlike the
-/// events they sent, which stay in the rooms they were sent to.
-///
-/// Both indexes are keyed by `(room_id, user_id, ...)` and the global scope is
-/// the room-less one, so a single prefix covers each of them, and passing
-/// `None` for `room_id` takes the global scope alone rather than every room.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub async fn erase_user(&self, user_id: &UserId, room_id: Option<&RoomId>) {
@@ -131,7 +107,6 @@ pub async fn erase_user(&self, user_id: &UserId, room_id: Option<&RoomId>) {
     .await;
 }
 
-/// Searches the room account data for a specific kind.
 #[implement(Service)]
 pub async fn get_global<T>(&self, user_id: &UserId, kind: GlobalAccountDataEventType) -> Result<T>
 where
@@ -142,7 +117,6 @@ where
         .deserialized()
 }
 
-/// Searches the global account data for a specific kind.
 #[implement(Service)]
 pub async fn get_room<T>(
     &self,
@@ -173,7 +147,6 @@ pub async fn get_raw(
         .await
 }
 
-/// Returns all changes to the account data that happened after `since`.
 #[implement(Service)]
 pub fn changes_since<'a>(
     &'a self,

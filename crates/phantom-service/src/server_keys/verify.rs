@@ -1,22 +1,11 @@
-//! Verifying that an event is signed by the servers it claims.
-
 use phantom_core::{Err, Result, implement, matrix::pdu::gen_event_id_canonical_json};
 use ruma::{
     CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, RoomVersionId, signatures::Verified,
 };
 use serde_json::value::RawValue as RawJsonValue;
 
-/// The room version assumed for an object that is not an event in a room —
-/// a federation request's signed body, most of all — where the rules that
-/// differ between versions do not apply.
 const DEFAULT_ROOM_VERSION: RoomVersionId = RoomVersionId::V11;
 
-/// Derives an incoming PDU's event id, verifies it, and writes the id back
-/// into the event.
-///
-/// An event arrives over federation without its id: the id *is* the hash of
-/// the event, so it is computed here rather than trusted. Missing keys are
-/// fetched, which means this can go out to the network.
 #[implement(super::Service)]
 pub async fn validate_and_add_event_id(
     &self,
@@ -39,12 +28,6 @@ pub async fn validate_and_add_event_id(
     Ok((event_id, value))
 }
 
-/// [`Self::validate_and_add_event_id`] without going out to the network.
-///
-/// For the paths handling a batch of events that has already had its keys
-/// acquired in one go by [`Self::acquire_events_pubkeys`]: an event whose
-/// keys are still missing after that is rejected rather than fetched one at a
-/// time.
 #[implement(super::Service)]
 pub async fn validate_and_add_event_id_no_fetch(
     &self,

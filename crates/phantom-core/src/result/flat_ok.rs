@@ -1,13 +1,10 @@
 use super::Result;
 
 pub trait FlatOk<T> {
-    /// Equivalent to .transpose().ok().flatten()
     fn flat_ok(self) -> Option<T>;
 
-    /// Equivalent to .transpose().ok().flatten().ok_or(...)
     fn flat_ok_or<E>(self, err: E) -> Result<T, E>;
 
-    /// Equivalent to .transpose().ok().flatten().ok_or_else(...)
     fn flat_ok_or_else<E, F: FnOnce() -> E>(self, err: F) -> Result<T, E>;
 }
 

@@ -3,14 +3,6 @@ use serde::Deserialize;
 
 use super::*;
 
-/// Events are sorted from "earliest" to "latest".
-///
-/// They are compared using the negative power level (reverse topological
-/// ordering), the origin server timestamp and in case of a tie the `EventId`s
-/// are compared lexicographically.
-///
-/// The power level is negative because a higher power level is equated to an
-/// earlier (further back in time) origin server timestamp.
 #[tracing::instrument(level = "debug", skip_all)]
 pub(super) async fn reverse_topological_power_sort<E, F, Fut>(
     room_version: &RoomVersion,
@@ -70,10 +62,6 @@ where
     lexicographical_topological_sort(&graph, &fetcher).await
 }
 
-/// Sorts the event graph based on number of outgoing/incoming edges.
-///
-/// `key_fn` is used as to obtain the power level and age of an event for
-/// breaking ties (together with the event ID).
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn lexicographical_topological_sort<Id, F, Fut, Hasher>(
     graph: &HashMap<Id, HashSet<Id, Hasher>>,
@@ -169,12 +157,6 @@ where
     Ok(sorted)
 }
 
-/// Find the power level for the sender of `event_id` or return a default value
-/// of zero.
-///
-/// Do NOT use this any where but topological sort, we find the power level for
-/// the eventId at the eventId's generation (we walk backwards to `EventId`s
-/// most recent previous power level event).
 async fn get_power_level_for_sender<E, F, Fut>(
     room_version: &RoomVersion,
     event_id: E::Id,
@@ -207,11 +189,6 @@ where
 
     let content: PowerLevelsContentFields = match pl {
         None => {
-            // Diverges from upstream, which gave every sender level 0 here.
-            // Without an m.room.power_levels event the room's creator has
-            // level 100 (this is what the auth rules and Synapse do), and
-            // sorting the creator's events as level 0 resolved early
-            // conflicts differently from other servers.
             let is_creator = auth_events
                 .iter()
                 .find(|aev| is_type_and_key(aev, &TimelineEventType::RoomCreate, ""))
@@ -236,7 +213,6 @@ where
     Ok(content.users_default)
 }
 
-/// Whether `sender` created the room, going by its `m.room.create` event.
 fn is_room_creator(room_version: &RoomVersion, create: &impl Event, sender: &UserId) -> bool {
     if room_version.use_room_create_sender {
         return create.sender() == sender;

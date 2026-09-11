@@ -111,8 +111,7 @@ impl Service {
         type KeyVal<'a> = ((Ignore, Ignore, &'a Unquoted), Ignore);
 
         let mut algorithm_counts = BTreeMap::<OneTimeKeyAlgorithm, _>::new();
-        // With `Interfix` the prefix ends at the device id's separator;
-        // without it device "A" also counted the keys of device "AB".
+
         let query = (user_id, device_id, Interfix);
         self.db
             .onetimekeyid_onetimekeys
@@ -374,14 +373,6 @@ impl Service {
     }
 }
 
-/// The one public key a cross-signing key carries, with the key itself.
-///
-/// The spec allows exactly one, and the column layout depends on it: the
-/// public key is what the key is stored under, so a second one would be
-/// silently dropped rather than stored beside the first.
-///
-/// `what` names the key in the errors — "Master", "Self signing", "User
-/// signing" — since all three are parsed through here.
 pub fn parse_cross_signing_key(
     key: &Raw<CrossSigningKey>,
     what: &str,
@@ -405,7 +396,6 @@ pub fn parse_cross_signing_key(
     Ok((public_key, key))
 }
 
-/// The key `master_key` is stored under, with the key itself.
 pub fn parse_master_key(
     user_id: &UserId,
     master_key: &Raw<CrossSigningKey>,
@@ -416,12 +406,10 @@ pub fn parse_master_key(
     Ok((keyid, master_key))
 }
 
-/// The public key of `user_signing_key`.
 pub fn parse_user_signing_key(user_signing_key: &Raw<CrossSigningKey>) -> Result<String> {
     parse_cross_signing_key(user_signing_key, "User signing").map(at!(0))
 }
 
-/// Ensure that a user only sees signatures from themselves and the target user
 fn clean_signatures<F>(
     mut cross_signing_key: serde_json::Value,
     sender_user: Option<&UserId>,

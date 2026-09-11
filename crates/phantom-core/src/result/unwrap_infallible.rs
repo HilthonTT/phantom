@@ -2,7 +2,6 @@ use std::convert::Infallible;
 
 use super::Result;
 
-/// Unwraps a [`Result`] whose error cannot be constructed.
 pub trait UnwrapInfallible<T> {
     fn unwrap_infallible(self) -> T;
 }

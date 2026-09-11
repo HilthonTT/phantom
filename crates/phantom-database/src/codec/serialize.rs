@@ -1,5 +1,3 @@
-//! Writing a Rust value as the bytes of a key or a value.
-
 use std::io::Write;
 
 use std::any::type_name;
@@ -26,7 +24,6 @@ where
     Ok(buf)
 }
 
-/// Serialize T into Writer W
 #[inline]
 #[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 pub fn serialize<'a, W, T>(out: &'a mut W, val: T) -> Result<&'a [u8]>
@@ -60,35 +57,23 @@ pub(crate) struct Serializer<'a, W: Write> {
     fin: bool,
 }
 
-/// Newtype for JSON serialization.
 #[derive(Debug, Serialize)]
 pub struct Json<T>(pub T);
 
-/// Newtype for CBOR serialization.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Cbor<T>(pub T);
 
-/// Directive to force separator serialization specifically for prefix keying
-/// use. This is a quirk of the database schema and prefix iterations.
 #[derive(Debug, Serialize)]
 pub struct Interfix;
 
-/// Directive to force separator serialization. Separators are usually
-/// serialized automatically.
 #[derive(Debug, Serialize)]
 pub struct Separator;
 
-/// Record separator; an intentionally invalid-utf8 byte.
 pub const SEP: u8 = b'\xFF';
 
 impl<W: Write> Serializer<'_, W> {
     const SEP: &'static [u8] = &[SEP];
 
-    /// A key is one flat record stream: `sep` is set once the first component
-    /// has been written and stays set, so every later component is preceded by
-    /// a separator. Nesting a tuple inside a tuple would serialize to the same
-    /// bytes as the flattened form, which is a schema the caller did not write;
-    /// this catches it rather than letting the two shapes collide on disk.
     fn tuple_start(&mut self) {
         debug_assert!(!self.sep, "Tuple start with separator set");
         self.sequence_start();
@@ -462,8 +447,6 @@ mod tests {
         serialize_to_vec(val).expect("serialized")
     }
 
-    /// Byte order is what orders the keyspace, so integers have to go out
-    /// most-significant byte first or the engine iterates them out of order.
     #[test]
     fn integers_are_big_endian() {
         assert_eq!(ser(1_u64), [0, 0, 0, 0, 0, 0, 0, 1]);
@@ -480,8 +463,6 @@ mod tests {
         assert_eq!(ser(("ab", "cd", "ef")), b"ab\xFFcd\xFFef");
     }
 
-    /// What makes a key usable as an iteration prefix: the trailing separator
-    /// stops `ab` from also matching `abc`.
     #[test]
     fn interfix_leaves_a_trailing_separator() {
         assert_eq!(ser(("ab", Interfix)), b"ab\xFF");
@@ -492,8 +473,6 @@ mod tests {
         assert_eq!(ser(("ab", Separator, "cd")), b"ab\xFF\xFF\xFFcd");
     }
 
-    /// A sequence is one component, not several: its elements run together so
-    /// that a byte string survives the round trip whatever it holds.
     #[test]
     fn sequence_elements_are_not_separated() {
         assert_eq!(ser((vec![1_u8, 2, 3], "x")), b"\x01\x02\x03\xFFx");
@@ -521,16 +500,12 @@ mod tests {
         assert_eq!(buf, b"ab\xFFcd");
     }
 
-    /// `None` contributes nothing, so an optional component is absent rather
-    /// than empty. The separator around it still goes out.
     #[test]
     fn none_serializes_to_nothing() {
         assert_eq!(ser(("ab", None::<u64>, "cd")), b"ab\xFF\xFFcd");
         assert_eq!(ser(("ab", Some(1_u8), "cd")), b"ab\xFF\x01\xFFcd");
     }
 
-    /// Nesting would serialize to the same bytes as the flattened tuple, so
-    /// the two shapes would collide on disk.
     #[test]
     #[should_panic(expected = "Tuple start with separator set")]
     #[cfg(debug_assertions)]
@@ -538,8 +513,6 @@ mod tests {
         let _ = serialize_to_vec((("ab", "cd"), "ef"));
     }
 
-    /// `Interfix` says the key ends here; anything after it would land outside
-    /// the prefix the caller asked for.
     #[test]
     #[should_panic(expected = "after serialization finalized")]
     #[cfg(debug_assertions)]

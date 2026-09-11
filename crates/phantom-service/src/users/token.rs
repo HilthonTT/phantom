@@ -1,8 +1,6 @@
 use super::*;
 
 impl Service {
-    /// Creates an OpenID token, which can be used to prove that a user has
-    /// access to an account (primarily for integrations)
     pub fn create_openid_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
         use std::num::Saturating as Sat;
 
@@ -20,7 +18,6 @@ impl Service {
         Ok(expires_in)
     }
 
-    /// Find out which user an OpenID access token belongs to.
     pub async fn find_from_openid_token(&self, token: &str) -> Result<OwnedUserId> {
         let Ok(value) = self.db.openidtoken_expiresatuserid.get(token).await else {
             return Err!(Request(Unauthorized("OpenID token is unrecognised")));
@@ -50,8 +47,6 @@ impl Service {
             .map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))
     }
 
-    /// Creates a short-lived login token, which can be used to log in using the
-    /// `m.login.token` mechanism.
     pub fn create_login_token(&self, user_id: &UserId, token: &str) -> u64 {
         use std::num::Saturating as Sat;
 
@@ -67,8 +62,6 @@ impl Service {
         expires_in
     }
 
-    /// Find out which user a login token belongs to.
-    /// Removes the token to prevent double-use attacks.
     pub async fn find_from_login_token(&self, token: &str) -> Result<OwnedUserId> {
         let Ok(value) = self.db.logintoken_expiresatuserid.get(token).await else {
             return Err!(Request(Forbidden("Login token is unrecognised")));

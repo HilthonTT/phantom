@@ -1,29 +1,23 @@
-//! Aggregations over a [`futures::Stream`].
-
 use std::{collections::HashMap, hash::Hash};
 
 use futures::{Future, Stream, StreamExt};
 
 use super::ReadyExt;
 
-/// This interface is not necessarily complete; feel free to add as-needed.
 pub trait Aggregate<Item>
 where
     Self: Stream<Item = Item> + Send + Sized,
     <Self as Stream>::Item: Send,
 {
-    /// Counts how many times each item occurs.
     fn counts(self) -> impl Future<Output = HashMap<Item, usize>> + Send
     where
         <Self as Stream>::Item: Eq + Hash;
 
-    /// Counts how many items each key drawn from them occurs for.
     fn counts_by<K, F>(self, f: F) -> impl Future<Output = HashMap<K, usize>> + Send
     where
         F: Fn(Item) -> K + Send,
         K: Eq + Hash + Send;
 
-    /// [`Self::counts_by`], reserving room for `CAP` keys up front.
     fn counts_by_with_cap<const CAP: usize, K, F>(
         self,
         f: F,
@@ -32,12 +26,10 @@ where
         F: Fn(Item) -> K + Send,
         K: Eq + Hash + Send;
 
-    /// [`Self::counts`], reserving room for `CAP` keys up front.
     fn counts_with_cap<const CAP: usize>(self) -> impl Future<Output = HashMap<Item, usize>> + Send
     where
         <Self as Stream>::Item: Eq + Hash;
 
-    /// [`StreamExt::fold`] starting from [`Default::default`].
     fn fold_default<T, F, Fut>(self, f: F) -> impl Future<Output = T> + Send
     where
         F: Fn(T, Item) -> Fut + Send,

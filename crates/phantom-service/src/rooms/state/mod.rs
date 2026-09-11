@@ -1,21 +1,3 @@
-//! Which version of its state a room is currently at, and moving it forward.
-//!
-//! [`state_compressor`] owns how a version is stored and [`state_accessor`]
-//! owns reading one back. What is here is the pointer from a room to its
-//! current version, the forward extremities that say where the timeline ends,
-//! and the two ways a new version comes about: [`append_to_state`] as one
-//! event lands, and [`force_state`] when state resolution has decided the
-//! whole thing at once.
-//!
-//! [`mutex`](Service::mutex) is held across any of that. A room's state is
-//! read, changed and written back, so two events landing at once would
-//! otherwise each write a version derived from the state before the other.
-//!
-//! [`append_to_state`]: Service::append_to_state
-//! [`force_state`]: Service::force_state
-//! [`state_accessor`]: crate::rooms::state_accessor
-//! [`state_compressor`]: crate::rooms::state_compressor
-
 use std::{collections::HashMap, fmt::Write, iter::once, sync::Arc};
 
 use async_trait::async_trait;
@@ -52,10 +34,6 @@ use crate::{
 };
 
 pub struct Service {
-    /// Held for the length of any read-modify-write of a room's state.
-    ///
-    /// Per room rather than global: two rooms have nothing to serialize
-    /// against each other.
     pub mutex: RoomMutexMap,
     services: Services,
     db: Data,
@@ -114,13 +92,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// Moves the room to a state decided wholesale, bringing the membership
-    /// indexes along with it.
-    ///
-    /// This is what state resolution's answer is applied through, as against
-    /// [`append_to_state`], which advances the state one event at a time.
-    ///
-    /// [`append_to_state`]: Self::append_to_state
     pub async fn force_state(
         &self,
         room_id: &RoomId,
@@ -179,11 +150,6 @@ impl Service {
         Ok(())
     }
 
-    /// Records the state an event was accepted against, without making it the
-    /// room's current state.
-    ///
-    /// The version is derived from the state itself, so an event accepted
-    /// against a state this server already knows reuses that version.
     #[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
     pub async fn set_event_state(
         &self,
@@ -256,13 +222,6 @@ impl Service {
         Ok(shortstatehash)
     }
 
-    /// Advances the room's state by one event, returning the version that
-    /// results.
-    ///
-    /// The caller is expected to make it the room's current state with
-    /// [`set_room_state`] once the event itself has been written.
-    ///
-    /// [`set_room_state`]: Self::set_room_state
     #[tracing::instrument(skip(self, new_pdu), level = "debug")]
     pub async fn append_to_state(&self, new_pdu: &PduEvent) -> Result<ShortStateHash> {
         const BUFSIZE: usize = size_of::<u64>();
@@ -344,8 +303,6 @@ impl Service {
         Ok(shortstatehash)
     }
 
-    /// The handful of state events a client is shown for a room it has been
-    /// invited to but cannot yet read.
     #[tracing::instrument(skip_all, level = "debug")]
     pub async fn summary_stripped(&self, event: &PduEvent) -> Vec<Raw<AnyStrippedStateEvent>> {
         let cells = [
@@ -374,10 +331,6 @@ impl Service {
             .collect()
     }
 
-    /// Makes `shortstatehash` the room's current state.
-    ///
-    /// Takes the guard to make the ordering explicit rather than to use it:
-    /// deciding a new version and installing it have to be one step.
     #[tracing::instrument(skip(self, _mutex_lock), level = "debug")]
     pub fn set_room_state(
         &self,
@@ -393,7 +346,6 @@ impl Service {
             .ok();
     }
 
-    /// The room's version, from `m.room.create`.
     #[tracing::instrument(skip(self), level = "debug")]
     pub async fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
         self.services
@@ -404,7 +356,6 @@ impl Service {
             .map_err(|e| err!(Request(NotFound("No create event found: {e:?}"))))
     }
 
-    /// The version of the state the room is currently at.
     pub async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<ShortStateHash> {
         self.db
             .roomid_shortstatehash
@@ -413,8 +364,6 @@ impl Service {
             .deserialized()
     }
 
-    /// The events at the end of the room's timeline, which are what the next
-    /// event will name as its parents.
     pub fn get_forward_extremities<'a>(
         &'a self,
         room_id: &'a RoomId,
@@ -430,7 +379,6 @@ impl Service {
             .ignore_err()
     }
 
-    /// Replaces the room's forward extremities wholesale.
     pub async fn set_forward_extremities<'a, I>(
         &'a self,
         room_id: &'a RoomId,
@@ -452,13 +400,6 @@ impl Service {
         }
     }
 
-    /// Drops every forward extremity of a room.
-    ///
-    /// The empty form of [`set_forward_extremities`], for a room whose
-    /// timeline is going away entirely. Anything short of that wants the
-    /// setter: a room with no extremities has nowhere to hang its next event.
-    ///
-    /// [`set_forward_extremities`]: Self::set_forward_extremities
     #[tracing::instrument(skip(self, _state_lock), level = "debug")]
     pub(super) async fn delete_all_forward_extremities(
         &self,
@@ -471,12 +412,6 @@ impl Service {
             .await;
     }
 
-    /// Forgets which state version a room is at.
-    ///
-    /// The compressed state that version points at is left behind. It is
-    /// shared between versions and between rooms by construction, so it is
-    /// reclaimed by a sweep of what nothing references rather than by the
-    /// deletion of one room.
     #[tracing::instrument(skip(self, _state_lock), level = "debug")]
     pub(super) fn delete_room_shortstatehash(
         &self,
@@ -486,11 +421,6 @@ impl Service {
         self.db.roomid_shortstatehash.remove(room_id)
     }
 
-    /// The events authorizing an event that has not been built yet.
-    ///
-    /// Which state events those are is decided by the event's own type,
-    /// sender and content; this looks each one up in the room's current state
-    /// and returns the ones that exist.
     #[tracing::instrument(skip(self, content), level = "debug")]
     pub async fn get_auth_events(
         &self,

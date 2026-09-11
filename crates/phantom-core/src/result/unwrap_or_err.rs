@@ -2,10 +2,6 @@ use std::convert::identity;
 
 use super::Result;
 
-/// Returns the `Ok` value or the `Err` value, when they are the same type.
-///
-/// A way to default a result to something the failing operation chose, rather
-/// than to `Ok`'s [`Default`] as `unwrap_or_default` does.
 pub trait UnwrapOrErr<T> {
     fn unwrap_or_err(self) -> T;
 }

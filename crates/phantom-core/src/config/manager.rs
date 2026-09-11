@@ -1,5 +1,3 @@
-//! Hot-reloadable configuration.
-
 #![allow(unsafe_code)]
 
 use std::{
@@ -16,10 +14,6 @@ use std::{
 use super::Config;
 use crate::{Result, implement};
 
-/// The configuration manager is an indirection to reload the configuration for
-/// the server while it is running. In order to not burden or clutter the many
-/// callsites which query for configuration items, this object implements Deref
-/// for the actively loaded configuration.
 pub struct Manager {
     active: AtomicPtr<Config>,
 }
@@ -62,7 +56,6 @@ impl Deref for Manager {
     }
 }
 
-/// Update the active configuration, returning prior configuration.
 #[implement(Manager)]
 #[tracing::instrument(skip_all)]
 pub fn update(&self, config: Config) -> Result<Arc<Config>> {

@@ -1,11 +1,5 @@
-//! Truncating a slice for a log line, so a long one does not fill it.
-
 use std::fmt;
 
-/// Debug-formats the given slice, but only up to the first `max_len` elements.
-/// Any further elements are replaced by an ellipsis.
-///
-/// See also [`slice_truncated()`].
 pub struct TruncatedSlice<'a, T> {
     inner: &'a [T],
     max_len: usize,
@@ -24,14 +18,6 @@ impl<T: fmt::Debug> fmt::Debug for TruncatedSlice<'_, T> {
     }
 }
 
-/// See [`TruncatedSlice`]. Useful for `#[instrument]`:
-///
-/// ```
-/// use phantom_core::log::truncate::slice_truncated;
-///
-/// #[tracing::instrument(fields(foos = slice_truncated(foos, 42)))]
-/// fn bar(foos: &[&str]) {}
-/// ```
 pub fn slice_truncated<T: fmt::Debug>(
     slice: &[T],
     max_len: usize,

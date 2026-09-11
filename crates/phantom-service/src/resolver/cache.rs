@@ -1,17 +1,3 @@
-//! The resolved-destination cache, which lives in the database rather than in
-//! memory.
-//!
-//! Two columns. `servername_destination` holds what a server name resolved
-//! to, the answer to the whole spec procedure. `servername_override` holds
-//! the addresses a hostname resolved to, which is what [`super::dns`] answers
-//! reqwest from so that the connection is opened to the address the
-//! resolution decided on rather than to whatever DNS says at connect time.
-//!
-//! Both carry their own expiry rather than relying on the column being
-//! cleared, and both expire at a randomized time so that a server which
-//! learned about many destinations at once does not re-resolve them all at
-//! once either.
-
 use std::{net::IpAddr, sync::Arc, time::SystemTime};
 
 use arrayvec::ArrayVec;
@@ -28,7 +14,6 @@ pub struct Cache {
     overrides: Arc<Map>,
 }
 
-/// What a server name resolved to, and the `Host` header that goes with it.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CachedDest {
     pub dest: Destination,
@@ -36,12 +21,6 @@ pub struct CachedDest {
     pub expire: SystemTime,
 }
 
-/// The addresses a hostname resolved to, and the port they are reached on.
-///
-/// `overriding` is set where the name this is stored under is not the name
-/// that was resolved — an SRV record pointing elsewhere — which is what lets
-/// [`super::dns`] follow the indirection a second time rather than treating
-/// the cached addresses as final.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CachedOverride {
     pub ips: IpAddrs,
@@ -52,8 +31,6 @@ pub struct CachedOverride {
 
 pub type IpAddrs = ArrayVec<IpAddr, MAX_IPS>;
 
-/// Addresses kept per name. A server publishing more than a handful is
-/// load-balancing, and trying all of them is not this cache's job.
 pub(crate) const MAX_IPS: usize = 3;
 
 impl Cache {
@@ -136,11 +113,6 @@ pub async fn get_override(&self, name: &str) -> Result<CachedOverride> {
         .map(at!(0))
 }
 
-/// Every cached destination, expired ones included.
-///
-/// The name comes back as `&str` rather than `&ServerName`: what is in the
-/// column is whatever was resolved, and a borrowed `ServerName` cannot be
-/// deserialized without asserting that it is still valid.
 #[implement(Cache)]
 pub fn destinations(&self) -> impl Stream<Item = (&str, CachedDest)> + Send + '_ {
     self.destinations
@@ -149,7 +121,6 @@ pub fn destinations(&self) -> impl Stream<Item = (&str, CachedDest)> + Send + '_
         .map(|item: (&str, Cbor<_>)| (item.0, item.1.0))
 }
 
-/// Every cached address override, expired ones included.
 #[implement(Cache)]
 pub fn overrides(&self) -> impl Stream<Item = (&str, CachedOverride)> + Send + '_ {
     self.overrides
@@ -165,9 +136,6 @@ impl CachedDest {
         self.expire > SystemTime::now()
     }
 
-    /// Between 18 and 36 hours out. A resolved destination changes rarely,
-    /// and the spread is what keeps every destination learned during one
-    /// startup from expiring together.
     #[must_use]
     pub(crate) fn default_expire() -> SystemTime {
         rand::time_from_now_secs(60 * 60 * 18..60 * 60 * 36)
@@ -190,8 +158,6 @@ impl CachedOverride {
         self.expire > SystemTime::now()
     }
 
-    /// Between 6 and 12 hours out — shorter than a destination's, since this
-    /// is an address rather than the decision about which name to resolve.
     #[must_use]
     pub(crate) fn default_expire() -> SystemTime {
         rand::time_from_now_secs(60 * 60 * 6..60 * 60 * 12)

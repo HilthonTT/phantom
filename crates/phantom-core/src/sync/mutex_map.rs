@@ -1,5 +1,3 @@
-//! A map of mutexes, keyed by whatever is being serialized on.
-
 use std::{
     fmt::Debug,
     hash::Hash,
@@ -10,7 +8,6 @@ use tokio::sync::OwnedMutexGuard as Omg;
 
 use crate::{Result, err};
 
-/// Map of Mutexes
 pub struct MutexMap<Key, Val> {
     map: Map<Key, Val>,
 }

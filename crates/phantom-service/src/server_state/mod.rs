@@ -1,14 +1,3 @@
-//! The server's own identity, its secrets, and the counter every event is
-//! ordered by.
-//!
-//! What lives here is state the server has that belongs to no room and no
-//! user: the account it posts as, the alias of its admin room, the secrets it
-//! was configured with, and the event counter in [`counter`].
-//!
-//! Config values are *not* re-exported from here. A caller that wants one
-//! reads `server.config` directly, so there is one place a setting is spelled
-//! rather than a forwarding method per option that has to be kept in step.
-
 pub mod counter;
 
 use std::{
@@ -25,7 +14,6 @@ use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedUserId, RoomAliasId, ServerName,
 use self::counter::Counter;
 
 pub struct Service {
-    /// The monotonic counter every event is ordered by.
     pub counter: Counter,
 
     server: Arc<Server>,
@@ -37,7 +25,6 @@ pub struct Service {
     pub registration_token: Option<String>,
 }
 
-/// When a server last failed to serve an event, and how many times running.
 type RateLimitState = (Instant, u32);
 
 #[async_trait]
@@ -104,13 +91,11 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// The next number in the event ordering. See [`counter`].
     #[inline]
     pub fn next_count(&self) -> Result<u64> {
         self.counter.next()
     }
 
-    /// The last number handed out by [`Self::next_count`].
     #[inline]
     #[must_use]
     pub fn current_count(&self) -> u64 {
@@ -123,7 +108,6 @@ impl Service {
         self.server.name.as_ref()
     }
 
-    /// Whether `user_id` is one of ours, decided by server name.
     #[inline]
     #[must_use]
     pub fn user_is_local(&self, user_id: &UserId) -> bool {
@@ -136,10 +120,6 @@ impl Service {
         server_name == self.server_name()
     }
 
-    /// Whether `alias` names a room on this server, decided by server name.
-    ///
-    /// An alias from elsewhere is not ours to resolve out of the local column
-    /// or to hand out, however familiar its localpart looks.
     #[inline]
     #[must_use]
     pub fn alias_is_local(&self, alias: &RoomAliasId) -> bool {

@@ -1,5 +1,3 @@
-//! Logging and tracing.
-
 pub mod capture;
 pub mod color;
 pub mod console;
@@ -27,23 +25,12 @@ pub use self::{
 };
 use crate::{Config, Result};
 
-/// Logging subsystem. This is a singleton member of [`crate::Server`] which
-/// holds all logging and tracing related state rather than shoving it all in
-/// [`crate::Server`] directly.
 pub struct Log {
-    /// General log level reload handles.
     pub reload: LogLevelReloadHandles,
 
-    /// Tracing capture state for ephemeral/oneshot uses.
     pub capture: Arc<capture::State>,
 }
 
-/// Builds the logging subsystem and the subscriber that feeds it.
-///
-/// The subscriber is returned rather than installed: which of
-/// [`tracing::subscriber::set_global_default`] or
-/// [`tracing::subscriber::set_default`] to use is the caller's decision, and a
-/// library that installs a process-wide subscriber cannot be used twice.
 pub fn init(config: &Config) -> Result<(Log, impl Subscriber + Send + Sync + 'static)> {
     let reload = LogLevelReloadHandles::default();
 

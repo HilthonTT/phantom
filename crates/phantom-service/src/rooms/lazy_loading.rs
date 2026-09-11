@@ -1,11 +1,3 @@
-//! Which members a device has already been told about, per room.
-//!
-//! Lazy loading lets a sync send only the membership events for senders the
-//! client actually needs, but that only works if the server remembers what it
-//! has already sent: the second sync must not re-send what the first did, and
-//! must still send a member the client has never seen. This records that, per
-//! (user, device, room, member).
-
 use std::{collections::HashSet, sync::Arc};
 
 use futures::{Stream, StreamExt, pin_mut};

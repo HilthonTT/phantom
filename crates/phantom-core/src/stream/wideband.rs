@@ -1,5 +1,3 @@
-//! Wideband stream combinator extensions to [`futures::Stream`].
-
 use std::convert::identity;
 
 use futures::{
@@ -9,15 +7,10 @@ use futures::{
 
 use super::{ReadyExt, band::width};
 
-/// Concurrency extensions to augment [`futures::StreamExt`]. `wide_`
-/// combinators run several futures at once like the `broad_` ones in
-/// [`super::BroadbandExt`], but yield their results in the input's order, at
-/// the cost of holding a finished result until the ones before it are done.
 pub trait WidebandExt<Item>
 where
     Self: Stream<Item = Item> + Send + Sized,
 {
-    /// Concurrent `filter_map()`; ordered results
     fn widen_filter_map<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
     where
         N: Into<Option<usize>>,

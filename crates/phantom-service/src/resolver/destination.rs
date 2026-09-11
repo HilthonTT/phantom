@@ -1,6 +1,3 @@
-//! Where a federation request actually goes, once a server name has been
-//! resolved.
-
 use std::{
     borrow::Cow,
     fmt,
@@ -11,28 +8,18 @@ use arrayvec::ArrayString;
 use phantom_core::math::Expected;
 use serde::{Deserialize, Serialize};
 
-/// The address half of a resolved destination: either an address to connect
-/// to directly, or a name still to be resolved at connection time together
-/// with the port to use.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum Destination {
     Literal(SocketAddr),
     Named(String, PortString),
 }
 
-/// A port, written with its leading colon so that it concatenates onto a host
-/// directly. Numeric in practice, but a service name fits too.
 pub type PortString = ArrayString<16>;
 
-/// The port a Matrix server is assumed to listen on where nothing says
-/// otherwise, with the leading colon [`PortString`] carries.
 const DEFAULT_PORT: &str = ":8448";
 
-/// The numeric form of [`DEFAULT_PORT`].
 pub(crate) const DEFAULT_PORT_NUM: u16 = 8448;
 
-/// Reads `dest` as an address literal, with the port it carries or the
-/// default one. `None` where it is a name rather than an address.
 pub(crate) fn get_ip_with_port(dest_str: &str) -> Option<Destination> {
     if let Ok(dest) = dest_str.parse::<SocketAddr>() {
         Some(Destination::Literal(dest))
@@ -46,8 +33,6 @@ pub(crate) fn get_ip_with_port(dest_str: &str) -> Option<Destination> {
     }
 }
 
-/// Splits `dest` into a host and a port, supplying [`DEFAULT_PORT`] where it
-/// has none.
 pub(crate) fn add_port_to_hostname(dest: &str) -> Destination {
     let (host, port) = match dest.find(':') {
         None => (dest, DEFAULT_PORT),
@@ -61,7 +46,6 @@ pub(crate) fn add_port_to_hostname(dest: &str) -> Destination {
 }
 
 impl Destination {
-    /// The destination as a URL to make a request against.
     pub fn https_string(&self) -> String {
         match self {
             Self::Literal(addr) => format!("https://{addr}"),
@@ -69,8 +53,6 @@ impl Destination {
         }
     }
 
-    /// The destination as it belongs in a `Host` header or a URI authority:
-    /// the host and its port, without a scheme.
     pub fn uri_string(&self) -> String {
         match self {
             Self::Literal(addr) => addr.to_string(),
@@ -78,7 +60,6 @@ impl Destination {
         }
     }
 
-    /// The host alone, with no port.
     #[inline]
     pub fn hostname(&self) -> Cow<'_, str> {
         match &self {
@@ -101,7 +82,6 @@ impl Destination {
         PortString::from(DEFAULT_PORT).expect("the default port fits a PortString")
     }
 
-    /// Bytes this occupies, for the cache's memory report.
     #[inline]
     #[must_use]
     pub fn size(&self) -> usize {

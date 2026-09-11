@@ -5,9 +5,6 @@ use serde::{Deserialize, Deserializer, de};
 use super::unquote::Unquote;
 use crate::{Result, err};
 
-/// Unquoted string which deserialized from a quoted string. Construction from a
-/// &str is infallible such that the input can already be unquoted. Construction
-/// from serde deserialization is fallible and the input must be quoted.
 #[repr(transparent)]
 pub struct Unquoted(str);
 

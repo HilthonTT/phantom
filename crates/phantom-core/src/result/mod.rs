@@ -1,5 +1,3 @@
-//! The crate's `Result` alias and extension traits for it.
-
 mod alias;
 mod debug_inspect;
 mod filter;

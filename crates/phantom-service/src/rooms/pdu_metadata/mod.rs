@@ -1,21 +1,3 @@
-//! What the server records about an event besides the event itself.
-//!
-//! Three columns, each answering something the timeline cannot. Which events
-//! relate to a given one, so an edit or a reaction can be found from what it
-//! points at. Which events have already been named as a `prev_event`, which is
-//! how a room's forward extremities are worked out. And which events were
-//! soft-failed, so one arriving a second time is not reconsidered.
-//!
-//! A relation is stored as a pair of short ids, target first, with nothing in
-//! the value. That is what lets an event's relations be read as a single scan
-//! from a prefix, in either direction, without touching the events themselves
-//! until a caller asks for them.
-//!
-//! `get_relations` returns that chain as it stands. The spec's `/relations` is
-//! more than this: it also filters by `rel_type` and by event type, and drops
-//! the events the requesting user may not see. That last part waits on
-//! `rooms::state_accessor`, so the filtering is not here yet.
-
 mod data;
 
 use std::sync::Arc;
@@ -56,12 +38,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Records that the event counted `from` relates to the event counted `to`.
-///
-/// Only a pair of forward-timeline counts is recorded. A backfilled count is
-/// negative where the column is keyed on unsigned ids, so a relation involving
-/// one is dropped rather than stored under a key that would collide with a
-/// forward event's.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn add_relation(&self, from: PduCount, to: PduCount) {
@@ -70,11 +46,6 @@ pub fn add_relation(&self, from: PduCount, to: PduCount) {
     }
 }
 
-/// The events relating to `target`, walking from `from` in `dir` order.
-///
-/// A relation of a relation is followed up to `max_depth`, which is what an
-/// edited reply or a thread of reactions needs to come back in one response.
-/// At most `limit` events are returned however deep the walk goes.
 #[implement(Service)]
 #[allow(clippy::too_many_arguments)]
 pub async fn get_relations(
@@ -129,11 +100,6 @@ pub async fn get_relations(
     pdus
 }
 
-/// The count to scan a relation chain from.
-///
-/// A backfilled count is negative and the relation column is keyed on unsigned
-/// ids, so there is nothing to scan for one: zero is returned, which reads as
-/// an empty chain rather than as the relations of some other event.
 fn unsigned_count(count: PduCount) -> u64 {
     match count {
         PduCount::Normal(count) => count,
@@ -141,7 +107,6 @@ fn unsigned_count(count: PduCount) -> u64 {
     }
 }
 
-/// Records every event in `event_ids` as referenced by one in `room_id`.
 #[implement(Service)]
 #[tracing::instrument(skip_all, level = "debug")]
 pub fn mark_as_referenced<'a, I>(&self, room_id: &RoomId, event_ids: I)
@@ -151,7 +116,6 @@ where
     self.db.mark_as_referenced(room_id, event_ids);
 }
 
-/// Whether any event in `room_id` names `event_id` as a `prev_event`.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -159,7 +123,6 @@ pub async fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) ->
     self.db.is_event_referenced(room_id, event_id).await
 }
 
-/// Records the event as soft-failed.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -167,7 +130,6 @@ pub fn mark_event_soft_failed(&self, event_id: &EventId) {
     self.db.mark_event_soft_failed(event_id);
 }
 
-/// Whether the event was soft-failed when it was first seen.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -175,7 +137,6 @@ pub async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
     self.db.is_event_soft_failed(event_id).await
 }
 
-/// Drops every record of an event in `room_id` referencing another.
 #[implement(Service)]
 #[inline]
 #[tracing::instrument(skip(self), level = "debug")]
@@ -183,12 +144,6 @@ pub(super) async fn delete_all_referenced(&self, room_id: &RoomId) {
     self.db.delete_all_referenced(room_id).await;
 }
 
-/// Drops every relation pointing at one purged event, and its soft-fail mark.
-///
-/// Called per event as a room's timeline is purged rather than once for the
-/// room, because neither column is keyed by room: the relation pairs are
-/// short event ids, and a soft-failed event was never in a room's timeline to
-/// begin with.
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "trace")]
 pub(super) async fn purge_event(&self, shorteventid: &[u8], event_id: &EventId) {

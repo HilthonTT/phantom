@@ -1,11 +1,3 @@
-//! The crate's error type.
-//!
-//! One enum for the whole server. Most variants are `#[from]` conversions of
-//! somebody else's error, which is what lets `?` work across the layers
-//! without a per-module error type; the rest are phantom's own, and are built
-//! through the `err!` and `Err!` macros in [`construct`] rather than by naming
-//! the variant.
-
 mod construct;
 mod logging;
 mod panic;
@@ -143,7 +135,6 @@ impl Error {
         crate::err!(Database(error!("{message}")))
     }
 
-    /// Sanitizes public-facing errors that can leak sensitive information.
     pub fn sanitized_message(&self) -> String {
         match self {
             Self::Database(..) => String::from("Database error occurred."),
@@ -152,7 +143,6 @@ impl Error {
         }
     }
 
-    /// Generate the error message string.
     pub fn message(&self) -> String {
         match self {
             Self::Federation(origin, error) => format!("Answer from {origin}: {error}"),
@@ -161,7 +151,6 @@ impl Error {
         }
     }
 
-    /// Returns the Matrix error code / error kind
     #[inline]
     pub fn kind(&self) -> ruma::api::error::ErrorKind {
         use ruma::api::error::ErrorKind::{Unknown, Unrecognized};
@@ -176,8 +165,6 @@ impl Error {
         }
     }
 
-    /// Returns the HTTP error code or closest approximation based on error
-    /// variant.
     pub fn status_code(&self) -> http::StatusCode {
         use http::StatusCode;
 
@@ -193,10 +180,6 @@ impl Error {
         }
     }
 
-    /// Returns true for "not found" errors. This means anything that qualifies
-    /// as a "not found" from any variant's contained error type. This call is
-    /// often used as a special case to eliminate a contained Option with a
-    /// Result where Ok(None) is instead Err(e) if e.is_not_found().
     #[inline]
     pub fn is_not_found(&self) -> bool {
         self.status_code() == http::StatusCode::NOT_FOUND
@@ -248,7 +231,6 @@ pub fn infallible(_e: &Infallible) {
     panic!("infallible error should never exist");
 }
 
-/// Convenience functor for fundamental Error::sanitized_message(); see member.
 #[inline]
 #[must_use]
 #[allow(clippy::needless_pass_by_value)]
@@ -260,9 +242,6 @@ pub fn sanitized_message(e: Error) -> String {
 mod tests {
     use super::*;
 
-    /// `Error` is returned by nearly every fallible function in the crate, so
-    /// its size is the size of almost every `Result` phantom passes around.
-    /// This pins it so a future variant that balloons it is noticed here.
     #[test]
     fn error_size_is_bounded() {
         let size = size_of::<Error>();

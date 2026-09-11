@@ -1,11 +1,3 @@
-//! What one user has going on in one room.
-//!
-//! The unread counters a client renders as a badge — notifications and, of
-//! them, the ones that mention the user — plus the read marker they are
-//! counted from. Also the sync token a client last held for the room, mapped
-//! to the room's state at that moment, which is what lets the next sync send a
-//! delta rather than the whole state.
-
 use std::{fmt::Debug, sync::Arc};
 
 use phantom_core::{Result, implement};
@@ -89,19 +81,16 @@ pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) {
         .ok();
 }
 
-/// How many notifications the user has waiting in the room.
 #[implement(Service)]
 pub async fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
     stored_count(&self.db.userroomid_notificationcount, &(user_id, room_id)).await
 }
 
-/// How many of those notifications mention the user.
 #[implement(Service)]
 pub async fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
     stored_count(&self.db.userroomid_highlightcount, &(user_id, room_id)).await
 }
 
-/// The counter value the user's read marker was last moved to.
 #[implement(Service)]
 pub async fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
     stored_count(
@@ -111,7 +100,6 @@ pub async fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -
     .await
 }
 
-/// A counter column's value, where never having been written counts as zero.
 async fn stored_count<K>(map: &Arc<Map>, key: &K) -> u64
 where
     K: Serialize + ?Sized + Debug,
@@ -157,15 +145,6 @@ pub async fn get_token_shortstatehash(
         .deserialized()
 }
 
-/// Drops everything this column set holds about a room.
-///
-/// The read markers and the token-to-state-version map are keyed room first,
-/// so each is one prefix. The two unread counters are not — they are keyed by
-/// user, so that a client's badge for every room is one scan — which is why
-/// `users` has to be passed in. It is the set of users who were ever joined:
-/// a counter is only ever incremented for a member, and the room-keyed
-/// membership indexes it would otherwise be read from are gone by the time a
-/// purge reaches here.
 #[implement(Service)]
 #[tracing::instrument(skip(self, users), level = "debug")]
 pub(super) async fn delete_room_notification_state(

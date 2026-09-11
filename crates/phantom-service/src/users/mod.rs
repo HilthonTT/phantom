@@ -110,8 +110,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    /// Returns true/false based on whether the recipient/receiving user has
-    /// blocked the sender
     pub async fn user_is_ignored(&self, sender_user: &UserId, recipient_user: &UserId) -> bool {
         self.services
             .account_data
@@ -126,11 +124,6 @@ impl Service {
             })
     }
 
-    /// Whether a user is an admin, which is to say joined to the admin room.
-    ///
-    /// The reference asks its admin service, but that service answers the
-    /// question the same way — membership of the admin room is what being an
-    /// admin *is*, not a flag kept beside it.
     pub async fn is_admin(&self, user_id: &UserId) -> bool {
         let admin_alias = &self.services.server_state.admin_alias;
         let Ok(admin_room) = self.services.alias.resolve_local_alias(admin_alias).await else {
@@ -143,13 +136,11 @@ impl Service {
             .await
     }
 
-    /// Create a new user account on this homeserver.
     #[inline]
     pub fn create(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         self.set_password(user_id, password)
     }
 
-    /// Deactivate account
     pub async fn deactivate_account(&self, user_id: &UserId) -> Result<()> {
         self.all_device_ids(user_id)
             .for_each(|device_id| self.remove_device(user_id, device_id))
@@ -160,13 +151,11 @@ impl Service {
         Ok(())
     }
 
-    /// Check if a user has an account on this homeserver.
     #[inline]
     pub async fn exists(&self, user_id: &UserId) -> bool {
         self.db.userid_password.get(user_id).await.is_ok()
     }
 
-    /// Check if account is deactivated
     pub async fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
         self.db
             .userid_password
@@ -176,35 +165,28 @@ impl Service {
             .await
     }
 
-    /// Check if account is active, infallible
     pub async fn is_active(&self, user_id: &UserId) -> bool {
         !self.is_deactivated(user_id).await.unwrap_or(true)
     }
 
-    /// Check if account is active, infallible
     pub async fn is_active_local(&self, user_id: &UserId) -> bool {
         self.services.server_state.user_is_local(user_id) && self.is_active(user_id).await
     }
 
-    /// Returns the number of users registered on this server.
     #[inline]
     pub async fn count(&self) -> usize {
         self.db.userid_password.count().await
     }
 
-    /// Find out which user an access token belongs to.
     pub async fn find_from_token(&self, token: &str) -> Result<(OwnedUserId, OwnedDeviceId)> {
         self.db.token_userdeviceid.get(token).await.deserialized()
     }
 
-    /// Returns an iterator over all users on this homeserver (offered for
-    /// compatibility)
     #[allow(clippy::iter_without_into_iter, clippy::iter_not_returning_iterator)]
     pub fn iter(&self) -> impl Stream<Item = OwnedUserId> + Send + '_ {
         self.stream().map(ToOwned::to_owned)
     }
 
-    /// Returns an iterator over all users on this homeserver.
     pub fn stream(&self) -> impl Stream<Item = &UserId> + Send {
         self.db
             .userid_password
@@ -213,10 +195,6 @@ impl Service {
             .map(|user_id| <&UserId>::try_from(user_id).expect("valid user id in db"))
     }
 
-    /// Returns a list of local users as list of usernames.
-    ///
-    /// A user account is considered `local` if the length of it's password is
-    /// greater then zero.
     pub fn list_local_users(&self) -> impl Stream<Item = &UserId> + Send + '_ {
         self.db
             .userid_password
@@ -227,12 +205,10 @@ impl Service {
             })
     }
 
-    /// Returns the password hash for the given user.
     pub async fn password_hash(&self, user_id: &UserId) -> Result<String> {
         self.db.userid_password.get(user_id).await.deserialized()
     }
 
-    /// Hash and set the user's password to the Argon2 hash
     pub fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
         password
             .map(hash::password)
@@ -248,7 +224,6 @@ impl Service {
             )
     }
 
-    /// Creates a new sync filter. Returns the filter id.
     pub fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> String {
         let filter_id = rand::string(4);
 

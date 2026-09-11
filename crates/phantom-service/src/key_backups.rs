@@ -1,11 +1,3 @@
-//! The server-side room key backups a client uploads.
-//!
-//! The server never reads what is in a backup — the keys arrive already
-//! encrypted under a key only the user holds. What it keeps is the structure
-//! around them: which backup version is current, an etag that changes on every
-//! write so a client can tell whether it is behind, and the keys themselves
-//! filed under (user, version, room, session).
-
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::StreamExt;
@@ -112,9 +104,6 @@ pub async fn update_backup<'a>(
 pub async fn get_latest_backup_version(&self, user_id: &UserId) -> Result<String> {
     type Key<'a> = (Ignore, &'a str);
 
-    // Versions are the decimal global counter, so the byte-wise last key is
-    // not the newest once the counter gains a digit: "99999" sorts after
-    // "100000". Upstream took the last key.
     let prefix = (user_id, Interfix);
     self.db
         .backupid_algorithm
@@ -133,7 +122,6 @@ pub async fn get_latest_backup(&self, user_id: &UserId) -> Result<(String, Raw<B
     type Key<'a> = (Ignore, &'a str);
     type KeyVal<'a> = (Key<'a>, Raw<BackupAlgorithm>);
 
-    // See `get_latest_backup_version` for why this is not the last key.
     let prefix = (user_id, Interfix);
     self.db
         .backupid_algorithm
@@ -284,12 +272,6 @@ pub async fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &
         .await;
 }
 
-/// Deletes one session's key. Deleting one that was never backed up is not an
-/// error.
-///
-/// Deleted by the key itself rather than by scanning for it as a prefix: the
-/// key is already complete, and a prefix scan would take the sessions whose
-/// ids merely start with this one along with it.
 #[implement(Service)]
 pub fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) {
     let key = (user_id, version, room_id, session_id);

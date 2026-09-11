@@ -1,17 +1,3 @@
-//! User-interactive authentication: the extra steps before a sensitive
-//! request is allowed through.
-//!
-//! An endpoint that needs UIAA answers the first request with a session id and
-//! the flows that would satisfy it. The client then re-sends the same request
-//! with an `auth` object, and each stage it completes is recorded against that
-//! session until one flow's stages are all done.
-//!
-//! Two pieces of state are kept per session. The stages completed so far go in
-//! the database, since a session outlives a restart. The original request body
-//! is held in memory instead: it is only needed to replay the request once the
-//! last stage passes, and a client that gives up mid-flow should not leave the
-//! body it sent behind on disk.
-
 use std::{
     collections::{BTreeMap, HashSet},
     sync::{Arc, RwLock},
@@ -92,7 +78,6 @@ pub async fn read_tokens(&self) -> Result<HashSet<String>> {
     Ok(tokens)
 }
 
-/// Creates a new Uiaa session. Make sure the session token is unique.
 #[implement(Service)]
 pub fn create(
     &self,
@@ -151,11 +136,6 @@ pub async fn try_auth(
             )
             .map_err(|_| err!(Request(InvalidParam("User ID is invalid."))))?;
 
-            // Diverges from upstream, which compared localparts only and let
-            // a user without a stored password through. A bare `@user:other`
-            // identifier parses as-is, so a matching localpart on a foreign
-            // server name rebound `user_id` to an account with no password
-            // hash, and the stage completed without checking anything.
             if user_id != user_id_from_username {
                 return Err!(Request(Forbidden("User ID and access token mismatch.")));
             }

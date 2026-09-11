@@ -1,25 +1,3 @@
-//! The announcement feed, and which announcements have already been seen.
-//!
-//! Some things an operator needs to know are not visible from inside their own
-//! server: that a release fixed a vulnerability their version has, that a
-//! config option they rely on is about to change meaning. So the project
-//! publishes a feed of numbered announcements and a running server reads it
-//! periodically, remembering the highest id it has read so an announcement is
-//! surfaced once rather than every two hours.
-//!
-//! Two things about that are worth stating plainly, because both are choices
-//! rather than accidents.
-//!
-//! **It is off by default.** A server that has not been asked to make an
-//! outbound request does not make one, so `allow_check_for_updates` gates the
-//! worker existing at all rather than gating the request inside it.
-//!
-//! **A first run announces nothing.** A fresh server has no high-water mark,
-//! and reading the whole feed as unseen would greet its operator with every
-//! notice the project ever published — the great majority about versions that
-//! server never ran. So the first fetch records the newest id and says
-//! nothing; from then on, everything past that mark is new.
-
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -44,15 +22,8 @@ struct Services {
     client: Dep<client::Service>,
 }
 
-/// The key the high-water mark is stored under in `global`.
 const LAST_SEEN_KEY: &[u8] = b"updates_last_seen_id";
 
-/// The feed as published.
-///
-/// Deserialized rather than read as loose JSON so a feed that has grown a
-/// field this version does not understand is still read, and one whose shape
-/// has changed incompatibly fails loudly instead of silently announcing
-/// nothing.
 #[derive(Debug, Deserialize)]
 struct Feed {
     announcements: Vec<Announcement>,
@@ -87,10 +58,6 @@ impl crate::Service for Service {
             return Ok(());
         }
 
-        // A failed check is not a failed worker: the feed being unreachable is
-        // an ordinary condition, and returning an error would have the manager
-        // restart this service every 2.5 seconds for as long as the operator's
-        // network is down.
         loop {
             self.check().await.log_err().ok();
 
@@ -106,7 +73,6 @@ impl crate::Service for Service {
     }
 }
 
-/// Fetches the feed and logs whatever is newer than the high-water mark.
 #[implement(Service)]
 #[tracing::instrument(name = "updates", level = "debug", skip_all)]
 async fn check(&self) -> Result {
@@ -132,10 +98,6 @@ async fn check(&self) -> Result {
         ))
     })?;
 
-    // The feed is published in ascending id order, but a published file is not
-    // a database and a hand-edited one may not be. Taking the maximum rather
-    // than the last entry means a feed out of order still advances the mark
-    // past everything in it, so nothing is announced twice.
     let Some(newest) = feed.announcements.iter().map(|a| a.id).max() else {
         debug!("Announcement feed is empty");
         return Ok(());
@@ -152,9 +114,6 @@ async fn check(&self) -> Result {
                 .filter(|a| a.id > last_seen)
                 .filter(|a| !a.message.trim().is_empty())
             {
-                // Announcements are the operator's to act on, and a server
-                // that logs them at `debug` has not told anyone. `warn` is
-                // deliberate: the feed carries security notices.
                 warn!(
                     id = announcement.id,
                     "Announcement: {}", announcement.message
@@ -171,8 +130,6 @@ async fn check(&self) -> Result {
     Ok(())
 }
 
-/// The highest announcement id already surfaced, or `None` on a server that
-/// has never read the feed.
 #[implement(Service)]
 async fn last_seen(&self) -> Option<u64> {
     self.db.global.get(LAST_SEEN_KEY).await.deserialized().ok()

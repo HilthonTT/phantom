@@ -1,11 +1,3 @@
-//! Ephemeral capture of log events.
-//!
-//! A [`Capture`] borrows the running server's log stream for as long as its
-//! guard is alive, so a one-shot consumer — the admin room's log command, a
-//! test asserting on what was logged — can collect events without a second
-//! subscriber or a restart. [`Layer`] is installed once at startup and does
-//! nothing measurable until a capture is started.
-
 mod data;
 mod guard;
 mod layer;
@@ -22,17 +14,10 @@ pub use self::{
     state::State,
 };
 
-/// Decides whether a captured event is one the consumer asked for.
 pub type Filter = dyn Fn(Data<'_>) -> bool + Send + Sync + 'static;
 
-/// Receives each event the filter accepted.
 pub type Closure = dyn FnMut(Data<'_>) + Send + Sync + 'static;
 
-/// A capture instance.
-///
-/// Neither the filter nor the closure may start or stop a capture: both run
-/// with the capture list locked, and the log layer is re-entered by anything
-/// that logs, so both must also avoid logging themselves.
 pub struct Capture {
     state: Arc<State>,
     filter: Option<Box<Filter>>,
@@ -40,8 +25,6 @@ pub struct Capture {
 }
 
 impl Capture {
-    /// Constructs a capture. Nothing is captured until [`Self::start`] is
-    /// called and its guard held.
     #[must_use]
     pub fn new<F, C>(state: &Arc<State>, filter: Option<F>, closure: C) -> Arc<Self>
     where
@@ -55,7 +38,6 @@ impl Capture {
         })
     }
 
-    /// Starts capturing, until the returned guard is dropped.
     #[must_use]
     pub fn start(self: &Arc<Self>) -> Guard {
         self.state.add(self);
@@ -65,7 +47,6 @@ impl Capture {
         }
     }
 
-    /// Stops capturing. Called for you when the guard drops.
     pub fn stop(self: &Arc<Self>) {
         self.state.del(self);
     }
@@ -80,8 +61,6 @@ mod tests {
 
     use super::*;
 
-    /// Installs a capture layer as the calling thread's subscriber, runs `f`
-    /// with a capture started, and returns what the capture rendered.
     fn captured<F>(filter: Option<fn(Data<'_>) -> bool>, f: F) -> String
     where
         F: FnOnce(),

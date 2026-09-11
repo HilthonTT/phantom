@@ -1,18 +1,14 @@
-//! Aggregations over a [`futures::TryStream`].
 #![allow(clippy::type_complexity)]
 
 use futures::{TryStream, TryStreamExt, future, future::Ready, stream::TryTakeWhile};
 
 use crate::Result;
 
-/// This interface is not necessarily complete; feel free to add as-needed.
 pub trait TryAggregate<T, E, S>
 where
     S: TryStream<Ok = T, Error = E, Item = Result<T, E>> + Send + ?Sized,
     Self: TryStream + Send + Sized,
 {
-    /// [`futures::StreamExt::take`] for a fallible stream, which stops at `n`
-    /// successful items and passes an error through.
     fn try_take(
         self,
         n: usize,

@@ -1,15 +1,3 @@
-//! Commands the server runs at itself.
-//!
-//! Two lists, both from the config: `admin_execute` runs once the services are
-//! up, and `admin_signal_execute` runs again every time the server is sent
-//! `SIGUSR2`. Between them they are how an operator scripts the server without
-//! a client — a fresh deployment can register its first account, and a running
-//! one can be prodded from a unit file or a cron job.
-//!
-//! Output goes to the log rather than to the admin room. These commands have
-//! no room and no event to answer, so the log is where their output belongs
-//! even once the timeline write path lands.
-
 use std::time::Duration;
 
 use phantom_core::{Err, Result, debug, implement, info};
@@ -19,16 +7,8 @@ use super::CommandOutput;
 
 pub(super) const SIGNAL: &str = "SIGUSR2";
 
-/// How long the startup commands wait before running.
-///
-/// Every worker is spawned at once and there is nothing that announces one is
-/// ready, so a command that reaches a service doing its setup in its own
-/// worker — the emergency password, say — can arrive before that has happened.
-/// This is the crude answer, and it goes away when the services broadcast
-/// their run state.
 const STARTUP_DELAY: Duration = Duration::from_millis(500);
 
-/// Runs the `admin_execute` commands.
 #[implement(super::Service)]
 pub(super) async fn startup_execute(&self) -> Result {
     let commands = self.services.server.config.admin.admin_execute.clone();
@@ -41,7 +21,6 @@ pub(super) async fn startup_execute(&self) -> Result {
     self.execute_commands(&commands).await
 }
 
-/// Runs the `admin_signal_execute` commands.
 #[implement(super::Service)]
 pub(super) async fn signal_execute(&self) -> Result {
     let commands = self
@@ -94,11 +73,6 @@ async fn execute_command(&self, i: usize, command: String) -> Result {
     }
 }
 
-/// The text of a command's output.
-///
-/// Commands answer in markdown, since their usual reader is a Matrix client.
-/// The plain body is what a log line wants, and it is the same text without
-/// the formatting.
 fn body(output: &CommandOutput) -> &str {
     output.body()
 }

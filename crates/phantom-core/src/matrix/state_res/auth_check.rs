@@ -1,16 +1,5 @@
 use super::*;
 
-/// Check the that each event is authenticated based on the events before it.
-///
-/// ## Returns
-///
-/// The `unconflicted_state` combined with the newly auth'ed events. So any
-/// event that fails the `event_auth::auth_check` will be excluded from the
-/// returned state map.
-///
-/// For each `events_to_check` event we gather the events needed to auth it from
-/// the the `fetch_event` closure and verify each event using the
-/// `event_auth::auth_check` function.
 pub(super) async fn iterative_auth_check<'a, E, F, Fut, I>(
     room_version: &RoomVersion,
     events_to_check: I,
@@ -38,10 +27,6 @@ where
                 result.ok_or_else(|| Error::NotFound(format!("Failed to find {event_id}")))
             })
         })
-        // Diverges from upstream's `try_buffer_unordered`: the events must be
-        // auth-checked in the order the sort produced, and an unordered fetch
-        // yielded them in I/O completion order, which made the resolved state
-        // depend on database timing whenever `parallel_fetches > 1`.
         .try_buffered(parallel_fetches)
         .try_collect()
         .boxed()
