@@ -35,6 +35,105 @@
 #
 #port = 8008
 
+# Path a push gateway is expected to serve its notify endpoint at. Only
+# the appservice-style pushers that do not carry their own URL use it.
+#
+#notification_push_path = "/_matrix/push/v1/notify"
+
+# Password set on the server's own user account so an operator locked out
+# of every admin account can log in as it and recover one.
+#
+# While this is set the server user is a usable account with the default
+# push ruleset. Unset it once recovery is done: clearing it deactivates
+# the account again and logs out every session that was opened with it.
+#
+#emergency_password =
+
+# Admin commands to run once the server has started, in order, as if
+# they had been typed into the admin room.
+#
+# Each entry is one command without its `!admin` prefix. Their output
+# goes to the log, since there is nobody in a room to answer, and a
+# command that fails stops startup unless
+# `admin_execute_errors_ignore` is set.
+#
+# This build registers no command set, so anything listed here fails.
+# The option is here because the schedule belongs to the admin service
+# and the commands do not.
+#
+# example: ["users create-user @admin:example.com", "server memory-usage"]
+#
+#admin_execute = []
+
+# Admin commands to run every time the server is sent SIGUSR2, in the
+# same form as `admin_execute`.
+#
+# Unlike the startup list this one is re-read each time, so a reloaded
+# config changes what the next signal runs.
+#
+#admin_signal_execute = []
+
+# Carry on when one of the commands above fails, instead of treating the
+# failure as fatal to startup.
+#
+#admin_execute_errors_ignore = false
+
+# Let an admin run a command outside the admin room by escaping it with a
+# backslash, as `\!admin ...`.
+#
+# The command and its output are both visible to that room, which is the
+# point: it is how an admin answers a question where it was asked. Only
+# local admins can do it, escaped or not.
+#
+#admin_escape_commands = true
+
+# Reload the configuration when the server is sent SIGUSR1.
+#
+# Only `server_name` is fixed for the life of the process; every other
+# option is re-read. Has no effect where the platform has no SIGUSR1.
+#
+#config_reload_signal = true
+
+# A shared secret required to register an account.
+#
+#registration_token =
+
+# Path to a file holding the registration token instead of writing it
+# into the config. The contents are read once at startup, with
+# surrounding whitespace trimmed, and take priority over
+# `registration_token`.
+#
+# example: "/etc/phantom/.reg_token"
+#
+#registration_token_file =
+
+# Seconds an OpenID token stays valid for.
+#
+# The token proves to an integration that the bearer holds the account it
+# names, so it wants to be long enough to be exchanged and no longer.
+#
+#openid_token_ttl = 3600
+
+# Text appended to a user's displayname when they register, after a
+# space. Leave it empty to append nothing.
+#
+# example: "🏳️‍⚧️"
+#
+#new_user_displayname_suffix = ""
+
+# The base URL clients reach this server on, as published in
+# `/.well-known/matrix/client`.
+#
+# The OpenID Connect server derives its issuer and its endpoint URLs from
+# this, and it is what an identity provider's callback URL is built from
+# when one is not configured explicitly. Without it neither next-gen auth
+# nor SSO login can be offered, because a provider has nowhere to send
+# the user back to.
+#
+# example: "https://matrix.example.com/"
+#
+#well_known_client =
+
 # Path to the directory holding the database.
 #
 # YOU NEED TO EDIT THIS.
@@ -42,161 +141,6 @@
 # example: "/var/lib/phantom"
 #
 #database_path =
-
-# Path to the directory holding uploaded and cached media files.
-#
-# Media is kept as files rather than in the database because it is large,
-# written once and read whole — everything a filesystem is better at than
-# a key-value store. What the database holds is the metadata pointing at
-# them, so the two must be backed up and restored together.
-#
-# Leave this unset to use a `media` directory under `database_path`.
-#
-# example: "/var/lib/phantom/media"
-#
-#media_path =
-
-# Check at startup that every file the media metadata names is present.
-#
-# Answers a request for media that is not there with "gone" rather than
-# with an error, which is what a client can act on. The check reads one
-# directory entry per stored file, so an installation with a very large
-# media store may prefer to turn it off and accept the worse error.
-#
-#media_startup_check = true
-
-# Largest picture, in pixels, the thumbnailer will decode.
-#
-# Dimensions cost memory whatever the encoded file weighs — a few
-# kilobytes of PNG can declare a picture that costs gigabytes to hold —
-# so a picture declaring more than this is served without a thumbnail
-# rather than decoded. A frame extracted from a video inherits the
-# resolution of the video it came from and is bounded here too.
-#
-# 50 megapixels is roughly four 8K frames, and more than any ordinary
-# camera produces. Each pixel is budgeted four bytes, so the default
-# admits a decode of about 200 MiB. The budget is per decode in flight,
-# which is what to size it against: thumbnail requests are not otherwise
-# limited in number.
-#
-#media_thumbnail_max_pixels = 50000000
-
-# Program that extracts a still frame from a video, so that a video can
-# be given a thumbnail. Phantom decodes no video itself; the frame the
-# program writes is thumbnailed as an ordinary picture and cached as an
-# ordinary thumbnail.
-#
-# The list is an argument vector whose first entry is the program and
-# whose remaining entries are its arguments. It is executed directly and
-# never through a shell, so no quoting or expansion applies. Every
-# argument has these tokens substituted before each call:
-#
-# - `{input}` the path of a temporary file holding the source video.
-# - `{width}` and `{height}` the requested thumbnail dimensions.
-#
-# The program writes one frame to standard output in any format the
-# thumbnailer decodes: PNG, JPEG, WebP or GIF. While the list is empty,
-# videos are served without a thumbnail.
-#
-# example: [
-# "ffmpeg", "-loglevel", "error", "-i", "{input}", "-vf", "thumbnail",
-# "-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1",
-# ]
-#
-#media_video_thumbnail_command = []
-
-# List of storage providers to use for media. Providers can be configured
-# below in respective sections designated by
-# `global.storage_provider.<NAME>.<brand>` where `NAME` can be listed
-# here.
-#
-# For advanced features and future extensions involving multiple providers
-# the list may contain multiple entries. You MUST take note of other
-# configuration options when listing multiple providers or resource
-# duplication costs and poor performance can result.
-#
-# The list defaults to `["media"]` which is an implicit storage provider
-# representing the media directory on the local filesystem. It can be
-# altered by configuring `global.storage_provider.media.local` explicitly
-# or disabled by omitting it from this list entirely. Users with existing
-# deployments are advised to continue listing "media" as a fallback along
-# with their new provider.
-#
-# reloadable: yes
-#
-#media_storage_providers = ["media"]
-
-# Seconds a video thumbnail request may spend extracting its frame.
-#
-# One deadline spans the wait for a free slot, staging the video and the
-# program itself, so a queue cannot compound it into a multiple of what
-# is configured here. On expiry the program and anything it spawned are
-# killed and the video is served without a thumbnail.
-#
-#media_video_thumbnail_timeout = 30
-
-# Frame extractions permitted to run at once.
-#
-# Decoding video costs far more than scaling a picture, so requests past
-# this limit wait for a slot rather than piling load onto the host. A
-# slot is held from staging the video through to the program exiting, so
-# this also bounds how many staged videos occupy the staging directory at
-# once. Raise it where cores are spare.
-#
-#media_video_thumbnail_concurrency = 1
-
-# Largest video, in bytes, staged for the thumbnail program, and largest
-# frame read back from it.
-#
-# A video past this is served without a thumbnail rather than written
-# out, and a frame past it is refused rather than decoded from what would
-# be a truncation.
-#
-#media_video_thumbnail_max_size = 134217728
-
-# Directory a video is staged in for the thumbnail program to read.
-#
-# One file per running program, removed as soon as it exits, and any left
-# behind by a killed server are reclaimed at startup. Leave this unset to
-# use a `tmp` directory under `database_path`, which keeps videos off the
-# memory-backed `/tmp` a service manager commonly provides.
-#
-# example: "/var/tmp/phantom"
-#
-#media_video_thumbnail_path =
-
-# Media IDs one user may hold reserved but unfilled at a time.
-#
-# A client may ask for a media ID before it has the file, so that it can
-# send the message naming it first. Each reservation is a promise to
-# serve something at that URI, so a user cannot hold an unbounded number
-# of them.
-#
-#max_pending_media_uploads = 5
-
-# Seconds a reserved media ID stays fillable before it expires.
-#
-# Past this the reservation is refused rather than filled, and the ID
-# stays permanently unresolvable: a client that reserves one and loses
-# the file must reserve another.
-#
-#media_create_unused_expiration_time = 86400
-
-# Media IDs a user may reserve per second, sustained.
-#
-# Reserving one costs nothing but the record, which is what makes it
-# worth rate limiting separately from the upload it precedes. Zero
-# disables the limit.
-#
-#media_rc_create_per_second = 10
-
-# Media ID reservations a user may make in a burst.
-#
-# The allowance refills at `media_rc_create_per_second`, so this is what
-# a client may spend at once after a quiet period. Zero disables the
-# limit.
-#
-#media_rc_create_burst_count = 50
 
 # Path phantom writes online database backups to. The backups are taken
 # through RocksDB's backup engine, so the server does not have to be
@@ -474,116 +418,55 @@
 #
 #rocksdb_stats_level = 1
 
-# Enable the built-in metrics endpoint.
+# Entries the in-process DNS cache holds. Entries vary in size, so raise
+# this carefully. Lower it only where a real external cache sits in
+# front of phantom — systemd-resolved is not one.
 #
-#allow_metrics = false
+#dns_cache_entries = 32768
 
-# Max log level for phantom. Allows debug, info, warn, or error.
+# Seconds a resolved name is held even if its record says less.
 #
-# See also:
-# https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
-#
-# **Caveat**:
-# For release builds, the tracing crate is configured to only implement
-# levels higher than error to avoid unnecessary overhead in the compiled
-# binary from trace macros. For debug builds, this restriction is not
-# applied.
-#
-#log = "info"
+#dns_min_ttl = 10800
 
-# Output logs with ANSI colours. Colours are omitted regardless of this
-# setting when running under systemd, where they would be stored verbatim
-# in the journal.
+# Seconds an NXDOMAIN is held. Three days by default, and deliberately:
+# a name that does not resolve is almost never about to, and rechecking
+# each one is what makes a server with dead remotes in its rooms slow.
 #
-#log_colors = true
+#dns_min_ttl_nxdomain = 259200
 
-# Configures the span events which will be outputted with the log.
+# Attempts made at a nameserver before the query is given up on.
 #
-# Accepts one or more of "new", "enter", "exit", "close", "active",
-# "full" or "none", separated by commas.
-#
-#log_span_events = "none"
+#dns_attempts = 10
 
-# Configures whether `log` matches values using regular expressions. See
-# the tracing_subscriber documentation on Directives.
+# Seconds phantom waits for a nameserver to answer. Recursive queries
+# take seconds on some domains, so a low value here reads as a DNS
+# outage.
 #
-#log_filter_regex = true
+#dns_timeout = 10
 
-# Toggles the display of ThreadId in tracing log output.
+# Retry a query over TCP when the UDP one errors or is truncated.
 #
-#log_thread_ids = false
+#dns_tcp_fallback = true
 
-# A shared secret required to register an account.
+# Query the configured nameservers over TCP only. Some container
+# networks need this, where UDP replies are truncated or dropped.
 #
-#registration_token =
+#query_over_tcp_only = false
 
-# Path to a file holding the registration token instead of writing it
-# into the config. The contents are read once at startup, with
-# surrounding whitespace trimmed, and take priority over
-# `registration_token`.
+# Keep asking the remaining nameservers after one says the name does not
+# exist, rather than trusting the first negative answer.
 #
-# example: "/etc/phantom/.reg_token"
-#
-#registration_token_file =
+#query_all_nameservers = true
 
-# Password set on the server's own user account so an operator locked out
-# of every admin account can log in as it and recover one.
+# Which address records to look up, and in what order.
 #
-# While this is set the server user is a usable account with the default
-# push ruleset. Unset it once recovery is done: clearing it deactivates
-# the account again and logs out every session that was opened with it.
+# One of "ipv4-only", "ipv6-only", "ipv4-and-ipv6" (both at once, first
+# answer wins), "ipv6-then-ipv4", or "ipv4-then-ipv6".
 #
-#emergency_password =
-
-# Makes leaving a room also forget it, rather than leaving it in the
-# user's `leave` section of sync until they forget it themselves.
+# On a host with no IPv6 route, "ipv4-only" saves a lookup whose answer
+# could never be connected to.
 #
-# Banned and admin-disabled rooms are forgotten on leave either way.
-#
-#forget_forced_upon_leave = false
-
-# Seconds an OpenID token stays valid for.
-#
-# The token proves to an integration that the bearer holds the account it
-# names, so it wants to be long enough to be exchanged and no longer.
-#
-#openid_token_ttl = 3600
-
-# Milliseconds a login token stays valid for.
-#
-# This is the `m.login.token` handed out to complete a login started
-# elsewhere, so it is spent within seconds of being issued; the spec caps
-# it at five minutes.
-#
-#login_token_ttl = 120000
-
-# Text appended to a user's displayname when they register, after a
-# space. Leave it empty to append nothing.
-#
-# example: "🏳️‍⚧️"
-#
-#new_user_displayname_suffix = ""
-
-# Allow ordinary users to create rooms. Admins and appservices may
-# always create them regardless of this.
-#
-#allow_room_creation = true
-
-# Keep the original of an event before a redaction strips it.
-#
-# A redaction removes content the spec does not require the event to
-# keep, and the copy retained here is what a moderator reviewing a report
-# reads afterwards. Leaving this off makes a redaction final on arrival.
-#
-#save_unredacted_events = true
-
-# Seconds an original retained by `save_unredacted_events` is kept before
-# it is swept.
-#
-# The default is 60 days. Zero keeps the originals indefinitely, which
-# grows without bound — set it only where something else prunes them.
-#
-#redaction_retention_seconds = 5184000
+#ip_lookup_strategy = "ipv4-then-ipv6"
 
 # Serve this server's public room directory to other servers over
 # federation.
@@ -601,45 +484,6 @@
 # the protocol needs them.
 #
 #allow_device_name_federation = false
-
-# Seconds a user may be idle before their presence is moved from
-# "online" to "unavailable".
-#
-# The clock starts at the last presence update the user's client sent,
-# so a client that pings while a person is away keeps them online.
-#
-#presence_idle_timeout_s = 300
-
-# Seconds a user may stay "unavailable" before their presence is moved
-# to "offline".
-#
-# Measured from the same last update as `presence_idle_timeout_s`
-# rather than from the move to "unavailable", so it wants to be the
-# larger of the two.
-#
-#presence_offline_timeout_s = 1800
-
-# Time out remote users' presence as well as local users'.
-#
-# A remote server sends presence for its own users and stops sending
-# when they go quiet, which leaves them showing as online here forever.
-# Timing them out locally is what clears that, at the cost of a timer
-# per remote user this server has heard about.
-#
-#presence_timeout_remote_users = true
-
-# Send local users' presence to the other servers in their rooms.
-#
-#allow_outgoing_presence = true
-
-# Send local users' read receipts to the other servers in their rooms.
-#
-#allow_outgoing_read_receipts = true
-
-# Send local users' typing notifications to the other servers in their
-# rooms.
-#
-#allow_outgoing_typing = true
 
 # Notary servers to gather other servers' public keys from, when this
 # server does not already hold a key it needs.
@@ -731,66 +575,212 @@
 #
 #forbidden_remote_media_server_names = []
 
-# Periodically fetch phantom's announcement feed, which carries security
-# and release notices. Despite the name this checks for announcements,
-# not for a newer version to install.
+# Send federation requests to this server itself, which nothing but a
+# bug or a development setup has a reason to do.
 #
-#allow_check_for_updates = false
+#federation_loopback = false
 
-# Where the announcement feed is fetched from.
+# Enable the built-in metrics endpoint.
 #
-# The feed is a JSON document of `{"announcements": [{"id": 1, "message":
-# "..."}]}`, read in ascending `id` order; an operator running their own
-# fork points this at their own file.
-#
-#check_for_updates_url = "https://raw.githubusercontent.com/HilthonTT/phantom/main/announcements.json"
+#allow_metrics = false
 
-# How long to wait between fetches of the announcement feed, in seconds.
+# Max log level for phantom. Allows debug, info, warn, or error.
 #
-#check_for_updates_interval_s = 7200
+# See also:
+# https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+#
+# **Caveat**:
+# For release builds, the tracing crate is configured to only implement
+# levels higher than error to avoid unnecessary overhead in the compiled
+# binary from trace macros. For debug builds, this restriction is not
+# applied.
+#
+#log = "info"
 
-# Static TURN username handed to clients, for a TURN server that
-# authenticates with fixed credentials rather than `turn_secret`.
+# Output logs with ANSI colours. Colours are omitted regardless of this
+# setting when running under systemd, where they would be stored verbatim
+# in the journal.
 #
-#turn_username = ""
+#log_colors = true
 
-# Static TURN password handed to clients. See `turn_username`.
+# Configures the span events which will be outputted with the log.
 #
-#turn_password = ""
+# Accepts one or more of "new", "enter", "exit", "close", "active",
+# "full" or "none", separated by commas.
+#
+#log_span_events = "none"
 
-# TURN servers to hand to clients, as URIs. Use the `turns:` scheme
-# rather than `turn:` for TURN over TLS.
+# Configures whether `log` matches values using regular expressions. See
+# the tracing_subscriber documentation on Directives.
 #
-# example: ["turn:example.turn.uri?transport=udp",
-# "turn:example.turn.uri?transport=tcp"]
-#
-#turn_uris = []
+#log_filter_regex = true
 
-# Shared secret the TURN server is configured with, from which phantom
-# derives the time-limited credentials it hands each client.
+# Toggles the display of ThreadId in tracing log output.
 #
-# Preferred over the static `turn_username`/`turn_password` pair, since
-# a credential phantom derives expires on its own.
-#
-#turn_secret = ""
+#log_thread_ids = false
 
-# Path to a file holding the TURN shared secret instead of writing it
-# into the config. The contents are read once at startup, with
-# surrounding whitespace trimmed, and take priority over `turn_secret`;
-# a file that cannot be read falls back to it.
+# Milliseconds a login token stays valid for.
 #
-# example: "/etc/phantom/.turn_secret"
+# This is the `m.login.token` handed out to complete a login started
+# elsewhere, so it is spent within seconds of being issued; the spec caps
+# it at five minutes.
 #
-#turn_secret_file =
+#login_token_ttl = 120000
 
-# How long, in seconds, a TURN credential phantom derives stays valid.
+# Path to the directory holding uploaded and cached media files.
 #
-#turn_ttl = 86400
+# Media is kept as files rather than in the database because it is large,
+# written once and read whole — everything a filesystem is better at than
+# a key-value store. What the database holds is the metadata pointing at
+# them, so the two must be backed up and restored together.
+#
+# Leave this unset to use a `media` directory under `database_path`.
+#
+# example: "/var/lib/phantom/media"
+#
+#media_path =
 
-# Path a push gateway is expected to serve its notify endpoint at. Only
-# the appservice-style pushers that do not carry their own URL use it.
+# Check at startup that every file the media metadata names is present.
 #
-#notification_push_path = "/_matrix/push/v1/notify"
+# Answers a request for media that is not there with "gone" rather than
+# with an error, which is what a client can act on. The check reads one
+# directory entry per stored file, so an installation with a very large
+# media store may prefer to turn it off and accept the worse error.
+#
+#media_startup_check = true
+
+# Largest picture, in pixels, the thumbnailer will decode.
+#
+# Dimensions cost memory whatever the encoded file weighs — a few
+# kilobytes of PNG can declare a picture that costs gigabytes to hold —
+# so a picture declaring more than this is served without a thumbnail
+# rather than decoded. A frame extracted from a video inherits the
+# resolution of the video it came from and is bounded here too.
+#
+# 50 megapixels is roughly four 8K frames, and more than any ordinary
+# camera produces. Each pixel is budgeted four bytes, so the default
+# admits a decode of about 200 MiB. The budget is per decode in flight,
+# which is what to size it against: thumbnail requests are not otherwise
+# limited in number.
+#
+#media_thumbnail_max_pixels = 50000000
+
+# Program that extracts a still frame from a video, so that a video can
+# be given a thumbnail. Phantom decodes no video itself; the frame the
+# program writes is thumbnailed as an ordinary picture and cached as an
+# ordinary thumbnail.
+#
+# The list is an argument vector whose first entry is the program and
+# whose remaining entries are its arguments. It is executed directly and
+# never through a shell, so no quoting or expansion applies. Every
+# argument has these tokens substituted before each call:
+#
+# - `{input}` the path of a temporary file holding the source video.
+# - `{width}` and `{height}` the requested thumbnail dimensions.
+#
+# The program writes one frame to standard output in any format the
+# thumbnailer decodes: PNG, JPEG, WebP or GIF. While the list is empty,
+# videos are served without a thumbnail.
+#
+# example: [
+# "ffmpeg", "-loglevel", "error", "-i", "{input}", "-vf", "thumbnail",
+# "-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1",
+# ]
+#
+#media_video_thumbnail_command = []
+
+# List of storage providers to use for media. Providers can be configured
+# below in respective sections designated by
+# `global.storage_provider.<NAME>.<brand>` where `NAME` can be listed
+# here.
+#
+# For advanced features and future extensions involving multiple providers
+# the list may contain multiple entries. You MUST take note of other
+# configuration options when listing multiple providers or resource
+# duplication costs and poor performance can result.
+#
+# The list defaults to `["media"]` which is an implicit storage provider
+# representing the media directory on the local filesystem. It can be
+# altered by configuring `global.storage_provider.media.local` explicitly
+# or disabled by omitting it from this list entirely. Users with existing
+# deployments are advised to continue listing "media" as a fallback along
+# with their new provider.
+#
+# reloadable: yes
+#
+#media_storage_providers = ["media"]
+
+# Seconds a video thumbnail request may spend extracting its frame.
+#
+# One deadline spans the wait for a free slot, staging the video and the
+# program itself, so a queue cannot compound it into a multiple of what
+# is configured here. On expiry the program and anything it spawned are
+# killed and the video is served without a thumbnail.
+#
+#media_video_thumbnail_timeout = 30
+
+# Frame extractions permitted to run at once.
+#
+# Decoding video costs far more than scaling a picture, so requests past
+# this limit wait for a slot rather than piling load onto the host. A
+# slot is held from staging the video through to the program exiting, so
+# this also bounds how many staged videos occupy the staging directory at
+# once. Raise it where cores are spare.
+#
+#media_video_thumbnail_concurrency = 1
+
+# Largest video, in bytes, staged for the thumbnail program, and largest
+# frame read back from it.
+#
+# A video past this is served without a thumbnail rather than written
+# out, and a frame past it is refused rather than decoded from what would
+# be a truncation.
+#
+#media_video_thumbnail_max_size = 134217728
+
+# Directory a video is staged in for the thumbnail program to read.
+#
+# One file per running program, removed as soon as it exits, and any left
+# behind by a killed server are reclaimed at startup. Leave this unset to
+# use a `tmp` directory under `database_path`, which keeps videos off the
+# memory-backed `/tmp` a service manager commonly provides.
+#
+# example: "/var/tmp/phantom"
+#
+#media_video_thumbnail_path =
+
+# Media IDs one user may hold reserved but unfilled at a time.
+#
+# A client may ask for a media ID before it has the file, so that it can
+# send the message naming it first. Each reservation is a promise to
+# serve something at that URI, so a user cannot hold an unbounded number
+# of them.
+#
+#max_pending_media_uploads = 5
+
+# Seconds a reserved media ID stays fillable before it expires.
+#
+# Past this the reservation is refused rather than filled, and the ID
+# stays permanently unresolvable: a client that reserves one and loses
+# the file must reserve another.
+#
+#media_create_unused_expiration_time = 86400
+
+# Media IDs a user may reserve per second, sustained.
+#
+# Reserving one costs nothing but the record, which is what makes it
+# worth rate limiting separately from the upload it precedes. Zero
+# disables the limit.
+#
+#media_rc_create_per_second = 10
+
+# Media ID reservations a user may make in a burst.
+#
+# The allowance refills at `media_rc_create_per_second`, so this is what
+# a client may spend at once after a quiet period. Zero disables the
+# limit.
+#
+#media_rc_create_burst_count = 50
 
 # Domains phantom may fetch URL previews from, matched as a substring of
 # the URL's host.
@@ -1055,11 +1045,6 @@
 #
 #zstd_compression = false
 
-# Send federation requests to this server itself, which nothing but a
-# bug or a development setup has a reason to do.
-#
-#federation_loopback = false
-
 # Skip TLS certificate validation on every outbound request.
 #
 # There is no safe use of this outside a lab: it hands anyone who can
@@ -1067,137 +1052,6 @@
 # traffic included. `validate` refuses to let it pass quietly.
 #
 #allow_invalid_tls_certificates = false
-
-# Entries the in-process DNS cache holds. Entries vary in size, so raise
-# this carefully. Lower it only where a real external cache sits in
-# front of phantom — systemd-resolved is not one.
-#
-#dns_cache_entries = 32768
-
-# Seconds a resolved name is held even if its record says less.
-#
-#dns_min_ttl = 10800
-
-# Seconds an NXDOMAIN is held. Three days by default, and deliberately:
-# a name that does not resolve is almost never about to, and rechecking
-# each one is what makes a server with dead remotes in its rooms slow.
-#
-#dns_min_ttl_nxdomain = 259200
-
-# Attempts made at a nameserver before the query is given up on.
-#
-#dns_attempts = 10
-
-# Seconds phantom waits for a nameserver to answer. Recursive queries
-# take seconds on some domains, so a low value here reads as a DNS
-# outage.
-#
-#dns_timeout = 10
-
-# Retry a query over TCP when the UDP one errors or is truncated.
-#
-#dns_tcp_fallback = true
-
-# Query the configured nameservers over TCP only. Some container
-# networks need this, where UDP replies are truncated or dropped.
-#
-#query_over_tcp_only = false
-
-# Keep asking the remaining nameservers after one says the name does not
-# exist, rather than trusting the first negative answer.
-#
-#query_all_nameservers = true
-
-# Which address records to look up, and in what order.
-#
-# One of "ipv4-only", "ipv6-only", "ipv4-and-ipv6" (both at once, first
-# answer wins), "ipv6-then-ipv4", or "ipv4-then-ipv6".
-#
-# On a host with no IPv6 route, "ipv4-only" saves a lookup whose answer
-# could never be connected to.
-#
-#ip_lookup_strategy = "ipv4-then-ipv6"
-
-# Room aliases and room IDs that may not be created, as regular
-# expressions. A plain word is a valid pattern, and matches anywhere in
-# the alias.
-#
-# Checked when an alias or a custom room ID is created, and at startup
-# against the aliases already in the database, which are reported as
-# warnings rather than removed.
-#
-# example: ["19dollarfortnitecards", "b[4a]droom", "badphrase"]
-#
-#forbidden_alias_names = []
-
-# Usernames that may not be registered, as regular expressions. A plain
-# word is a valid pattern, and matches anywhere in the username.
-#
-# Checked on the availability request and on registration, and at
-# startup against the users already in the database, which are reported
-# as warnings rather than removed.
-#
-# example: ["administrator", "b[a4]dusernam[3e]", "badphrase"]
-#
-#forbidden_usernames = []
-
-# Admin commands to run once the server has started, in order, as if
-# they had been typed into the admin room.
-#
-# Each entry is one command without its `!admin` prefix. Their output
-# goes to the log, since there is nobody in a room to answer, and a
-# command that fails stops startup unless
-# `admin_execute_errors_ignore` is set.
-#
-# This build registers no command set, so anything listed here fails.
-# The option is here because the schedule belongs to the admin service
-# and the commands do not.
-#
-# example: ["users create-user @admin:example.com", "server memory-usage"]
-#
-#admin_execute = []
-
-# Admin commands to run every time the server is sent SIGUSR2, in the
-# same form as `admin_execute`.
-#
-# Unlike the startup list this one is re-read each time, so a reloaded
-# config changes what the next signal runs.
-#
-#admin_signal_execute = []
-
-# Carry on when one of the commands above fails, instead of treating the
-# failure as fatal to startup.
-#
-#admin_execute_errors_ignore = false
-
-# Let an admin run a command outside the admin room by escaping it with a
-# backslash, as `\!admin ...`.
-#
-# The command and its output are both visible to that room, which is the
-# point: it is how an admin answers a question where it was asked. Only
-# local admins can do it, escaped or not.
-#
-#admin_escape_commands = true
-
-# Reload the configuration when the server is sent SIGUSR1.
-#
-# Only `server_name` is fixed for the life of the process; every other
-# option is re-read. Has no effect where the platform has no SIGUSR1.
-#
-#config_reload_signal = true
-
-# The base URL clients reach this server on, as published in
-# `/.well-known/matrix/client`.
-#
-# The OpenID Connect server derives its issuer and its endpoint URLs from
-# this, and it is what an identity provider's callback URL is built from
-# when one is not configured explicitly. Without it neither next-gen auth
-# nor SSO login can be offered, because a provider has nowhere to send
-# the user back to.
-#
-# example: "https://matrix.example.com/"
-#
-#well_known_client =
 
 # Offer this server's own OpenID Connect provider without any upstream
 # identity provider behind it.
@@ -1234,45 +1088,151 @@
 #
 #oidc_max_response_size = 262144
 
-[global.smtp]
+# Seconds a user may be idle before their presence is moved from
+# "online" to "unavailable".
+#
+# The clock starts at the last presence update the user's client sent,
+# so a client that pings while a person is away keeps them online.
+#
+#presence_idle_timeout_s = 300
 
-# Connection URL for the outbound SMTP relay used to send email
-# verification messages. Setting this enables the email subsystem;
-# without it no mail is sent.
+# Seconds a user may stay "unavailable" before their presence is moved
+# to "offline".
 #
-# Use a `smtp://` URL for an unencrypted or STARTTLS connection and a
-# `smtps://` URL for implicit TLS. Credentials and the host go inline:
-# `smtps://user:pass@host:port`. The port defaults per scheme when
-# omitted.
+# Measured from the same last update as `presence_idle_timeout_s`
+# rather than from the move to "unavailable", so it wants to be the
+# larger of the two.
 #
-# The userinfo component is URL-encoded, so an `@` inside the username
-# must be written as `%40` (for example a login of `bot@example.com`
-# becomes `smtps://bot%40example.com:pass@host:465`). Other reserved
-# characters in the username or password are percent-encoded the same
-# way.
-#
-# example: "smtps://user:pass@mail.example.com:465"
-#
-#connection_uri =
+#presence_offline_timeout_s = 1800
 
-# The mailbox that outbound verification messages are sent from. Accepts
-# either a bare address or a display-name form.
+# Time out remote users' presence as well as local users'.
 #
-# example: "Example <noreply@example.com>"
+# A remote server sends presence for its own users and stops sending
+# when they go quiet, which leaves them showing as online here forever.
+# Timing them out locally is what clears that, at the cost of a timer
+# per remote user this server has heard about.
 #
-#sender =
+#presence_timeout_remote_users = true
 
-# Require a verified email address to complete registration. When set,
-# the registration flow does not finish until the user proves control of
-# an email address.
+# Send local users' presence to the other servers in their rooms.
 #
-#require_email_for_registration = false
+#allow_outgoing_presence = true
 
-# Require a verified email address when registering with a registration
-# token. When set, token-based registration also demands a verified
-# email address.
+# Send local users' read receipts to the other servers in their rooms.
 #
-#require_email_for_token_registration = false
+#allow_outgoing_read_receipts = true
+
+# Send local users' typing notifications to the other servers in their
+# rooms.
+#
+#allow_outgoing_typing = true
+
+# Makes leaving a room also forget it, rather than leaving it in the
+# user's `leave` section of sync until they forget it themselves.
+#
+# Banned and admin-disabled rooms are forgotten on leave either way.
+#
+#forget_forced_upon_leave = false
+
+# Allow ordinary users to create rooms. Admins and appservices may
+# always create them regardless of this.
+#
+#allow_room_creation = true
+
+# Keep the original of an event before a redaction strips it.
+#
+# A redaction removes content the spec does not require the event to
+# keep, and the copy retained here is what a moderator reviewing a report
+# reads afterwards. Leaving this off makes a redaction final on arrival.
+#
+#save_unredacted_events = true
+
+# Seconds an original retained by `save_unredacted_events` is kept before
+# it is swept.
+#
+# The default is 60 days. Zero keeps the originals indefinitely, which
+# grows without bound — set it only where something else prunes them.
+#
+#redaction_retention_seconds = 5184000
+
+# Room aliases and room IDs that may not be created, as regular
+# expressions. A plain word is a valid pattern, and matches anywhere in
+# the alias.
+#
+# Checked when an alias or a custom room ID is created, and at startup
+# against the aliases already in the database, which are reported as
+# warnings rather than removed.
+#
+# example: ["19dollarfortnitecards", "b[4a]droom", "badphrase"]
+#
+#forbidden_alias_names = []
+
+# Usernames that may not be registered, as regular expressions. A plain
+# word is a valid pattern, and matches anywhere in the username.
+#
+# Checked on the availability request and on registration, and at
+# startup against the users already in the database, which are reported
+# as warnings rather than removed.
+#
+# example: ["administrator", "b[a4]dusernam[3e]", "badphrase"]
+#
+#forbidden_usernames = []
+
+# Static TURN username handed to clients, for a TURN server that
+# authenticates with fixed credentials rather than `turn_secret`.
+#
+#turn_username = ""
+
+# Static TURN password handed to clients. See `turn_username`.
+#
+#turn_password = ""
+
+# TURN servers to hand to clients, as URIs. Use the `turns:` scheme
+# rather than `turn:` for TURN over TLS.
+#
+# example: ["turn:example.turn.uri?transport=udp",
+# "turn:example.turn.uri?transport=tcp"]
+#
+#turn_uris = []
+
+# Shared secret the TURN server is configured with, from which phantom
+# derives the time-limited credentials it hands each client.
+#
+# Preferred over the static `turn_username`/`turn_password` pair, since
+# a credential phantom derives expires on its own.
+#
+#turn_secret = ""
+
+# Path to a file holding the TURN shared secret instead of writing it
+# into the config. The contents are read once at startup, with
+# surrounding whitespace trimmed, and take priority over `turn_secret`;
+# a file that cannot be read falls back to it.
+#
+# example: "/etc/phantom/.turn_secret"
+#
+#turn_secret_file =
+
+# How long, in seconds, a TURN credential phantom derives stays valid.
+#
+#turn_ttl = 86400
+
+# Periodically fetch phantom's announcement feed, which carries security
+# and release notices. Despite the name this checks for announcements,
+# not for a newer version to install.
+#
+#allow_check_for_updates = false
+
+# Where the announcement feed is fetched from.
+#
+# The feed is a JSON document of `{"announcements": [{"id": 1, "message":
+# "..."}]}`, read in ascending `id` order; an operator running their own
+# fork points this at their own file.
+#
+#check_for_updates_url = "https://raw.githubusercontent.com/HilthonTT/phantom/main/announcements.json"
+
+# How long to wait between fetches of the announcement feed, in seconds.
+#
+#check_for_updates_interval_s = 7200
 
 [global.identity_provider.example]
 
@@ -1396,6 +1356,46 @@
 # Overrides the discovered userinfo endpoint.
 #
 #userinfo_url =
+
+[global.smtp]
+
+# Connection URL for the outbound SMTP relay used to send email
+# verification messages. Setting this enables the email subsystem;
+# without it no mail is sent.
+#
+# Use a `smtp://` URL for an unencrypted or STARTTLS connection and a
+# `smtps://` URL for implicit TLS. Credentials and the host go inline:
+# `smtps://user:pass@host:port`. The port defaults per scheme when
+# omitted.
+#
+# The userinfo component is URL-encoded, so an `@` inside the username
+# must be written as `%40` (for example a login of `bot@example.com`
+# becomes `smtps://bot%40example.com:pass@host:465`). Other reserved
+# characters in the username or password are percent-encoded the same
+# way.
+#
+# example: "smtps://user:pass@mail.example.com:465"
+#
+#connection_uri =
+
+# The mailbox that outbound verification messages are sent from. Accepts
+# either a bare address or a display-name form.
+#
+# example: "Example <noreply@example.com>"
+#
+#sender =
+
+# Require a verified email address to complete registration. When set,
+# the registration flow does not finish until the user proves control of
+# an email address.
+#
+#require_email_for_registration = false
+
+# Require a verified email address when registering with a registration
+# token. When set, token-based registration also demands a verified
+# email address.
+#
+#require_email_for_token_registration = false
 
 [global.storage_provider.<ID>.local]
 

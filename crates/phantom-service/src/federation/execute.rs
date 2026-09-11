@@ -122,7 +122,7 @@ async fn execute_on<T>(
 where
     T: OutgoingRequest + Metadata<PathBuilder = FixedPath> + Send,
 {
-    if !self.services.server.config.allow_federation {
+    if !self.services.server.config.federation.allow_federation {
         return Err!(Config("allow_federation", "Federation is disabled."));
     }
 

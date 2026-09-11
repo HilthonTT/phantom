@@ -325,7 +325,7 @@ async fn generate(
         .await;
 
     let from_video = frame.is_some();
-    let budget = self.services.config.media_thumbnail_max_pixels;
+    let budget = self.services.config.media.media_thumbnail_max_pixels;
     let requested = dim.clone();
 
     // Decoding and re-encoding a picture is the only real arithmetic the

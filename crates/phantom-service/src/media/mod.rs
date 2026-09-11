@@ -193,7 +193,11 @@ impl crate::Service for Service {
             },
             #[cfg(feature = "media_thumbnail")]
             video_thumbnail_slots: Semaphore::new(
-                args.server.config.media_video_thumbnail_concurrency.max(1),
+                args.server
+                    .config
+                    .media
+                    .media_video_thumbnail_concurrency
+                    .max(1),
             ),
             #[cfg(feature = "media_thumbnail")]
             video_thumbnail_failures: Mutex::new(Failures::new(FAILURES)),
@@ -210,7 +214,7 @@ impl crate::Service for Service {
             ))
         })?;
 
-        if self.services.server.config.media_startup_check {
+        if self.services.server.config.media.media_startup_check {
             self.check().await?;
         }
 
@@ -308,7 +312,7 @@ pub async fn create_pending(&self, mxc: &MxcUri, uploader: &UserId) -> Result<u6
     let now = now_millis();
     let (reserved, earliest) = self.db.count_pending_for(uploader, now).await;
 
-    if reserved >= config.max_pending_media_uploads {
+    if reserved >= config.media.max_pending_media_uploads {
         // Retry when the oldest of them expires: that is the first moment
         // this request could succeed, and a client told so does not poll.
         let retry_after = Duration::from_millis(earliest.saturating_sub(now));
@@ -324,6 +328,7 @@ pub async fn create_pending(&self, mxc: &MxcUri, uploader: &UserId) -> Result<u6
     }
 
     let lifetime = config
+        .media
         .media_create_unused_expiration_time
         .saturating_mul(1000);
 
@@ -448,8 +453,8 @@ pub async fn await_pending(&self, mxc: &MxcUri, timeout: Duration) -> Result {
 #[implement(Service)]
 fn spend_reservation(&self, uploader: &UserId) -> Result {
     let config = &self.services.config;
-    let rate = f64::from(config.media_rc_create_per_second);
-    let burst = f64::from(config.media_rc_create_burst_count);
+    let rate = f64::from(config.media.media_rc_create_per_second);
+    let burst = f64::from(config.media.media_rc_create_burst_count);
 
     if rate <= 0.0 || burst <= 0.0 {
         return Ok(());

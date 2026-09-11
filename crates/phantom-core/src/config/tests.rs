@@ -23,7 +23,7 @@ fn defaults_apply_and_bind_addrs_cross_product() {
         4,
         "2 default addrs x 2 ports"
     );
-    assert!(!config.allow_metrics, "serde default");
+    assert!(!config.logging.allow_metrics, "serde default");
 }
 
 #[test]
@@ -81,10 +81,10 @@ fn regex_options_are_compiled_while_the_config_loads() {
     )
     .expect("config is valid");
 
-    assert!(config.forbidden_usernames.is_match("b4dusername"));
-    assert!(!config.forbidden_usernames.is_match("goodusername"));
+    assert!(config.rooms.forbidden_usernames.is_match("b4dusername"));
+    assert!(!config.rooms.forbidden_usernames.is_match("goodusername"));
     assert!(
-        config.forbidden_alias_names.is_empty(),
+        config.rooms.forbidden_alias_names.is_empty(),
         "an unset regex option is an empty set, not a set matching everything"
     );
 }

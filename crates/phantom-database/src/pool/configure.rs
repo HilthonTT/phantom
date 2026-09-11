@@ -27,14 +27,17 @@ use super::{QUEUE_LIMIT, WORKER_LIMIT};
 /// queue map the workers take their affinity from.
 pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>) {
     let config = &server.config;
-    let path = config.database_path.as_path();
+    let path = config.database.database_path.as_path();
 
     let device_name = storage::name_from_path(path).log_debug_err().ok();
     let device = storage::parallelism(path);
 
-    let fallback = device.mq.is_empty().then_some(config.db_pool_workers);
+    let fallback = device
+        .mq
+        .is_empty()
+        .then_some(config.database.db_pool_workers);
 
-    let worker_counts = worker_counts(&device, config.db_pool_workers_limit)
+    let worker_counts = worker_counts(&device, config.database.db_pool_workers_limit)
         .chain(fallback)
         .collect::<Vec<_>>();
 
@@ -42,7 +45,7 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
         .iter()
         .map(|workers| {
             workers
-                .saturating_mul(config.db_pool_queue_mult)
+                .saturating_mul(config.database.db_pool_queue_mult)
                 .clamp(QUEUE_LIMIT.0, QUEUE_LIMIT.1)
         })
         .collect();
@@ -63,7 +66,7 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
         .fold(0_usize, usize::saturating_add)
         .clamp(WORKER_LIMIT.0, max_workers);
 
-    if config.stream_width_scale > 0.0 {
+    if config.database.stream_width_scale > 0.0 {
         update_stream_width(server, queue_sizes.len().max(1), total_workers);
     }
 
@@ -142,7 +145,7 @@ fn topology(device: &Parallelism) -> Vec<usize> {
 #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: usize) {
     let config = &server.config;
-    let scale = f64::from(config.stream_width_scale.min(100.0));
+    let scale = f64::from(config.database.stream_width_scale.min(100.0));
 
     let width = total_workers
         .checked_div(num_queues)
@@ -153,7 +156,7 @@ fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: u
         .expect("a scaled width is a positive number")
         .clamp(WIDTH_LIMIT.0, WIDTH_LIMIT.1);
 
-    let amplification = usize_from_f64(config.stream_amplification as f64 * scale)
+    let amplification = usize_from_f64(config.database.stream_amplification as f64 * scale)
         .expect("a scaled amplification is a positive number")
         .clamp(AMPLIFICATION_LIMIT.0, AMPLIFICATION_LIMIT.1);
 
@@ -161,7 +164,7 @@ fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: u
     let (old_amp, new_amp) = stream::set_amplification(amplification);
 
     debug!(
-        scale = ?config.stream_width_scale,
+        scale = ?config.database.stream_width_scale,
         num_queues,
         old_width,
         new_width,

@@ -25,11 +25,10 @@ impl Suppress {
     pub fn new(server: &Arc<Server>) -> Self {
         let suppress = EnvFilter::default();
 
-        let restore = server
-            .log
-            .reload
-            .current(HANDLE)
-            .unwrap_or_else(|| EnvFilter::try_new(&server.config.log).unwrap_or_default());
+        let restore =
+            server.log.reload.current(HANDLE).unwrap_or_else(|| {
+                EnvFilter::try_new(&server.config.logging.log).unwrap_or_default()
+            });
 
         let restore = server
             .log

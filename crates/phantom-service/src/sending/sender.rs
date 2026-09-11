@@ -212,7 +212,7 @@ impl Service {
             time::{Instant, sleep_until},
         };
 
-        let timeout = self.server.config.sender_shutdown_timeout;
+        let timeout = self.server.config.network.sender_shutdown_timeout;
         let timeout = Duration::from_secs(timeout);
         let now = Instant::now();
         let deadline = now.checked_add(timeout).unwrap_or(now);
@@ -242,7 +242,8 @@ impl Service {
         futures: &mut SendingFutures<'a>,
         statuses: &mut CurTransactionStatus,
     ) {
-        let keep = usize::try_from(self.server.config.startup_netburst_keep).unwrap_or(usize::MAX);
+        let keep =
+            usize::try_from(self.server.config.network.startup_netburst_keep).unwrap_or(usize::MAX);
         let mut txns = HashMap::<Destination, Vec<SendingEvent>>::new();
         let mut active = self.db.active_requests().boxed();
 
@@ -252,7 +253,7 @@ impl Service {
             }
 
             let entry = txns.entry(dest.clone()).or_default();
-            if self.server.config.startup_netburst_keep >= 0 && entry.len() >= keep {
+            if self.server.config.network.startup_netburst_keep >= 0 && entry.len() >= keep {
                 warn!(
                     "Dropping unsent event {dest:?} {:?}",
                     String::from_utf8_lossy(&key)
@@ -264,7 +265,7 @@ impl Service {
         }
 
         for (dest, events) in txns {
-            if self.server.config.startup_netburst && !events.is_empty() {
+            if self.server.config.network.startup_netburst && !events.is_empty() {
                 statuses.insert(dest.clone(), TransactionStatus::Running);
                 futures.push(self.send_events(dest.clone(), events));
             }
@@ -340,8 +341,8 @@ impl Service {
             .and_modify(|e| match e {
                 TransactionStatus::Failed(tries, time) => {
                     // Fail if a request has failed recently (exponential backoff)
-                    let min = self.server.config.sender_timeout;
-                    let max = self.server.config.sender_retry_backoff_limit;
+                    let min = self.server.config.network.sender_timeout;
+                    let max = self.server.config.network.sender_retry_backoff_limit;
                     if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries)
                         && !matches!(dest, Destination::Appservice(_))
                     {
@@ -377,6 +378,7 @@ impl Service {
         let receipts: OptionFuture<_> = self
             .server
             .config
+            .presence
             .allow_outgoing_read_receipts
             .then(|| self.select_edus_receipts(server_name, batch, &max_edu_count))
             .into();
@@ -384,6 +386,7 @@ impl Service {
         let presence: OptionFuture<_> = self
             .server
             .config
+            .presence
             .allow_outgoing_presence
             .then(|| self.select_edus_presence(server_name, batch, &max_edu_count))
             .into();

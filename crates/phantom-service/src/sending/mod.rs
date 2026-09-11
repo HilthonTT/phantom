@@ -474,6 +474,7 @@ fn num_senders(args: &crate::Args<'_>) -> usize {
     // default to 1 for now as multiple senders is experimental.
     args.server
         .config
+        .network
         .sender_workers
         .clamp(MIN_SENDERS, max_senders)
 }

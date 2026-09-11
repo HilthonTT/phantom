@@ -6,7 +6,7 @@ impl Service {
     pub fn create_openid_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
         use std::num::Saturating as Sat;
 
-        let expires_in = self.services.server.config.openid_token_ttl;
+        let expires_in = self.services.server.config.auth.openid_token_ttl;
         let expires_at = Sat(time::now_millis()) + Sat(expires_in) * Sat(1000);
 
         let mut value = expires_at.0.to_be_bytes().to_vec();
@@ -55,7 +55,7 @@ impl Service {
     pub fn create_login_token(&self, user_id: &UserId, token: &str) -> u64 {
         use std::num::Saturating as Sat;
 
-        let expires_in = self.services.server.config.login_token_ttl;
+        let expires_in = self.services.server.config.logging.login_token_ttl;
         let expires_at = Sat(time::now_millis()) + Sat(expires_in);
 
         let value = (expires_at.0, user_id);

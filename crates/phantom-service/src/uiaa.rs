@@ -75,7 +75,7 @@ impl crate::Service for Service {
 #[implement(Service)]
 pub async fn read_tokens(&self) -> Result<HashSet<String>> {
     let mut tokens = HashSet::new();
-    if let Some(file) = self.services.config.registration_token_file.as_ref() {
+    if let Some(file) = self.services.config.auth.registration_token_file.as_ref() {
         match std::fs::read_to_string(file) {
             Ok(text) => {
                 text.split_ascii_whitespace().for_each(|token| {
@@ -85,7 +85,7 @@ pub async fn read_tokens(&self) -> Result<HashSet<String>> {
             Err(e) => error!("Failed to read the registration token file: {e}"),
         }
     }
-    if let Some(token) = &self.services.config.registration_token {
+    if let Some(token) = &self.services.config.auth.registration_token {
         tokens.insert(token.to_owned());
     }
 

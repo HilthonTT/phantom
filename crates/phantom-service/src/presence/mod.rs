@@ -63,15 +63,15 @@ type TimerType = (OwnedUserId, Duration);
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         let config = &args.server.config;
-        let idle_timeout_s = config.presence_idle_timeout_s;
-        let offline_timeout_s = config.presence_offline_timeout_s;
+        let idle_timeout_s = config.presence.presence_idle_timeout_s;
+        let offline_timeout_s = config.presence.presence_offline_timeout_s;
         let (timer_sender, timer_receiver) = mpsc::unbounded_channel();
 
         Ok(Arc::new(Self {
             timer_sender,
             timer_receiver: Mutex::new(timer_receiver),
             interrupt: Notify::new(),
-            timeout_remote_users: config.presence_timeout_remote_users,
+            timeout_remote_users: config.presence.presence_timeout_remote_users,
             idle_timeout: checked!(idle_timeout_s * 1_000)?,
             offline_timeout: checked!(offline_timeout_s * 1_000)?,
             db: Data::new(&args),
@@ -191,8 +191,16 @@ impl Service {
             && user_id != self.services.server_state.server_user
         {
             let timeout = match presence_state {
-                PresenceState::Online => self.services.server.config.presence_idle_timeout_s,
-                _ => self.services.server.config.presence_offline_timeout_s,
+                PresenceState::Online => {
+                    self.services.server.config.presence.presence_idle_timeout_s
+                }
+                _ => {
+                    self.services
+                        .server
+                        .config
+                        .presence
+                        .presence_offline_timeout_s
+                }
             };
 
             self.timer_sender

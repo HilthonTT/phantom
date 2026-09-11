@@ -43,7 +43,7 @@ impl Context {
     /// the columns share.
     pub fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
         let config = &server.config;
-        let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
+        let cache_capacity_bytes = config.database.db_cache_capacity_mb * 1024.0 * 1024.0;
 
         let col_shard_bits = 7;
         let col_cache_capacity_bytes = usize_from_f64(cache_capacity_bytes * 0.50)?;
@@ -66,11 +66,11 @@ impl Context {
 
         let mut env = Env::new().or_else(or_else)?;
 
-        if config.rocksdb_compaction_prio_idle {
+        if config.database.rocksdb_compaction_prio_idle {
             env.lower_thread_pool_cpu_priority();
         }
 
-        if config.rocksdb_compaction_ioprio_idle {
+        if config.database.rocksdb_compaction_ioprio_idle {
             env.lower_thread_pool_io_priority();
         }
 

@@ -88,13 +88,20 @@ pub fn forbids(&self, server: &ServerName, restriction: Restriction) -> bool {
     let config = &self.services.server.config;
     let host = server.host();
 
-    config.forbidden_remote_server_names.is_match(host)
+    config
+        .federation
+        .forbidden_remote_server_names
+        .is_match(host)
         || match restriction {
             Restriction::Federation => false,
             Restriction::RoomDirectory => config
+                .federation
                 .forbidden_remote_room_directory_server_names
                 .is_match(host),
-            Restriction::Media => config.forbidden_remote_media_server_names.is_match(host),
+            Restriction::Media => config
+                .federation
+                .forbidden_remote_media_server_names
+                .is_match(host),
         }
 }
 
@@ -114,11 +121,15 @@ pub fn why_forbidden(&self, server: &ServerName, restriction: Restriction) -> Ve
 
     let narrow = match restriction {
         Restriction::Federation => None,
-        Restriction::RoomDirectory => Some(&config.forbidden_remote_room_directory_server_names),
-        Restriction::Media => Some(&config.forbidden_remote_media_server_names),
+        Restriction::RoomDirectory => Some(
+            &config
+                .federation
+                .forbidden_remote_room_directory_server_names,
+        ),
+        Restriction::Media => Some(&config.federation.forbidden_remote_media_server_names),
     };
 
-    matched(&config.forbidden_remote_server_names, host)
+    matched(&config.federation.forbidden_remote_server_names, host)
         .chain(narrow.into_iter().flat_map(|set| matched(set, host)))
         .collect()
 }

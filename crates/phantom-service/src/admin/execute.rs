@@ -31,7 +31,7 @@ const STARTUP_DELAY: Duration = Duration::from_millis(500);
 /// Runs the `admin_execute` commands.
 #[implement(super::Service)]
 pub(super) async fn startup_execute(&self) -> Result {
-    let commands = self.services.server.config.admin_execute.clone();
+    let commands = self.services.server.config.admin.admin_execute.clone();
     if commands.is_empty() {
         return Ok(());
     }
@@ -44,14 +44,25 @@ pub(super) async fn startup_execute(&self) -> Result {
 /// Runs the `admin_signal_execute` commands.
 #[implement(super::Service)]
 pub(super) async fn signal_execute(&self) -> Result {
-    let commands = self.services.server.config.admin_signal_execute.clone();
+    let commands = self
+        .services
+        .server
+        .config
+        .admin
+        .admin_signal_execute
+        .clone();
 
     self.execute_commands(&commands).await
 }
 
 #[implement(super::Service)]
 async fn execute_commands(&self, commands: &[String]) -> Result {
-    let ignore_errors = self.services.server.config.admin_execute_errors_ignore;
+    let ignore_errors = self
+        .services
+        .server
+        .config
+        .admin
+        .admin_execute_errors_ignore;
 
     for (i, command) in commands.iter().enumerate() {
         if let Err(e) = self.execute_command(i, command.clone()).await

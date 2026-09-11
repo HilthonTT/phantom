@@ -69,7 +69,12 @@ impl crate::Service for Service {
 
     async fn worker(self: Arc<Self>) -> Result {
         loop {
-            let retention_seconds = self.services.server.config.redaction_retention_seconds;
+            let retention_seconds = self
+                .services
+                .server
+                .config
+                .rooms
+                .redaction_retention_seconds;
 
             if retention_seconds != 0 {
                 debug_info!("Cleaning up retained events");
@@ -153,7 +158,7 @@ pub async fn save_original_pdu(
     pdu: &CanonicalJsonObject,
     _state_lock: &RoomMutexGuard,
 ) {
-    if !self.services.server.config.save_unredacted_events {
+    if !self.services.server.config.rooms.save_unredacted_events {
         return;
     }
 

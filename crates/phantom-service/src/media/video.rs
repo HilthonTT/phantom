@@ -119,8 +119,8 @@ pub(super) async fn video_frame(
 
     let is_video = content_type.is_some_and(|content_type| content_type.starts_with(VIDEO));
 
-    let workable = !config.media_video_thumbnail_command.is_empty()
-        && content.len() <= config.media_video_thumbnail_max_size
+    let workable = !config.media.media_video_thumbnail_command.is_empty()
+        && content.len() <= config.media.media_video_thumbnail_max_size
         && !self.failed_recently(mxc);
 
     if !is_video || !workable {
@@ -159,7 +159,7 @@ pub(super) fn remember_failure(&self, mxc: &MxcUri) {
 #[tracing::instrument(level = "debug", skip(self, content))]
 async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result<Vec<u8>> {
     let config = &self.services.config;
-    let timeout = Duration::from_secs(config.media_video_thumbnail_timeout);
+    let timeout = Duration::from_secs(config.media.media_video_thumbnail_timeout);
 
     // One deadline spans the wait for a slot, the staging write and the
     // program, so that a queue cannot compound into a multiple of the
@@ -171,7 +171,7 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
         ))
     })?;
 
-    let Some((program, args)) = config.media_video_thumbnail_command.split_first() else {
+    let Some((program, args)) = config.media.media_video_thumbnail_command.split_first() else {
         return Err!(Config(
             "media_video_thumbnail_command",
             "No program is configured."
@@ -205,7 +205,7 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
         .iter()
         .map(|arg| substitute(arg, &path, &width, &height));
 
-    let limit = u64::try_from(config.media_video_thumbnail_max_size).unwrap_or(u64::MAX);
+    let limit = u64::try_from(config.media.media_video_thumbnail_max_size).unwrap_or(u64::MAX);
     let frame = run(program, args, limit, deadline).await;
 
     // The program reached a verdict on this video, so a failure is the
@@ -221,10 +221,10 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
 /// Videos are staged beside the database rather than in the system temporary
 /// directory, which is commonly memory-backed and sized for small files.
 fn staging_dir(config: &Config) -> Cow<'_, Path> {
-    config
-        .media_video_thumbnail_path
-        .as_deref()
-        .map_or_else(|| config.database_path.join("tmp").into(), Cow::Borrowed)
+    config.media_video_thumbnail_path.as_deref().map_or_else(
+        || config.database.database_path.join("tmp").into(),
+        Cow::Borrowed,
+    )
 }
 
 /// Reclaims videos staged by a previous run.

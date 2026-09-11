@@ -257,7 +257,13 @@ pub async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 
     let (response, via_media_client) = if status.is_success() {
         (response, false)
-    } else if self.services.config.url_preview_media_user_agent.is_some() {
+    } else if self
+        .services
+        .config
+        .media
+        .url_preview_media_user_agent
+        .is_some()
+    {
         (self.media_response(url).await?, true)
     } else {
         return Err!(Request(NotFound(debug_warn!(
@@ -312,7 +318,7 @@ pub async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
         _ => return Err!(Request(Unknown("Unsupported Content-Type"))),
     };
 
-    let ttl = Duration::from_secs(self.services.config.url_preview_cache_ttl);
+    let ttl = Duration::from_secs(self.services.config.media.url_preview_cache_ttl);
     let cached = CachedPreview::new(ttl, data)?;
 
     self.db.set_url_preview(url.as_str(), &cached)?;
@@ -344,11 +350,12 @@ fn preview_headers(
     let config = &self.services.config;
 
     let user_agent = match agent {
-        Agent::Page => config.url_preview_user_agent.as_deref(),
+        Agent::Page => config.media.url_preview_user_agent.as_deref(),
         Agent::Media => config
+            .media
             .url_preview_media_user_agent
             .as_deref()
-            .or(config.url_preview_user_agent.as_deref()),
+            .or(config.media.url_preview_user_agent.as_deref()),
     };
 
     let request = match user_agent {
@@ -587,7 +594,7 @@ pub async fn download_image(&self, response: reqwest::Response) -> Result<UrlPre
         .and_then(|value| value.to_str().ok())
         .map(ToOwned::to_owned);
 
-    let limit = self.services.config.url_preview_max_media_size;
+    let limit = self.services.config.media.url_preview_max_media_size;
     let image = read_response_capped(response, limit).await?;
 
     let cursor = std::io::Cursor::new(&image);
@@ -675,7 +682,14 @@ async fn media_refetch(
     response: reqwest::Response,
     via_media_client: bool,
 ) -> Result<reqwest::Response> {
-    if via_media_client || self.services.config.url_preview_media_user_agent.is_none() {
+    if via_media_client
+        || self
+            .services
+            .config
+            .media
+            .url_preview_media_user_agent
+            .is_none()
+    {
         return Ok(response);
     }
 
@@ -708,7 +722,7 @@ pub(super) async fn fetch_preview_media(&self, url: &Url) -> Result<super::Media
         ))));
     }
 
-    let limit = self.services.config.url_preview_max_media_size;
+    let limit = self.services.config.media.url_preview_max_media_size;
 
     checked_media_size(&response, limit)?;
 
@@ -827,8 +841,10 @@ fn declares_media_type(obj: &OpengraphObject, class: &str) -> bool {
 #[implement(Service)]
 #[expect(clippy::unused_async)]
 pub async fn download_video(&self, response: reqwest::Response) -> Result<UrlPreviewData> {
-    let video_size =
-        checked_media_size(&response, self.services.config.url_preview_max_media_size)?;
+    let video_size = checked_media_size(
+        &response,
+        self.services.config.media.url_preview_max_media_size,
+    )?;
 
     Ok(UrlPreviewData {
         video: Some(self.register_lazy_media(response.url().as_str())?),
@@ -848,8 +864,10 @@ pub async fn download_video(&self, _response: reqwest::Response) -> Result<UrlPr
 #[implement(Service)]
 #[expect(clippy::unused_async)]
 pub async fn download_audio(&self, response: reqwest::Response) -> Result<UrlPreviewData> {
-    let audio_size =
-        checked_media_size(&response, self.services.config.url_preview_max_media_size)?;
+    let audio_size = checked_media_size(
+        &response,
+        self.services.config.media.url_preview_max_media_size,
+    )?;
 
     Ok(UrlPreviewData {
         audio: Some(self.register_lazy_media(response.url().as_str())?),
@@ -887,7 +905,7 @@ fn checked_media_size(response: &reqwest::Response, limit: usize) -> Result<Opti
 async fn download_html(&self, url: &Url, response: reqwest::Response) -> Result<UrlPreviewData> {
     use webpage::HTML;
 
-    let limit = self.services.config.url_preview_max_spider_size;
+    let limit = self.services.config.media.url_preview_max_spider_size;
     let (bytes, truncated) = spider_body(response, limit).await?;
 
     // the parser needs an owned string, so the read buffer becomes one rather
@@ -1103,10 +1121,26 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
         Some(h) => h.to_owned(),
     };
 
-    let allowlist_domain_contains = &self.services.config.url_preview_domain_contains_allowlist;
-    let allowlist_domain_explicit = &self.services.config.url_preview_domain_explicit_allowlist;
-    let denylist_domain_explicit = &self.services.config.url_preview_domain_explicit_denylist;
-    let allowlist_url_contains = &self.services.config.url_preview_url_contains_allowlist;
+    let allowlist_domain_contains = &self
+        .services
+        .config
+        .media
+        .url_preview_domain_contains_allowlist;
+    let allowlist_domain_explicit = &self
+        .services
+        .config
+        .media
+        .url_preview_domain_explicit_allowlist;
+    let denylist_domain_explicit = &self
+        .services
+        .config
+        .media
+        .url_preview_domain_explicit_denylist;
+    let allowlist_url_contains = &self
+        .services
+        .config
+        .media
+        .url_preview_url_contains_allowlist;
 
     if allowlist_domain_contains.contains(&"*".to_owned())
         || allowlist_domain_explicit.contains(&"*".to_owned())
@@ -1162,7 +1196,7 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
             return true;
         }
 
-        if self.services.config.url_preview_check_root_domain {
+        if self.services.config.media.url_preview_check_root_domain {
             debug!("Checking root domain");
 
             match host.split_once('.') {

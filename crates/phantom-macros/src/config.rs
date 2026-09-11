@@ -34,12 +34,24 @@ pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<Toke
 fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<TokenStream2> {
     let settings = get_simple_settings(args);
 
-    let section = settings.get("section").ok_or_else(|| {
+    // A struct either opens a section or continues one already opened by a
+    // struct expanded before it. Only the opener writes the `[section]` line,
+    // so a section split across several structs still reads as one table.
+    let continues = settings.get("continues");
+    let section = settings.get("section").or(continues).ok_or_else(|| {
         Error::new(
             args[0].span(),
-            "missing required 'section' attribute argument",
+            "missing required 'section' or 'continues' attribute argument",
         )
     })?;
+
+    // `global` is the first section in the file, so opening it starts the file
+    // over. Everything else appends, which is what makes the output depend on
+    // the order the annotated structs are expanded in — module declaration
+    // order in the config crate.
+    let truncate = settings
+        .get("section")
+        .is_some_and(|section| section == "global");
 
     let filename = settings.get("filename").ok_or_else(|| {
         Error::new(
@@ -58,11 +70,22 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
         .split(' ')
         .collect();
 
+    // Fields holding a `#[serde(flatten)]` sub-struct. They carry no option of
+    // their own, so they are skipped when writing the example file, but their
+    // contents still belong in the summary table — this is what puts them back.
+    let flattened: Vec<syn::Ident> = settings
+        .get("flattened")
+        .map_or("", String::as_str)
+        .split(' ')
+        .filter(|name| !name.is_empty())
+        .map(|name| syn::Ident::new(name, Span::call_site()))
+        .collect();
+
     let fopts = OpenOptions::new()
         .write(true)
-        .create(section == "global")
-        .truncate(section == "global")
-        .append(section != "global")
+        .create(true)
+        .truncate(truncate)
+        .append(!truncate)
         .clone();
 
     let mut file = write
@@ -74,7 +97,9 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
         })
         .transpose()?;
 
-    if let Some(file) = file.as_mut() {
+    if let Some(file) = file.as_mut()
+        && continues.is_none()
+    {
         if let Some(header) = settings.get("header") {
             file.write_all(header.as_bytes())
                 .expect("written to config file");
@@ -161,12 +186,29 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
 
     let struct_name = &input.ident;
     let display = quote! {
+        impl #struct_name {
+            /// The struct's own rows of the summary table, without its header.
+            ///
+            /// Split out from [`Display`](std::fmt::Display) so that a struct
+            /// built from flattened parts can lay its parts' rows under one
+            /// header rather than printing a table per part.
+            pub(crate) fn summary_rows<W>(&self, out: &mut W) -> std::fmt::Result
+            where
+                W: std::fmt::Write + ?Sized,
+            {
+                use std::fmt::Write as _;
+
+                #( #summary )*
+                #( self.#flattened.summary_rows(out)?; )*
+                Ok(())
+            }
+        }
+
         impl std::fmt::Display for #struct_name {
             fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 writeln!(out, "| name | value |")?;
                 writeln!(out, "| :--- | :---  |")?;
-                #( #summary )*
-                Ok(())
+                self.summary_rows(out)
             }
         }
     };

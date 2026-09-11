@@ -296,7 +296,7 @@ fn worker_init(&self, id: usize) {
         .iter()
         .enumerate()
         .filter(|_| self.queues.len() > 1)
-        .filter(|_| self.server.config.db_pool_affinity)
+        .filter(|_| self.server.config.database.db_pool_affinity)
         .filter_map(|(core_id, &queue_id)| (group == queue_id).then_some(core_id))
         .filter_map(nth_core_available);
 

@@ -94,7 +94,7 @@ fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache
 }
 
 fn set_compression(desc: &mut Descriptor, config: &Config) {
-    desc.compression = match config.rocksdb_compression_algo.as_ref() {
+    desc.compression = match config.database.rocksdb_compression_algo.as_ref() {
         "snappy" => CompressionType::Snappy,
         "zlib" => CompressionType::Zlib,
         "bz2" => CompressionType::Bz2,
@@ -104,22 +104,23 @@ fn set_compression(desc: &mut Descriptor, config: &Config) {
         _ => CompressionType::Zstd,
     };
 
-    let can_override_level = config.rocksdb_compression_level == SENTINEL_COMPRESSION_LEVEL
+    let can_override_level = config.database.rocksdb_compression_level
+        == SENTINEL_COMPRESSION_LEVEL
         && desc.compression == CompressionType::Zstd;
 
     if !can_override_level {
-        desc.compression_level = config.rocksdb_compression_level;
+        desc.compression_level = config.database.rocksdb_compression_level;
     }
 
-    let can_override_bottom = config.rocksdb_bottommost_compression_level
+    let can_override_bottom = config.database.rocksdb_bottommost_compression_level
         == SENTINEL_COMPRESSION_LEVEL
         && desc.compression == CompressionType::Zstd;
 
     if !can_override_bottom {
-        desc.bottommost_level = Some(config.rocksdb_bottommost_compression_level);
+        desc.bottommost_level = Some(config.database.rocksdb_bottommost_compression_level);
     }
 
-    if !config.rocksdb_bottommost_compression {
+    if !config.database.rocksdb_bottommost_compression {
         desc.bottommost_level = None;
     }
 }
@@ -222,8 +223,9 @@ fn get_cache(ctx: &Context, desc: &Descriptor) -> Option<Cache> {
 /// Scales a capacity given in entities by the operator's
 /// `cache_capacity_modifier` and the size of one entity.
 pub(super) fn cache_size_f64(config: &Config, base_size: f64, entity_size: usize) -> Result<usize> {
-    let ents = phantom_core::math::usize_from_f64(base_size * config.cache_capacity_modifier)
-        .map_err(|e| err!(Config("cache_capacity_modifier", "{e}")))?;
+    let ents =
+        phantom_core::math::usize_from_f64(base_size * config.database.cache_capacity_modifier)
+            .map_err(|e| err!(Config("cache_capacity_modifier", "{e}")))?;
 
     ents.checked_mul(entity_size)
         .ok_or_else(|| err!(Config("cache_capacity_modifier", "cache size is too large")))

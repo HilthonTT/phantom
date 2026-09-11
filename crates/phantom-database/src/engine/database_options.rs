@@ -29,13 +29,13 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
     opts.set_max_file_opening_threads(0);
 
     opts.set_manual_wal_flush(true);
-    opts.set_atomic_flush(config.rocksdb_atomic_flush);
-    opts.set_enable_pipelined_write(!config.rocksdb_atomic_flush);
-    if config.rocksdb_direct_io {
+    opts.set_atomic_flush(config.database.rocksdb_atomic_flush);
+    opts.set_enable_pipelined_write(!config.database.rocksdb_atomic_flush);
+    if config.database.rocksdb_direct_io {
         opts.set_use_direct_reads(true);
         opts.set_use_direct_io_for_flush_and_compaction(true);
     }
-    if config.rocksdb_optimize_for_spinning_disks {
+    if config.database.rocksdb_optimize_for_spinning_disks {
         opts.set_skip_stats_update_on_db_open(true);
     } else {
         opts.set_compaction_readahead_size(1024 * 512);
@@ -44,7 +44,7 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
     opts.set_row_cache(row_cache);
     opts.set_db_write_buffer_size(cache_size_f64(
         config,
-        config.db_write_buffer_capacity_mb,
+        config.database.db_write_buffer_capacity_mb,
         1_048_576,
     )?);
 
@@ -53,11 +53,11 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
     opts.set_max_total_wal_size(1024 * 1024 * 512);
     opts.set_writable_file_max_buffer_size(1024 * 1024 * 2);
 
-    opts.set_disable_auto_compactions(!config.rocksdb_compaction);
+    opts.set_disable_auto_compactions(!config.database.rocksdb_compaction);
     opts.create_missing_column_families(true);
     opts.create_if_missing(true);
 
-    opts.set_statistics_level(match config.rocksdb_stats_level {
+    opts.set_statistics_level(match config.database.rocksdb_stats_level {
         0 => StatsLevel::DisableAll,
         1 => DEFAULT_STATS_LEVEL,
         2 => StatsLevel::ExceptHistogramOrTimers,
@@ -67,12 +67,12 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
         6_u8..=u8::MAX => StatsLevel::All,
     });
 
-    opts.set_report_bg_io_stats(match config.rocksdb_stats_level {
+    opts.set_report_bg_io_stats(match config.database.rocksdb_stats_level {
         0..=1 => false,
         2_u8..=u8::MAX => true,
     });
 
-    opts.set_wal_recovery_mode(match config.rocksdb_recovery_mode {
+    opts.set_wal_recovery_mode(match config.database.rocksdb_recovery_mode {
         0 => DBRecoveryMode::AbsoluteConsistency,
         2 => DBRecoveryMode::PointInTime,
         3 => DBRecoveryMode::SkipAnyCorruptedRecord,
@@ -81,7 +81,7 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
 
     opts.set_track_and_verify_wals_in_manifest(true);
 
-    opts.set_paranoid_checks(config.rocksdb_paranoid_file_checks);
+    opts.set_paranoid_checks(config.database.rocksdb_paranoid_file_checks);
 
     opts.set_env(env);
 
@@ -94,7 +94,7 @@ pub(super) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
 /// than through phantom's tracing subscriber: routing them into tracing needs
 /// a callback logger the crates.io bindings do not expose.
 fn set_logging_defaults(opts: &mut Options, config: &Config) {
-    let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
+    let rocksdb_log_level = match config.database.rocksdb_log_level.as_ref() {
         "debug" => LogLevel::Debug,
         "info" => LogLevel::Info,
         "warn" => LogLevel::Warn,
@@ -103,9 +103,9 @@ fn set_logging_defaults(opts: &mut Options, config: &Config) {
     };
 
     opts.set_log_level(rocksdb_log_level);
-    opts.set_max_log_file_size(config.rocksdb_max_log_file_size);
-    opts.set_log_file_time_to_roll(config.rocksdb_log_time_to_roll);
-    opts.set_keep_log_file_num(config.rocksdb_max_log_files);
+    opts.set_max_log_file_size(config.database.rocksdb_max_log_file_size);
+    opts.set_log_file_time_to_roll(config.database.rocksdb_log_time_to_roll);
+    opts.set_keep_log_file_num(config.database.rocksdb_max_log_files);
     opts.set_stats_dump_period_sec(0);
 }
 
@@ -114,8 +114,8 @@ fn set_logging_defaults(opts: &mut Options, config: &Config) {
 fn num_threads<T: TryFrom<usize>>(config: &Config) -> Result<T> {
     const MIN_PARALLELISM: usize = 2;
 
-    let requested = if config.rocksdb_parallelism_threads != 0 {
-        config.rocksdb_parallelism_threads
+    let requested = if config.database.rocksdb_parallelism_threads != 0 {
+        config.database.rocksdb_parallelism_threads
     } else {
         available_parallelism()
     };

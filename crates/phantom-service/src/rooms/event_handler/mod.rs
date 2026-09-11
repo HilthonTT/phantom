@@ -114,7 +114,7 @@ const MAX_BACKOFF: u64 = 60 * 60;
 #[async_trait]
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-        let budget = args.server.config.federation_prev_event_budget_s;
+        let budget = args.server.config.federation.federation_prev_event_budget_s;
 
         Ok(Arc::new(Self {
             mutex_federation: RoomMutexMap::new(),

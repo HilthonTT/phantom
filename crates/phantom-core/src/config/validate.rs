@@ -57,31 +57,31 @@ pub fn validate(config: &Config) -> Result {
 /// deep inside the engine where the reference implementation panics or quietly
 /// substitutes a different value.
 fn check_database(config: &Config) -> Result {
-    if config.rocksdb_max_log_files == 0 {
+    if config.database.rocksdb_max_log_files == 0 {
         return Err(err!(Config(
             "rocksdb_max_log_files",
             "must be at least 1; the database engine rejects 0"
         )));
     }
 
-    if config.rocksdb_recovery_mode > 3 {
+    if config.database.rocksdb_recovery_mode > 3 {
         return Err(err!(Config(
             "rocksdb_recovery_mode",
             "must be 0, 1, 2, or 3, not {}",
-            config.rocksdb_recovery_mode
+            config.database.rocksdb_recovery_mode
         )));
     }
 
-    if !COMPRESSION_ALGOS.contains(&config.rocksdb_compression_algo.as_str()) {
+    if !COMPRESSION_ALGOS.contains(&config.database.rocksdb_compression_algo.as_str()) {
         return Err(err!(Config(
             "rocksdb_compression_algo",
             "{:?} is not one of {}",
-            config.rocksdb_compression_algo,
+            config.database.rocksdb_compression_algo,
             COMPRESSION_ALGOS.join(", ")
         )));
     }
 
-    if config.rocksdb_read_only && config.rocksdb_secondary {
+    if config.database.rocksdb_read_only && config.database.rocksdb_secondary {
         return Err(err!(Config(
             "rocksdb_secondary",
             "cannot be combined with `rocksdb_read_only`; a secondary instance is already \
@@ -100,14 +100,14 @@ const COMPRESSION_ALGOS: &[&str] = &["zstd", "zlib", "bz2", "lz4", "lz4hc", "sna
 /// first use: an empty token is almost always a half-finished config, and it
 /// would otherwise be discovered by someone registering an account with it.
 fn check_registration(config: &Config) -> Result {
-    if config.registration_token.as_deref() == Some("") {
+    if config.auth.registration_token.as_deref() == Some("") {
         return Err(err!(Config(
             "registration_token",
             "was set to the empty string; unset it instead to require no token"
         )));
     }
 
-    let Some(path) = config.registration_token_file.as_ref() else {
+    let Some(path) = config.auth.registration_token_file.as_ref() else {
         return Ok(());
     };
 
@@ -131,15 +131,15 @@ fn warn_url_previews(config: &Config) {
     let wildcarded = [
         (
             "url_preview_domain_contains_allowlist",
-            &config.url_preview_domain_contains_allowlist,
+            &config.media.url_preview_domain_contains_allowlist,
         ),
         (
             "url_preview_domain_explicit_allowlist",
-            &config.url_preview_domain_explicit_allowlist,
+            &config.media.url_preview_domain_explicit_allowlist,
         ),
         (
             "url_preview_url_contains_allowlist",
-            &config.url_preview_url_contains_allowlist,
+            &config.media.url_preview_url_contains_allowlist,
         ),
     ]
     .into_iter()
@@ -157,7 +157,7 @@ fn warn_url_previews(config: &Config) {
 /// of them is an error — each has a legitimate use while developing — but
 /// none should ever be quiet.
 fn warn_insecure(config: &Config) {
-    if config.allow_invalid_tls_certificates {
+    if config.network.allow_invalid_tls_certificates {
         warn!(
             "Config parameter \"allow_invalid_tls_certificates\" is set. Every outbound \
              connection, federation included, will accept any certificate presented to it. \
@@ -165,7 +165,7 @@ fn warn_insecure(config: &Config) {
         );
     }
 
-    if config.federation_loopback {
+    if config.federation.federation_loopback {
         warn!(
             "Config parameter \"federation_loopback\" is set. This server will send federation \
              requests to itself, which outside a development setup is a bug rather than a \

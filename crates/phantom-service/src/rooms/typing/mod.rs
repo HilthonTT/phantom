@@ -400,7 +400,7 @@ async fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool
         "tried to broadcast the typing status of a remote user",
     );
 
-    if !self.server.config.allow_outgoing_typing {
+    if !self.server.config.presence.allow_outgoing_typing {
         return Ok(());
     }
 

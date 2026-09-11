@@ -240,7 +240,7 @@ async fn configure(&self, mut provider: Provider) -> Result<Provider> {
     }
 
     if provider.callback_url.is_none()
-        && let Some(server_url) = self.services.config.well_known_client.as_ref()
+        && let Some(server_url) = self.services.config.auth.well_known_client.as_ref()
     {
         let path = format!(
             "_matrix/client/unstable/login/sso/callback/{}",
@@ -257,7 +257,7 @@ async fn configure(&self, mut provider: Provider) -> Result<Provider> {
 #[implement(Providers)]
 #[tracing::instrument(level = "debug", ret(level = "trace"), skip(self))]
 pub async fn discover(&self, provider: &Provider) -> Result<JsonValue> {
-    let limit = self.services.config.oidc_max_response_size;
+    let limit = self.services.config.oidc.oidc_max_response_size;
     let response = self
         .services
         .client

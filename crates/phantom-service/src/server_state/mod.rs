@@ -46,15 +46,15 @@ impl crate::Service for Service {
         let config = &args.server.config;
 
         let turn_secret = secret::resolve(
-            config.turn_secret_file.as_deref(),
-            Some(config.turn_secret.as_str()),
+            config.turn.turn_secret_file.as_deref(),
+            Some(config.turn.turn_secret.as_str()),
             "TURN secret",
         )
         .unwrap_or_default();
 
         let registration_token = secret::resolve(
-            config.registration_token_file.as_deref(),
-            config.registration_token.as_deref(),
+            config.auth.registration_token_file.as_deref(),
+            config.auth.registration_token.as_deref(),
             "registration token",
         );
 

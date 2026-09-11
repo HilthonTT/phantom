@@ -54,7 +54,13 @@ where
     while let Some(batch) = server_keys
         .keys()
         .rev()
-        .take(self.services.server.config.trusted_server_batch_size)
+        .take(
+            self.services
+                .server
+                .config
+                .federation
+                .trusted_server_batch_size,
+        )
         .next_back()
         .cloned()
     {

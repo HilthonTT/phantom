@@ -56,7 +56,7 @@ impl Resolver {
         for name_server in sys_conf.name_servers() {
             let mut ns = name_server.clone();
 
-            if config.query_over_tcp_only {
+            if config.dns.query_over_tcp_only {
                 let port = ns.connections.first().map(|conn| conn.port);
                 ns.connections
                     .retain(|conn| matches!(conn.protocol, ProtocolConfig::Tcp));
@@ -70,24 +70,24 @@ impl Resolver {
                 }
             }
 
-            ns.trust_negative_responses = !config.query_all_nameservers;
+            ns.trust_negative_responses = !config.dns.query_all_nameservers;
 
             conf.add_name_server(ns);
         }
 
-        opts.cache_size = u64::from(config.dns_cache_entries);
+        opts.cache_size = u64::from(config.dns.dns_cache_entries);
         opts.preserve_intermediates = true;
-        opts.negative_min_ttl = Some(Duration::from_secs(config.dns_min_ttl_nxdomain));
+        opts.negative_min_ttl = Some(Duration::from_secs(config.dns.dns_min_ttl_nxdomain));
         opts.negative_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 30));
-        opts.positive_min_ttl = Some(Duration::from_secs(config.dns_min_ttl));
+        opts.positive_min_ttl = Some(Duration::from_secs(config.dns.dns_min_ttl));
         opts.positive_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 7));
-        opts.timeout = Duration::from_secs(config.dns_timeout);
-        opts.attempts = config.dns_attempts.into();
-        opts.try_tcp_on_error = config.dns_tcp_fallback;
+        opts.timeout = Duration::from_secs(config.dns.dns_timeout);
+        opts.attempts = config.dns.dns_attempts.into();
+        opts.try_tcp_on_error = config.dns.dns_tcp_fallback;
         opts.num_concurrent_reqs = 1;
         opts.edns0 = true;
         opts.case_randomization = true;
-        opts.ip_strategy = ip_strategy(config.ip_lookup_strategy);
+        opts.ip_strategy = ip_strategy(config.dns.ip_lookup_strategy);
 
         let mut builder = TokioResolver::builder_with_config(conf, TokioRuntimeProvider::new());
         *builder.options_mut() = opts;

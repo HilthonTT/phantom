@@ -117,8 +117,8 @@ pub enum SummaryAccessibility {
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         let config = &args.server.config;
-        let capacity =
-            f64::from(config.space_hierarchy_cache_capacity) * config.cache_capacity_modifier;
+        let capacity = f64::from(config.database.space_hierarchy_cache_capacity)
+            * config.database.cache_capacity_modifier;
 
         Ok(Arc::new(Self {
             cache: LruCache::new(usize_from_f64(capacity)?).into(),

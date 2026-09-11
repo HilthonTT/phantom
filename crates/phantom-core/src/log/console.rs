@@ -97,11 +97,11 @@ pub struct ConsoleFormat {
 impl ConsoleFormat {
     #[must_use]
     pub fn new(config: &Config) -> Self {
-        let ansi = config.log_colors && !is_systemd_mode();
+        let ansi = config.logging.log_colors && !is_systemd_mode();
 
         Self {
             full: Format::<Full>::default()
-                .with_thread_ids(config.log_thread_ids)
+                .with_thread_ids(config.logging.log_thread_ids)
                 .with_ansi(ansi),
 
             pretty: fmt::format()

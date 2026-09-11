@@ -365,7 +365,7 @@ pub async fn is_admin_command(&self, pdu: &PduEvent, body: &str) -> bool {
 
         Invocation::Escaped
             if !self.services.server_state.user_is_local(&pdu.sender)
-                || !self.services.server.config.admin_escape_commands =>
+                || !self.services.server.config.admin.admin_escape_commands =>
         {
             return false;
         }
@@ -382,7 +382,13 @@ pub async fn is_admin_command(&self, pdu: &PduEvent, body: &str) -> bool {
         return false;
     }
 
-    let is_recovery = self.services.server.config.emergency_password.is_some();
+    let is_recovery = self
+        .services
+        .server
+        .config
+        .admin
+        .emergency_password
+        .is_some();
     if in_admin_room && pdu.sender == *server_user && !is_recovery {
         return false;
     }

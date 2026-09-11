@@ -67,7 +67,7 @@ struct Announcement {
 #[async_trait]
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-        let interval = args.server.config.check_for_updates_interval_s;
+        let interval = args.server.config.updates.check_for_updates_interval_s;
 
         Ok(Arc::new(Self {
             interval: Duration::from_secs(interval),
@@ -82,7 +82,7 @@ impl crate::Service for Service {
     }
 
     async fn worker(self: Arc<Self>) -> Result<()> {
-        if !self.services.server.config.allow_check_for_updates {
+        if !self.services.server.config.updates.allow_check_for_updates {
             debug!("Checking for announcements is disabled by configuration");
             return Ok(());
         }
@@ -110,7 +110,7 @@ impl crate::Service for Service {
 #[implement(Service)]
 #[tracing::instrument(name = "updates", level = "debug", skip_all)]
 async fn check(&self) -> Result {
-    let url = &self.services.server.config.check_for_updates_url;
+    let url = &self.services.server.config.updates.check_for_updates_url;
 
     let response = self
         .services

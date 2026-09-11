@@ -125,8 +125,8 @@ impl Server {
     fn can_build(args: &crate::Args<'_>) -> bool {
         let config = &args.server.config;
         let has_idp = !config.identity_provider.is_empty();
-        let has_client_url = config.well_known_client.is_some();
-        let native = config.oidc_native_auth;
+        let has_client_url = config.auth.well_known_client.is_some();
+        let native = config.oidc.oidc_native_auth;
 
         if (has_idp || native) && !has_client_url {
             warn!("The OIDC server (next-gen auth) requires `well_known_client` to be set.");
@@ -155,6 +155,7 @@ impl Server {
 pub fn issuer_url(&self) -> Result<String> {
     self.services
         .config
+        .auth
         .well_known_client
         .as_ref()
         .map(|url| {

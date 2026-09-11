@@ -24,7 +24,7 @@ pub fn backup(&self) -> Result {
 
     let options = BackupEngineOptions::new(path).map_err(map_err)?;
     let mut engine = BackupEngine::open(&options, &*self.ctx.env.lock()?).map_err(map_err)?;
-    if config.database_backups_to_keep > 0 {
+    if config.database.database_backups_to_keep > 0 {
         let flush = !self.is_read_only();
         engine
             .create_new_backup_flush(&self.db, flush)
@@ -38,8 +38,8 @@ pub fn backup(&self) -> Result {
         );
     }
 
-    if config.database_backups_to_keep >= 0 {
-        let keep = u32::try_from(config.database_backups_to_keep)?;
+    if config.database.database_backups_to_keep >= 0 {
+        let keep = u32::try_from(config.database.database_backups_to_keep)?;
         if let Err(e) = engine.purge_old_backups(keep.try_into()?) {
             error!("Failed to purge old backup: {e:?}");
         }
@@ -82,6 +82,7 @@ fn backup_path(engine: &Engine) -> Option<&std::path::Path> {
         .ctx
         .server
         .config
+        .database
         .database_backup_path
         .as_deref()
         .filter(|path| !path.as_os_str().is_empty())

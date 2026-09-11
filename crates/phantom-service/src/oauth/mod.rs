@@ -157,8 +157,8 @@ const DEVICE_RC_BURST: f64 = 60.0;
 #[implement(Service)]
 pub fn check_rate_limit(&self, client: IpAddr) -> Result {
     let config = &self.services.config;
-    let rate = f64::from(config.oidc_rc_per_second);
-    let burst = f64::from(config.oidc_rc_burst_count);
+    let rate = f64::from(config.oidc.oidc_rc_per_second);
+    let burst = f64::from(config.oidc.oidc_rc_burst_count);
 
     if rate <= 0.0 || burst <= 0.0 {
         return Ok(());
@@ -441,7 +441,7 @@ where
         request = request.bearer_auth(access_token);
     }
 
-    let limit = self.services.config.oidc_max_response_size;
+    let limit = self.services.config.oidc.oidc_max_response_size;
     let http_response = request.send().await?.error_for_status()?;
 
     let body = read_response_capped(http_response, limit).await?;

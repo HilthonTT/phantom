@@ -369,7 +369,9 @@ impl super::Service {
 
     /// Rejects a destination before anything is resolved for it.
     fn validate_dest(&self, dest: &ServerName) -> Result<()> {
-        if dest == self.services.server.name && !self.services.server.config.federation_loopback {
+        if dest == self.services.server.name
+            && !self.services.server.config.federation.federation_loopback
+        {
             return Err!("Won't send federation request to ourselves");
         }
 

@@ -48,7 +48,7 @@ impl crate::Service for Service {
     }
 
     async fn worker(self: Arc<Self>) -> Result {
-        if self.services.server.config.rocksdb_read_only {
+        if self.services.server.config.database.rocksdb_read_only {
             return Ok(());
         }
 
@@ -70,7 +70,7 @@ impl crate::Service for Service {
 #[implement(Service)]
 async fn set_emergency_access(&self) -> Result {
     let server_user = &self.services.server_state.server_user;
-    let emergency_password = self.services.server.config.emergency_password.clone();
+    let emergency_password = self.services.server.config.admin.emergency_password.clone();
 
     self.services
         .users

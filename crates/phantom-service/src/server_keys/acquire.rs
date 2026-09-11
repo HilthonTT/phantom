@@ -72,9 +72,9 @@ where
     K: Iterator<Item = &'a ServerSigningKeyId> + Send + Clone,
 {
     let config = &self.services.server.config;
-    let notary_only = config.only_query_trusted_key_servers;
-    let notary_first_always = config.query_trusted_key_servers_first;
-    let notary_first_on_join = config.query_trusted_key_servers_first_on_join;
+    let notary_only = config.federation.only_query_trusted_key_servers;
+    let notary_first_always = config.federation.query_trusted_key_servers_first;
+    let notary_first_on_join = config.federation.query_trusted_key_servers_first_on_join;
 
     let requested_servers = batch.clone().count();
     let requested_keys = batch.clone().flat_map(|(_, key_ids)| key_ids).count();
@@ -219,7 +219,7 @@ where
     I: Iterator<Item = (OwnedServerName, Vec<OwnedServerSigningKeyId>)> + Send,
 {
     let mut missing: Batch = batch.collect();
-    for notary in &self.services.server.config.trusted_servers {
+    for notary in &self.services.server.config.federation.trusted_servers {
         if missing.is_empty() {
             break;
         }

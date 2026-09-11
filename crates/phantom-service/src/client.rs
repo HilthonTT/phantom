@@ -83,11 +83,13 @@ impl crate::Service for Service {
         let resolver = args.require::<resolver::Service>("resolver");
 
         let url_preview_bind_addr = config
+            .media
             .url_preview_bound_interface
             .clone()
             .and_then(Either::left);
 
         let url_preview_bind_iface = config
+            .media
             .url_preview_bound_interface
             .clone()
             .and_then(Either::right);
@@ -110,18 +112,18 @@ impl crate::Service for Service {
 
             well_known: base(config)?
                 .dns_resolver(resolver.resolver.clone())
-                .connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
-                .read_timeout(Duration::from_secs(config.well_known_timeout))
-                .timeout(Duration::from_secs(config.well_known_timeout))
+                .connect_timeout(Duration::from_secs(config.network.well_known_conn_timeout))
+                .read_timeout(Duration::from_secs(config.network.well_known_timeout))
+                .timeout(Duration::from_secs(config.network.well_known_timeout))
                 .pool_max_idle_per_host(0)
                 .redirect(redirect::Policy::limited(4))
                 .build()?,
 
             federation: base(config)?
                 .dns_resolver(resolver.resolver.hooked.clone())
-                .read_timeout(Duration::from_secs(config.federation_timeout))
-                .pool_max_idle_per_host(config.federation_idle_per_host.into())
-                .pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
+                .read_timeout(Duration::from_secs(config.network.federation_timeout))
+                .pool_max_idle_per_host(config.network.federation_idle_per_host.into())
+                .pool_idle_timeout(Duration::from_secs(config.network.federation_idle_timeout))
                 .redirect(redirect::Policy::limited(3))
                 .build()?,
 
@@ -142,31 +144,32 @@ impl crate::Service for Service {
 
             sender: base(config)?
                 .dns_resolver(resolver.resolver.hooked.clone())
-                .read_timeout(Duration::from_secs(config.sender_timeout))
-                .timeout(Duration::from_secs(config.sender_timeout))
+                .read_timeout(Duration::from_secs(config.network.sender_timeout))
+                .timeout(Duration::from_secs(config.network.sender_timeout))
                 .pool_max_idle_per_host(1)
-                .pool_idle_timeout(Duration::from_secs(config.sender_idle_timeout))
+                .pool_idle_timeout(Duration::from_secs(config.network.sender_idle_timeout))
                 .redirect(redirect::Policy::limited(2))
                 .build()?,
 
             appservice: base(config)?
                 .dns_resolver(resolver.resolver.clone())
                 .connect_timeout(Duration::from_secs(APPSERVICE_CONN_TIMEOUT))
-                .read_timeout(Duration::from_secs(config.appservice_timeout))
-                .timeout(Duration::from_secs(config.appservice_timeout))
+                .read_timeout(Duration::from_secs(config.network.appservice_timeout))
+                .timeout(Duration::from_secs(config.network.appservice_timeout))
                 .pool_max_idle_per_host(1)
-                .pool_idle_timeout(Duration::from_secs(config.appservice_idle_timeout))
+                .pool_idle_timeout(Duration::from_secs(config.network.appservice_idle_timeout))
                 .redirect(redirect::Policy::limited(2))
                 .build()?,
 
             pusher: base(config)?
                 .dns_resolver(resolver.resolver.clone())
                 .pool_max_idle_per_host(1)
-                .pool_idle_timeout(Duration::from_secs(config.pusher_idle_timeout))
+                .pool_idle_timeout(Duration::from_secs(config.network.pusher_idle_timeout))
                 .redirect(redirect::Policy::limited(2))
                 .build()?,
 
             cidr_range_denylist: config
+                .network
                 .ip_range_denylist
                 .iter()
                 .map(IPAddress::parse)
@@ -174,7 +177,7 @@ impl crate::Service for Service {
                 .collect::<Result<_, String>>()
                 .map_err(|e| err!(Config("ip_range_denylist", "{e}")))?,
 
-            proxy: config.proxy.clone(),
+            proxy: config.network.proxy.clone(),
         }))
     }
 
@@ -204,20 +207,20 @@ const APPSERVICE_CONN_TIMEOUT: u64 = 5;
 /// kind of request are applied over them.
 fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
     let builder = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(config.request_conn_timeout))
-        .read_timeout(Duration::from_secs(config.request_timeout))
-        .timeout(Duration::from_secs(config.request_total_timeout))
-        .pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
-        .pool_max_idle_per_host(config.request_idle_per_host.into())
+        .connect_timeout(Duration::from_secs(config.network.request_conn_timeout))
+        .read_timeout(Duration::from_secs(config.network.request_timeout))
+        .timeout(Duration::from_secs(config.network.request_total_timeout))
+        .pool_idle_timeout(Duration::from_secs(config.network.request_idle_timeout))
+        .pool_max_idle_per_host(config.network.request_idle_per_host.into())
         .user_agent(user_agent())
         .redirect(redirect::Policy::limited(6))
-        .danger_accept_invalid_certs(config.allow_invalid_tls_certificates)
+        .danger_accept_invalid_certs(config.network.allow_invalid_tls_certificates)
         .connection_verbose(cfg!(debug_assertions))
-        .gzip(config.gzip_compression)
-        .brotli(config.brotli_compression)
-        .zstd(config.zstd_compression);
+        .gzip(config.network.gzip_compression)
+        .brotli(config.network.brotli_compression)
+        .zstd(config.network.zstd_compression);
 
-    match config.proxy.to_proxy()? {
+    match config.network.proxy.to_proxy()? {
         Some(proxy) => Ok(builder.proxy(proxy)),
         None => Ok(builder),
     }

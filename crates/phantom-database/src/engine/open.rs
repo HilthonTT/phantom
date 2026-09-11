@@ -25,7 +25,7 @@ use crate::{engine::error::or_else, pool::Pool};
 pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
     let server = &ctx.server;
     let config = &server.config;
-    let path = &config.database_path;
+    let path = &config.database.database_path;
 
     let pool = Pool::new(server)?;
 
@@ -41,14 +41,14 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
     debug!("Configured {num_cfds} column descriptors...");
 
     let load_time = std::time::Instant::now();
-    if config.rocksdb_repair {
+    if config.database.rocksdb_repair {
         repair(&db_opts, path)?;
     }
 
     debug!("Opening database...");
-    let db = if config.rocksdb_read_only {
+    let db = if config.database.rocksdb_read_only {
         Db::open_cf_descriptors_read_only(&db_opts, path, cfds, false)
-    } else if config.rocksdb_secondary {
+    } else if config.database.rocksdb_secondary {
         Db::open_cf_descriptors_as_secondary(&db_opts, path, path, cfds)
     } else {
         Db::open_cf_descriptors(&db_opts, path, cfds)
@@ -67,9 +67,9 @@ pub fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<Self>> {
         pool,
         ctx: ctx.clone(),
         columns,
-        read_only: config.rocksdb_read_only,
-        secondary: config.rocksdb_secondary,
-        checksums: config.rocksdb_checksums,
+        read_only: config.database.rocksdb_read_only,
+        secondary: config.database.rocksdb_secondary,
+        checksums: config.database.rocksdb_checksums,
         corks: AtomicU32::new(0),
     }))
 }
@@ -88,7 +88,7 @@ fn configure_cfds(
 ) -> Result<Vec<ColumnFamilyDescriptor>> {
     let server = &ctx.server;
     let config = &server.config;
-    let path = &config.database_path;
+    let path = &config.database.database_path;
     let existing = Self::discover_cfs(path, db_opts);
 
     let creating = desc.iter().filter(|desc| !existing.contains(desc.name));

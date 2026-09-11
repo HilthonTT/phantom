@@ -65,7 +65,7 @@ impl Service {
                 self.mark_as_left(user_id, room_id);
 
                 if self.services.server_state.user_is_local(user_id)
-                    && (self.services.server.config.forget_forced_upon_leave
+                    && (self.services.server.config.rooms.forget_forced_upon_leave
                         || self.services.metadata.is_banned(room_id).await
                         || self.services.metadata.is_disabled(room_id).await)
                 {
