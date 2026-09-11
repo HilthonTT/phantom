@@ -105,6 +105,27 @@
 #
 #media_video_thumbnail_command = []
 
+# List of storage providers to use for media. Providers can be configured
+# below in respective sections designated by
+# `global.storage_provider.<NAME>.<brand>` where `NAME` can be listed
+# here.
+#
+# For advanced features and future extensions involving multiple providers
+# the list may contain multiple entries. You MUST take note of other
+# configuration options when listing multiple providers or resource
+# duplication costs and poor performance can result.
+#
+# The list defaults to `["media"]` which is an implicit storage provider
+# representing the media directory on the local filesystem. It can be
+# altered by configuring `global.storage_provider.media.local` explicitly
+# or disabled by omitting it from this list entirely. Users with existing
+# deployments are advised to continue listing "media" as a fallback along
+# with their new provider.
+#
+# reloadable: yes
+#
+#media_storage_providers = ["media"]
+
 # Seconds a video thumbnail request may spend extracting its frame.
 #
 # One deadline spans the wait for a free slot, staging the video and the
@@ -1375,3 +1396,121 @@
 # Overrides the discovered userinfo endpoint.
 #
 #userinfo_url =
+
+[global.storage_provider.<ID>.local]
+
+# Absolute path to this local filesystem storage provider. Technically the
+# provider exists at the filesystem root, and the base_path is prefixed to
+# all objects.
+#
+#base_path =
+
+# Creates the directory on the local filesystem if missing. This is not
+# recommended to prevent misconfigured environments and missing mounts
+# from silently succeeding.
+#
+#create_if_missing = false
+
+# Toggles the preservation of a directory after its last file contents are
+# removed.
+#
+#delete_empty_directories = true
+
+# Enables checks performed at startup determining the usability of the
+# local directory. Failures will abort the server's startup.
+#
+#startup_check = true
+
+[global.storage_provider.<ID>.s3]
+
+# Supply an s3 URL e.g. "s3://bucket/path". These URLs may contain one
+# or all of `bucket`, `region`, and `path` . When not supplied, such
+# additional items can be supplied below individually.
+#
+#url =
+
+# The name of the S3 bucket. e.g. "bucketname-123456789-us-west-2-an".
+#
+#bucket =
+
+# The region of the S3 bucket. e.g. "us-west-2".
+#
+#region = "us-east-1"
+
+# Your amazon IAM Key ID with access granted to this bucket.
+# e.g. "ABCDEFG1X1ZZYYXXWWVV"
+#
+#key =
+
+# The secret key component which is approx 40 characters of base64.
+#
+#secret =
+
+# Optional path prefix within the bucket where all our operations will
+# take place.
+#
+#base_path =
+
+# (expert use) Override the location of s3 applied after components of the
+# parsed `url` (or when none set).
+#
+#endpoint =
+
+# (expert use) Override this property useful for some self-hosted
+# environments. By default it is derived when parsing the primary `url`.
+#
+#use_vhost_request = false
+
+# (expert use) Alternative session-token authentication method.
+#
+#token =
+
+# (expert use) Associated SSE-KMS key material.
+#
+#kms =
+
+# (expert use) When configured for the bucket it should be reflected here.
+#
+#use_bucket_key =
+
+# (expert use) Threshold size for switching to Multi-part uploads. This is
+# a quirk of the S3 protocol which requires us to use a different approach
+# for "large" uploads. This value determines what a "large" upload is. The
+# default value should be sufficient for most providers. The value is a
+# parsed string allowing SI or IEC units for convenience.
+#
+#multipart_threshold = 100 MiB
+
+# (expert use) Size of each individual part within a Multi-part upload.
+# Once an upload exceeds `multipart_threshold` the payload is split into
+# parts of this size, each sent as a separate HTTP PUT. Smaller values
+# keep individual requests under per-request timeouts on slow uplinks at
+# the cost of more round-trips. S3 requires every part except the last
+# to be at least 5 MiB. The value is a parsed string allowing SI or IEC
+# units for convenience.
+#
+#multipart_part_size = 10 MiB
+
+# (developer use) Allows relaxing default requirement forcing HTTPS.
+#
+#use_https = true
+
+# (developer_use) Allows skipping request header signatures (will be
+# reejected by AWS).
+#
+#use_signatures = true
+
+# (developer_use) Allows disabling request payload signatures.
+#
+#use_payload_signatures = true
+
+# (developer use) Enables checks performed at startup such as pinging the
+# provider. Failures are considered critical startup errors which abort
+# startup. When set to false, faulty providers are only discovered with
+# first use and will not be fatal errors.
+#
+# Only set this to false if you expect a provider to be down at startup or
+# for development/testing purposes; checks are disabled when the server
+# is started in '--maintenance' mode.
+#
+#startup_check = true

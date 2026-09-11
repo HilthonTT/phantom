@@ -4,6 +4,24 @@ pub(super) fn true_fn() -> bool {
     true
 }
 
+/// `Option<bool>` counterpart to [`true_fn`], for a tri-state option whose
+/// unset and enabled cases have to stay distinguishable.
+pub(super) fn some_true_fn() -> Option<bool> {
+    Some(true)
+}
+
+pub(super) fn default_media_storage_providers() -> BTreeSet<String> {
+    BTreeSet::from(["media".to_owned()])
+}
+
+pub(super) fn default_multipart_threshold() -> ByteSize {
+    ByteSize::mib(100)
+}
+
+pub(super) fn default_multipart_part_size() -> ByteSize {
+    ByteSize::mib(10)
+}
+
 pub(super) fn default_log() -> String {
     cfg!(debug_assertions)
         .then_some("debug")
