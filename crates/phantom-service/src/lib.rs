@@ -23,6 +23,7 @@ pub mod sendmail;
 pub mod server_keys;
 pub mod server_state;
 pub mod sync;
+pub mod tasks;
 pub mod transaction_id;
 pub mod uiaa;
 pub mod updates;
