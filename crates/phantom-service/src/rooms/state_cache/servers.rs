@@ -86,20 +86,25 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    pub async fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
-        let most_powerful_user_server = self
-            .services
+    pub async fn most_powerful_user_server(&self, room_id: &RoomId) -> Option<OwnedServerName> {
+        self.services
             .state_accessor
             .room_state_get_content(room_id, &StateEventType::RoomPowerLevels, "")
             .await
-            .map(|content: RoomPowerLevelsEventContent| {
+            .ok()
+            .and_then(|content: RoomPowerLevelsEventContent| {
                 content
                     .users
                     .iter()
                     .max_by_key(|(_, power)| *power)
                     .and_then(|x| (x.1 >= &int!(50)).then_some(x))
                     .map(|(user, _power)| user.server_name().to_owned())
-            });
+            })
+    }
+
+    #[tracing::instrument(skip(self), level = "trace")]
+    pub async fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
+        let most_powerful_user_server = self.most_powerful_user_server(room_id).await;
 
         let mut counts: HashMap<OwnedServerName, usize> = HashMap::new();
         self.room_members(room_id)
@@ -118,7 +123,7 @@ impl Service {
             .take(5)
             .collect();
 
-        if let Ok(Some(server)) = most_powerful_user_server {
+        if let Some(server) = most_powerful_user_server {
             servers.insert(0, server);
             servers.truncate(5);
         }

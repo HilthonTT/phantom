@@ -41,4 +41,10 @@ pub struct Federation {
 
     #[serde(default)]
     pub federation_loopback: bool,
+
+    #[serde(default = "default_fetch_fanout_max_width")]
+    pub fetch_fanout_max_width: usize,
+
+    #[serde(default = "default_fetch_fanout_rounds")]
+    pub fetch_fanout_rounds: usize,
 }

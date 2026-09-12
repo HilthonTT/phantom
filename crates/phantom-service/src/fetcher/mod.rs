@@ -5,6 +5,8 @@ mod inflight;
 mod opts;
 mod select;
 mod transport;
+mod validate;
+mod worker;
 
 use std::sync::Arc;
 

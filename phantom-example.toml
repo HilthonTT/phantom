@@ -310,6 +310,14 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#fetch_fanout_max_width =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#fetch_fanout_rounds =
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #allow_metrics = false
 
 # This item is undocumented. Please contribute documentation for it.

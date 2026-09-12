@@ -271,6 +271,14 @@ pub(super) fn default_sender_retry_grace() -> u64 {
     30
 }
 
+pub(super) fn default_fetch_fanout_max_width() -> usize {
+    4
+}
+
+pub(super) fn default_fetch_fanout_rounds() -> usize {
+    5
+}
+
 pub(super) fn default_feds_max_width() -> usize {
     32
 }

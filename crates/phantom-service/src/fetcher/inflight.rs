@@ -2,7 +2,7 @@ use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{Arc, Weak},
 };
 
 use phantom_core::implement;
@@ -10,7 +10,7 @@ use ruma::{
     MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedServerName, RoomVersionId,
     api::Direction,
 };
-use tokio::sync::watch::Receiver;
+use tokio::sync::watch::{Receiver, Sender};
 
 use super::{Failure, FanoutGrowth, Op, Opts, Outcome};
 
@@ -43,6 +43,14 @@ struct Identity<'a> {
     check_hashes: bool,
     authoritative_redaction: bool,
     check_signature: bool,
+}
+
+pub(super) struct Inflight {
+    pub(super) tx: Sender<Option<SharedResult>>,
+
+    pub(super) interest: Weak<()>,
+
+    pub(super) opts: Arc<Opts>,
 }
 
 pub(super) type SharedResult = Result<Arc<Outcome>, Failure>;

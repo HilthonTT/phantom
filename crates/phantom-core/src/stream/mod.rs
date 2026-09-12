@@ -6,6 +6,7 @@ mod expect;
 mod ignore;
 mod iter_stream;
 mod ready;
+mod tools;
 mod try_aggregate;
 mod try_broadband;
 mod try_parallel;
@@ -25,6 +26,7 @@ pub use self::{
     ignore::TryIgnore,
     iter_stream::IterStream,
     ready::ReadyExt,
+    tools::Tools,
     try_aggregate::TryAggregate,
     try_broadband::TryBroadbandExt,
     try_parallel::TryParallelExt,
