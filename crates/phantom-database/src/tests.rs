@@ -48,9 +48,15 @@ impl TestDb {
             server_name = "phantom.test"
             database_path = "{path}"
 
-            # One worker and one queue: the tests care about what comes back,
-            # not about how wide the pool is, and this keeps them cheap.
+            # The tests care about what comes back, not about how wide the
+            # pool is, so keep it as narrow as the host allows. `db_pool_workers`
+            # only applies when the backing device reports no hardware queues;
+            # where it reports some, `db_pool_workers_limit` is the per-core cap
+            # that bounds each one, and without it a single test database opens
+            # up to `WORKER_LIMIT.1` threads. Run in parallel that is tens of
+            # thousands of them, and the suite starts failing to spawn.
             db_pool_workers = 1
+            db_pool_workers_limit = 1
             db_pool_queue_mult = 1
             db_cache_capacity_mb = 8.0
             db_write_buffer_capacity_mb = 8.0

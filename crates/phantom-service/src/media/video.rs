@@ -167,10 +167,14 @@ async fn extract_frame(&self, mxc: &MxcUri, dim: &Dim, content: &[u8]) -> Result
 }
 
 fn staging_dir(config: &Config) -> Cow<'_, Path> {
-    config.media_video_thumbnail_path.as_deref().map_or_else(
-        || config.database.database_path.join("tmp").into(),
-        Cow::Borrowed,
-    )
+    config
+        .media
+        .media_video_thumbnail_path
+        .as_deref()
+        .map_or_else(
+            || config.database.database_path.join("tmp").into(),
+            Cow::Borrowed,
+        )
 }
 
 #[tracing::instrument(name = "sweep", level = "debug", skip_all)]

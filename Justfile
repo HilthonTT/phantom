@@ -5,7 +5,9 @@ check: check-rust check-go
 check-rust:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
     cargo test --workspace
+    cargo test --workspace --all-features
 
 check-go:
     cd cli && go vet ./...

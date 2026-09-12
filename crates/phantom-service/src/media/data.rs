@@ -127,7 +127,6 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) fn txn(&self) -> Txn {
         Txn::new(&self.db.engine)
     }
@@ -148,7 +147,6 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) fn insert_lazy_media(&self, mxc: &str, url: &str) -> Result {
         debug!(?mxc, ?url, "Registering lazy media");
 
@@ -156,7 +154,6 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) fn queue_lazy_media(&self, txn: &mut Txn, mxc: &str, url: &str) {
         debug!(?mxc, ?url, "Registering lazy media");
 
@@ -164,13 +161,11 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) fn remove_lazy_media(&self, txn: &mut Txn, mxc: &str) {
         txn.remove(&self.mediaid_lazy, mxc);
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) async fn search_lazy_media(&self, mxc: &str) -> Result<String> {
         self.mediaid_lazy.get(mxc).await.and_then(|handle| {
             std::str::from_utf8(&handle)
@@ -180,7 +175,6 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) fn set_lazy_content(
         &self,
         txn: &mut Txn,
@@ -203,7 +197,6 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) async fn get_lazy_content(&self, mxc: &str) -> Result<Media> {
         self.mediaid_lazycontent
             .get(mxc)
@@ -214,7 +207,6 @@ impl Data {
     }
 
     #[cfg(feature = "url_preview")]
-
     pub(super) fn remove_lazy_content(&self, txn: &mut Txn, mxc: &str) {
         txn.remove(&self.mediaid_lazycontent, mxc);
     }

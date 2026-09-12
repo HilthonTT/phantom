@@ -25,4 +25,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # The optional features are not in the default set, so nothing above
+      # compiles them. Without this they rot: a dependency bump or a config
+      # refactor breaks a feature-gated call site and no job notices.
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace
+      - run: cargo test --workspace --all-features
