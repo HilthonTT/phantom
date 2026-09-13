@@ -323,6 +323,9 @@ async fn act_on_membership(&self, pdu: &PduEvent) -> Result {
     let target = UserId::parse(state_key.as_str())?;
     let content: RoomMemberEventContent = pdu.get_content()?;
 
+    let is_invite = content.membership == MembershipState::Invite;
+    let is_direct = content.is_direct.unwrap_or(false);
+
     let stripped = match content.membership {
         MembershipState::Invite | MembershipState::Knock => {
             Some(self.services.state.summary_stripped(pdu).await)
@@ -341,7 +344,15 @@ async fn act_on_membership(&self, pdu: &PduEvent) -> Result {
             None,
             true,
         )
-        .await
+        .await?;
+
+    if is_invite {
+        self.services
+            .membership
+            .auto_accept(&pdu.room_id, &target, &pdu.sender, is_direct);
+    }
+
+    Ok(())
 }
 
 #[implement(Service)]

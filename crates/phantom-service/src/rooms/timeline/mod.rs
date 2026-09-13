@@ -19,7 +19,9 @@ use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, RoomId, UserId};
 
 use self::data::Data;
 pub use self::data::PdusIterItem;
-use crate::{Dep, account_data, admin, appservice, rooms, sending, server_state, users};
+use crate::{
+    Dep, account_data, admin, appservice, membership, rooms, sending, server_state, users,
+};
 
 pub struct Service {
     mutex_insert: RoomMutexMap,
@@ -32,6 +34,7 @@ struct Services {
     admin: Dep<admin::Service>,
     alias: Dep<rooms::alias::Service>,
     appservice: Dep<appservice::Service>,
+    membership: Dep<membership::Service>,
     pdu_metadata: Dep<rooms::pdu_metadata::Service>,
     pusher: Dep<crate::pusher::Service>,
     read_receipt: Dep<rooms::read_receipt::Service>,
@@ -64,6 +67,7 @@ impl crate::Service for Service {
                 admin: args.depend::<admin::Service>("admin"),
                 alias: args.depend::<rooms::alias::Service>("rooms::alias"),
                 appservice: args.depend::<appservice::Service>("appservice"),
+                membership: args.depend::<membership::Service>("membership"),
                 pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
                 pusher: args.depend::<crate::pusher::Service>("pusher"),
                 read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
