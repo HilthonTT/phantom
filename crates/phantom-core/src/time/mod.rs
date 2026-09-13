@@ -2,8 +2,6 @@ pub mod exponential_backoff;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use tracing_subscriber::fmt::time;
-
 use crate::{Result, err};
 
 #[inline]
