@@ -15,6 +15,7 @@ pub mod moderation;
 pub mod oauth;
 pub mod presence;
 pub mod pusher;
+pub mod rendezvous;
 pub mod resolver;
 pub mod rooms;
 pub mod runtime;

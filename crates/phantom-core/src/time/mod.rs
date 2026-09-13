@@ -2,6 +2,8 @@ pub mod exponential_backoff;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use tracing_subscriber::fmt::time;
+
 use crate::{Result, err};
 
 #[inline]
@@ -106,6 +108,14 @@ pub fn whole_and_frac(d: Duration) -> (Unit, f64) {
             Nanos(_) => 0.0,
         },
     )
+}
+
+#[inline]
+#[must_use]
+pub fn duration_since_epoch(timepoint: SystemTime) -> Duration {
+    timepoint
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
 }
 
 #[must_use]

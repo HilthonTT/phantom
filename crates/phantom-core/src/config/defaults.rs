@@ -365,3 +365,23 @@ pub(super) fn default_redaction_retention_seconds() -> u64 {
 pub(super) fn default_oidc_max_response_size() -> usize {
     256 * 1024
 }
+
+pub(super) fn default_rendezvous_session_max_bytes() -> usize {
+    4096
+}
+
+pub(super) fn default_rendezvous_session_ttl() -> u64 {
+    600
+}
+
+pub(super) fn default_rendezvous_max_sessions() -> usize {
+    100
+}
+
+pub(super) fn default_rendezvous_rc_per_second() -> u32 {
+    10
+}
+
+pub(super) fn default_rendezvous_rc_burst_count() -> u32 {
+    20
+}

@@ -2635,6 +2635,7 @@ dependencies = [
  "either",
  "futures",
  "hickory-resolver",
+ "http",
  "image",
  "ipaddress",
  "lettre",

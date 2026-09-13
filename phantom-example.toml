@@ -598,6 +598,34 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#rendezvous_enabled = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#rendezvous_session_max_bytes =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#rendezvous_session_ttl =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#rendezvous_max_sessions =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#rendezvous_authenticated_only = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#rendezvous_rc_per_second =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#rendezvous_rc_burst_count =
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #forget_forced_upon_leave = false
 
 # This item is undocumented. Please contribute documentation for it.
