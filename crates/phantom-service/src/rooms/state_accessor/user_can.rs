@@ -1,4 +1,4 @@
-use phantom_core::{Err, Result, error, implement};
+use phantom_core::{Err, Result, error, implement, matrix::PduBuilder};
 use ruma::{
     EventId, OwnedUserId, RoomId, UserId,
     events::{
@@ -6,11 +6,14 @@ use ruma::{
         room::{
             create::RoomCreateEventContent,
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            member::{MembershipState, RoomMemberEventContent},
             power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent, RoomPowerLevelsSource},
         },
     },
     room_version_rules::AuthorizationRules,
 };
+
+use crate::rooms::state::RoomMutexGuard;
 
 #[implement(super::Service)]
 pub async fn user_can_redact(
@@ -208,4 +211,27 @@ pub async fn get_power_levels(&self, room_id: &RoomId) -> Result<RoomPowerLevels
         &rules,
         creators,
     ))
+}
+
+#[implement(super::Service)]
+pub async fn user_can_invite(
+    &self,
+    room_id: &RoomId,
+    sender: &UserId,
+    target_user: &UserId,
+    state_lock: &RoomMutexGuard,
+) -> bool {
+    self.services
+        .timeline
+        .create_hash_and_sign_event(
+            PduBuilder::state(
+                target_user.as_str(),
+                &RoomMemberEventContent::new(MembershipState::Invite),
+            ),
+            sender,
+            room_id,
+            state_lock,
+        )
+        .await
+        .is_ok()
 }

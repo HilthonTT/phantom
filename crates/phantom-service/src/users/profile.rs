@@ -1,6 +1,14 @@
 use super::*;
 
 impl Service {
+    pub async fn fill_profile_data(&self, user_id: &UserId, content: &mut RoomMemberEventContent) {
+        let (displayname, avatar_url) =
+            futures::join!(self.displayname(user_id), self.avatar_url(user_id));
+
+        content.displayname = displayname.ok();
+        content.avatar_url = avatar_url.ok();
+    }
+
     pub async fn displayname(&self, user_id: &UserId) -> Result<String> {
         self.db.userid_displayname.get(user_id).await.deserialized()
     }

@@ -22,6 +22,7 @@ use ruma::{
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{
         AnyToDeviceEvent, GlobalAccountDataEventType, ignored_user_list::IgnoredUserListEvent,
+        room::member::RoomMemberEventContent,
     },
     serde::Raw,
 };

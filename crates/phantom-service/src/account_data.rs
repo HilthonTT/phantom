@@ -12,6 +12,7 @@ use ruma::{
     events::{
         AnyGlobalAccountDataEvent, AnyRoomAccountDataEvent, GlobalAccountDataEventType,
         RoomAccountDataEventType,
+        direct::{DirectEvent, DirectEventContent, DirectUserIdentifier},
     },
     serde::Raw,
 };
@@ -180,4 +181,38 @@ pub fn changes_since<'a>(
             .log_err()
         })
         .ignore_err()
+}
+
+#[implement(Service)]
+pub async fn mark_direct(&self, user_id: &UserId, target: &UserId, room_id: &RoomId) -> Result {
+    let mut content = self
+        .get_global(user_id, GlobalAccountDataEventType::Direct)
+        .await
+        .map(|event: DirectEvent| event.content)
+        .unwrap_or_else(|_| DirectEventContent::default());
+
+    let target: &DirectUserIdentifier = target.into();
+
+    let listed = content
+        .get(target)
+        .is_some_and(|rooms| rooms.iter().any(|listed| listed == room_id));
+
+    if listed {
+        return Ok(());
+    }
+
+    content
+        .entry(target.to_owned())
+        .or_default()
+        .push(room_id.to_owned());
+
+    let event = serde_json::to_value(DirectEvent::new(content))?;
+
+    self.update(
+        None,
+        user_id,
+        GlobalAccountDataEventType::Direct.to_string().into(),
+        &event,
+    )
+    .await
 }
