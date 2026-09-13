@@ -11,6 +11,7 @@ pub mod federation;
 pub mod fetcher;
 pub mod key_backups;
 pub mod media;
+pub mod membership;
 pub mod moderation;
 pub mod oauth;
 pub mod presence;
