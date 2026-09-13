@@ -15,8 +15,9 @@ use super::{
 };
 use crate::{
     account_data, admin, appservice, client, config, deactivate, emergency, federation,
-    key_backups, media, membership, moderation, oauth, presence, pusher, resolver, rooms, sending,
-    sendmail, server_keys, server_state, sync, transaction_id, updates, users,
+    key_backups, media, membership, moderation, oauth, presence, pusher, rendezvous, resolver,
+    rooms, sending, sendmail, server_keys, server_state, sync, tasks, transaction_id, uiaa,
+    updates, users,
 };
 
 pub struct Services {
@@ -25,13 +26,16 @@ pub struct Services {
     pub media: Arc<media::Service>,
     pub membership: Arc<membership::Service>,
     pub moderation: Arc<moderation::Service>,
+    pub rendezvous: Arc<rendezvous::Service>,
     pub resolver: Arc<resolver::Service>,
     pub federation: Arc<federation::Service>,
     pub rooms: rooms::Services,
     pub server_keys: Arc<server_keys::Service>,
     pub server_state: Arc<server_state::Service>,
     pub sync: Arc<sync::Service>,
+    pub tasks: Arc<tasks::Service>,
     pub transaction_id: Arc<transaction_id::Service>,
+    pub uiaa: Arc<uiaa::Service>,
     pub account_data: Arc<account_data::Service>,
     pub key_backups: Arc<key_backups::Service>,
     pub appservice: Arc<appservice::Service>,
@@ -77,6 +81,7 @@ impl Services {
             media: build!(media::Service),
             membership: build!(membership::Service),
             moderation: build!(moderation::Service),
+            rendezvous: build!(rendezvous::Service),
             federation: build!(federation::Service),
             rooms: rooms::Services {
                 alias: build!(rooms::alias::Service),
@@ -105,7 +110,9 @@ impl Services {
             server_keys: build!(server_keys::Service),
             server_state: build!(server_state::Service),
             sync: build!(sync::Service),
+            tasks: build!(tasks::Service),
             transaction_id: build!(transaction_id::Service),
+            uiaa: build!(uiaa::Service),
             account_data: build!(account_data::Service),
             key_backups: build!(key_backups::Service),
             appservice: build!(appservice::Service),

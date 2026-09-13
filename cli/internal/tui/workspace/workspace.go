@@ -75,7 +75,7 @@ func newTab(s resource.Section) Tab {
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height
 	m.filter.SetWidth(max(m.tabWidth()-10, 4))
-	m.clampScroll()
+	m.clampScrollAll()
 }
 
 // Tabs is how many listings are open.
@@ -261,14 +261,27 @@ func (m *Model) clearFilter() {
 	m.filter.SetValue("")
 }
 
-// clampScroll keeps the window of drawn rows over the cursor.
+// clampScroll keeps the window of drawn rows over the active tab's cursor.
+func (m *Model) clampScroll() { m.clampScrollAt(m.active) }
+
+// clampScrollAll does the same for every tab, which is what a resize needs.
+// Every tab is on screen at once, so an inactive one whose window was fitted
+// to the old height has to be refitted too: it would otherwise keep a window
+// that no longer matches the panel until the keyboard next reached it.
+func (m *Model) clampScrollAll() {
+	for i := range m.tabs {
+		m.clampScrollAt(i)
+	}
+}
+
+// clampScrollAt keeps tab i's window of drawn rows over its cursor.
 //
 // The last clamp is what handles the panel growing: a window that was scrolled
 // to the bottom of a short panel would otherwise stay there when the terminal
 // is made taller, leaving blank lines under the last row and rows hidden above
 // the first.
-func (m *Model) clampScroll() {
-	t := &m.tabs[m.active]
+func (m *Model) clampScrollAt(i int) {
+	t := &m.tabs[i]
 	perTab := m.rowsPerTab()
 
 	if t.cursor < t.top {
@@ -278,7 +291,7 @@ func (m *Model) clampScroll() {
 		t.top = t.cursor - perTab + 1
 	}
 
-	t.top = min(max(t.top, 0), max(len(m.Rows())-perTab, 0))
+	t.top = min(max(t.top, 0), max(len(m.rowsOf(i))-perTab, 0))
 }
 
 // sameRow identifies a row by its cells, which is enough while the rows come
