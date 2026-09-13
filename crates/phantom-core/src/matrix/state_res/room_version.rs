@@ -131,4 +131,44 @@ impl RoomVersion {
             ver => return Err(Error::Unsupported(format!("found version `{ver}`"))),
         })
     }
+
+    pub fn supported() -> impl Iterator<Item = RoomVersionId> {
+        [
+            RoomVersionId::V1,
+            RoomVersionId::V2,
+            RoomVersionId::V3,
+            RoomVersionId::V4,
+            RoomVersionId::V5,
+            RoomVersionId::V6,
+            RoomVersionId::V7,
+            RoomVersionId::V8,
+            RoomVersionId::V9,
+            RoomVersionId::V10,
+            RoomVersionId::V11,
+        ]
+        .into_iter()
+    }
+
+    #[must_use]
+    pub fn is_supported(version: &RoomVersionId) -> bool {
+        Self::new(version).is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ruma::RoomVersionId;
+
+    use super::RoomVersion;
+
+    #[test]
+    fn every_listed_version_is_constructible() {
+        assert!(RoomVersion::supported().all(|version| RoomVersion::is_supported(&version)));
+    }
+
+    #[test]
+    fn an_unlisted_version_is_not_supported() {
+        assert!(!RoomVersion::is_supported(&RoomVersionId::V12));
+        assert!(!RoomVersion::supported().any(|version| version == RoomVersionId::V12));
+    }
 }
