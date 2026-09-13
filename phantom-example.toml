@@ -442,6 +442,30 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#auto_accept_invites = false
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#auto_accept_invites_direct_only = false
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#auto_accept_invites_local_only = false
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#max_make_join_attempts_per_join_attempt =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#deprioritize_joins_through_servers =
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#enforce_stripped_state_pdu_validation = false
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #ip_range_denylist =
 
 # This item is undocumented. Please contribute documentation for it.

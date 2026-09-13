@@ -385,3 +385,11 @@ pub(super) fn default_rendezvous_rc_per_second() -> u32 {
 pub(super) fn default_rendezvous_rc_burst_count() -> u32 {
     20
 }
+
+pub(super) fn default_max_make_join_attempts_per_join_attempt() -> usize {
+    48
+}
+
+pub(super) fn default_deprioritize_joins_through_servers() -> regex::RegexSet {
+    regex::RegexSet::new([r"matrix\.org"]).expect("valid set of regular expressions")
+}
