@@ -16,13 +16,14 @@ use super::{
 use crate::{
     account_data, admin, appservice, client, config, deactivate, emergency, federation,
     key_backups, media, membership, moderation, oauth, presence, pusher, rendezvous, resolver,
-    rooms, sending, sendmail, server_keys, server_state, sync, tasks, transaction_id, uiaa,
-    updates, users,
+    rooms, sending, sendmail, server_keys, server_state, storage, sync, tasks, transaction_id,
+    uiaa, updates, users,
 };
 
 pub struct Services {
     pub client: Arc<client::Service>,
     pub config: Arc<config::Service>,
+    pub storage: Arc<storage::Service>,
     pub media: Arc<media::Service>,
     pub membership: Arc<membership::Service>,
     pub moderation: Arc<moderation::Service>,
@@ -78,6 +79,7 @@ impl Services {
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
+            storage: build!(storage::Service),
             media: build!(media::Service),
             membership: build!(membership::Service),
             moderation: build!(moderation::Service),

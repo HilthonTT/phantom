@@ -55,6 +55,8 @@ pub enum Error {
     #[error(transparent)]
     JsTryFromInt(#[from] js_int::TryFromIntError),
     #[error(transparent)]
+    ObjectStore(#[from] object_store::Error),
+    #[error(transparent)]
     Path(#[from] axum::extract::rejection::PathRejection),
     #[error("Mutex poisoned: {0}")]
     Poison(Cow<'static, str>),

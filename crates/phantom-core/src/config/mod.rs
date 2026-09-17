@@ -58,7 +58,7 @@ use crate::{Result, err, log::fmt_span};
 ### Any values pre-populated are the default values for said config option.
 "#,
     flattened = "auth rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates",
-    ignore = "catchall smtp identity_provider auth rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
+    ignore = "catchall smtp identity_provider storage_provider auth rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
 )]
 pub struct Config {
     pub server_name: String,
@@ -74,6 +74,9 @@ pub struct Config {
 
     #[serde(default)]
     pub identity_provider: BTreeMap<String, IdentityProvider>,
+
+    #[serde(default)]
+    pub storage_provider: BTreeMap<String, StorageProvider>,
 
     #[serde(default)]
     pub smtp: SmtpConfig,

@@ -118,6 +118,13 @@ serde_bytes = "0.11.19"
 lettre = { version = "0.11.23", features = ["tokio1", "tokio1-native-tls"] }
 loole = "0.4.1"
 http = "1.5.0"
+object_store = { version = "0.14.2", default-features = false, features = [
+    "aws",
+    "fs",
+] }
+derive_more = { version = "2.1.1", default-features = false, features = [
+    "debug",
+] }
 
 # `killpg`, so that a video thumbnail program overrunning its deadline cannot
 # leave behind whatever a wrapper script spawned. Only reachable through the
