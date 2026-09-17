@@ -232,7 +232,11 @@ async fn put_single(&self, path: &str, input: PutPayload) -> Result<PutResult> {
 pub fn fetch_with_metadata(&self, path: &str) -> impl Stream<Item = Result<FetchMetaItem>> + Send {
     self.load(path)
         .map_ok(|result| {
-            let meta = (result.range.clone(), result.meta.clone(), result.attributes.clone());
+            let meta = (
+                result.range.clone(),
+                result.meta.clone(),
+                result.attributes.clone(),
+            );
             let data = Arc::new(meta);
 
             result
@@ -543,7 +547,5 @@ fn multipart_part_size(&self) -> usize {
 fn chunked(payload: PutPayload, part_size: usize) -> impl Iterator<Item = PutPayload> {
     let mut buf: Bytes = payload.into();
 
-    from_fn(move || {
-        (!buf.is_empty()).then(|| buf.split_to(part_size.min(buf.len())).into())
-    })
+    from_fn(move || (!buf.is_empty()).then(|| buf.split_to(part_size.min(buf.len())).into()))
 }

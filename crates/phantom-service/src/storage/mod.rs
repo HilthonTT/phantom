@@ -52,11 +52,7 @@ impl crate::Service for Service {
     }
 }
 
-#[tracing::instrument(
-	level = "info",
-	err(level = "error"),
-	skip_all,
-)]
+#[tracing::instrument(level = "info", err(level = "error"), skip_all)]
 fn build_providers(args: &crate::Args<'_>) -> Result<Providers> {
     let config = &args.server.config;
 
