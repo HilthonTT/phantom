@@ -1,6 +1,9 @@
 pub mod local;
 pub mod s3;
 
+#[cfg(test)]
+mod tests;
+
 use std::{
     iter::{from_fn, once},
     ops::Range,
