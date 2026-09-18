@@ -27,6 +27,7 @@ pub mod server_state;
 pub mod storage;
 pub mod sync;
 pub mod tasks;
+pub mod threepid;
 pub mod transaction_id;
 pub mod uiaa;
 pub mod updates;

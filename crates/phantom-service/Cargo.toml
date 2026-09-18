@@ -125,6 +125,7 @@ object_store = { version = "0.14.2", default-features = false, features = [
 derive_more = { version = "2.1.1", default-features = false, features = [
     "debug",
 ] }
+subtle = "2.6.1"
 
 # `killpg`, so that a video thumbnail program overrunning its deadline cannot
 # leave behind whatever a wrapper script spawned. Only reachable through the

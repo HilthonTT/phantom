@@ -138,6 +138,12 @@ pub fn whole_unit(d: Duration) -> Unit {
     }
 }
 
+#[inline]
+#[must_use]
+pub fn timepoint_has_passed(timepoint: SystemTime) -> bool {
+    SystemTime::now().duration_since(timepoint).is_ok()
+}
+
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum Unit {
     Days(u64),
