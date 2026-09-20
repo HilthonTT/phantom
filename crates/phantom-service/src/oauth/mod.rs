@@ -8,24 +8,17 @@ use std::{
     collections::HashMap,
     net::IpAddr,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as b64encode};
 use futures::{Stream, StreamExt, TryStreamExt};
-use phantom_core::{
-    Err, Error, Result, err, hash::sha256, http::StatusCode, implement, result::LogErr,
-    stream::ReadyExt,
-};
+use phantom_core::{Err, Result, err, hash::sha256, implement, result::LogErr, stream::ReadyExt};
 use reqwest::{
     Method,
     header::{ACCEPT, CONTENT_TYPE},
 };
-use ruma::{
-    UserId,
-    api::error::{ErrorKind, LimitExceededErrorData},
-};
+use ruma::UserId;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use url::Url;
@@ -38,9 +31,14 @@ pub use self::{
     token_response::TokenResponse,
     user_info::UserInfo,
 };
-use crate::{Dep, client, client::read_response_capped, config};
+use crate::{
+    Dep, client,
+    client::read_response_capped,
+    config,
+    ratelimit::{Limit, check},
+};
 
-type Ratelimiter = Mutex<HashMap<IpAddr, (Instant, f64)>>;
+type Ratelimiter = crate::ratelimit::Ratelimiter<IpAddr>;
 
 pub struct Service {
     services: Services,
@@ -99,67 +97,34 @@ pub fn get_server(&self) -> Result<&Server> {
         .ok_or_else(|| err!(Request(Unrecognized("The OIDC server is not configured"))))
 }
 
-const RATELIMIT_MAP_CAP: usize = 1 << 16;
-
-const DEVICE_RC_PER_SECOND: f64 = 1.0;
-const DEVICE_RC_BURST: f64 = 60.0;
+/// Device-grant polling is machine-driven, so it gets a wide bucket of its own
+/// rather than the operator-configured one.
+const DEVICE: Limit = Limit {
+    rate: 1.0,
+    burst: 60.0,
+    message: "Too many OIDC requests.",
+};
 
 #[implement(Service)]
 pub fn check_rate_limit(&self, client: IpAddr) -> Result {
     let config = &self.services.config;
-    let rate = f64::from(config.oidc.oidc_rc_per_second);
-    let burst = f64::from(config.oidc.oidc_rc_burst_count);
 
-    if rate <= 0.0 || burst <= 0.0 {
+    let limit = Limit {
+        rate: f64::from(config.oidc.oidc_rc_per_second),
+        burst: f64::from(config.oidc.oidc_rc_burst_count),
+        message: "Too many OIDC requests.",
+    };
+
+    if limit.is_disabled() {
         return Ok(());
     }
 
-    check_bucket(&self.ratelimiter, client, rate, burst)
+    check(&self.ratelimiter, &client, || client, limit)
 }
 
 #[implement(Service)]
 pub fn check_device_rate_limit(&self, client: IpAddr) -> Result {
-    check_bucket(
-        &self.device_ratelimiter,
-        client,
-        DEVICE_RC_PER_SECOND,
-        DEVICE_RC_BURST,
-    )
-}
-
-fn check_bucket(table: &Ratelimiter, client: IpAddr, rate: f64, burst: f64) -> Result {
-    let now = Instant::now();
-    let mut buckets = table.lock()?;
-
-    if buckets.len() >= RATELIMIT_MAP_CAP {
-        buckets.retain(|_, (last, tokens)| {
-            now.duration_since(*last)
-                .as_secs_f64()
-                .mul_add(rate, *tokens)
-                < burst
-        });
-    }
-
-    let (last_time, tokens) = buckets.entry(client).or_insert_with(|| (now, burst));
-
-    let new_tokens = now
-        .duration_since(*last_time)
-        .as_secs_f64()
-        .mul_add(rate, *tokens)
-        .min(burst);
-
-    if new_tokens < 1.0 {
-        return Err(Error::Request(
-            ErrorKind::LimitExceeded(LimitExceededErrorData::new()),
-            "Too many OIDC requests.".into(),
-            StatusCode::TOO_MANY_REQUESTS,
-        ));
-    }
-
-    *last_time = now;
-    *tokens = new_tokens - 1.0;
-
-    Ok(())
+    check(&self.device_ratelimiter, &client, || client, DEVICE)
 }
 
 #[implement(Service)]

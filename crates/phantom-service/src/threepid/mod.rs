@@ -9,7 +9,6 @@ use std::{
     collections::HashMap,
     net::IpAddr,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use ruma::{MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedUserId, thirdparty::Medium};
@@ -19,7 +18,7 @@ use phantom_core::{Result, sync::MutexMap};
 use phantom_database::{Database, Map};
 use smallstr::SmallString;
 
-type Ratelimiter<K> = Mutex<HashMap<K, (Instant, f64)>>;
+use crate::ratelimit::Ratelimiter;
 
 type EmailKey = SmallString<[u8; 48]>;
 

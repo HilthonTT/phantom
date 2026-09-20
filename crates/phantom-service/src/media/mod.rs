@@ -9,7 +9,7 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 use async_trait::async_trait;
@@ -34,7 +34,11 @@ use tokio::{fs, sync::Notify};
 pub use self::thumbnail::Dim;
 #[cfg(feature = "media_thumbnail")]
 use self::video::{FAILURES, Failures, sweep_staging_dir};
-use crate::{Dep, client, config, moderation, server_state};
+use crate::{
+    Dep, client, config, moderation,
+    ratelimit::{Limit, Ratelimiter, check},
+    server_state,
+};
 
 pub const MXC_LENGTH: usize = 32;
 
@@ -66,7 +70,7 @@ struct Services {
 struct MXCState {
     notifiers: Mutex<HashMap<OwnedMxcUri, Arc<Notify>>>,
 
-    ratelimiter: Mutex<HashMap<OwnedUserId, (Instant, f64)>>,
+    ratelimiter: Ratelimiter<OwnedUserId>,
 }
 
 #[derive(Debug)]
@@ -333,35 +337,23 @@ pub async fn await_pending(&self, mxc: &MxcUri, timeout: Duration) -> Result {
 #[implement(Service)]
 fn spend_reservation(&self, uploader: &UserId) -> Result {
     let config = &self.services.config;
-    let rate = f64::from(config.media.media_rc_create_per_second);
-    let burst = f64::from(config.media.media_rc_create_burst_count);
 
-    if rate <= 0.0 || burst <= 0.0 {
+    let limit = Limit {
+        rate: f64::from(config.media.media_rc_create_per_second),
+        burst: f64::from(config.media.media_rc_create_burst_count),
+        message: "You are reserving media ids too quickly.",
+    };
+
+    if limit.is_disabled() {
         return Ok(());
     }
 
-    let now = Instant::now();
-    let mut ratelimiter = self.mxc_state.ratelimiter.lock()?;
-
-    let (spent_at, allowance) = ratelimiter
-        .entry(uploader.to_owned())
-        .or_insert_with(|| (now, burst));
-
-    let elapsed = now.duration_since(*spent_at).as_secs_f64();
-    let refilled = elapsed.mul_add(rate, *allowance).min(burst);
-
-    if refilled < 1.0 {
-        return Err(Error::Request(
-            ErrorKind::LimitExceeded(LimitExceededErrorData::new()),
-            "You are reserving media ids too quickly.".into(),
-            StatusCode::TOO_MANY_REQUESTS,
-        ));
-    }
-
-    *spent_at = now;
-    *allowance = refilled - 1.0;
-
-    Ok(())
+    check(
+        &self.mxc_state.ratelimiter,
+        uploader,
+        || uploader.to_owned(),
+        limit,
+    )
 }
 
 #[implement(Service)]

@@ -10,13 +10,14 @@ use std::{
 use arrayvec::ArrayString;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as b64};
 use bytes::Bytes;
-use http::StatusCode;
 use phantom_core::{
-    Error, Result, hash::sha256::concat, implement, rand::string_array, time::duration_since_epoch,
+    Result, hash::sha256::concat, implement, rand::string_array, time::duration_since_epoch,
 };
-use ruma::api::error::{ErrorKind, LimitExceededErrorData};
 
-use crate::{Dep, config};
+use crate::{
+    Dep, config,
+    ratelimit::{Limit, check_at},
+};
 
 const SESSION_ID_LENGTH: usize = 32;
 const ETAG_VALUE_LENGTH: usize = 43;
@@ -29,7 +30,7 @@ const RATELIMIT_MAP_CAP: usize = 4096;
 pub type SessionId = ArrayString<SESSION_ID_LENGTH>;
 pub type Etag = ArrayString<ETAG_LENGTH>;
 type Sessions = BTreeMap<SessionId, Session>;
-type Ratelimiter = Mutex<HashMap<IpAddr, (Instant, f64)>>;
+type Ratelimiter = crate::ratelimit::Ratelimiter<IpAddr>;
 
 pub struct Service {
     services: Services,
@@ -99,64 +100,22 @@ impl crate::Service for Service {
 pub fn check_rate_limit(&self, client: IpAddr) -> Result {
     let config = &self.services.config;
 
-    let rate = f64::from(config.rendezvous.rendezvous_rc_per_second.max(1));
-    let burst = f64::from(config.rendezvous.rendezvous_rc_burst_count.max(1));
+    let limit = Limit {
+        rate: f64::from(config.rendezvous.rendezvous_rc_per_second.max(1)),
+        burst: f64::from(config.rendezvous.rendezvous_rc_burst_count.max(1)),
+        message: "Too many rendezvous requests.",
+    };
 
-    check_bucket_at(&self.ratelimiter, client, rate, burst, Instant::now())
-}
-
-fn check_bucket_at(
-    table: &Ratelimiter,
-    client: IpAddr,
-    rate: f64,
-    burst: f64,
-    now: Instant,
-) -> Result {
-    let mut buckets = table.lock()?;
-
-    if buckets.len() >= RATELIMIT_MAP_CAP && !buckets.contains_key(&client) {
-        let mut oldest = None;
-
-        buckets.retain(|client, (last, tokens)| {
-            let refilled = now
-                .duration_since(*last)
-                .as_secs_f64()
-                .mul_add(rate, *tokens);
-            let retain = refilled < burst;
-
-            if retain && oldest.is_none_or(|(_, oldest_at)| *last < oldest_at) {
-                oldest = Some((*client, *last));
-            }
-
-            retain
-        });
-
-        if buckets.len() >= RATELIMIT_MAP_CAP
-            && let Some((oldest, _)) = oldest
-        {
-            buckets.remove(&oldest);
-        }
-    }
-
-    let (last_time, tokens) = buckets.entry(client).or_insert((now, burst));
-    let new_tokens = now
-        .duration_since(*last_time)
-        .as_secs_f64()
-        .mul_add(rate, *tokens)
-        .min(burst);
-
-    if new_tokens < 1.0 {
-        return Err(Error::Request(
-            ErrorKind::LimitExceeded(LimitExceededErrorData::new()),
-            "Too many rendezvous requests.".into(),
-            StatusCode::TOO_MANY_REQUESTS,
-        ));
-    }
-
-    *last_time = now;
-    *tokens = new_tokens - 1.0;
-
-    Ok(())
+    // Rendezvous sessions are short-lived and the table is per-IP, so it is
+    // held to a tighter bound than `ratelimit::DEFAULT_MAP_CAP`.
+    check_at(
+        &self.ratelimiter,
+        &client,
+        || client,
+        limit,
+        Instant::now(),
+        RATELIMIT_MAP_CAP,
+    )
 }
 
 #[implement(Service)]
