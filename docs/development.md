@@ -19,7 +19,9 @@ Which is:
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo test --workspace --all-features
 cd cli && go vet ./... && go test -race ./...
 ```
 
@@ -32,7 +34,7 @@ warning-free today; keep it that way rather than leaving one for later.
 
 | Workflow | Trigger | Runs |
 | :--- | :--- | :--- |
-| `rust.yml` | pushes to `main`, PRs touching `crates/`, `Cargo.*`, `rust-toolchain.toml` | `cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace` |
+| `rust.yml` | pushes to `main`, PRs touching `crates/`, `Cargo.*`, `rust-toolchain.toml` | `cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace`, then clippy and the tests again with `--all-features` |
 | `go.yml` | pushes to `main`, PRs touching `cli/` or `.golangci.yml` | `go vet`, `golangci-lint`, `go test -race` |
 | `audit.yml` | weekly, and on demand | `cargo-deny`, `govulncheck` |
 | `release.yml` | tags matching `v*` | placeholder — the CLI release and the server image are both still TODO |
@@ -41,8 +43,11 @@ The Rust job has a 45-minute timeout, because a deadlocked test would otherwise
 sit there until the job's own six-hour limit.
 
 `cargo-deny` enforces the licence allowlist in `deny.toml`: Apache-2.0, MIT,
-BSD-2-Clause, BSD-3-Clause, ISC and Unicode-3.0. A dependency under anything
-else fails the audit.
+BSD-2-Clause, BSD-3-Clause, ISC, Unicode-3.0, 0BSD, BlueOak-1.0.0,
+CDLA-Permissive-2.0, MPL-2.0 and Zlib. A dependency under anything else fails
+the audit. The entries below the first six name the crates that need them; a
+dependency bump that drops the last user of one is a chance to take it out
+again.
 
 ## Tests
 

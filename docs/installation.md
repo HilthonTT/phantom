@@ -329,7 +329,9 @@ or, spelled out:
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo test --workspace --all-features
 cd cli && go vet ./... && go test -race ./...
 ```
 

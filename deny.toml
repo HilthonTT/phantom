@@ -3,4 +3,20 @@ version = 2
 
 [licenses]
 version = 2
-allow = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+
+    # The rest are permissive too, and each is here for the crates named beside
+    # it. MPL-2.0 is the only copyleft one, and it is copyleft per file: it
+    # covers as_variant's own sources and reaches nothing that links it.
+    "0BSD",                # quoted_printable, under lettre
+    "BlueOak-1.0.0",       # minicbor and minicbor-serde
+    "CDLA-Permissive-2.0", # webpki-roots and webpki-root-certs, under reqwest and rustls-platform-verifier
+    "MPL-2.0",             # as_variant, under ruma
+    "Zlib",                # konst, const_panic and typewit, under ruma-common
+]
