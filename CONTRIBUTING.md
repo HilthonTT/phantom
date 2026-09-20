@@ -20,9 +20,14 @@ RocksDB.
 
 ## Checks
 
-Run `just check` before opening a pull request. It is exactly what CI runs:
-`cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
-`cargo test --workspace`, `go vet` and `go test -race`.
+Run `just check` before opening a pull request: `cargo fmt --check`, `cargo
+clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`,
+each of the last two a second time with `--all-features`, then `go vet` and `go
+test -race`.
+
+CI runs the same set, with two differences: it passes `--locked` to the cargo
+commands, so a manifest change without its lockfile update fails there, and it
+also runs `golangci-lint run` over `cli/`.
 
 Clippy runs with `-D warnings`, so a warning fails the build. The workspace is
 warning-free — keep it that way rather than leaving one for later.

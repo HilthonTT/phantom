@@ -27,6 +27,11 @@ cd cli && go vet ./... && go test -race ./...
 
 `just check-rust` and `just check-go` run one half each.
 
+CI runs one check `just` does not: `golangci-lint run` over `cli/`. It is not
+in the recipe because it is a tool you install separately — see
+[cli.md](cli.md#working-on-it). If you touched the Go tree, run it before you
+push.
+
 **Clippy runs with `-D warnings`.** A warning fails the build. The workspace is
 warning-free today; keep it that way rather than leaving one for later.
 
@@ -34,13 +39,19 @@ warning-free today; keep it that way rather than leaving one for later.
 
 | Workflow | Trigger | Runs |
 | :--- | :--- | :--- |
-| `rust.yml` | pushes to `main`, PRs touching `crates/`, `Cargo.*`, `rust-toolchain.toml` | `cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace`, then clippy and the tests again with `--all-features` |
+| `rust.yml` | pushes to `main`, PRs touching `crates/`, `Cargo.*`, `rust-toolchain.toml`, `rustfmt.toml` | `cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace`, then clippy and the tests again with `--all-features` |
 | `go.yml` | pushes to `main`, PRs touching `cli/` or `.golangci.yml` | `go vet`, `golangci-lint`, `go test -race` |
-| `audit.yml` | weekly, and on demand | `cargo-deny`, `govulncheck` |
+| `audit.yml` | weekly, on demand, and on anything that moves the dependency set — a lockfile, a manifest, `deny.toml`, `cli/go.mod` | `cargo-deny`, `govulncheck` |
 | `release.yml` | tags matching `v*` | placeholder — the CLI release and the server image are both still TODO |
 
-The Rust job has a 45-minute timeout, because a deadlocked test would otherwise
-sit there until the job's own six-hour limit.
+Both check jobs carry a timeout — 45 minutes for Rust, 20 for Go — because a
+deadlocked test would otherwise sit there until the job's own six-hour limit.
+
+CI passes `--locked` to every cargo command that resolves. The lockfile is
+committed, so a manifest change arriving without its lockfile update should
+fail the job rather than be resolved away, which would leave CI certifying a
+dependency graph nobody has locally. `just check` deliberately leaves the flag
+off: locally you do want the lockfile to update.
 
 `cargo-deny` enforces the licence allowlist in `deny.toml`: Apache-2.0, MIT,
 BSD-2-Clause, BSD-3-Clause, ISC, Unicode-3.0, 0BSD, BlueOak-1.0.0,
@@ -48,6 +59,10 @@ CDLA-Permissive-2.0, MPL-2.0 and Zlib. A dependency under anything else fails
 the audit. The entries below the first six name the crates that need them; a
 dependency bump that drops the last user of one is a chance to take it out
 again.
+
+The audit is not weekly-only for that reason: a licence or advisory that a
+dependency bump brings in has to fail on the pull request that bumps it, not on
+the following Monday, once it is already on `main`.
 
 ## Tests
 

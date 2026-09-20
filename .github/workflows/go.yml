@@ -9,6 +9,9 @@ on:
       - ".golangci.yml"
       - ".github/workflows/go.yml"
 
+permissions:
+  contents: read
+
 concurrency:
   group: go-${{ github.ref }}
   cancel-in-progress: true
@@ -20,6 +23,10 @@ defaults:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The same reasoning as the Rust job: a `go test -race` deadlock holds the
+    # runner until the six-hour job limit unless something shorter ends it. The
+    # Go tree is small enough that a healthy run is nowhere near this.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

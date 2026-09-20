@@ -4,18 +4,56 @@ on:
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
+  # A weekly-only audit reports a bad dependency days after it landed on main,
+  # which is how the licence allowlist came to be widened in a follow-up commit
+  # rather than in the change that pulled the crates in. Anything that can move
+  # the dependency set is audited before it merges, and again once it is on
+  # main. The schedule stays: an advisory can be published long after the
+  # dependency stopped changing.
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/*/Cargo.toml"
+      - "deny.toml"
+      - "cli/go.mod"
+      - "cli/go.sum"
+      - ".github/workflows/audit.yml"
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/*/Cargo.toml"
+      - "deny.toml"
+      - "cli/go.mod"
+      - "cli/go.sum"
+      - ".github/workflows/audit.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   cargo-deny:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   govulncheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: golang/govulncheck-action@v1
         with:
           work-dir: cli
+          # Without this the action picks its own Go, which can be older than
+          # the one `cli/go.mod` requires — and then the scan fails on the
+          # toolchain instead of reporting on the code.
+          go-version-file: cli/go.mod
