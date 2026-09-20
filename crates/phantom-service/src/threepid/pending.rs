@@ -238,7 +238,11 @@ pub async fn claim_validated(
         ..pending
     };
 
-    txn.insert(&self.db.threepidsid_pending, sid, serialize_to_vec(Cbor(&pending))?);
+    txn.insert(
+        &self.db.threepidsid_pending,
+        sid,
+        serialize_to_vec(Cbor(&pending))?,
+    );
     txn.execute()?;
 
     Ok(true)
@@ -293,7 +297,11 @@ pub async fn refresh_claim(&self, claim: &UiaaKey) -> Result<bool> {
     };
     let mut txn = Txn::new(&self.db.database.engine);
 
-    txn.insert(&self.db.threepidsid_pending, &sid, serialize_to_vec(Cbor(&pending))?);
+    txn.insert(
+        &self.db.threepidsid_pending,
+        &sid,
+        serialize_to_vec(Cbor(&pending))?,
+    );
     txn.put_raw(&self.db.userdevicesessionid_threepid, claim, &sid)?;
     txn.execute()?;
 
@@ -365,7 +373,11 @@ pub async fn redeem_claim(&self, claim: &UiaaKey) -> Result<Association> {
     };
     let mut txn = Txn::new(&self.db.database.engine);
 
-    txn.insert(&self.db.threepidsid_pending, &sid, serialize_to_vec(Cbor(&pending))?);
+    txn.insert(
+        &self.db.threepidsid_pending,
+        &sid,
+        serialize_to_vec(Cbor(&pending))?,
+    );
     txn.del(&self.db.userdevicesessionid_threepid, claim)?;
     txn.execute()?;
 
@@ -524,9 +536,9 @@ fn ct_eq(a: &str, b: &str) -> bool {
 mod tests {
     use std::time::SystemTime;
 
+    use phantom_database::{Cbor, deserialize as deserialize_from_slice, serialize_to_vec};
     use ruma::{device_id, thirdparty::Medium, user_id};
     use serde::Serialize;
-    use phantom_database::{Cbor, deserialize as deserialize_from_slice, serialize_to_vec};
 
     use super::{Pending, PendingUse};
 
