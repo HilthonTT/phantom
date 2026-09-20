@@ -107,7 +107,28 @@ ring = "0.17.14"
 # provider's token and revocation endpoints.
 serde_html_form = "0.4.1"
 webpage = { version = "2.0.1", optional = true }
-image = { version = "0.25.10", optional = true }
+# The default feature set minus `avif`. `avif` is the AVIF *encoder* (ravif),
+# and thumbnails are always written as PNG, so nothing here ever called it;
+# decoding AVIF would be `avif-native`, which is not on either way. Dropping it
+# also drops rav1e and its build-time libfuzzer-sys, whose NCSA licence the
+# audit rejects. Every decoder that was reachable before still is.
+image = { version = "0.25.10", default-features = false, features = [
+    "rayon",
+    "bmp",
+    "dds",
+    "exr",
+    "ff",
+    "gif",
+    "hdr",
+    "ico",
+    "jpeg",
+    "png",
+    "pnm",
+    "qoi",
+    "tga",
+    "tiff",
+    "webp",
+], optional = true }
 # `serde` for the media type a URL preview carries, which is stored and
 # served as a string but is short enough to live inline.
 smallstr = { version = "0.3.1", features = ["serde"] }

@@ -1,5 +1,23 @@
 [advisories]
 version = 2
+# Both of these are `unmaintained` advisories, not vulnerabilities, and neither
+# has a fixed version to move to. A vulnerability never belongs in this list:
+# it gets a lockfile bump instead.
+ignore = [
+    # RUSTSEC-2024-0436 — paste, archived by its author. It is a build-time
+    # macro crate, reached only through tikv-jemalloc-ctl and through pulp
+    # under image's exr decoder. Nothing we depend on has switched to pastey
+    # yet, and we do not pick the macro our dependencies expand with.
+    "RUSTSEC-2024-0436",
+    # RUSTSEC-2026-0215 — smallstr, which backs the three inline string
+    # aliases: StateKey (48 bytes inline) in phantom-core, and the media type
+    # and session id (32) in phantom-service. The advisory's suggested
+    # replacements inline 24 bytes (compact_str) and 22 (smol_str), so a swap
+    # would push the common state key onto the heap. That is a deliberate
+    # trade to revisit with a benchmark, not a rename to rush in under an
+    # unmaintained notice.
+    "RUSTSEC-2026-0215",
+]
 
 [licenses]
 version = 2
