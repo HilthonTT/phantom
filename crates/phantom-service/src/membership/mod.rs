@@ -5,6 +5,7 @@ mod join;
 mod kick;
 mod knock;
 mod leave;
+mod servers;
 mod stripped_state;
 mod unban;
 
