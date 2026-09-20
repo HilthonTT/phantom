@@ -131,39 +131,73 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    #[tracing::instrument(skip(self, pdu_id, user, pushkey), level = "debug")]
-    pub fn send_pdu_push(&self, pdu_id: &RawPduId, user: &UserId, pushkey: String) -> Result {
-        let dest = Destination::Push(user.to_owned(), pushkey);
-        let event = SendingEvent::Pdu(*pdu_id);
+    /// Queue one event for one destination, then hand it to a sender.
+    ///
+    /// The cork is held across the queue write so the row and its dispatch are
+    /// flushed together.
+    fn queue_one(&self, dest: Destination, event: SendingEvent) -> Result {
         let _cork = self.db.db.engine.cork_guard();
         let keys = self.db.queue_requests(once((&event, &dest)))?;
+
         self.dispatch(Msg {
             dest,
             event,
             queue_id: keys.into_iter().next().expect("request queue results"),
         })
+    }
+
+    /// Queue one event per destination, then hand each to a sender.
+    ///
+    /// The queue ids come back in the order the requests went in, which is what
+    /// lets them be zipped back together.
+    fn queue_each(&self, requests: Vec<(Destination, SendingEvent)>) -> Result {
+        let _cork = self.db.db.engine.cork_guard();
+        let keys = self
+            .db
+            .queue_requests(requests.iter().map(|(o, e)| (e, o)))?;
+
+        for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
+            self.dispatch(Msg {
+                dest,
+                event,
+                queue_id,
+            })?;
+        }
+
+        Ok(())
+    }
+
+    /// The servers participating in a room, ourselves excluded.
+    ///
+    /// Sending to ourselves over federation would be a loop, so every room-wide
+    /// fan-out starts here.
+    fn remote_servers<'a>(
+        &'a self,
+        room_id: &'a RoomId,
+    ) -> impl Stream<Item = &'a ServerName> + Send + 'a {
+        self.services
+            .state_cache
+            .room_servers(room_id)
+            .ready_filter(|server_name| !self.services.server_state.server_is_ours(server_name))
+    }
+
+    #[tracing::instrument(skip(self, pdu_id, user, pushkey), level = "debug")]
+    pub fn send_pdu_push(&self, pdu_id: &RawPduId, user: &UserId, pushkey: String) -> Result {
+        let dest = Destination::Push(user.to_owned(), pushkey);
+        let event = SendingEvent::Pdu(*pdu_id);
+        self.queue_one(dest, event)
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: RawPduId) -> Result {
         let dest = Destination::Appservice(appservice_id);
         let event = SendingEvent::Pdu(pdu_id);
-        let _cork = self.db.db.engine.cork_guard();
-        let keys = self.db.queue_requests(once((&event, &dest)))?;
-        self.dispatch(Msg {
-            dest,
-            event,
-            queue_id: keys.into_iter().next().expect("request queue results"),
-        })
+        self.queue_one(dest, event)
     }
 
     #[tracing::instrument(skip(self, room_id, pdu_id), level = "debug")]
     pub async fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &RawPduId) -> Result {
-        let servers = self
-            .services
-            .state_cache
-            .room_servers(room_id)
-            .ready_filter(|server_name| !self.services.server_state.server_is_ours(server_name));
+        let servers = self.remote_servers(room_id);
 
         self.send_pdu_servers(servers, pdu_id).await
     }
@@ -183,29 +217,12 @@ impl Service {
             .collect::<Vec<_>>()
             .await;
 
-        let _cork = self.db.db.engine.cork_guard();
-        let keys = self
-            .db
-            .queue_requests(requests.iter().map(|(o, e)| (e, o)))?;
-
-        for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
-            self.dispatch(Msg {
-                dest,
-                event,
-                queue_id,
-            })?;
-        }
-
-        Ok(())
+        self.queue_each(requests)
     }
 
     #[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
     pub async fn send_edu_room(&self, room_id: &RoomId, serialized: EduBuf) -> Result {
-        let servers = self
-            .services
-            .state_cache
-            .room_servers(room_id)
-            .ready_filter(|server_name| !self.services.server_state.server_is_ours(server_name));
+        let servers = self.remote_servers(room_id);
 
         self.send_edu_servers(servers, serialized).await
     }
@@ -225,46 +242,21 @@ impl Service {
             .collect::<Vec<_>>()
             .await;
 
-        let _cork = self.db.db.engine.cork_guard();
-        let keys = self
-            .db
-            .queue_requests(requests.iter().map(|(o, e)| (e, o)))?;
-
-        for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
-            self.dispatch(Msg {
-                dest,
-                event,
-                queue_id,
-            })?;
-        }
-
-        Ok(())
+        self.queue_each(requests)
     }
 
     #[tracing::instrument(skip(self, serialized), level = "debug")]
     pub fn send_edu_push(&self, user: &UserId, pushkey: String, serialized: EduBuf) -> Result {
         let dest = Destination::Push(user.to_owned(), pushkey);
         let event = SendingEvent::Edu(serialized);
-        let _cork = self.db.db.engine.cork_guard();
-        let keys = self.db.queue_requests(once((&event, &dest)))?;
-        self.dispatch(Msg {
-            dest,
-            event,
-            queue_id: keys.into_iter().next().expect("request queue results"),
-        })
+        self.queue_one(dest, event)
     }
 
     #[tracing::instrument(skip(self, serialized), level = "debug")]
     pub fn send_edu_appservice(&self, appservice_id: String, serialized: EduBuf) -> Result {
         let dest = Destination::Appservice(appservice_id);
         let event = SendingEvent::Edu(serialized);
-        let _cork = self.db.db.engine.cork_guard();
-        let keys = self.db.queue_requests(once((&event, &dest)))?;
-        self.dispatch(Msg {
-            dest,
-            event,
-            queue_id: keys.into_iter().next().expect("request queue results"),
-        })
+        self.queue_one(dest, event)
     }
 
     #[tracing::instrument(skip(self, serializer), level = "debug")]
@@ -325,11 +317,7 @@ impl Service {
 
     #[tracing::instrument(skip(self, room_id), level = "debug")]
     pub async fn flush_room(&self, room_id: &RoomId) -> Result {
-        let servers = self
-            .services
-            .state_cache
-            .room_servers(room_id)
-            .ready_filter(|server_name| !self.services.server_state.server_is_ours(server_name));
+        let servers = self.remote_servers(room_id);
 
         self.flush_servers(servers).await
     }

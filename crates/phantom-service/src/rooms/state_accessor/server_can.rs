@@ -1,12 +1,6 @@
 use futures::StreamExt;
 use phantom_core::{error, implement, stream::ReadyExt};
-use ruma::{
-    EventId, RoomId, ServerName,
-    events::{
-        StateEventType,
-        room::history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-    },
-};
+use ruma::{EventId, RoomId, ServerName, events::room::history_visibility::HistoryVisibility};
 
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, level = "trace")]
@@ -20,13 +14,7 @@ pub async fn server_can_see_event(
         return true;
     };
 
-    let history_visibility = self
-        .state_get_content(shortstatehash, &StateEventType::RoomHistoryVisibility, "")
-        .await
-        .map_or(
-            HistoryVisibility::Shared,
-            |c: RoomHistoryVisibilityEventContent| c.history_visibility,
-        );
+    let history_visibility = self.history_visibility_at(shortstatehash).await;
 
     let current_server_members = self
         .services

@@ -1,5 +1,15 @@
 use super::*;
 
+/// Decode the user-id half of a membership key.
+///
+/// Every membership column below is keyed `(room_id, user_id)`, so the four
+/// views that scan one differ in the column and the prefix but never in this
+/// step. A row that fails the decode means the column was written wrong, which
+/// is why it panics rather than skipping the row.
+fn member_user_id((_, user_id): (Ignore, &str)) -> &UserId {
+    <&UserId>::try_from(user_id).expect("valid user id in db")
+}
+
 impl Service {
     #[tracing::instrument(skip(self), level = "trace")]
     pub async fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> bool {
@@ -31,9 +41,7 @@ impl Service {
             .roomuserid_joined
             .keys_prefix(&prefix)
             .ignore_err()
-            .map(|(_, user_id): (Ignore, &str)| {
-                <&UserId>::try_from(user_id).expect("valid user id in db")
-            })
+            .map(member_user_id)
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
@@ -78,9 +86,7 @@ impl Service {
             .roomuseroncejoinedids
             .keys_prefix(&prefix)
             .ignore_err()
-            .map(|(_, user_id): (Ignore, &str)| {
-                <&UserId>::try_from(user_id).expect("valid user id in db")
-            })
+            .map(member_user_id)
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
@@ -93,9 +99,7 @@ impl Service {
             .roomuserid_invitecount
             .keys_prefix(&prefix)
             .ignore_err()
-            .map(|(_, user_id): (Ignore, &str)| {
-                <&UserId>::try_from(user_id).expect("valid user id in db")
-            })
+            .map(member_user_id)
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
@@ -108,9 +112,7 @@ impl Service {
             .roomuserid_knockedcount
             .keys_prefix(&prefix)
             .ignore_err()
-            .map(|(_, user_id): (Ignore, &str)| {
-                <&UserId>::try_from(user_id).expect("valid user id in db")
-            })
+            .map(member_user_id)
     }
 
     #[tracing::instrument(skip(self), level = "trace")]

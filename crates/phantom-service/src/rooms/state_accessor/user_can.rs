@@ -5,7 +5,7 @@ use ruma::{
         StateEventType, TimelineEventType,
         room::{
             create::RoomCreateEventContent,
-            history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+            history_visibility::HistoryVisibility,
             member::{MembershipState, RoomMemberEventContent},
             power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent, RoomPowerLevelsSource},
         },
@@ -102,13 +102,7 @@ pub async fn user_can_see_event(
 
     let currently_member = self.services.state_cache.is_joined(user_id, room_id).await;
 
-    let history_visibility = self
-        .state_get_content(shortstatehash, &StateEventType::RoomHistoryVisibility, "")
-        .await
-        .map_or(
-            HistoryVisibility::Shared,
-            |c: RoomHistoryVisibilityEventContent| c.history_visibility,
-        );
+    let history_visibility = self.history_visibility_at(shortstatehash).await;
 
     match history_visibility {
         HistoryVisibility::Invited => self.user_was_invited(shortstatehash, user_id).await,
@@ -135,13 +129,7 @@ pub async fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId
         return true;
     }
 
-    let history_visibility = self
-        .room_state_get_content(room_id, &StateEventType::RoomHistoryVisibility, "")
-        .await
-        .map_or(
-            HistoryVisibility::Shared,
-            |c: RoomHistoryVisibilityEventContent| c.history_visibility,
-        );
+    let history_visibility = self.history_visibility_of(room_id).await;
 
     match history_visibility {
         HistoryVisibility::Invited => self.services.state_cache.is_invited(user_id, room_id).await,
