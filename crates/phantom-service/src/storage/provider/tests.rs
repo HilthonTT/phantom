@@ -1,6 +1,6 @@
 use object_store::PutPayload;
 
-use super::chunked;
+use super::put::chunked;
 
 #[test]
 fn chunked_splits_into_part_sized_chunks() {
