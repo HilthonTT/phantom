@@ -3,8 +3,8 @@ use object_store::PutPayload;
 use super::chunked;
 
 #[test]
-fn chuncked_splits_into_part_sized_chunks() {
-    let payload = PutPayload::from(vec![0_u8, 25]);
+fn chunked_splits_into_part_sized_chunks() {
+    let payload = PutPayload::from(vec![0_u8; 25]);
     let chunks: Vec<PutPayload> = chunked(payload, 10).collect();
 
     assert_eq!(chunks.len(), 3);
