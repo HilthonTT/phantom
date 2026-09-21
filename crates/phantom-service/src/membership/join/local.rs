@@ -59,7 +59,7 @@ pub(super) async fn join_local(
     content.join_authorized_via_users_server = join_authorized_via_users_server;
 
     self.services
-        .users
+        .profile
         .fill_profile_data(sender_user, &mut content)
         .await;
 

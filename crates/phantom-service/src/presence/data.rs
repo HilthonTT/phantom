@@ -13,7 +13,7 @@ use phantom_database::{Deserialized, Json, Map};
 use ruma::{UInt, UserId, events::presence::PresenceEvent, presence::PresenceState};
 
 use super::Presence;
-use crate::{Dep, server_state, users};
+use crate::{Dep, profile, server_state};
 
 pub(crate) struct Data {
     presenceid_presence: Arc<Map>,
@@ -23,7 +23,7 @@ pub(crate) struct Data {
 
 struct Services {
     server_state: Dep<server_state::Service>,
-    users: Dep<users::Service>,
+    profile: Dep<profile::Service>,
 }
 
 impl Data {
@@ -34,7 +34,7 @@ impl Data {
             userid_presenceid: db["userid_presenceid"].clone(),
             services: Services {
                 server_state: args.depend::<server_state::Service>("server_state"),
-                users: args.depend::<users::Service>("users"),
+                profile: args.depend::<profile::Service>("profile"),
             },
         }
     }
@@ -49,7 +49,7 @@ impl Data {
         let key = presenceid_key(count, user_id);
         let bytes = self.presenceid_presence.get(&key).await?;
         let event = Presence::from_json_bytes(&bytes)?
-            .to_presence_event(user_id, &self.services.users)
+            .to_presence_event(user_id, &self.services.profile)
             .await;
 
         Ok((count, event))

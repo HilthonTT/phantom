@@ -26,7 +26,7 @@ use ruma::{
     uint,
 };
 
-use crate::{Dep, client, rooms, users};
+use crate::{Dep, client, profile, rooms};
 
 pub struct Service {
     db: Data,
@@ -38,7 +38,7 @@ struct Services {
     client: Dep<client::Service>,
     state_accessor: Dep<rooms::state_accessor::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
-    users: Dep<users::Service>,
+    profile: Dep<profile::Service>,
 }
 
 struct Data {
@@ -63,7 +63,7 @@ impl crate::Service for Service {
                 state_accessor: args
                     .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                users: args.depend::<users::Service>("users"),
+                profile: args.depend::<profile::Service>("profile"),
             },
         }))
     }
@@ -341,7 +341,7 @@ pub async fn get_actions<'a>(
 
     let user_display_name = self
         .services
-        .users
+        .profile
         .displayname(user)
         .await
         .unwrap_or_else(|_| user.localpart().to_owned());
@@ -419,7 +419,7 @@ async fn send_notice(
             notifi.user_is_target = event.state_key.as_deref() == Some(user.as_str());
         }
 
-        notifi.sender_display_name = self.services.users.displayname(&event.sender).await.ok();
+        notifi.sender_display_name = self.services.profile.displayname(&event.sender).await.ok();
         notifi.room_name = self
             .services
             .state_accessor

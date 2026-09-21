@@ -48,7 +48,7 @@ pub(super) async fn create_join_event(
     content.join_authorized_via_users_server = join_authorized_via_users_server.clone();
 
     self.services
-        .users
+        .profile
         .fill_profile_data(sender_user, &mut content)
         .await;
 

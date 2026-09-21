@@ -1,6 +1,5 @@
 mod device;
 mod keys;
-mod profile;
 mod to_device;
 mod token;
 
@@ -17,12 +16,11 @@ use phantom_core::{
 use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, serialize_to_vec};
 use ruma::{
     DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId, OneTimeKeyName,
-    OwnedDeviceId, OwnedKeyId, OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
+    OwnedDeviceId, OwnedKeyId, OwnedUserId, RoomId, UInt, UserId,
     api::client::{device::Device, filter::FilterDefinition},
     encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
     events::{
         AnyToDeviceEvent, GlobalAccountDataEventType, ignored_user_list::IgnoredUserListEvent,
-        room::member::RoomMemberEventContent,
     },
     serde::Raw,
 };
@@ -56,16 +54,12 @@ struct Data {
     userdeviceid_metadata: Arc<Map>,
     userdeviceid_token: Arc<Map>,
     userfilterid_filter: Arc<Map>,
-    userid_avatarurl: Arc<Map>,
-    userid_blurhash: Arc<Map>,
     userid_devicelistversion: Arc<Map>,
-    userid_displayname: Arc<Map>,
     userid_lastonetimekeyupdate: Arc<Map>,
     userid_masterkeyid: Arc<Map>,
     userid_password: Arc<Map>,
     userid_selfsigningkeyid: Arc<Map>,
     userid_usersigningkeyid: Arc<Map>,
-    useridprofilekey_value: Arc<Map>,
 }
 
 impl crate::Service for Service {
@@ -91,16 +85,12 @@ impl crate::Service for Service {
                 userdeviceid_metadata: args.db["userdeviceid_metadata"].clone(),
                 userdeviceid_token: args.db["userdeviceid_token"].clone(),
                 userfilterid_filter: args.db["userfilterid_filter"].clone(),
-                userid_avatarurl: args.db["userid_avatarurl"].clone(),
-                userid_blurhash: args.db["userid_blurhash"].clone(),
                 userid_devicelistversion: args.db["userid_devicelistversion"].clone(),
-                userid_displayname: args.db["userid_displayname"].clone(),
                 userid_lastonetimekeyupdate: args.db["userid_lastonetimekeyupdate"].clone(),
                 userid_masterkeyid: args.db["userid_masterkeyid"].clone(),
                 userid_password: args.db["userid_password"].clone(),
                 userid_selfsigningkeyid: args.db["userid_selfsigningkeyid"].clone(),
                 userid_usersigningkeyid: args.db["userid_usersigningkeyid"].clone(),
-                useridprofilekey_value: args.db["useridprofilekey_value"].clone(),
             },
         }))
     }

@@ -50,7 +50,7 @@ async fn invite_content(
     content.reason = reason.cloned();
 
     self.services
-        .users
+        .profile
         .fill_profile_data(user_id, &mut content)
         .await;
 

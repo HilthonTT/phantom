@@ -99,7 +99,7 @@ async fn knock_content(
     content.reason = reason;
 
     self.services
-        .users
+        .profile
         .fill_profile_data(sender_user, &mut content)
         .await;
 

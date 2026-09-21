@@ -293,7 +293,7 @@ async fn remote_leave(&self, user_id: &UserId, room_id: &RoomId, reason: Option<
     content.reason = reason;
 
     self.services
-        .users
+        .profile
         .fill_profile_data(user_id, &mut content)
         .await;
 

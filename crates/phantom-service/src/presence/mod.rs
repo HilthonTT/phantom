@@ -16,7 +16,7 @@ use tokio::{
 };
 
 use self::{data::Data, record::Presence};
-use crate::{Dep, server_state, users};
+use crate::{Dep, profile, server_state, users};
 
 pub struct Service {
     timer_sender: mpsc::UnboundedSender<TimerType>,
@@ -35,6 +35,7 @@ pub struct Service {
 struct Services {
     server: Arc<Server>,
     db: Arc<Database>,
+    profile: Dep<profile::Service>,
     server_state: Dep<server_state::Service>,
     users: Dep<users::Service>,
 }
@@ -60,6 +61,7 @@ impl crate::Service for Service {
             services: Services {
                 server: args.server.clone(),
                 db: args.db.clone(),
+                profile: args.depend::<profile::Service>("profile"),
                 server_state: args.depend::<server_state::Service>("server_state"),
                 users: args.depend::<users::Service>("users"),
             },
@@ -256,7 +258,7 @@ impl Service {
     ) -> Result<PresenceEvent> {
         let presence = Presence::from_json_bytes(bytes)?;
         let event = presence
-            .to_presence_event(user_id, &self.services.users)
+            .to_presence_event(user_id, &self.services.profile)
             .await;
 
         Ok(event)

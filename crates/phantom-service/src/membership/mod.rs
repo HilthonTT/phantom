@@ -33,7 +33,9 @@ pub use self::{
         v12_room_ids, without_member,
     },
 };
-use crate::{Dep, account_data, federation, rooms, sending, server_keys, server_state, users};
+use crate::{
+    Dep, account_data, federation, profile, rooms, sending, server_keys, server_state, users,
+};
 
 pub struct Service {
     services: Services,
@@ -48,6 +50,7 @@ struct Services {
     federation: Dep<federation::Service>,
     metadata: Dep<rooms::metadata::Service>,
     outlier: Dep<rooms::outlier::Service>,
+    profile: Dep<profile::Service>,
     sending: Dep<sending::Service>,
     server_keys: Dep<server_keys::Service>,
     server_state: Dep<server_state::Service>,
@@ -72,6 +75,7 @@ impl crate::Service for Service {
                 federation: args.depend::<federation::Service>("federation"),
                 metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
                 outlier: args.depend::<rooms::outlier::Service>("rooms::outlier"),
+                profile: args.depend::<profile::Service>("profile"),
                 sending: args.depend::<sending::Service>("sending"),
                 server_keys: args.depend::<server_keys::Service>("server_keys"),
                 server_state: args.depend::<server_state::Service>("server_state"),

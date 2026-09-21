@@ -1,4 +1,37 @@
-use super::*;
+use std::sync::Arc;
+
+use futures::{Stream, StreamExt, TryFutureExt};
+use phantom_core::{Result, stream::TryIgnore};
+use phantom_database::{Deserialized, Ignore, Interfix, Json, Map};
+use ruma::{OwnedMxcUri, UserId, events::room::member::RoomMemberEventContent};
+
+pub struct Service {
+    db: Data,
+}
+
+struct Data {
+    userid_avatarurl: Arc<Map>,
+    userid_blurhash: Arc<Map>,
+    userid_displayname: Arc<Map>,
+    useridprofilekey_value: Arc<Map>,
+}
+
+impl crate::Service for Service {
+    fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+        Ok(Arc::new(Self {
+            db: Data {
+                userid_avatarurl: args.db["userid_avatarurl"].clone(),
+                userid_blurhash: args.db["userid_blurhash"].clone(),
+                userid_displayname: args.db["userid_displayname"].clone(),
+                useridprofilekey_value: args.db["useridprofilekey_value"].clone(),
+            },
+        }))
+    }
+
+    fn name(&self) -> &str {
+        crate::make_name(std::module_path!())
+    }
+}
 
 impl Service {
     pub async fn fill_profile_data(&self, user_id: &UserId, content: &mut RoomMemberEventContent) {

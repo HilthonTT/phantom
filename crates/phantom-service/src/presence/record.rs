@@ -6,7 +6,7 @@ use ruma::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::users;
+use crate::profile;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct Presence {
@@ -40,7 +40,7 @@ impl Presence {
     pub(super) async fn to_presence_event(
         &self,
         user_id: &UserId,
-        users: &users::Service,
+        profile: &profile::Service,
     ) -> PresenceEvent {
         let now = time::now_millis();
         let last_active_ago = Some(UInt::new_saturating(
@@ -51,8 +51,8 @@ impl Presence {
         content.status_msg = self.status_msg.clone();
         content.currently_active = Some(self.currently_active);
         content.last_active_ago = last_active_ago;
-        content.displayname = users.displayname(user_id).await.ok();
-        content.avatar_url = users.avatar_url(user_id).await.ok();
+        content.displayname = profile.displayname(user_id).await.ok();
+        content.avatar_url = profile.avatar_url(user_id).await.ok();
 
         PresenceEvent {
             sender: user_id.to_owned(),

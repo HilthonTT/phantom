@@ -15,9 +15,9 @@ use super::{
 };
 use crate::{
     account_data, admin, appservice, client, config, deactivate, emergency, federation,
-    key_backups, media, membership, moderation, oauth, presence, pusher, rendezvous, resolver,
-    rooms, sending, sendmail, server_keys, server_state, storage, sync, tasks, transaction_id,
-    uiaa, updates, users,
+    key_backups, media, membership, moderation, oauth, presence, profile, pusher, rendezvous,
+    resolver, rooms, sending, sendmail, server_keys, server_state, storage, sync, tasks,
+    transaction_id, uiaa, updates, users,
 };
 
 pub struct Services {
@@ -44,6 +44,7 @@ pub struct Services {
     pub deactivate: Arc<deactivate::Service>,
     pub emergency: Arc<emergency::Service>,
     pub presence: Arc<presence::Service>,
+    pub profile: Arc<profile::Service>,
     pub pusher: Arc<pusher::Service>,
     pub sending: Arc<sending::Service>,
     pub admin: Arc<admin::Service>,
@@ -122,6 +123,7 @@ impl Services {
             deactivate: build!(deactivate::Service),
             emergency: build!(emergency::Service),
             presence: build!(presence::Service),
+            profile: build!(profile::Service),
             pusher: build!(pusher::Service),
             sending: build!(sending::Service),
             admin: build!(admin::Service),
