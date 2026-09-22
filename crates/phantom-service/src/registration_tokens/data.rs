@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::SystemTime};
 
+use phantom_core::time;
 use phantom_database::Map;
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +46,40 @@ impl DatabaseTokenInfo {
         }
 
         true
+    }
+}
+
+impl std::fmt::Display for TokenExpires {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut msgs = vec![];
+
+        if let Some(max_uses) = self.max_uses {
+            msgs.push(format!("after {max_uses} uses"));
+        }
+
+        if let Some(max_age) = self.max_age {
+            let now = SystemTime::now();
+            let expires_at = time::format(max_age, "%F %T");
+
+            match max_age.duration_since(now) {
+                Ok(duration) => {
+                    let expires_in = time::pretty(duration);
+                    msgs.push(format!("in {expires_in} ({expires_at})"));
+                }
+                Err(_) => {
+                    write!(f, "Expired at {expires_at}")?;
+                    return Ok(());
+                }
+            }
+        }
+
+        if !msgs.is_empty() {
+            write!(f, "Expires {}.", msgs.join(" or "))?;
+        } else {
+            write!(f, "Never expires.")?;
+        }
+
+        Ok(())
     }
 }
 
