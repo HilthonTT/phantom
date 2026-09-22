@@ -18,6 +18,7 @@ pub mod presence;
 pub mod profile;
 pub mod pusher;
 mod ratelimit;
+pub mod registration_tokens;
 pub mod rendezvous;
 pub mod resolver;
 pub mod rooms;
