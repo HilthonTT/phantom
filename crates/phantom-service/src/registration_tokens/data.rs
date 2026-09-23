@@ -1,7 +1,13 @@
 use std::{sync::Arc, time::SystemTime};
 
-use phantom_core::time;
-use phantom_database::Map;
+use futures::Stream;
+use phantom_core::{
+    err,
+    stream::{ReadyExt, TryIgnore},
+    time,
+};
+use phantom_database::{Deserialized, Map};
+use ruma::{api::error::ErrorCode::NotFound, events::room_key_request::Action::Request};
 use serde::{Deserialize, Serialize};
 
 pub(super) struct Data {
@@ -25,7 +31,7 @@ pub struct TokenExpires {
 }
 
 impl DatabaseTokenInfo {
-    pub(super) fn new(expires: TokenExpires) -> Self {
+    pub(super) fn new(uses: u64, expires: TokenExpires) -> Self {
         Self { uses: 0, expires }
     }
 
@@ -88,5 +94,100 @@ impl std::fmt::Display for DatabaseTokenInfo {
         write!(f, "Token used {} times. {}", self.uses, self.expires)?;
 
         Ok(())
+    }
+}
+
+impl Data {
+    pub(super) async fn save_token(
+        &self,
+        token: &str,
+        expires: TokenExpires,
+    ) -> Result<DatabaseTokenInfo> {
+        if self.registrationtoken_info.exists(token).await.is_err() {
+            let info = DatabaseTokenInfo::new(0, expires);
+
+            self.registrationtoken_info.raw_put(token, Json(&info));
+
+            Ok(info)
+        } else {
+            Err(Request(InvalidParam("Registration token already exists")))
+        }
+    }
+
+    pub(super) async fn revoke_token(&self, token: &str) -> Result {
+        if self.registrationtoken_info.exists(token).await.is_ok() {
+            self.registrationtoken_info.remove(token);
+
+            Ok(())
+        } else {
+            Err(Request(NotFound("Registration token not found")))
+        }
+    }
+
+    pub(super) async fn check_token(&self, token: &str, consume: bool) -> bool {
+        let info = self
+            .registrationtoken_info
+            .get(token)
+            .await
+            .deserialized::<DatabaseTokenInfo>()
+            .ok();
+
+        info.map(|mut info| {
+            if !info.is_valid() {
+                self.registrationtoken_info.remove(token);
+                return false;
+            }
+
+            if consume {
+                info.uses = info.uses.saturating_add(1);
+
+                if info.is_valid() {
+                    self.registrationtoken_info.raw_put(token, Json(info));
+                } else {
+                    self.registrationtoken_info.remove(token);
+                }
+            }
+
+            true
+        })
+        .unwrap_or(false)
+    }
+
+    pub(super) async fn get_token_info(&self, token: &str) -> Result<DatabaseTokenInfo> {
+        self.registrationtoken_info
+            .get(token)
+            .await
+            .deserialized()
+            .map_err(|_| err!(Request(NotFound("Registration token not found"))))
+    }
+
+    pub(super) async fn update_token(
+        &self,
+        token: &str,
+        expires: TokenExpires,
+    ) -> Result<DatabaseTokenInfo> {
+        let current = self.get_token_info(token).await?;
+
+        let info = DatabaseTokenInfo::new(current.uses, expires);
+
+        self.registrationtoken_info.raw_put(token, Json(&info));
+
+        Ok(info)
+    }
+
+    pub(super) fn iterate_and_clean_tokens(
+        &self,
+    ) -> impl Stream<Item = (&str, DatabaseTokenInfo)> + Send + '_ {
+        self.registrationtoken_info
+            .stream()
+            .ignore_err()
+            .ready_filter_map(|(token, info): (&str, DatabaseTokenInfo)| {
+                if info.is_valid() {
+                    Some((token, info))
+                } else {
+                    self.registrationtoken_info.remove(token);
+                    None
+                }
+            })
     }
 }
