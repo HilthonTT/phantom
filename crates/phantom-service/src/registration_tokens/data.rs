@@ -4,6 +4,7 @@ use futures::Stream;
 use phantom_core::{
     Err, Result, err,
     stream::{ReadyExt, TryIgnore},
+    sync::MutexMap,
     time,
 };
 use phantom_database::{Database, Deserialized, Json, Map};
@@ -11,6 +12,10 @@ use serde::{Deserialize, Serialize};
 
 pub(super) struct Data {
     registrationtoken_info: Arc<Map>,
+
+    /// Serializes the read-modify-write of one token, so two registrations
+    /// racing on a single-use token cannot both read it unused.
+    token_locks: MutexMap<String, ()>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -100,6 +105,7 @@ impl Data {
     pub(super) fn new(db: &Arc<Database>) -> Self {
         Self {
             registrationtoken_info: db["registrationtoken_info"].clone(),
+            token_locks: MutexMap::new(),
         }
     }
 
@@ -108,10 +114,12 @@ impl Data {
         token: &str,
         expires: TokenExpires,
     ) -> Result<DatabaseTokenInfo> {
+        let _lock = self.token_locks.lock(token).await;
+
         if self.registrationtoken_info.exists(token).await.is_err() {
             let info = DatabaseTokenInfo::new(0, expires);
 
-            self.registrationtoken_info.raw_put(token, Json(&info));
+            self.registrationtoken_info.raw_put(token, Json(&info))?;
 
             Ok(info)
         } else {
@@ -120,16 +128,18 @@ impl Data {
     }
 
     pub(super) async fn revoke_token(&self, token: &str) -> Result {
-        if self.registrationtoken_info.exists(token).await.is_ok() {
-            self.registrationtoken_info.remove(token);
+        let _lock = self.token_locks.lock(token).await;
 
-            Ok(())
+        if self.registrationtoken_info.exists(token).await.is_ok() {
+            self.registrationtoken_info.remove(token)
         } else {
             Err!(Request(NotFound("Registration token not found")))
         }
     }
 
     pub(super) async fn check_token(&self, token: &str, consume: bool) -> bool {
+        let _lock = self.token_locks.lock(token).await;
+
         let info = self
             .registrationtoken_info
             .get(token)
@@ -139,21 +149,25 @@ impl Data {
 
         info.map(|mut info| {
             if !info.is_valid() {
-                self.registrationtoken_info.remove(token);
+                self.registrationtoken_info.remove(token).ok();
                 return false;
             }
 
-            if consume {
-                info.uses = info.uses.saturating_add(1);
-
-                if info.is_valid() {
-                    self.registrationtoken_info.raw_put(token, Json(info));
-                } else {
-                    self.registrationtoken_info.remove(token);
-                }
+            if !consume {
+                return true;
             }
 
-            true
+            info.uses = info.uses.saturating_add(1);
+
+            // A use that cannot be recorded is not granted, or a failing
+            // write would let a limited token admit registrations forever.
+            let recorded = if info.is_valid() {
+                self.registrationtoken_info.raw_put(token, Json(info))
+            } else {
+                self.registrationtoken_info.remove(token)
+            };
+
+            recorded.is_ok()
         })
         .unwrap_or(false)
     }
@@ -171,11 +185,13 @@ impl Data {
         token: &str,
         expires: TokenExpires,
     ) -> Result<DatabaseTokenInfo> {
+        let _lock = self.token_locks.lock(token).await;
+
         let current = self.get_token_info(token).await?;
 
         let info = DatabaseTokenInfo::new(current.uses, expires);
 
-        self.registrationtoken_info.raw_put(token, Json(&info));
+        self.registrationtoken_info.raw_put(token, Json(&info))?;
 
         Ok(info)
     }
@@ -190,9 +206,60 @@ impl Data {
                 if info.is_valid() {
                     Some((token, info))
                 } else {
-                    self.registrationtoken_info.remove(token);
+                    self.registrationtoken_info.remove(token).ok();
                     None
                 }
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, SystemTime};
+
+    use super::{DatabaseTokenInfo, TokenExpires};
+
+    const NEVER: TokenExpires = TokenExpires {
+        max_uses: None,
+        max_age: None,
+    };
+
+    #[test]
+    fn new_keeps_the_use_count() {
+        assert_eq!(DatabaseTokenInfo::new(7, NEVER).uses, 7);
+    }
+
+    #[test]
+    fn unlimited_token_is_valid() {
+        assert!(DatabaseTokenInfo::new(u64::MAX, NEVER).is_valid());
+    }
+
+    #[test]
+    fn token_is_spent_at_max_uses() {
+        let expires = TokenExpires {
+            max_uses: Some(1),
+            ..NEVER
+        };
+
+        assert!(DatabaseTokenInfo::new(0, expires).is_valid());
+        assert!(!DatabaseTokenInfo::new(1, expires).is_valid());
+    }
+
+    #[test]
+    fn token_lapses_at_max_age() {
+        let now = SystemTime::now();
+        let hour = Duration::from_secs(3600);
+
+        let live = TokenExpires {
+            max_age: Some(now + hour),
+            ..NEVER
+        };
+        let lapsed = TokenExpires {
+            max_age: Some(now - hour),
+            ..NEVER
+        };
+
+        assert!(DatabaseTokenInfo::new(0, live).is_valid());
+        assert!(!DatabaseTokenInfo::new(0, lapsed).is_valid());
     }
 }
