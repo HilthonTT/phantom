@@ -2,12 +2,11 @@ use std::{sync::Arc, time::SystemTime};
 
 use futures::Stream;
 use phantom_core::{
-    err,
+    Err, Result, err,
     stream::{ReadyExt, TryIgnore},
     time,
 };
-use phantom_database::{Deserialized, Map};
-use ruma::{api::error::ErrorCode::NotFound, events::room_key_request::Action::Request};
+use phantom_database::{Database, Deserialized, Json, Map};
 use serde::{Deserialize, Serialize};
 
 pub(super) struct Data {
@@ -32,7 +31,7 @@ pub struct TokenExpires {
 
 impl DatabaseTokenInfo {
     pub(super) fn new(uses: u64, expires: TokenExpires) -> Self {
-        Self { uses: 0, expires }
+        Self { uses, expires }
     }
 
     #[must_use]
@@ -98,6 +97,12 @@ impl std::fmt::Display for DatabaseTokenInfo {
 }
 
 impl Data {
+    pub(super) fn new(db: &Arc<Database>) -> Self {
+        Self {
+            registrationtoken_info: db["registrationtoken_info"].clone(),
+        }
+    }
+
     pub(super) async fn save_token(
         &self,
         token: &str,
@@ -110,7 +115,7 @@ impl Data {
 
             Ok(info)
         } else {
-            Err(Request(InvalidParam("Registration token already exists")))
+            Err!(Request(InvalidParam("Registration token already exists")))
         }
     }
 
@@ -120,7 +125,7 @@ impl Data {
 
             Ok(())
         } else {
-            Err(Request(NotFound("Registration token not found")))
+            Err!(Request(NotFound("Registration token not found")))
         }
     }
 

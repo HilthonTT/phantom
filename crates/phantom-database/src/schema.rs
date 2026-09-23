@@ -191,6 +191,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM
     },
     Descriptor {
+        name: "registrationtoken_info",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
         name: "roomid_invitedcount",
         ..descriptor::RANDOM_SMALL
     },
