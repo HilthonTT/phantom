@@ -1,9 +1,3 @@
-// Package connection draws the right-hand box of the footer: which homeserver
-// the CLI is pointed at and whether it is answering.
-//
-// It is the one box that is not about the selection. Wherever the cursor is,
-// this says what is being administered — which is what stops an operation
-// being run against the wrong server.
 package connection
 
 import (
@@ -14,7 +8,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/theme"
 )
 
-// Model is the connection box.
 type Model struct {
 	theme  theme.Theme
 	glyphs theme.Glyphs
@@ -25,15 +18,12 @@ type Model struct {
 	height int
 }
 
-// New returns a connection box reporting on the placeholder server.
 func New(t theme.Theme, g theme.Glyphs) Model {
 	return Model{theme: t, glyphs: g, server: sample.Server()}
 }
 
-// SetSize sets the box's extent, borders included.
 func (m *Model) SetSize(width, height int) { m.width, m.height = width, height }
 
-// Render draws the connection box.
 func (m Model) Render() string {
 	p := panel.New(m.theme.PanelConfig(m.width, m.height, false))
 	p.SetTitle("Connection")
@@ -49,7 +39,6 @@ func (m Model) Render() string {
 	return p.Render()
 }
 
-// status is the state dot, the word beside it, and the server's version.
 func (m Model) status(width int) string {
 	state := m.theme.ForState(m.server.State)
 	dot := state.Render(detail.Indent + m.glyphs.Marked + " ")
@@ -59,5 +48,4 @@ func (m Model) status(width int) string {
 	return panel.Truncate(dot+status+version, width)
 }
 
-// labelWidth is the column the fact values line up on.
 const labelWidth = 12

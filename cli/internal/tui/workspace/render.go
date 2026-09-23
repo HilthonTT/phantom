@@ -9,13 +9,8 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
-// Rows above and below the listing itself: the filter box, the column header
-// and the rule under it.
 const chromeRows = 3
 
-// Render draws every open tab side by side. `focused` says whether the
-// workspace as a whole has the keyboard; within it, only the active tab is
-// drawn as focused.
 func (m Model) Render(focused bool) string {
 	boxes := make([]string, 0, len(m.tabs))
 
@@ -62,8 +57,6 @@ func (m Model) renderTab(i int, focused bool, width int) string {
 	return p.Render()
 }
 
-// title is the section's name, and what the cursor is on after it, so a panel
-// says what it is showing without the inspector having to be open.
 func (m Model) title(tab Tab, rows []resource.Row, cursor int) string {
 	if cursor >= len(rows) || len(rows[cursor].Cells) == 0 {
 		return tab.Section.String()
@@ -72,8 +65,6 @@ func (m Model) title(tab Tab, rows []resource.Row, cursor int) string {
 	return tab.Section.String() + " " + m.glyphs.Arrow + " " + rows[cursor].Cells[0]
 }
 
-// footnote is what the bottom border says beside the row count: how many rows
-// are marked, or how the listing is ordered when none are.
 func (m Model) footnote(tab Tab) string {
 	if marked := marks(tab); marked > 0 {
 		return fmt.Sprintf("%d marked", marked)
@@ -82,7 +73,6 @@ func (m Model) footnote(tab Tab) string {
 	return tab.listing.Sort
 }
 
-// renderRow draws one row: the cursor and mark column, then the cells.
 func (m Model) renderRow(r resource.Row, cols []resource.Column, w []int, underCursor bool) string {
 	cursor := " "
 	if underCursor {
@@ -107,12 +97,10 @@ func (m Model) renderRow(r resource.Row, cols []resource.Column, w []int, underC
 	return m.theme.Cursor.Render(" "+cursor+" "+mark+" ") + style.Render(body)
 }
 
-// rowsPerTab is how many listing rows fit in a tab at the current height.
 func (m Model) rowsPerTab() int {
 	return max(m.height-2-chromeRows, 1)
 }
 
-// tabWidth is the nominal width of one tab.
 func (m Model) tabWidth() int {
 	if len(m.tabs) == 0 {
 		return m.width
@@ -121,8 +109,6 @@ func (m Model) tabWidth() int {
 	return m.width / len(m.tabs)
 }
 
-// tabWidthAt is [Model.tabWidth] for tab i, with the remainder from the
-// division given to the last tab so the row of them fills the width exactly.
 func (m Model) tabWidthAt(i int) int {
 	if i < len(m.tabs)-1 {
 		return m.tabWidth()

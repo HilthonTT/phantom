@@ -12,7 +12,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/workspace"
 )
 
-// sized returns the interface laid out for a terminal of the given size.
 func sized(t *testing.T, width, height int) Model {
 	t.Helper()
 
@@ -26,11 +25,6 @@ func sized(t *testing.T, width, height int) Model {
 	return m
 }
 
-// press feeds keystrokes to the interface, as the terminal would.
-//
-// A key is named the way [tea.KeyPressMsg.String] would print it — "j", "L",
-// "esc" — which is also what the bindings are written against. Putting the
-// name in Text is what makes String report it back.
 func press(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
 
@@ -45,9 +39,6 @@ func press(t *testing.T, m Model, keys ...string) Model {
 	return m
 }
 
-// The layout is a grid of fixed rectangles. If any one of them is a column or
-// a row out, every panel to the right of it or below it is pushed askew, so
-// the whole render has to come out exactly the size of the terminal.
 func TestLayoutFillsTheTerminalExactly(t *testing.T) {
 	sizes := []struct{ width, height int }{
 		{80, 24},
@@ -72,9 +63,6 @@ func TestLayoutFillsTheTerminalExactly(t *testing.T) {
 	}
 }
 
-// Opening tabs splits the workspace, and the split has to divide the width
-// without losing or gaining a column to the rounding. The width is odd so that
-// the division does not come out even.
 func TestExtraTabsDoNotChangeTheLayoutSize(t *testing.T) {
 	const width = 181
 
@@ -94,8 +82,6 @@ func TestExtraTabsDoNotChangeTheLayoutSize(t *testing.T) {
 	}
 }
 
-// A terminal too narrow to split again keeps the tabs it has rather than
-// opening one too thin to read.
 func TestTabsStopOpeningWhenThereIsNoRoom(t *testing.T) {
 	m := sized(t, 96, 30)
 
@@ -111,7 +97,6 @@ func TestTabsStopOpeningWhenThereIsNoRoom(t *testing.T) {
 	}
 }
 
-// A modal is composited over the layout, so it must not resize it.
 func TestModalsOverlayWithoutResizingTheLayout(t *testing.T) {
 	for _, kind := range []modal.Kind{modal.Help, modal.Prompt, modal.Confirm} {
 		m := sized(t, 120, 32)
@@ -129,8 +114,6 @@ func TestModalsOverlayWithoutResizingTheLayout(t *testing.T) {
 	}
 }
 
-// Below the minimum the panels cannot hold a row, so the layout is replaced by
-// a warning that still fills the terminal.
 func TestTooSmallTerminalGetsAWarning(t *testing.T) {
 	m := sized(t, 60, 18)
 	out := m.render()
@@ -146,8 +129,6 @@ func TestTooSmallTerminalGetsAWarning(t *testing.T) {
 	}
 }
 
-// The interface starts on the workspace, and `?` and `:` open their modals
-// from wherever the keyboard is.
 func TestHotkeysOpenTheModals(t *testing.T) {
 	m := sized(t, 120, 32)
 	if m.focus != focusWorkspace {
@@ -170,8 +151,6 @@ func TestHotkeysOpenTheModals(t *testing.T) {
 	}
 }
 
-// Focus walks the three panels that can hold the keyboard, and comes back
-// round to where it started.
 func TestFocusCyclesThroughThePanels(t *testing.T) {
 	m := sized(t, 120, 32)
 
@@ -191,8 +170,6 @@ func TestFocusCyclesThroughThePanels(t *testing.T) {
 	}
 }
 
-// Moving down the listing moves the cursor, and the panel follows it past the
-// bottom of the window rather than leaving it behind.
 func TestCursorMovesAndTheListingScrolls(t *testing.T) {
 	m := sized(t, 120, 32)
 	m.workspace.Open(resource.Users)
@@ -213,9 +190,6 @@ func TestCursorMovesAndTheListingScrolls(t *testing.T) {
 	}
 }
 
-// arrow feeds a movement key the way a terminal sends one: a key code with no
-// text behind it. That is what separates a real arrow from the `j` and `k` the
-// same binding is aliased onto.
 func arrow(t *testing.T, m Model, code rune) Model {
 	t.Helper()
 
@@ -229,8 +203,6 @@ func arrow(t *testing.T, m Model, code rune) Model {
 	return m
 }
 
-// A filter is only useful if the row it narrowed to can then be reached, so
-// the arrows have to keep working while the box is open.
 func TestArrowsMoveTheCursorWhileFiltering(t *testing.T) {
 	m := sized(t, 120, 32)
 	m.focus = focusWorkspace
@@ -264,8 +236,6 @@ func TestArrowsMoveTheCursorWhileFiltering(t *testing.T) {
 	}
 }
 
-// The movement keys are aliased onto `j` and `k`, which are also letters. A
-// filter box that swallowed them could not be used to search for "Tasks".
 func TestViKeysAreTextWhileFiltering(t *testing.T) {
 	m := sized(t, 120, 32)
 	m.focus = focusSidebar
@@ -287,8 +257,6 @@ func TestViKeysAreTextWhileFiltering(t *testing.T) {
 	}
 }
 
-// Filtering narrows the sidebar to the sections that match, and leaving the
-// filter restores all of them.
 func TestSidebarFilterNarrowsTheSections(t *testing.T) {
 	m := sized(t, 120, 32)
 	m.focus = focusSidebar

@@ -1,7 +1,3 @@
-// Command phantom is the CLI for administering a phantom homeserver.
-//
-// Run with no arguments it opens the admin console; see
-// [github.com/HilthonTT/phantom/cli/internal/tui].
 package main
 
 import (

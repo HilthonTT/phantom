@@ -6,14 +6,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Ellipsis is the marker a truncated string ends (or begins) with.
 const Ellipsis = "…"
 
-// Width is the rendered width of s, ignoring any ANSI escapes in it.
 func Width(s string) int { return ansi.StringWidth(s) }
 
-// Truncate cuts s to at most w columns, ending it with [Ellipsis] if anything
-// was dropped. Styling in s is preserved.
 func Truncate(s string, w int) string {
 	if w <= 0 {
 		return ""
@@ -24,8 +20,6 @@ func Truncate(s string, w int) string {
 	return ansi.Truncate(s, w, Ellipsis)
 }
 
-// Pad extends s with spaces to exactly w columns, truncating it instead if it
-// is already wider.
 func Pad(s string, w int) string {
 	width := ansi.StringWidth(s)
 	switch {
@@ -38,7 +32,6 @@ func Pad(s string, w int) string {
 	}
 }
 
-// PadStart is [Pad] with the spaces on the left, for right-aligning a column.
 func PadStart(s string, w int) string {
 	width := ansi.StringWidth(s)
 	switch {

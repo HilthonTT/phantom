@@ -7,11 +7,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/modal"
 )
 
-// Update routes a message to whatever currently has the keyboard.
-//
-// The order is the priority order: a modal takes everything, then a filter box
-// takes everything that is not a way out of it, then the global keys, then the
-// focused panel.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -39,8 +34,6 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.handlePanelKey(msg)
 }
 
-// handleGlobalKey handles the keys that mean the same thing wherever the
-// keyboard is. The bool says whether the key was one of them.
 func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
@@ -77,7 +70,6 @@ func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	return false, m, nil
 }
 
-// startFiltering opens the filter box of whichever panel has the keyboard.
 func (m Model) startFiltering() (tea.Model, tea.Cmd) {
 	switch m.focus {
 	case focusSidebar:
@@ -89,19 +81,10 @@ func (m Model) startFiltering() (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleFilterKey routes to the open filter box, intercepting only the keys
-// that close it or step the cursor while it stays open.
-//
-// Movement is taken from the arrows alone rather than from the whole binding.
-// [keymap.Default] aliases them onto `j` and `k`, which are also letters
-// somebody filtering for "Tasks" has to be able to type; a key carrying
-// printable text is therefore text, and only a movement key without any —
-// an arrow — steps the cursor.
 func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Cancel):
-		// Only the panel whose box is open stops filtering: stopping the
-		// other one would reset its cursor as well.
+
 		if m.sidebar.Filtering() {
 			m.sidebar.StopFiltering()
 		} else {
@@ -133,7 +116,6 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.workspace.UpdateFilter(msg)
 }
 
-// handlePanelKey routes to the focused panel.
 func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.focus {
 	case focusSidebar:
@@ -225,8 +207,6 @@ func (m Model) handleTaskbarKey(msg tea.KeyPressMsg) tea.Model {
 	return m
 }
 
-// handleModalKey routes to the open modal. Every modal closes on the cancel
-// key, and none of them does anything on confirm yet.
 func (m Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.keys.Cancel) {
 		return m.closeModal(), nil

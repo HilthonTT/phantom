@@ -15,8 +15,6 @@ func testPanel(width, height int) *Panel {
 	})
 }
 
-// A panel is the unit the layout is joined from, so it has to be exactly the
-// size it was asked for whatever it was given to hold.
 func TestPanelIsExactlyItsConfiguredSize(t *testing.T) {
 	cases := []struct {
 		name          string
@@ -49,8 +47,6 @@ func TestPanelIsExactlyItsConfiguredSize(t *testing.T) {
 	}
 }
 
-// The title and the info items live in the border rather than costing a line
-// of content, which is the whole reason for the custom border assembly.
 func TestBorderCarriesTitleAndInfo(t *testing.T) {
 	p := testPanel(30, 5)
 	p.SetTitle("Rooms")
@@ -70,8 +66,6 @@ func TestBorderCarriesTitleAndInfo(t *testing.T) {
 	}
 }
 
-// A title too long for the edge is truncated rather than pushing the corner
-// out and making the panel wider than it was configured to be.
 func TestOverlongTitleDoesNotWidenThePanel(t *testing.T) {
 	p := testPanel(20, 4)
 	p.SetTitle(strings.Repeat("long ", 20))
@@ -81,8 +75,6 @@ func TestOverlongTitleDoesNotWidenThePanel(t *testing.T) {
 	}
 }
 
-// A divider puts a tee in each side border on its own row, so the rule meets
-// the frame instead of stopping short of it.
 func TestDividerMeetsTheSideBorders(t *testing.T) {
 	p := testPanel(14, 6)
 	p.AddLine("above")

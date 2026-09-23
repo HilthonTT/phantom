@@ -10,8 +10,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/panel"
 )
 
-// View draws the whole interface: the main row of panels, the footer row of
-// boxes under it, and whichever modal is open composited over the top.
 func (m Model) View() tea.View {
 	view := tea.NewView(m.render())
 	view.AltScreen = true
@@ -38,8 +36,6 @@ func (m Model) render() string {
 	return modal.Overlay(layout, box, m.width, m.height)
 }
 
-// renderMain is the sidebar, the workspace and — where the terminal is wide
-// enough — the inspector.
 func (m Model) renderMain() string {
 	open := m.workspace.Section()
 	if m.focus == focusSidebar {
@@ -61,7 +57,6 @@ func (m Model) renderMain() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, panels...)
 }
 
-// renderFooter is the tasks, summary and connection boxes.
 func (m Model) renderFooter() string {
 	row, ok := m.workspace.Selected()
 
@@ -72,7 +67,6 @@ func (m Model) renderFooter() string {
 	)
 }
 
-// renderModal is the open modal, or the empty string where none is.
 func (m Model) renderModal() string {
 	switch m.modal {
 	case modal.Help:
@@ -86,8 +80,6 @@ func (m Model) renderModal() string {
 	}
 }
 
-// renderTooSmall is what is drawn instead of the layout when the terminal
-// cannot hold it: what the terminal is, and what it would need to be.
 func (m Model) renderTooSmall() string {
 	dimension := func(have, need int) string {
 		style := m.theme.StateDone

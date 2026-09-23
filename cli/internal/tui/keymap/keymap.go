@@ -1,14 +1,8 @@
-// Package keymap is every key the interface binds, and the help text for each.
-//
-// The bindings and the help menu are built from the same values, so a key
-// cannot be rebound without the help following it.
 package keymap
 
 import "charm.land/bubbles/v2/key"
 
-// KeyMap is the whole binding set.
 type KeyMap struct {
-	// Moving within a panel.
 	Up       key.Binding
 	Down     key.Binding
 	PageUp   key.Binding
@@ -16,7 +10,6 @@ type KeyMap struct {
 	Top      key.Binding
 	Bottom   key.Binding
 
-	// Moving between panels.
 	NextPanel  key.Binding
 	PrevPanel  key.Binding
 	OpenPanel  key.Binding
@@ -24,27 +17,21 @@ type KeyMap struct {
 	FocusNext  key.Binding
 	FocusPrev  key.Binding
 
-	// Acting on rows.
 	Mark      key.Binding
 	MarkAll   key.Binding
 	ClearMark key.Binding
 	Open      key.Binding
 	Refresh   key.Binding
 
-	// Opening things over the top of the layout.
 	Filter key.Binding
 	Prompt key.Binding
 	Sort   key.Binding
 	Help   key.Binding
 	Cancel key.Binding
 
-	// Leaving.
 	Quit key.Binding
 }
 
-// Default is the binding set the interface ships with. The movement keys take
-// both the arrows and their vi equivalents; everything else is a single letter
-// so that the help menu stays readable.
 func Default() KeyMap {
 	return KeyMap{
 		Up:       binding("move up", "up", "k"),
@@ -81,18 +68,13 @@ func binding(help string, keys ...string) key.Binding {
 	return key.NewBinding(key.WithKeys(keys...), key.WithHelp(keys[0], help))
 }
 
-// Entry is one line of the help menu: a heading, or a binding and what it
-// does.
 type Entry struct {
-	// Heading is set on a section title, in which case Keys and Description
-	// are empty.
 	Heading string
 
 	Keys        []string
 	Description string
 }
 
-// Entries is the help menu's contents, in the order it lists them.
 func (k KeyMap) Entries() []Entry {
 	section := func(title string, bindings ...key.Binding) []Entry {
 		entries := []Entry{{Heading: title}}

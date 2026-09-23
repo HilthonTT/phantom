@@ -8,9 +8,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
-// Render draws the sidebar. `open` is the section the workspace is currently
-// showing, which is marked so that the cursor and the open section can be told
-// apart when they have been moved off each other.
 func (m Model) Render(focused bool, open resource.Section) string {
 	p := panel.New(m.theme.PanelConfig(Width, m.height, focused))
 	p.SetTitle("phantom")
@@ -51,8 +48,6 @@ func (m Model) renderSections(p *panel.Panel, sections []resource.Section, focus
 	}
 }
 
-// heading is a group title with a rule either side of it, so the groups read
-// as separators rather than as entries.
 func (m Model) heading(g resource.Group, width int) string {
 	const lead = 2
 
@@ -64,7 +59,6 @@ func (m Model) heading(g resource.Group, width int) string {
 		m.theme.Faint.Render(strings.Repeat(m.glyphs.Divider, rule))
 }
 
-// entry is one section: a cursor column, the section's glyph, and its name.
 func (m Model) entry(s resource.Section, underCursor, open bool) string {
 	cursor := "  "
 	if underCursor {
@@ -90,6 +84,8 @@ func (m Model) glyph(s resource.Section) string {
 		return m.glyphs.Room
 	case resource.Users:
 		return m.glyphs.User
+	case resource.Tokens:
+		return m.glyphs.Token
 	case resource.Federation:
 		return m.glyphs.Federated
 	case resource.Media:

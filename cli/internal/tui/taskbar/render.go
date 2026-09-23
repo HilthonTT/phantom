@@ -8,7 +8,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
-// Render draws the task bar.
 func (m Model) Render(focused bool) string {
 	p := panel.New(m.theme.PanelConfig(m.width, m.height, focused))
 	p.SetTitle("Tasks")
@@ -28,8 +27,6 @@ func (m Model) Render(focused bool) string {
 	return p.Render()
 }
 
-// renderTask draws one task: a name line carrying its state glyph, then its
-// progress bar, both behind the same cursor rail.
 func (m Model) renderTask(p *panel.Panel, t resource.Task, underCursor bool) {
 	rail := m.theme.Faint.Render("  ")
 	if underCursor {
@@ -49,8 +46,7 @@ func (m Model) renderTask(p *panel.Panel, t resource.Task, underCursor bool) {
 
 	bar, ok := m.bars[t.State]
 	if !ok {
-		// A task without a state has no bar of its own; the zero
-		// progress.Model would draw NUL bytes.
+
 		bar = m.bars[resource.Running]
 	}
 	bar.SetWidth(max(p.ContentWidth()-panel.Width(rail)-8, 4))

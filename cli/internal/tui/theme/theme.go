@@ -1,10 +1,3 @@
-// Package theme holds the colour palette the TUI is drawn with and the
-// lipgloss styles derived from it.
-//
-// Every colour the interface uses is named here once. A component asks for a
-// style by what it is drawing — [Theme.PanelTitle], [Theme.RowSelected] — and
-// never names a hex value of its own, so re-theming is a change to this file
-// alone.
 package theme
 
 import (
@@ -13,83 +6,65 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Palette is the set of colours a theme is built from. The names are roles
-// rather than hues, so a light theme can fill the same fields.
 type Palette struct {
-	// Backgrounds, from the outermost surface inwards.
-	Canvas  color.Color // behind everything
-	Surface color.Color // inside a panel
-	Raised  color.Color // inside a modal
-	Sunken  color.Color // a selected row
+	Canvas  color.Color
+	Surface color.Color
+	Raised  color.Color
+	Sunken  color.Color
 
-	// Foregrounds.
-	Text   color.Color // ordinary content
-	Muted  color.Color // labels, secondary content
-	Faint  color.Color // dividers, disabled content
-	Accent color.Color // the cursor and anything it points at
+	Text   color.Color
+	Muted  color.Color
+	Faint  color.Color
+	Accent color.Color
 
-	// Panel borders, idle and focused.
 	Border       color.Color
 	BorderActive color.Color
 
-	// Status colours, used for task state and connection state.
 	Success color.Color
 	Warning color.Color
 	Danger  color.Color
 	Info    color.Color
 
-	// Section headings in the sidebar and the help menu.
 	Heading color.Color
-	// A hotkey as printed in the help menu and the prompt.
+
 	Hotkey color.Color
 }
 
-// Theme is a palette together with the styles built from it. Construct one
-// with [New]; the zero value renders nothing legible.
 type Theme struct {
 	Palette Palette
 
-	// Surfaces.
 	Canvas lipgloss.Style
 	Panel  lipgloss.Style
 	Modal  lipgloss.Style
 
-	// Text roles.
 	Text    lipgloss.Style
 	Muted   lipgloss.Style
 	Faint   lipgloss.Style
 	Heading lipgloss.Style
 	Title   lipgloss.Style
 
-	// The cursor, and the row it is on.
 	Cursor      lipgloss.Style
 	RowSelected lipgloss.Style
 	RowMarked   lipgloss.Style
 
-	// Column headers in a resource listing.
 	ColumnHeader lipgloss.Style
 
-	// Task and connection state.
 	StateRunning lipgloss.Style
 	StateDone    lipgloss.Style
 	StateFailed  lipgloss.Style
 	StateHeld    lipgloss.Style
 
-	// Modal furniture.
 	ModalTitle   lipgloss.Style
 	ModalConfirm lipgloss.Style
 	ModalCancel  lipgloss.Style
 	ModalHint    lipgloss.Style
 
-	// Help menu and prompt.
 	Hotkey       lipgloss.Style
 	PromptSigil  lipgloss.Style
 	PromptOK     lipgloss.Style
 	PromptFailed lipgloss.Style
 }
 
-// Mocha is the default palette: Catppuccin Mocha, the same family superfile
-// ships as its default.
 func Mocha() Palette {
 	return Palette{
 		Canvas:  lipgloss.Color("#11111b"),
@@ -115,7 +90,6 @@ func Mocha() Palette {
 	}
 }
 
-// New builds the styles for a palette.
 func New(p Palette) Theme {
 	on := func(fg, bg color.Color) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(fg).Background(bg)
@@ -157,5 +131,4 @@ func New(p Palette) Theme {
 	}
 }
 
-// Default is [New] applied to [Mocha].
 func Default() Theme { return New(Mocha()) }

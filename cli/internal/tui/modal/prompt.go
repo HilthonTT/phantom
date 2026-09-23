@@ -10,21 +10,16 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/theme"
 )
 
-// The prompt's preferred extent, borders included.
 const (
 	promptWidth  = 66
 	promptHeight = 8
 )
 
-// Command is one entry in the prompt's list of what can be typed.
 type Command struct {
 	Name  string
 	Usage string
 }
 
-// Commands is what the prompt offers. Typing one does nothing yet: the prompt
-// is here so the shape of the interface is complete, and the handlers are the
-// work that follows.
 func Commands() []Command {
 	return []Command{
 		{Name: "room", Usage: "room <alias>          open a room's record"},
@@ -38,7 +33,6 @@ func Commands() []Command {
 	}
 }
 
-// PromptModel is the command line.
 type PromptModel struct {
 	theme theme.Theme
 
@@ -46,7 +40,6 @@ type PromptModel struct {
 	commands []Command
 }
 
-// NewPrompt returns a command prompt.
 func NewPrompt(t theme.Theme) PromptModel {
 	input := t.Input(" : ", "type a command", t.Palette.Raised)
 	input.SetWidth(promptWidth - 8)
@@ -54,17 +47,14 @@ func NewPrompt(t theme.Theme) PromptModel {
 	return PromptModel{theme: t, input: input, commands: Commands()}
 }
 
-// Focus gives the prompt the keyboard and clears what was last typed.
 func (m *PromptModel) Focus() tea.Cmd {
 	m.input.SetValue("")
 
 	return m.input.Focus()
 }
 
-// Blur takes the keyboard back.
 func (m *PromptModel) Blur() { m.input.Blur() }
 
-// Update feeds a message to the input.
 func (m *PromptModel) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -72,10 +62,8 @@ func (m *PromptModel) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// Value is what has been typed.
 func (m PromptModel) Value() string { return m.input.Value() }
 
-// matching is the commands whose names start with what has been typed.
 func (m PromptModel) matching() []Command {
 	word, _, _ := strings.Cut(strings.TrimSpace(m.input.Value()), " ")
 	if word == "" {
@@ -92,7 +80,6 @@ func (m PromptModel) matching() []Command {
 	return kept
 }
 
-// Render draws the prompt with the commands that still match under it.
 func (m PromptModel) Render(width, height int) string {
 	w, h := size(promptWidth, promptHeight, width, height)
 

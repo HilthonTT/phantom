@@ -1,11 +1,3 @@
-// Package workspace draws the resource listings that fill the middle of the
-// interface.
-//
-// One listing occupies one tab, and several tabs can be open side by side so
-// that two sections — the rooms in one, the users in another — can be read
-// against each other. This is superfile's several-file-panels idea applied to
-// an admin console: the panels are peers, one of them has the keyboard, and
-// the rest keep their cursors where they were left.
 package workspace
 
 import (
@@ -19,27 +11,19 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/theme"
 )
 
-// MaxTabs is how many listings may be open at once. Past this each is too
-// narrow to show a row without eliding most of it.
 const MaxTabs = 3
 
-// MinTabWidth is the narrowest a tab is drawn at; below it the layout stops
-// opening new ones.
 const MinTabWidth = 34
 
-// Tab is one open listing and where its cursor is.
 type Tab struct {
 	Section resource.Section
 
 	listing resource.Listing
 	cursor  int
 
-	// top is the first row drawn, which trails the cursor as it walks past the
-	// bottom of the panel.
 	top int
 }
 
-// Model is every open tab.
 type Model struct {
 	theme  theme.Theme
 	glyphs theme.Glyphs
@@ -54,7 +38,6 @@ type Model struct {
 	filtering bool
 }
 
-// New opens a single tab on the given section.
 func New(t theme.Theme, g theme.Glyphs, s resource.Section) Model {
 	filter := t.Input(" / ", "filter rows", t.Palette.Surface)
 
@@ -70,31 +53,22 @@ func newTab(s resource.Section) Tab {
 	return Tab{Section: s, listing: sample.Listing(s)}
 }
 
-// SetSize sets the whole workspace's extent, borders included. The tabs split
-// it between them.
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height
 	m.filter.SetWidth(max(m.tabWidth()-10, 4))
 	m.clampScrollAll()
 }
 
-// Tabs is how many listings are open.
 func (m Model) Tabs() int { return len(m.tabs) }
 
-// Active is the index of the tab with the keyboard.
 func (m Model) Active() int { return m.active }
 
-// Section is the section the active tab is showing.
 func (m Model) Section() resource.Section { return m.tabs[m.active].Section }
 
-// Filtering reports whether the filter box has the keyboard.
 func (m Model) Filtering() bool { return m.filtering }
 
-// Rows are the active tab's rows after the filter, in display order.
 func (m Model) Rows() []resource.Row { return m.rowsOf(m.active) }
 
-// rowsOf is tab i's rows. The filter box belongs to the active tab only, so
-// the other tabs always show their full listing.
 func (m Model) rowsOf(i int) []resource.Row {
 	t := m.tabs[i]
 	query := strings.ToLower(strings.TrimSpace(m.filter.Value()))
@@ -112,7 +86,6 @@ func (m Model) rowsOf(i int) []resource.Row {
 	return kept
 }
 
-// Selected is the row under the active tab's cursor, and whether there is one.
 func (m Model) Selected() (resource.Row, bool) {
 	rows := m.Rows()
 	if len(rows) == 0 {
@@ -122,14 +95,11 @@ func (m Model) Selected() (resource.Row, bool) {
 	return rows[min(m.tabs[m.active].cursor, len(rows)-1)], true
 }
 
-// Open replaces the active tab's listing with another section's.
 func (m *Model) Open(s resource.Section) {
 	m.tabs[m.active] = newTab(s)
 	m.clearFilter()
 }
 
-// OpenTab adds a tab beside the others and focuses it, up to [MaxTabs] and as
-// long as the result would still be wide enough to read.
 func (m *Model) OpenTab(s resource.Section) {
 	if len(m.tabs) >= MaxTabs || m.width/(len(m.tabs)+1) < MinTabWidth {
 		return
@@ -141,8 +111,6 @@ func (m *Model) OpenTab(s resource.Section) {
 	m.SetSize(m.width, m.height)
 }
 
-// CloseTab closes the active tab. The last one is never closed: a workspace
-// with no listing in it has nothing to draw and no way back.
 func (m *Model) CloseTab() {
 	if len(m.tabs) == 1 {
 		return
@@ -154,7 +122,6 @@ func (m *Model) CloseTab() {
 	m.SetSize(m.width, m.height)
 }
 
-// NextTab and PrevTab move the keyboard between open tabs, wrapping.
 func (m *Model) NextTab() {
 	m.active = (m.active + 1) % len(m.tabs)
 	m.clearFilter()
@@ -167,8 +134,6 @@ func (m *Model) PrevTab() {
 	m.clampScroll()
 }
 
-// MoveUp, MoveDown, PageUp, PageDown, Top and Bottom walk the active tab's
-// cursor. All of them stop at the ends of the listing.
 func (m *Model) MoveUp()   { m.moveTo(m.tabs[m.active].cursor - 1) }
 func (m *Model) MoveDown() { m.moveTo(m.tabs[m.active].cursor + 1) }
 func (m *Model) PageUp()   { m.moveTo(m.tabs[m.active].cursor - m.rowsPerTab()) }
@@ -182,7 +147,6 @@ func (m *Model) moveTo(i int) {
 	m.clampScroll()
 }
 
-// ToggleMark marks or unmarks the row under the cursor.
 func (m *Model) ToggleMark() {
 	rows := m.tabs[m.active].listing.Rows
 	visible := m.Rows()
@@ -199,7 +163,6 @@ func (m *Model) ToggleMark() {
 	}
 }
 
-// MarkAll marks every row of the active tab, and ClearMarks unmarks them.
 func (m *Model) MarkAll()    { m.setMarks(true) }
 func (m *Model) ClearMarks() { m.setMarks(false) }
 
@@ -210,7 +173,6 @@ func (m *Model) setMarks(marked bool) {
 	}
 }
 
-// marks is how many of a tab's rows are marked.
 func marks(t Tab) int {
 	n := 0
 	for _, r := range t.listing.Rows {
@@ -222,29 +184,23 @@ func marks(t Tab) int {
 	return n
 }
 
-// Reload throws away the active tab's listing and asks for it again. With no
-// homeserver behind it this only resets the cursor, which is what it would do
-// anyway.
 func (m *Model) Reload() {
 	cursor := m.tabs[m.active].cursor
 	m.tabs[m.active] = newTab(m.tabs[m.active].Section)
 	m.moveTo(cursor)
 }
 
-// StartFiltering gives the filter box the keyboard.
 func (m *Model) StartFiltering() tea.Cmd {
 	m.filtering = true
 	return m.filter.Focus()
 }
 
-// StopFiltering takes the keyboard back and empties the box.
 func (m *Model) StopFiltering() {
 	m.clearFilter()
 	m.tabs[m.active].cursor = 0
 	m.tabs[m.active].top = 0
 }
 
-// UpdateFilter feeds a message to the filter box.
 func (m *Model) UpdateFilter(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.filter, cmd = m.filter.Update(msg)
@@ -253,33 +209,20 @@ func (m *Model) UpdateFilter(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// clearFilter empties the box without touching any cursor: the tab being
-// switched to keeps the position it was left at.
 func (m *Model) clearFilter() {
 	m.filtering = false
 	m.filter.Blur()
 	m.filter.SetValue("")
 }
 
-// clampScroll keeps the window of drawn rows over the active tab's cursor.
 func (m *Model) clampScroll() { m.clampScrollAt(m.active) }
 
-// clampScrollAll does the same for every tab, which is what a resize needs.
-// Every tab is on screen at once, so an inactive one whose window was fitted
-// to the old height has to be refitted too: it would otherwise keep a window
-// that no longer matches the panel until the keyboard next reached it.
 func (m *Model) clampScrollAll() {
 	for i := range m.tabs {
 		m.clampScrollAt(i)
 	}
 }
 
-// clampScrollAt keeps tab i's window of drawn rows over its cursor.
-//
-// The last clamp is what handles the panel growing: a window that was scrolled
-// to the bottom of a short panel would otherwise stay there when the terminal
-// is made taller, leaving blank lines under the last row and rows hidden above
-// the first.
 func (m *Model) clampScrollAt(i int) {
 	t := &m.tabs[i]
 	perTab := m.rowsPerTab()
@@ -294,8 +237,6 @@ func (m *Model) clampScrollAt(i int) {
 	t.top = min(max(t.top, 0), max(len(m.rowsOf(i))-perTab, 0))
 }
 
-// sameRow identifies a row by its cells, which is enough while the rows come
-// from a static table.
 func sameRow(a, b resource.Row) bool {
 	return strings.Join(a.Cells, "\x00") == strings.Join(b.Cells, "\x00")
 }

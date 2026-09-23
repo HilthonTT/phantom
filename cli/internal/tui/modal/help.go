@@ -12,17 +12,13 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/theme"
 )
 
-// The help menu's preferred extent, borders included.
 const (
 	helpWidth  = 68
 	helpHeight = 26
 )
 
-// keyColumn is the width the hotkeys are right-aligned in, so the descriptions
-// start on one column however long the keys are.
 const keyColumn = 18
 
-// HelpModel is the searchable list of every binding.
 type HelpModel struct {
 	theme  theme.Theme
 	glyphs theme.Glyphs
@@ -31,14 +27,11 @@ type HelpModel struct {
 	cursor  int
 	top     int
 
-	// The terminal size the menu is drawn in, so the scroll window matches
-	// the number of rows [Render] actually has.
 	width, height int
 
 	search textinput.Model
 }
 
-// NewHelp returns a help menu over the given binding set.
 func NewHelp(t theme.Theme, g theme.Glyphs, k keymap.KeyMap) HelpModel {
 	search := t.Input(" / ", "search the hotkeys", t.Palette.Raised)
 	search.SetWidth(helpWidth - 10)
@@ -46,8 +39,6 @@ func NewHelp(t theme.Theme, g theme.Glyphs, k keymap.KeyMap) HelpModel {
 	return HelpModel{theme: t, glyphs: g, entries: k.Entries(), search: search}
 }
 
-// Focus gives the search box the keyboard, which it holds for as long as the
-// help menu is open.
 func (m *HelpModel) Focus() tea.Cmd {
 	m.top = 0
 	m.search.SetValue("")
@@ -56,24 +47,19 @@ func (m *HelpModel) Focus() tea.Cmd {
 	return m.search.Focus()
 }
 
-// SetSize records the terminal size the menu will be drawn in.
 func (m *HelpModel) SetSize(width, height int) {
 	m.width, m.height = width, height
 	m.moveTo(m.cursor)
 }
 
-// visibleRows is how many entries fit under the search line and the divider.
 func (m HelpModel) visibleRows() int {
 	_, h := size(helpWidth, helpHeight, m.width, m.height)
 
-	// Two border rows, the search line and the divider are not entries.
 	return max(h-4, 1)
 }
 
-// Blur takes the keyboard back.
 func (m *HelpModel) Blur() { m.search.Blur() }
 
-// Update feeds a message to the search box and re-clamps the cursor.
 func (m *HelpModel) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.search, cmd = m.search.Update(msg)
@@ -82,8 +68,6 @@ func (m *HelpModel) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// MoveUp and MoveDown walk the cursor over the matching bindings, skipping the
-// headings between them.
 func (m *HelpModel) MoveUp()   { m.step(-1) }
 func (m *HelpModel) MoveDown() { m.step(+1) }
 
@@ -101,7 +85,6 @@ func (m *HelpModel) moveTo(i int) {
 	entries := m.matching()
 	m.cursor = min(max(i, 0), max(len(entries)-1, 0))
 
-	// Never rest on a heading: slide forward, then back, to a binding.
 	for m.cursor < len(entries) && entries[m.cursor].Heading != "" {
 		m.cursor++
 	}
@@ -122,8 +105,6 @@ func (m *HelpModel) moveTo(i int) {
 	m.top = max(m.top, 0)
 }
 
-// matching is the entries that survive the search, with any heading that would
-// be left with nothing under it dropped.
 func (m HelpModel) matching() []keymap.Entry {
 	query := strings.ToLower(strings.TrimSpace(m.search.Value()))
 	if query == "" {
@@ -144,7 +125,6 @@ func (m HelpModel) matching() []keymap.Entry {
 	return kept
 }
 
-// Render draws the help menu at the size the terminal allows.
 func (m HelpModel) Render(width, height int) string {
 	w, h := size(helpWidth, helpHeight, width, height)
 
@@ -176,8 +156,6 @@ func (m HelpModel) Render(width, height int) string {
 	return p.Render()
 }
 
-// rank is the cursor's position counted in bindings, ignoring headings, which
-// is the number worth printing in the border.
 func (m HelpModel) rank() int {
 	rank := 0
 	for i, e := range m.matching() {
@@ -193,7 +171,6 @@ func (m HelpModel) rank() int {
 	return rank
 }
 
-// entry is one line: a heading, or a right-aligned hotkey and what it does.
 func (m HelpModel) entry(e keymap.Entry, underCursor bool, width int) string {
 	if e.Heading != "" {
 		return m.theme.ModalTitle.Render(" " + e.Heading)

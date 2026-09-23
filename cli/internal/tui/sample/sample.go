@@ -1,9 +1,3 @@
-// Package sample is the placeholder content the interface is drawn with.
-//
-// None of it is real: there is no homeserver behind any of these values, and
-// nothing here reads a config, opens a socket or touches a database. It exists
-// so the layout can be built and looked at before the admin API is written,
-// and it is the one package to delete when that happens.
 package sample
 
 import (
@@ -13,7 +7,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
-// Server is the homeserver the connection box reports on.
 func Server() resource.Server {
 	return resource.Server{
 		Name:    "phantom.chat",
@@ -30,7 +23,6 @@ func Server() resource.Server {
 	}
 }
 
-// Tasks are the long-running operations the task bar draws.
 func Tasks() []resource.Task {
 	return []resource.Task{
 		{
@@ -66,7 +58,6 @@ func Tasks() []resource.Task {
 	}
 }
 
-// Listing is the table for one section.
 func Listing(s resource.Section) resource.Listing {
 	switch s {
 	case resource.Overview:
@@ -77,6 +68,8 @@ func Listing(s resource.Section) resource.Listing {
 		return rooms()
 	case resource.Users:
 		return users()
+	case resource.Tokens:
+		return tokens()
 	case resource.Federation:
 		return federation()
 	case resource.Media:
@@ -131,49 +124,30 @@ func overview() resource.Listing {
 	}
 }
 
-// service is one row of the services listing: the name the runtime registry
-// knows it by, whether the manager runs a worker for it, and a phrase for what
-// it owns.
-//
-// There is no separate worker column, because it would say nothing the state
-// does not: a service the manager runs a worker for is the one that reads as
-// running, and one without a worker is built, answers calls, and is otherwise
-// idle.
 type service struct {
 	name   string
 	worker bool
 
-	// unwired marks a module that implements the service contract but that
-	// `Services::build` does not construct, so nothing can reach it.
 	unwired bool
 
-	// planned marks a service that is designed but not yet written. It has no
-	// module in the tree, so the worker and unwired flags say nothing about it.
 	planned bool
 
 	purpose string
 }
 
-// registry is every service in `phantom-service`, in the order
-// `runtime/services.rs` builds them — which is why the room services sit
-// between `federation` and `server_keys` rather than in a block of their own.
-//
-// Anything not built comes after them, since it has no place in that order:
-// first what is written but unreachable, then what is planned.
-//
-// The planned entries are listed rather than omitted so that the section shows
-// the whole shape of the server. An operator reading it sees that OAuth login
-// exists as an intention and is not running, instead of wondering whether the
-// console simply failed to report it.
 var registry = []service{
 	{name: "resolver", purpose: "a server name turned into an address"},
 	{name: "client", purpose: "the outbound HTTP clients"},
 	{name: "config", worker: true, purpose: "re-reading the config on SIGUSR1"},
+	{name: "storage", worker: true, purpose: "the configured object-storage providers"},
 	{name: "media", worker: true, purpose: "uploads, thumbnails, remote fetches"},
+	{name: "membership", worker: true, purpose: "join, leave, invite, kick, ban, knock"},
 	{name: "moderation", purpose: "which servers this one refuses"},
+	{name: "rendezvous", purpose: "QR-code login (MSC4108)"},
 	{name: "federation", purpose: "one signed request to another server"},
 
 	{name: "rooms::alias", purpose: "the #name:server a room is reached by"},
+	{name: "rooms::delete", purpose: "shutting a room down, purging"},
 	{name: "rooms::directory", purpose: "the public room directory"},
 	{name: "rooms::event_handler", purpose: "what an event another server sent means"},
 	{name: "rooms::short", purpose: "long identifiers mapped to compact ones"},
@@ -198,35 +172,31 @@ var registry = []service{
 	{name: "server_keys", purpose: "signing keys, this server's and others'"},
 	{name: "server_state", purpose: "identity, secrets, the event counter"},
 	{name: "sync", purpose: "parking a /sync until something happens"},
+	{name: "tasks", worker: true, purpose: "long admin operations, polled"},
 	{name: "transaction_id", purpose: "a retry answered with the first response"},
+	{name: "uiaa", purpose: "interactive-auth sessions in progress"},
 	{name: "account_data", purpose: "account data, global and per-room"},
 	{name: "key_backups", purpose: "server-side backups of room keys"},
 	{name: "appservice", worker: true, purpose: "the registered appservices"},
-	{name: "users", purpose: "accounts, devices, keys, profiles"},
+	{name: "users", purpose: "accounts, devices, keys"},
+	{name: "deactivate", purpose: "tearing an account down"},
 	{name: "emergency", worker: true, purpose: "the way back in when admins are locked out"},
 	{name: "presence", worker: true, purpose: "who is online, and for how long"},
+	{name: "profile", purpose: "display name, avatar, and the custom fields"},
 	{name: "pusher", purpose: "push gateways, and what is sent through them"},
 	{name: "sending", worker: true, purpose: "the outbound federation and push queue"},
 	{name: "admin", worker: true, purpose: "the admin room and its commands"},
 	{name: "updates", worker: true, purpose: "the announcement feed"},
 	{name: "sendmail", purpose: "outbound SMTP, when one is configured"},
-	{name: "deactivate", purpose: "tearing an account down"},
+	{name: "oauth", purpose: "OIDC login and OAuth2 (MSC3861)"},
 
-	{name: "uiaa", unwired: true, purpose: "interactive-auth sessions in progress"},
+	{name: "fetcher", unwired: true, purpose: "coalesced federation fetches"},
+	{name: "registration_tokens", unwired: true, purpose: "token-gated registration"},
+	{name: "threepid", unwired: true, purpose: "email and phone bindings"},
 
-	{name: "membership", planned: true, purpose: "join, leave, invite, kick, ban"},
-	{name: "oauth", planned: true, purpose: "OIDC login and OAuth2 (MSC3861)"},
-	{name: "threepid", planned: true, purpose: "email and phone bindings"},
-	{name: "registration_tokens", planned: true, purpose: "token-gated registration"},
-	{name: "rendezvous", planned: true, purpose: "QR-code login (MSC4108)"},
-	{name: "storage", planned: true, purpose: "object storage behind media"},
-	{name: "fetcher", planned: true, purpose: "coalesced federation fetches"},
-	{name: "tasks", planned: true, purpose: "long admin operations, polled"},
 	{name: "migrations", planned: true, purpose: "schema and data migrations"},
-	{name: "rooms::delete", planned: true, purpose: "shutting a room down, purging"},
 }
 
-// state is how the listing reports one service, and the word it prints.
 func (s service) state() (resource.State, string) {
 	switch {
 	case s.planned:
@@ -240,8 +210,6 @@ func (s service) state() (resource.State, string) {
 	}
 }
 
-// area is the half of the tree a service lives in, since the room services are
-// reached as `services.rooms.x` rather than off the top level.
 func (s service) area() string {
 	if strings.HasPrefix(s.name, "rooms::") {
 		return "rooms"
@@ -249,9 +217,6 @@ func (s service) area() string {
 	return "core"
 }
 
-// yesNo answers a question about a module in the tree. A planned service has
-// no module, so the question does not apply to it and the answer is a dash
-// rather than a "no" that would read as a fact about something that exists.
 func (s service) yesNo(b bool) string {
 	switch {
 	case s.planned:
@@ -294,16 +259,13 @@ func services() resource.Listing {
 	}
 }
 
-// serviceCounts is how many services are built, how many the manager runs a
-// worker for, and how many are still to be written. They are counted rather
-// than written down so the overview cannot drift from the listing.
 func serviceCounts() (built, workers, planned int) {
 	for _, svc := range registry {
 		switch {
 		case svc.planned:
 			planned++
 		case svc.unwired:
-			// Written, but nothing constructs it, so it is not built either.
+
 		default:
 			built++
 			if svc.worker {
@@ -401,6 +363,44 @@ func users() resource.Listing {
 			user("@dennis", "no", "active", "6 hours ago", resource.Done),
 			user("@bjarne", "no", "shadowbanned", "9 days ago", resource.Failed),
 			user("@linus", "no", "active", "12 hours ago", resource.Done),
+		},
+	}
+}
+
+func tokens() resource.Listing {
+	token := func(tok, uses, maxUses, expires string, state resource.State) resource.Row {
+		limit := "none"
+		if maxUses != "" {
+			limit = maxUses + " uses"
+		}
+
+		return resource.Row{
+			Cells: []string{tok, uses, limit, expires},
+			State: state,
+			Detail: []resource.Field{
+				{Label: "Token", Value: tok},
+				{Label: "Uses", Value: uses},
+				{Label: "Max uses", Value: limit},
+				{Label: "Expires", Value: expires, Emphasis: state},
+				{Label: "Source", Value: "database"},
+			},
+		}
+	}
+
+	return resource.Listing{
+		Sort: "expiry, soonest first",
+		Columns: []resource.Column{
+			{Title: "Token", Flex: true},
+			{Title: "Uses", Width: 6, Right: true},
+			{Title: "Max uses", Width: 10, Right: true},
+			{Title: "Expires", Width: 20, Right: true},
+		},
+		Rows: []resource.Row{
+			token("kR7fQ2xLmW9sTb4N", "9", "10", "in 3 hours", resource.Held),
+			token("Hp3VzY8cJq1dGe6U", "2", "", "2026-09-26 18:00", resource.Done),
+			token("aN5tBw0XoK4rMi7C", "14", "50", "2026-10-01 00:00", resource.Done),
+			token("Zs2uEj9PfL6yDh3Q", "0", "1", "never", resource.Done),
+			token("qT8gRc1VnA5kWx0S", "37", "", "never", resource.Done),
 		},
 	}
 }
@@ -554,7 +554,7 @@ func logs() resource.Listing {
 		},
 		Rows: []resource.Row{
 			entry("14:11:02", "INFO", "phantom_service", "services startup complete", resource.Done),
-			entry("14:11:02", "DEBUG", "phantom_database", "opened 92 columns", resource.NoState),
+			entry("14:11:02", "DEBUG", "phantom_database", "opened 105 columns", resource.NoState),
 			entry("14:10:58", "WARN", "phantom_service", "well-known for example.org is 14 KiB; ignoring", resource.Held),
 			entry("14:10:57", "INFO", "phantom_service", "resolved matrix.org to 203.0.113.17:8448", resource.NoState),
 			entry("14:10:44", "ERROR", "phantom_service", "federation send to example.org timed out", resource.Failed),

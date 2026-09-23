@@ -7,9 +7,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/theme"
 )
 
-// twoTabs is a workspace of the given size with a second tab open and the
-// first tab scrolled to the end of its listing, which is the state a resize
-// has to cope with.
 func twoTabs(t *testing.T, width, height int) Model {
 	t.Helper()
 
@@ -24,10 +21,6 @@ func twoTabs(t *testing.T, width, height int) Model {
 	return m
 }
 
-// Every tab is on screen at once, so every tab's window has to be refitted
-// when the terminal grows. One left where a shorter panel put it draws its
-// last few rows against a run of blank lines, with the rows above the window
-// unreachable until the keyboard next reaches that tab.
 func TestResizeRefitsEveryTabsWindow(t *testing.T) {
 	m := twoTabs(t, 120, 12)
 
@@ -45,7 +38,6 @@ func TestResizeRefitsEveryTabsWindow(t *testing.T) {
 	}
 }
 
-// Shrinking must not leave a cursor outside the window that is drawn for it.
 func TestResizeKeepsEveryCursorInItsWindow(t *testing.T) {
 	m := twoTabs(t, 120, 40)
 
