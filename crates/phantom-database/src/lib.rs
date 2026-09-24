@@ -1,18 +1,13 @@
 mod codec;
-mod cork;
-mod cursor;
 mod engine;
-mod handle;
-pub mod keyval;
 mod map;
 mod pool;
 mod schema;
-mod txn;
-mod watchers;
+pub mod store;
 
 use std::{ops::Index, sync::Arc};
 
-use phantom_core::{Result, err, server::Server};
+use phantom_core::{Result, err, runtime::server::Server};
 
 pub use self::{
     codec::{
@@ -21,12 +16,14 @@ pub use self::{
             Cbor, Interfix, Json, SEP, Separator, serialize, serialize_to, serialize_to_vec,
         },
     },
-    cork::Cork,
     engine::{Context, Engine, descriptor},
-    handle::{Deserialized, Handle},
-    keyval::{Key, KeyVal, Slice, Val, serialize_key, serialize_val},
     map::{Map, Qry, compact},
-    txn::Txn,
+    store::{
+        cork::Cork,
+        handle::{Deserialized, Handle},
+        keyval::{Key, KeyVal, Slice, Val, serialize_key, serialize_val},
+        txn::Txn,
+    },
 };
 use self::{
     engine::descriptor::Descriptor,

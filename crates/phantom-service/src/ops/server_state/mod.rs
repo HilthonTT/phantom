@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use phantom_core::{Result, bytes::pretty, secret, server::Server};
+use phantom_core::{Result, bytes::pretty, runtime::server::Server, secret};
 use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedUserId, RoomAliasId, ServerName, UserId};
 
 use self::counter::Counter;

@@ -10,11 +10,11 @@ Substantial portions of `crates/phantom-core`, `crates/phantom-database`,
 in places verbatim and in places adapted. The most significant are:
 
   - the configuration layer, including the example-config generator
-    (`phantom-core/src/config/`, `phantom-macros`)
-  - the error type and its construction macros (`phantom-core/src/error/`)
-  - the logging and debug helpers (`phantom-core/src/log/`,
-    `phantom-core/src/debugger.rs`)
-  - the allocator integration (`phantom-core/src/alloc/`)
+    (`phantom-core/src/runtime/config/`, `phantom-macros`)
+  - the error type and its construction macros (`phantom-core/src/diagnostics/error/`)
+  - the logging and debug helpers (`phantom-core/src/diagnostics/log/`,
+    `phantom-core/src/diagnostics/debugger.rs`)
+  - the allocator integration (`phantom-core/src/runtime/alloc/`)
   - assorted shared utilities (`phantom-core/src/result/`, and the
     type-named modules beside it)
   - the database layer (`phantom-database`)

@@ -7,7 +7,7 @@ use hickory_resolver::{
     lookup_ip::LookupIp,
     net::runtime::TokioRuntimeProvider,
 };
-use phantom_core::{Result, config::IpLookupStrategy, err, server::Server};
+use phantom_core::{Result, err, runtime::config::IpLookupStrategy, runtime::server::Server};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
 use super::cache::{Cache, CachedOverride};

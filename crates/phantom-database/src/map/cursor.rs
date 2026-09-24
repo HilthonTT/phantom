@@ -11,8 +11,8 @@ use rocksdb::{DBRawIteratorWithThreadMode, ReadOptions};
 use crate::{
     engine::Db,
     engine::error::{is_incomplete, map_err},
-    keyval::{Key, KeyVal, Slice},
     map::Map,
+    store::keyval::{Key, KeyVal, Slice},
 };
 
 pub(crate) const FORWARD: bool = false;

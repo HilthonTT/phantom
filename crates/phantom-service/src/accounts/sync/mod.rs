@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use phantom_core::{Result, server::Server};
+use phantom_core::{Result, runtime::server::Server};
 use phantom_database::Database;
 use ruma::{OwnedDeviceId, OwnedUserId};
 

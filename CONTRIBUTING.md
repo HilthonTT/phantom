@@ -44,7 +44,7 @@ the way it is, not just what it does. When you change a decision, change the
 comment that explains it.
 
 **Config documentation lives on the struct field**, in
-`crates/phantom-core/src/config/mod.rs`. `phantom-example.toml` is generated
+`crates/phantom-core/src/runtime/config/mod.rs`. `phantom-example.toml` is generated
 from it on every real `cargo build` — commit the regenerated file alongside
 your change, and never edit it directly.
 

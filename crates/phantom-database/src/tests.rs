@@ -7,15 +7,15 @@ use figment::{
 use futures::TryStreamExt;
 use phantom_core::{
     Config, Result,
-    log::{Log, LogLevelReloadHandles, capture},
-    server::Server,
+    diagnostics::log::{Log, LogLevelReloadHandles, capture},
+    runtime::server::Server,
 };
 use tempfile::TempDir;
 
 use crate::{
     Database, Deserialized, Interfix, Txn,
     engine::descriptor::{self, Descriptor},
-    keyval::serialize_key,
+    store::keyval::serialize_key,
 };
 
 static RANDOM: Descriptor = Descriptor {

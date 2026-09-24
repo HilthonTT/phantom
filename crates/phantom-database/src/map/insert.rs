@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::{
     codec::serialize::serialize,
     engine::error::result,
-    keyval::{KeyBuf, ValBuf},
+    store::keyval::{KeyBuf, ValBuf},
 };
 
 #[implement(super::Map)]

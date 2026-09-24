@@ -1,7 +1,7 @@
 use std::{any::Any, fmt::Write, sync::Arc};
 
 use async_trait::async_trait;
-use phantom_core::{Result, server::Server};
+use phantom_core::{Result, runtime::server::Server};
 use phantom_database::Database;
 
 use super::registry::{Dep, Map, require};

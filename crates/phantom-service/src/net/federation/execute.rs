@@ -3,8 +3,8 @@ use std::{fmt::Debug, mem};
 use bytes::Bytes;
 use ipaddress::IPAddress;
 use phantom_core::{
-    Err, Error, Result, debug, debug_error, debug_warn, err, error::inspect_debug_log, http,
-    implement, log::INFO_SPAN_LEVEL, trace,
+    Err, Error, Result, debug, debug_error, debug_warn, diagnostics::error::inspect_debug_log,
+    diagnostics::log::INFO_SPAN_LEVEL, err, http, implement, trace,
 };
 use reqwest::{Client, Method, Request, Response, Url};
 use ruma::{

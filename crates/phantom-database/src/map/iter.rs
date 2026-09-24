@@ -6,9 +6,9 @@ use rocksdb::{Direction, ReadOptions};
 use tokio::task;
 
 use crate::{
-    cursor::{Cursor, Fetch, State},
-    keyval::{Key, KeyVal},
+    map::cursor::{Cursor, Fetch, State},
     pool::{self, Seek},
+    store::keyval::{Key, KeyVal},
 };
 
 #[implement(super::Map)]

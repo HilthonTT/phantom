@@ -3,7 +3,7 @@ use tracing::Level;
 #[macro_export]
 macro_rules! debug_event {
     ( $level:expr, $($x:tt)+ ) => {
-        if $crate::log::debug::logging() {
+        if $crate::diagnostics::log::debug::logging() {
             $crate::tracing::event!( $level, _debug = true, $($x)+ )
         } else {
             $crate::tracing::debug!( $($x)+ )

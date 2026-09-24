@@ -11,7 +11,7 @@ use std::{
 use async_trait::async_trait;
 use phantom_core::{
     Result, debug, err, error, implement, info, matrix::pdu::PduEvent, result::LogErr,
-    server::Server,
+    runtime::server::Server,
 };
 use ruma::{
     OwnedEventId, OwnedRoomId, RoomId, UserId, events::room::message::RoomMessageEventContent,

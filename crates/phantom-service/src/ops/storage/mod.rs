@@ -7,9 +7,8 @@ use derive_more::Debug;
 use futures::TryStreamExt;
 pub use object_store::{CopyMode, GetResult, GetResultPayload, PutPayload, PutResult};
 use phantom_core::{
-    Result, at,
-    config::{StorageProvider, StorageProviderLocal},
-    err, implement,
+    Result, at, err, implement,
+    runtime::config::{StorageProvider, StorageProviderLocal},
     stream::IterStream,
 };
 

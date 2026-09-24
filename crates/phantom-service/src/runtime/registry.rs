@@ -5,7 +5,9 @@ use std::{
     sync::{Arc, OnceLock, RwLock, Weak},
 };
 
-use phantom_core::{Err, Result, err, error::inspect_log, text::SplitInfallible, trace};
+use phantom_core::{
+    Err, Result, diagnostics::error::inspect_log, err, text::SplitInfallible, trace,
+};
 
 use super::contract::Service;
 

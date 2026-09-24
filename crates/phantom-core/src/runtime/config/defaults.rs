@@ -329,13 +329,13 @@ pub(super) fn default_dns_timeout() -> u64 {
 
 pub(super) fn parallelism_scaled_f64(val: f64) -> f64 {
     #[allow(clippy::as_conversions, clippy::cast_precision_loss)]
-    let cores = crate::sys::compute::available_parallelism() as f64;
+    let cores = crate::runtime::sys::compute::available_parallelism() as f64;
 
     val * cores
 }
 
 pub(super) fn parallelism_scaled_u32(val: u32) -> u32 {
-    let cores = crate::sys::compute::available_parallelism();
+    let cores = crate::runtime::sys::compute::available_parallelism();
 
     usize::try_from(val)
         .map(|val| val.saturating_mul(cores))

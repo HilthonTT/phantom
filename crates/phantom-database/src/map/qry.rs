@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 use phantom_core::{Result, implement};
 use serde::Serialize;
 
-use crate::{Handle, codec::serialize::serialize, keyval::KeyBuf};
+use crate::{Handle, codec::serialize::serialize, store::keyval::KeyBuf};
 
 #[implement(super::Map)]
 #[inline]

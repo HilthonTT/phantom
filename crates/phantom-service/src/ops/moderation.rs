@@ -1,6 +1,6 @@
 use std::{fmt::Display, sync::Arc};
 
-use phantom_core::{Result, implement, server::Server};
+use phantom_core::{Result, implement, runtime::server::Server};
 use regex::RegexSet;
 use ruma::ServerName;
 

@@ -48,7 +48,7 @@ pub(crate) fn flags_capture(args: TokenStream) -> TokenStream {
 
         #[phantom_core::ctor(unsafe)]
         fn _set_rustc_flags() {
-            phantom_core::info::rustc::FLAGS
+            phantom_core::diagnostics::info::rustc::FLAGS
                 .lock()
                 .expect("the rustc flag registry is never held across a panic")
                 .insert(#crate_name, &RUSTC_FLAGS);

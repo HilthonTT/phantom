@@ -2,7 +2,7 @@ use tracing::Level;
 use tracing_core::{Event, span::Current};
 
 use super::{Layer, layer::Value};
-use crate::{info, text::EMPTY};
+use crate::{diagnostics::info, text::EMPTY};
 
 #[derive(Clone, Copy)]
 pub struct Data<'a> {

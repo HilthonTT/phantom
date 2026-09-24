@@ -8,7 +8,7 @@ use phantom_core::Result;
 use rocksdb::DBPinnableSlice;
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::keyval::{Slice, deserialize_val};
+use crate::store::keyval::{Slice, deserialize_val};
 
 pub struct Handle<'a> {
     val: DBPinnableSlice<'a>,

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::EnvFilter;
-use crate::{error, server::Server};
+use crate::{error, runtime::server::Server};
 
 const HANDLE: &str = "console";
 

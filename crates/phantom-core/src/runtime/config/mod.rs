@@ -38,7 +38,7 @@ pub use self::{
     storage::{StorageProvider, StorageProviderLocal, StorageProviderS3},
     validate::validate,
 };
-use crate::{Result, err, log::fmt_span};
+use crate::{Result, diagnostics::log::fmt_span, err};
 
 #[derive(Clone, Debug, Deserialize)]
 #[config_example_generator(

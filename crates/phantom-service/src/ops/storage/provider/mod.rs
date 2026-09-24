@@ -14,7 +14,7 @@ use bytes::Bytes;
 use derive_more::Debug;
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use object_store::{Attributes, DynObjectStore, ObjectMeta, path::Path, signer::Signer};
-use phantom_core::{Result, config::StorageProvider, debug, error, implement, info};
+use phantom_core::{Result, debug, error, implement, info, runtime::config::StorageProvider};
 
 #[derive(Debug)]
 pub struct Provider {

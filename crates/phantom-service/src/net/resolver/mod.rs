@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use arrayvec::ArrayString;
 use async_trait::async_trait;
-use phantom_core::{Result, server::Server, sync::MutexMap};
+use phantom_core::{Result, runtime::server::Server, sync::MutexMap};
 
 use self::{cache::Cache, dns::Resolver};
 use crate::{Dep, net::client};

@@ -9,7 +9,10 @@ use std::{
 use ruma::OwnedServerName;
 use tokio::{runtime, sync::broadcast};
 
-use crate::{Err, Result, config, config::Config, log::Log, metrics::Metrics};
+use crate::{
+    Err, Result, diagnostics::log::Log, runtime::config, runtime::config::Config,
+    runtime::metrics::Metrics,
+};
 
 pub struct Server {
     pub name: OwnedServerName,
@@ -160,7 +163,7 @@ mod tests {
     use figment::providers::{Format, Toml};
 
     use super::*;
-    use crate::log::{LogLevelReloadHandles, capture};
+    use crate::diagnostics::log::{LogLevelReloadHandles, capture};
 
     fn server() -> Arc<Server> {
         let toml = r#"

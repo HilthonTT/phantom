@@ -63,17 +63,26 @@ during the former — so `cargo check` and rust-analyzer leave the file alone.
 
 ### `phantom-core`
 
-Everything the rest of the workspace shares. The module layout is deliberately
-flat: a module is named for its subject, and a module full of extension traits
-is named for the type it extends. There is no `utils` — a helper that fits
-nowhere is treated as a sign the subject it belongs to has not been named yet.
+Everything the rest of the workspace shares. A module is named for its subject,
+and a module full of extension traits is named for the type it extends. There
+is no `utils` — a helper that fits nowhere is treated as a sign the subject it
+belongs to has not been named yet.
+
+Modules that share a subject are grouped into a folder named for it. The
+type-named modules are not: grouping them would only recreate `utils` under
+another name, so they stay flat at the crate root.
 
 | Area | Modules |
 | :--- | :--- |
-| The server itself | `server` (the runtime handle), `config` (what an operator set it up with), `alloc`, `metrics`, `sys` |
-| Diagnostics | `error`, `result`, `log`, `debugger`, `info` |
-| The protocol | `matrix` — events, PDUs, and state resolution |
-| Language-level support | `arrayvec`, `bool`, `bytes`, `future`, `hash`, `json`, `macros`, `math`, `rand`, `set`, `stream`, `sync`, `text`, `time` |
+| `runtime/` — the server itself | `server` (the runtime handle), `config` (what an operator set it up with), `alloc`, `metrics`, `sys` |
+| `diagnostics/` — reporting | `error`, `log`, `debugger`, `info` |
+| `matrix/` — the protocol | events, PDUs, and state resolution |
+| Language-level support, at the root | `arrayvec`, `bool`, `bytes`, `future`, `hash`, `json`, `macros`, `math`, `rand`, `result`, `set`, `stream`, `sync`, `text`, `time` |
+
+`Config`, `Error` and `Result` are re-exported at the crate root, and the
+logging and error macros (`err!`, `error!`, `info!`, …) are exported there by
+`#[macro_export]`. Only module paths carry the folder:
+`phantom_core::runtime::server::Server`.
 
 Two things in here are load-bearing for everything above them.
 
@@ -101,7 +110,11 @@ It is built in layers:
 - **`Map`** — one column, and where nearly all work above this crate happens.
   The typed surface is split across submodules by what it does (`get`,
   `insert`, `iter`, `keys`, `stream`, `count`, `contains`, `clear`, `compact`)
-  and lands on `Map` as one flat set of methods.
+  and lands on `Map` as one flat set of methods. `map/` also holds the raw
+  `cursor` iteration is built on and the `watchers` a write wakes.
+- **`store/`** — the shapes data takes on its way through a map: the `keyval`
+  key and value types, the `Handle` a read returns, and batched (`Cork`) and
+  transactional (`Txn`) writes.
 - **`Database`** — the engine plus every column open on it, and what a server
   hands around. `schema.rs` names all 88 columns; a test asserts the list stays
   alphabetical and free of duplicates.

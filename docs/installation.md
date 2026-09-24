@@ -114,7 +114,7 @@ against — `.vscode/settings.json` is set up for it, and it is the configuratio
 where the allocator features described below actually do something.
 
 A native MSVC build is possible, but `jemalloc` and `hardened_malloc` are C
-libraries with no MSVC support: `crates/phantom-core/src/alloc` gates them on
+libraries with no MSVC support: `crates/phantom-core/src/runtime/alloc` gates them on
 `cfg(not(target_env = "msvc"))`, so on MSVC those features stay selectable and
 resolve to nothing. You get the system allocator whether you ask for one or
 not.

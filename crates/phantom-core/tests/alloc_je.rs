@@ -1,6 +1,6 @@
 #![cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 
-use phantom_core::alloc::je::this_thread;
+use phantom_core::runtime::alloc::je::this_thread;
 
 #[test]
 fn allocated_and_deallocated_are_distinct_counters() {
@@ -32,14 +32,14 @@ fn allocated_and_deallocated_are_distinct_counters() {
 
 #[test]
 fn epoch_and_arena_queries_round_trip() {
-    assert!(phantom_core::alloc::je::acq_epoch().is_ok());
-    assert!(phantom_core::alloc::je::arenas().unwrap() > 0);
+    assert!(phantom_core::runtime::alloc::je::acq_epoch().is_ok());
+    assert!(phantom_core::runtime::alloc::je::arenas().unwrap() > 0);
     assert!(this_thread::arena_id().is_ok());
 }
 
 #[test]
 fn memory_stats_is_returned_and_bounded() {
-    let stats = phantom_core::alloc::je::memory_stats("").expect("stats");
+    let stats = phantom_core::runtime::alloc::je::memory_stats("").expect("stats");
     assert!(stats.contains("jemalloc"), "unexpected stats payload");
     assert!(stats.len() <= 1_048_576);
 }

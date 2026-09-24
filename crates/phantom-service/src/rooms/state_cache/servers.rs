@@ -50,7 +50,7 @@ impl Service {
         self.db
             .roomid_inviteviaservers
             .raw_stream_prefix(room_id.as_bytes())
-            .map(phantom_database::keyval::result_deserialize::<Ignore, Vec<&str>>)
+            .map(phantom_database::store::keyval::result_deserialize::<Ignore, Vec<&str>>)
             .ignore_err()
             .map(|(_, servers): KeyVal<'_>| servers)
             .flat_map(|servers| {

@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::future::try_join;
-use phantom_core::{Result, debug, implement, server::Server, time, trace};
+use phantom_core::{Result, debug, implement, runtime::server::Server, time, trace};
 use ruma::{
     OwnedRoomId, OwnedUserId, RoomId, UserId,
     api::{

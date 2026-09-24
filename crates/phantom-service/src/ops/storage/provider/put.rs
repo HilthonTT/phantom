@@ -6,8 +6,8 @@ use bytes::Bytes;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use object_store::{MultipartUpload, ObjectStoreExt, PutPayload, PutResult};
 use phantom_core::{
-    Error, Result, config::StorageProvider, debug, error, extract_variant, implement,
-    result::FlatOk, stream::IterStream,
+    Error, Result, debug, error, extract_variant, implement, result::FlatOk,
+    runtime::config::StorageProvider, stream::IterStream,
 };
 
 use super::Provider;

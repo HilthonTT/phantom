@@ -170,7 +170,7 @@ Run `just check` before opening one. Beyond that:
   in `NOTICE` if it is a substantial subsystem.
 - The workspace lints `unsafe_code = "warn"`. What `unsafe` there is sits where
   the workspace touches C: the allocator integration, the `gdb` trap in
-  `debugger.rs`, the CPU queries in `sys/compute.rs`, and a handful of pointer
+  `diagnostics/debugger.rs`, the CPU queries in `runtime/sys/compute.rs`, and a handful of pointer
   moves in the config manager and the database pool. There are no `unsafe
   impl`s — `runtime/registry.rs` carries a comment explaining why `Dep` is
   `Sync` by inference and what the answer is if the compiler ever cannot prove

@@ -4,12 +4,12 @@ use phantom_core::{
     debug, debug_info, is_equal_to,
     math::usize_from_f64,
     result::LogDebugErr,
-    server::Server,
-    stream::{self, AMPLIFICATION_LIMIT, WIDTH_LIMIT},
-    sys::{
+    runtime::server::Server,
+    runtime::sys::{
         compute::is_core_available,
         storage::{self, Parallelism},
     },
+    stream::{self, AMPLIFICATION_LIMIT, WIDTH_LIMIT},
 };
 
 use super::{QUEUE_LIMIT, WORKER_LIMIT};
@@ -148,7 +148,7 @@ fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: u
 
 #[cfg(test)]
 mod tests {
-    use phantom_core::sys::storage::Queue;
+    use phantom_core::runtime::sys::storage::Queue;
 
     use super::*;
 

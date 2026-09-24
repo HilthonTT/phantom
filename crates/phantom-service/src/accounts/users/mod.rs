@@ -8,7 +8,7 @@ use std::{collections::BTreeMap, mem, sync::Arc};
 use futures::{Stream, StreamExt, TryFutureExt};
 use phantom_core::{
     Err, Error, Result, at, bytes, debug_warn, err, hash, rand,
-    server::Server,
+    runtime::server::Server,
     stream::{ReadyExt, TryIgnore},
     text::{self, Unquoted},
     time, trace,

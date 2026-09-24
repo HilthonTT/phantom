@@ -6,7 +6,7 @@ use phantom_core::{
 };
 use serde::Serialize;
 
-use crate::keyval::serialize_key;
+use crate::store::keyval::serialize_key;
 
 #[implement(super::Map)]
 #[tracing::instrument(level = "trace", skip(self))]

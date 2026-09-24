@@ -7,7 +7,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use phantom_core::{
-    Result, server::Server, time::exponential_backoff::exponential_backoff_streak_cap,
+    Result, runtime::server::Server, time::exponential_backoff::exponential_backoff_streak_cap,
 };
 use phantom_database::Map;
 

@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use futures::{Stream, StreamExt, TryFutureExt, stream::FuturesUnordered};
 use phantom_core::{
-    Result, checked, debug, debug_warn, err, result::LogErr, server::Server, trace,
+    Result, checked, debug, debug_warn, err, result::LogErr, runtime::server::Server, trace,
 };
 use phantom_database::Database;
 use ruma::{OwnedUserId, UInt, UserId, events::presence::PresenceEvent, presence::PresenceState};

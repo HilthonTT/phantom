@@ -8,7 +8,8 @@ use bytes::{Bytes, BytesMut};
 use either::Either;
 use ipaddress::IPAddress;
 use phantom_core::{
-    Config, Err, Result, config::proxy::ProxyConfig, debug, err, implement, info::user_agent, trace,
+    Config, Err, Result, debug, diagnostics::info::user_agent, err, implement,
+    runtime::config::proxy::ProxyConfig, trace,
 };
 use reqwest::{Url, redirect};
 

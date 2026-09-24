@@ -92,7 +92,7 @@ pub fn val<K, V>(kv: KeyVal<'_, K, V>) -> Val<'_, V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Interfix, keyval::*};
+    use crate::{Interfix, store::keyval::*};
 
     #[test]
     fn a_short_key_stays_on_the_stack() {

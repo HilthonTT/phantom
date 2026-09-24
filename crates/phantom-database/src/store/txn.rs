@@ -7,8 +7,8 @@ use serde::Serialize;
 use crate::{
     Engine, Map,
     engine::error::result,
-    keyval::{serialize_key, serialize_val},
     map::write_options_default,
+    store::keyval::{serialize_key, serialize_val},
 };
 
 #[must_use = "a transaction does nothing until execute() is called"]

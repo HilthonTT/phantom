@@ -1,6 +1,6 @@
 use std::cmp;
 
-use phantom_core::{Config, Result, math, sys::compute::available_parallelism};
+use phantom_core::{Config, Result, math, runtime::sys::compute::available_parallelism};
 use rocksdb::{Cache, DBRecoveryMode, Env, LogLevel, Options, statistics::StatsLevel};
 
 use super::column_options::cache_size_f64;

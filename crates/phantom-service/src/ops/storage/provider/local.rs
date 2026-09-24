@@ -2,9 +2,9 @@ use std::{fs, sync::Arc};
 
 use object_store::local::LocalFileSystem;
 use phantom_core::{
-    Result,
-    config::{StorageProvider, StorageProviderLocal},
-    debug, debug_info, error, trace,
+    Result, debug, debug_info, error,
+    runtime::config::{StorageProvider, StorageProviderLocal},
+    trace,
 };
 
 use super::Provider;

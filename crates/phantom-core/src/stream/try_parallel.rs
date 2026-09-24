@@ -2,7 +2,7 @@ use futures::{TryFutureExt, stream::TryStream};
 use tokio::{runtime, task::JoinError};
 
 use super::TryBroadbandExt;
-use crate::{Error, Result, sys::compute::available_parallelism};
+use crate::{Error, Result, runtime::sys::compute::available_parallelism};
 
 pub trait TryParallelExt<T, E>
 where

@@ -10,7 +10,7 @@ use phantom_core::{
     set,
     stream::{IterStream, ReadyExt, TryIgnore, WidebandExt},
 };
-use phantom_database::{Map, SEP, keyval::Val};
+use phantom_database::{Map, SEP, store::keyval::Val};
 use ruma::{RoomId, UserId, api::client::search::search_events::v3::Criteria};
 
 use crate::{

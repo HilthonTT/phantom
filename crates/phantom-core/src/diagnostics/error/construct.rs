@@ -9,7 +9,7 @@ macro_rules! Err {
 macro_rules! err {
 	(Request(Forbidden($level:ident!($($args:tt)+)))) => {{
 		let mut buf = String::new();
-		$crate::error::Error::Request(
+		$crate::diagnostics::error::Error::Request(
 			$crate::ruma::api::error::ErrorKind::Forbidden,
 			$crate::err_log!(buf, $level, $($args)+),
 			$crate::http::StatusCode::BAD_REQUEST
@@ -17,7 +17,7 @@ macro_rules! err {
 	}};
 
 	(Request(Forbidden($($args:tt)+))) => {
-		$crate::error::Error::Request(
+		$crate::diagnostics::error::Error::Request(
 			$crate::ruma::api::error::ErrorKind::Forbidden,
 			$crate::format_maybe!($($args)+),
 			$crate::http::StatusCode::BAD_REQUEST
@@ -26,7 +26,7 @@ macro_rules! err {
 
 	(Request($variant:ident($level:ident!($($args:tt)+)))) => {{
 		let mut buf = String::new();
-		$crate::error::Error::Request(
+		$crate::diagnostics::error::Error::Request(
 			$crate::ruma::api::error::ErrorKind::$variant,
 			$crate::err_log!(buf, $level, $($args)+),
 			$crate::http::StatusCode::BAD_REQUEST
@@ -34,7 +34,7 @@ macro_rules! err {
 	}};
 
 	(Request($variant:ident($($args:tt)+))) => {
-		$crate::error::Error::Request(
+		$crate::diagnostics::error::Error::Request(
 			$crate::ruma::api::error::ErrorKind::$variant,
 			$crate::format_maybe!($($args)+),
 			$crate::http::StatusCode::BAD_REQUEST
@@ -43,7 +43,7 @@ macro_rules! err {
 
 	(Config($item:literal, $fmt:literal $(, $($arg:tt)+)?)) => {{
 		let mut buf = String::new();
-		$crate::error::Error::Config($item, $crate::err_log!(
+		$crate::diagnostics::error::Error::Config($item, $crate::err_log!(
 			buf,
 			error,
 			message = ::std::format_args!($fmt $(, $($arg)+)?)
@@ -52,24 +52,24 @@ macro_rules! err {
 
 	($variant:ident($level:ident!($($args:tt)+))) => {{
 		let mut buf = String::new();
-		$crate::error::Error::$variant($crate::err_log!(buf, $level, $($args)+))
+		$crate::diagnostics::error::Error::$variant($crate::err_log!(buf, $level, $($args)+))
 	}};
 
 	($variant:ident($($args:ident),+)) => {
-		$crate::error::Error::$variant($($args),+)
+		$crate::diagnostics::error::Error::$variant($($args),+)
 	};
 
 	($variant:ident($($args:tt)+)) => {
-		$crate::error::Error::$variant($crate::format_maybe!($($args)+))
+		$crate::diagnostics::error::Error::$variant($crate::format_maybe!($($args)+))
 	};
 
 	($level:ident!($($args:tt)+)) => {{
 		let mut buf = String::new();
-		$crate::error::Error::Err($crate::err_log!(buf, $level, $($args)+))
+		$crate::diagnostics::error::Error::Err($crate::err_log!(buf, $level, $($args)+))
 	}};
 
 	($($args:tt)+) => {
-		$crate::error::Error::Err($crate::format_maybe!($($args)+))
+		$crate::diagnostics::error::Error::Err($crate::format_maybe!($($args)+))
 	};
 }
 
@@ -103,7 +103,7 @@ macro_rules! err_log {
 			fields: $($fields)+,
 		};
 
-		($crate::error::visit)(&mut $out, LEVEL, &__CALLSITE, &mut valueset!(__CALLSITE.metadata().fields(), $($fields)+));
+		($crate::diagnostics::error::visit)(&mut $out, LEVEL, &__CALLSITE, &mut valueset!(__CALLSITE.metadata().fields(), $($fields)+));
 		($out).into()
 	}}
 }
@@ -112,7 +112,7 @@ macro_rules! err_log {
 #[collapse_debuginfo(yes)]
 macro_rules! err_lev {
     (debug_warn) => {
-        if $crate::log::debug::logging() {
+        if $crate::diagnostics::log::debug::logging() {
             $crate::tracing::Level::WARN
         } else {
             $crate::tracing::Level::DEBUG
@@ -120,7 +120,7 @@ macro_rules! err_lev {
     };
 
     (debug_error) => {
-        if $crate::log::debug::logging() {
+        if $crate::diagnostics::log::debug::logging() {
             $crate::tracing::Level::ERROR
         } else {
             $crate::tracing::Level::DEBUG

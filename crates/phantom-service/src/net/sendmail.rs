@@ -88,7 +88,7 @@ pub fn check_address(&self, to: &str) -> Result<()> {
         .map_err(|_| err!(Request(InvalidParam("Email address is malformed"))))
 }
 
-fn build_transport(config: &phantom_core::config::SmtpConfig) -> Result<Transport> {
+fn build_transport(config: &phantom_core::runtime::config::SmtpConfig) -> Result<Transport> {
     let uri = config.connection_uri.as_deref().ok_or_else(|| {
         err!(Config(
             "smtp.connection_uri",

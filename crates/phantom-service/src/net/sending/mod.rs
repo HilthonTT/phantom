@@ -16,7 +16,7 @@ use phantom_core::{
     Result, err,
     math::usize_from_u64_truncated,
     result::LogErr,
-    server::Server,
+    runtime::server::Server,
     stream::{IterStream, ReadyExt},
 };
 use ruma::{RoomId, ServerName, UserId};
@@ -414,7 +414,7 @@ fn num_senders(args: &crate::Args<'_>) -> usize {
         .server
         .metrics
         .num_workers()
-        .min(phantom_core::sys::compute::available_parallelism())
+        .min(phantom_core::runtime::sys::compute::available_parallelism())
         .max(MIN_SENDERS);
 
     args.server

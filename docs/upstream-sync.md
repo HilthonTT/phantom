@@ -11,10 +11,10 @@ The parts adapted most directly, and where they now live:
 
 | Upstream area | In phantom |
 | :--- | :--- |
-| the configuration layer and its example generator | `phantom-core/src/config/`, `phantom-macros` |
-| the error type and its construction macros | `phantom-core/src/error/` |
-| logging and debug helpers | `phantom-core/src/log/`, `debugger.rs` |
-| allocator integration | `phantom-core/src/alloc/` |
+| the configuration layer and its example generator | `phantom-core/src/runtime/config/`, `phantom-macros` |
+| the error type and its construction macros | `phantom-core/src/diagnostics/error/` |
+| logging and debug helpers | `phantom-core/src/diagnostics/log/`, `diagnostics/debugger.rs` |
+| allocator integration | `phantom-core/src/runtime/alloc/` |
 | shared utilities | `phantom-core/src/result/`, and the type-named modules beside it |
 | the database layer | `phantom-database` |
 

@@ -14,15 +14,15 @@ use futures::{TryFutureExt, channel::oneshot};
 use phantom_core::{
     Error, Result, debug, err, error, implement,
     result::DebugInspect,
-    server::Server,
-    sys::compute::{get_affinity, nth_core_available, set_affinity},
+    runtime::server::Server,
+    runtime::sys::compute::{get_affinity, nth_core_available, set_affinity},
     trace,
 };
 use rocksdb::Direction;
 use smallvec::SmallVec;
 
 use self::configure::configure;
-use crate::{Handle, cursor, keyval::KeyBuf, map::Map};
+use crate::{Handle, map::Map, map::cursor, store::keyval::KeyBuf};
 
 pub(crate) struct Pool {
     server: Arc<Server>,
@@ -251,10 +251,10 @@ fn worker_init(&self, id: usize) {
     set_affinity(affinity.clone());
 
     #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
-    if affinity.clone().count() == 1 && phantom_core::alloc::je::is_affine_arena() {
+    if affinity.clone().count() == 1 && phantom_core::runtime::alloc::je::is_affine_arena() {
         use phantom_core::{
-            alloc::je::this_thread::{arena_id, set_arena},
             result::LogDebugErr,
+            runtime::alloc::je::this_thread::{arena_id, set_arena},
         };
 
         let id = affinity.clone().next().expect("exactly one core");

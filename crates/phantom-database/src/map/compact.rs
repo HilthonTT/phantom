@@ -1,7 +1,7 @@
 use phantom_core::{Err, Result, implement};
 use rocksdb::{BottommostLevelCompaction, CompactOptions};
 
-use crate::keyval::KeyBuf;
+use crate::store::keyval::KeyBuf;
 
 #[derive(Clone, Debug, Default)]
 pub struct Options {

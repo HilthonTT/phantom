@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-pub use phantom_core::config::IdentityProvider as Provider;
+pub use phantom_core::runtime::config::IdentityProvider as Provider;
 use phantom_core::{Err, Result, debug, err, implement};
 use serde_json::{Map as JsonObject, Value as JsonValue};
 use tokio::sync::RwLock;

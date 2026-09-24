@@ -7,7 +7,7 @@ use phantom_core::{
 };
 use serde::Serialize;
 
-use crate::{Handle, codec::serialize::serialize_to, keyval::KeyBuf, pool};
+use crate::{Handle, codec::serialize::serialize_to, pool, store::keyval::KeyBuf};
 
 pub trait Qry<'a, K, S>
 where

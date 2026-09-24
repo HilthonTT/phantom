@@ -8,7 +8,7 @@ use std::{collections::BTreeMap, fmt::Write, sync::Arc};
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use phantom_core::{Err, Result, err, implement, server::Server, stream::ReadyExt, warn};
+use phantom_core::{Err, Result, err, implement, runtime::server::Server, stream::ReadyExt, warn};
 use phantom_database::{Json, Map};
 use ruma::{
     RoomAliasId, RoomId, ServerName, UserId,

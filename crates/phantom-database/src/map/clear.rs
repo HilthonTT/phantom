@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::{Stream, StreamExt};
 use phantom_core::{Result, implement, stream::TryReadyExt};
 
-use crate::keyval::Key;
+use crate::store::keyval::Key;
 
 #[implement(super::Map)]
 #[tracing::instrument(level = "trace", fields(%self))]

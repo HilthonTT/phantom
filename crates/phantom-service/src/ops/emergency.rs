@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use phantom_core::{Result, error, implement, server::Server, warn};
+use phantom_core::{Result, error, implement, runtime::server::Server, warn};
 use ruma::{
     events::{
         GlobalAccountDataEvent, GlobalAccountDataEventType, push_rules::PushRulesEventContent,

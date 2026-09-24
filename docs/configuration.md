@@ -8,7 +8,7 @@ to do when you want to add an option.
 **`phantom-example.toml` is generated. Do not edit it.**
 
 It is written to the repository root on every real `cargo build`, derived from
-the `Config` struct in `crates/phantom-core/src/config/mod.rs` by the
+the `Config` struct in `crates/phantom-core/src/runtime/config/mod.rs` by the
 `#[config_example_generator]` proc macro. Each field's doc comment becomes that
 option's documentation, and its `#[serde(default = "…")]` becomes the value
 shown. Anything you write into the file directly is lost on the next build.
@@ -100,7 +100,7 @@ a `Type=notify` unit does not treat the reload as finished before it is.
 
 ## Adding or documenting an option
 
-Everything happens in `crates/phantom-core/src/config/mod.rs`.
+Everything happens in `crates/phantom-core/src/runtime/config/mod.rs`.
 
 ```rust
 /// What this option does, in the words an operator should read.

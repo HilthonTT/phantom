@@ -2,6 +2,7 @@ mod clear;
 pub mod compact;
 mod contains;
 mod count;
+pub(crate) mod cursor;
 mod del_prefix;
 mod get;
 mod insert;
@@ -11,6 +12,7 @@ mod open;
 mod qry;
 mod qry_batch;
 mod stream;
+pub(crate) mod watchers;
 
 pub use self::qry_batch::Qry;
 
@@ -24,7 +26,7 @@ use std::{
 use phantom_core::Result;
 use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, ReadTier, WriteOptions};
 
-use crate::{Engine, watchers::Watchers};
+use crate::{Engine, map::watchers::Watchers};
 
 pub struct Map {
     name: &'static str,

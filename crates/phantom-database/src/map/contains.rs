@@ -5,7 +5,7 @@ use futures::FutureExt;
 use phantom_core::{Result, err, future::TryExt, implement, result::FlatOk};
 use serde::Serialize;
 
-use crate::{codec::serialize::serialize, keyval::KeyBuf};
+use crate::{codec::serialize::serialize, store::keyval::KeyBuf};
 
 #[implement(super::Map)]
 #[inline]

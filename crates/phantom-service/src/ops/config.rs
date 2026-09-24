@@ -2,10 +2,9 @@ use std::{iter, ops::Deref, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use phantom_core::{
-    Result,
-    config::{Config, validate},
-    error, implement,
-    server::Server,
+    Result, error, implement,
+    runtime::config::{Config, validate},
+    runtime::server::Server,
 };
 
 pub struct Service {

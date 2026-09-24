@@ -5,8 +5,8 @@ use phantom_core::implement;
 use serde::Serialize;
 
 use crate::{
-    cursor::FORWARD,
-    keyval::{Key, serialize_key},
+    map::cursor::FORWARD,
+    store::keyval::{Key, serialize_key},
 };
 
 #[implement(super::Map)]

@@ -101,7 +101,7 @@ rather than rejected, so a typo is visible instead of silent.
 > build` rewrites it from the `Config` struct via the
 > `#[config_example_generator]` proc macro, turning each field's doc comment
 > into that option's documentation. To add or document an option, edit
-> `crates/phantom-core/src/config/mod.rs`.
+> `crates/phantom-core/src/runtime/config/mod.rs`.
 
 [docs/configuration.md](docs/configuration.md) covers the doc-comment directives
 (`default:`, `display: hidden`, `display: sensitive`) and what validation

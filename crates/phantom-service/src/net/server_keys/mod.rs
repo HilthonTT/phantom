@@ -10,7 +10,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use futures::StreamExt;
 use phantom_core::{
-    Err, Result, implement, server::Server, stream::IterStream, time::timepoint_from_now,
+    Err, Result, implement, runtime::server::Server, stream::IterStream, time::timepoint_from_now,
 };
 use phantom_database::{Deserialized, Json, Map};
 use ruma::{

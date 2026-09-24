@@ -3,10 +3,10 @@ use std::{sync::Arc, time::Duration};
 pub use object_store::{GetResult, GetResultPayload, PutPayload, PutResult};
 use object_store::{aws::AmazonS3Builder, client::ClientOptions, signer::Signer};
 use phantom_core::{
-    Result,
-    config::{StorageProvider, StorageProviderS3},
-    debug, debug_info, error,
-    info::user_agent,
+    Result, debug, debug_info,
+    diagnostics::info::user_agent,
+    error,
+    runtime::config::{StorageProvider, StorageProviderS3},
     trace,
 };
 
