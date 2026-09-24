@@ -191,7 +191,7 @@ var registry = []service{
 	{name: "oauth", purpose: "OIDC login and OAuth2 (MSC3861)"},
 
 	{name: "fetcher", unwired: true, purpose: "coalesced federation fetches"},
-	{name: "registration_tokens", unwired: true, purpose: "token-gated registration"},
+	{name: "registration_tokens", purpose: "token-gated registration"},
 	{name: "threepid", unwired: true, purpose: "email and phone bindings"},
 
 	{name: "migrations", planned: true, purpose: "schema and data migrations"},
