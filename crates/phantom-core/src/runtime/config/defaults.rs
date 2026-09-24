@@ -235,6 +235,10 @@ pub(super) fn default_request_idle_per_host() -> u16 {
     1
 }
 
+pub(super) fn default_max_request_size() -> usize {
+    24 * 1024 * 1024
+}
+
 pub(super) fn default_well_known_conn_timeout() -> u64 {
     6
 }

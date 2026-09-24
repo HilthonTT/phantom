@@ -24,6 +24,9 @@ pub struct Network {
     #[serde(default = "default_request_idle_per_host")]
     pub request_idle_per_host: u16,
 
+    #[serde(default = "default_max_request_size")]
+    pub max_request_size: usize,
+
     #[serde(default = "default_well_known_conn_timeout")]
     pub well_known_conn_timeout: u64,
 

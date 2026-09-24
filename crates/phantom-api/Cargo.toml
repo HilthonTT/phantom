@@ -1,0 +1,25 @@
+[package]
+name = "phantom-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum = "0.8.9"
+axum-extra = { version = "0.12.6", features = ["cookie"] }
+bytes = "1.12.1"
+http = "1.5.0"
+phantom-core.workspace = true
+phantom-service.workspace = true
+serde = "1.0.229"
+serde_html_form = "0.4.1"
+smallstr = { version = "0.3.1", features = ["serde"] }
+smallvec = { version = "1.16.1", features = ["serde"] }
+# The `#[instrument]` attribute; it expands to `::tracing` paths, so the
+# phantom-core re-export is not enough.
+tracing = "0.1.44"
+
+[lints]
+workspace = true

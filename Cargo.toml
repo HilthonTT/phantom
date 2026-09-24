@@ -13,6 +13,8 @@ repository = "https://github.com/HilthonTT/phantom"
 phantom-core = { path = "crates/phantom-core" }
 phantom-database = { path = "crates/phantom-database" }
 phantom-macros = { path = "crates/phantom-macros" }
+phantom-service = { path = "crates/phantom-service" }
+phantom-api = { path = "crates/phantom-api" }
 
 [workspace.lints.rust]
 unsafe_code = "warn"
