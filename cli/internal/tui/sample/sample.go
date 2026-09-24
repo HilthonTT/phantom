@@ -190,9 +190,9 @@ var registry = []service{
 	{name: "net::sendmail", purpose: "outbound SMTP, when one is configured"},
 	{name: "auth::oauth", purpose: "OIDC login and OAuth2 (MSC3861)"},
 
-	{name: "net::fetcher", unwired: true, purpose: "coalesced federation fetches"},
+	{name: "net::fetcher", worker: true, purpose: "coalesced federation fetches"},
 	{name: "auth::registration_tokens", purpose: "token-gated registration"},
-	{name: "auth::threepid", unwired: true, purpose: "email and phone bindings"},
+	{name: "auth::threepid", purpose: "email and phone bindings"},
 
 	{name: "migrations", planned: true, purpose: "schema and data migrations"},
 }

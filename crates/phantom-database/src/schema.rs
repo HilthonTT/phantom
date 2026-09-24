@@ -53,6 +53,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
+        name: "email_userid",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
         name: "eventid_originalpdu",
         block_size: 2048,
         index_size: 512,
@@ -350,6 +354,11 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::SEQUENTIAL_SMALL
     },
     Descriptor {
+        name: "threepidsid_pending",
+        ttl: 60 * 60 * 24, // pending validation session; minutes to complete
+        ..descriptor::RANDOM_SMALL_CACHE
+    },
+    Descriptor {
         name: "timeredacted_eventid",
         ..descriptor::SEQUENTIAL_SMALL
     },
@@ -383,6 +392,11 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
+        name: "userdevicesessionid_threepid",
+        ttl: 60 * 60 * 24, // interactive-auth session; minutes to complete
+        ..descriptor::RANDOM_SMALL_CACHE
+    },
+    Descriptor {
         name: "userdevicesessionid_uiaainfo",
         ..descriptor::RANDOM_SMALL
     },
@@ -408,6 +422,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
     },
     Descriptor {
         name: "userid_displayname",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "userid_email",
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {

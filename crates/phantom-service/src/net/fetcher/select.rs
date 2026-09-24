@@ -10,9 +10,9 @@ use phantom_core::{
 };
 use ruma::{EventId, OwnedServerName, RoomId, ServerName};
 
+use super::Services;
 use super::opts::{Op, Opts};
 use crate::{
-    Services,
     net::federation::{Candidates, WhenAllBackedOff},
     ops::moderation::Restriction,
 };
@@ -116,7 +116,6 @@ async fn authority_server(&self, opts: &Opts) -> Option<OwnedServerName> {
     }
 
     self.services
-        .rooms
         .state_cache
         .most_powerful_user_server(room_id)
         .await
@@ -130,7 +129,6 @@ async fn route_by_popularity<'a>(
 ) -> impl Stream<Item = OwnedServerName> + Send + 'a {
     let sampled: ArrayVec<OwnedServerName, ROUTE_FANOUT> = self
         .services
-        .rooms
         .state_cache
         .room_members(room_id)
         .sample_by(|user| user.server_name().to_owned())
@@ -139,7 +137,6 @@ async fn route_by_popularity<'a>(
     if sampled.is_empty() {
         return Either::Right(
             self.services
-                .rooms
                 .state_cache
                 .room_servers(room_id)
                 .map(ToOwned::to_owned),
@@ -157,7 +154,6 @@ async fn route_uniformly<'a>(
 ) -> impl Stream<Item = OwnedServerName> + Send + 'a {
     let count = self
         .services
-        .rooms
         .state_cache
         .room_servers(room_id)
         .count()
@@ -166,7 +162,6 @@ async fn route_uniformly<'a>(
     let offset = index(count);
 
     self.services
-        .rooms
         .state_cache
         .room_servers(room_id)
         .map(ToOwned::to_owned)

@@ -17,8 +17,8 @@ use ruma::{
     },
 };
 
+use super::Services;
 use super::opts::{Op, Opts};
-use crate::Services;
 
 #[async_trait]
 pub(super) trait Transport: Send + Sync {

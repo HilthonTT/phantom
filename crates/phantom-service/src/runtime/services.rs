@@ -16,10 +16,10 @@ use super::{
 use crate::{
     accounts::account_data, accounts::deactivate, accounts::key_backups, accounts::presence,
     accounts::profile, accounts::pusher, accounts::sync, accounts::transaction_id, accounts::users,
-    auth::oauth, auth::registration_tokens, auth::rendezvous, auth::uiaa, media, net::client,
-    net::federation, net::resolver, net::sending, net::sendmail, net::server_keys, ops::admin,
-    ops::appservice, ops::config, ops::emergency, ops::moderation, ops::server_state, ops::storage,
-    ops::tasks, ops::updates, rooms,
+    auth::oauth, auth::registration_tokens, auth::rendezvous, auth::threepid, auth::uiaa, media,
+    net::client, net::federation, net::fetcher, net::resolver, net::sending, net::sendmail,
+    net::server_keys, ops::admin, ops::appservice, ops::config, ops::emergency, ops::moderation,
+    ops::server_state, ops::storage, ops::tasks, ops::updates, rooms,
 };
 
 pub struct Services {
@@ -52,6 +52,8 @@ pub struct Services {
     pub admin: Arc<admin::Service>,
     pub updates: Arc<updates::Service>,
     pub sendmail: Arc<sendmail::Service>,
+    pub fetcher: Arc<fetcher::Service>,
+    pub threepid: Arc<threepid::Service>,
     pub oauth: Arc<oauth::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
@@ -132,6 +134,8 @@ impl Services {
             admin: build!(admin::Service),
             updates: build!(updates::Service),
             sendmail: build!(sendmail::Service),
+            fetcher: build!(fetcher::Service),
+            threepid: build!(threepid::Service),
             oauth: build!(oauth::Service),
 
             manager: Mutex::new(None),

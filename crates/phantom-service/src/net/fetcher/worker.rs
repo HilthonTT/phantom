@@ -175,7 +175,7 @@ async fn run_attempts(&self, opts: &Opts, interest: &Weak<()>) -> SharedResult {
     let count = candidates.len();
     let limit = opts.attempt_limit.map_or(count, |n| n.get().min(count));
 
-    let federation = &self.services.server.config.federation;
+    let federation = &self.services.config.federation;
     let max_width = effective_cap(opts.fanout_max_width, federation.fetch_fanout_max_width);
     let max_rounds = effective_cap(opts.fanout_rounds, federation.fetch_fanout_rounds);
 

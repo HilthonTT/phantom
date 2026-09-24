@@ -116,7 +116,7 @@ It is built in layers:
   key and value types, the `Handle` a read returns, and batched (`Cork`) and
   transactional (`Txn`) writes.
 - **`Database`** — the engine plus every column open on it, and what a server
-  hands around. `schema.rs` names all 88 columns; a test asserts the list stays
+  hands around. `schema.rs` names all 109 columns; a test asserts the list stays
   alphabetical and free of duplicates.
 - **The codecs** — `serialize`/`deserialize` turn Rust values into keys and
   values. Iteration is in byte order, so how a key is written decides which
@@ -149,6 +149,7 @@ Currently built, outside the room tree:
 | :--- | :--- |
 | `uiaa` | interactive-auth sessions in progress |
 | `registration_tokens` | registration tokens from the config file and the database, their use counts and expiry |
+| `threepid` | email bindings, and the pending validation sessions that prove them |
 
 `accounts/` — what belongs to one account and its devices:
 
@@ -169,6 +170,7 @@ Currently built, outside the room tree:
 | `client` | the HTTP clients every outbound request is made through |
 | `resolver` | turning a Matrix server name into an address, and caching the answer |
 | `federation` | one signed request to another server, sent and awaited |
+| `fetcher` | fetching events over federation: coalescing duplicate requests, failing over between servers and validating the reply |
 | `server_keys` | this server's signing keys and the keys it has fetched for others |
 | `sending` | the outgoing queue: transactions to servers, appservices and pushers |
 
