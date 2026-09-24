@@ -136,15 +136,15 @@ type service struct {
 }
 
 var registry = []service{
-	{name: "resolver", purpose: "a server name turned into an address"},
-	{name: "client", purpose: "the outbound HTTP clients"},
-	{name: "config", worker: true, purpose: "re-reading the config on SIGUSR1"},
-	{name: "storage", worker: true, purpose: "the configured object-storage providers"},
+	{name: "net::resolver", purpose: "a server name turned into an address"},
+	{name: "net::client", purpose: "the outbound HTTP clients"},
+	{name: "ops::config", worker: true, purpose: "re-reading the config on SIGUSR1"},
+	{name: "ops::storage", worker: true, purpose: "the configured object-storage providers"},
 	{name: "media", worker: true, purpose: "uploads, thumbnails, remote fetches"},
-	{name: "membership", worker: true, purpose: "join, leave, invite, kick, ban, knock"},
-	{name: "moderation", purpose: "which servers this one refuses"},
-	{name: "rendezvous", purpose: "QR-code login (MSC4108)"},
-	{name: "federation", purpose: "one signed request to another server"},
+	{name: "rooms::membership", worker: true, purpose: "join, leave, invite, kick, ban, knock"},
+	{name: "ops::moderation", purpose: "which servers this one refuses"},
+	{name: "auth::rendezvous", purpose: "QR-code login (MSC4108)"},
+	{name: "net::federation", purpose: "one signed request to another server"},
 
 	{name: "rooms::alias", purpose: "the #name:server a room is reached by"},
 	{name: "rooms::delete", purpose: "shutting a room down, purging"},
@@ -169,30 +169,30 @@ var registry = []service{
 	{name: "rooms::user", purpose: "one user's unread counters in one room"},
 	{name: "rooms::retention", worker: true, purpose: "originals of redacted events"},
 
-	{name: "server_keys", purpose: "signing keys, this server's and others'"},
-	{name: "server_state", purpose: "identity, secrets, the event counter"},
-	{name: "sync", purpose: "parking a /sync until something happens"},
-	{name: "tasks", worker: true, purpose: "long admin operations, polled"},
-	{name: "transaction_id", purpose: "a retry answered with the first response"},
-	{name: "uiaa", purpose: "interactive-auth sessions in progress"},
-	{name: "account_data", purpose: "account data, global and per-room"},
-	{name: "key_backups", purpose: "server-side backups of room keys"},
-	{name: "appservice", worker: true, purpose: "the registered appservices"},
-	{name: "users", purpose: "accounts, devices, keys"},
-	{name: "deactivate", purpose: "tearing an account down"},
-	{name: "emergency", worker: true, purpose: "the way back in when admins are locked out"},
-	{name: "presence", worker: true, purpose: "who is online, and for how long"},
-	{name: "profile", purpose: "display name, avatar, and the custom fields"},
-	{name: "pusher", purpose: "push gateways, and what is sent through them"},
-	{name: "sending", worker: true, purpose: "the outbound federation and push queue"},
-	{name: "admin", worker: true, purpose: "the admin room and its commands"},
-	{name: "updates", worker: true, purpose: "the announcement feed"},
-	{name: "sendmail", purpose: "outbound SMTP, when one is configured"},
-	{name: "oauth", purpose: "OIDC login and OAuth2 (MSC3861)"},
+	{name: "net::server_keys", purpose: "signing keys, this server's and others'"},
+	{name: "ops::server_state", purpose: "identity, secrets, the event counter"},
+	{name: "accounts::sync", purpose: "parking a /sync until something happens"},
+	{name: "ops::tasks", worker: true, purpose: "long admin operations, polled"},
+	{name: "accounts::transaction_id", purpose: "a retry answered with the first response"},
+	{name: "auth::uiaa", purpose: "interactive-auth sessions in progress"},
+	{name: "accounts::account_data", purpose: "account data, global and per-room"},
+	{name: "accounts::key_backups", purpose: "server-side backups of room keys"},
+	{name: "ops::appservice", worker: true, purpose: "the registered appservices"},
+	{name: "accounts::users", purpose: "accounts, devices, keys"},
+	{name: "accounts::deactivate", purpose: "tearing an account down"},
+	{name: "ops::emergency", worker: true, purpose: "the way back in when admins are locked out"},
+	{name: "accounts::presence", worker: true, purpose: "who is online, and for how long"},
+	{name: "accounts::profile", purpose: "display name, avatar, and the custom fields"},
+	{name: "accounts::pusher", purpose: "push gateways, and what is sent through them"},
+	{name: "net::sending", worker: true, purpose: "the outbound federation and push queue"},
+	{name: "ops::admin", worker: true, purpose: "the admin room and its commands"},
+	{name: "ops::updates", worker: true, purpose: "the announcement feed"},
+	{name: "net::sendmail", purpose: "outbound SMTP, when one is configured"},
+	{name: "auth::oauth", purpose: "OIDC login and OAuth2 (MSC3861)"},
 
-	{name: "fetcher", unwired: true, purpose: "coalesced federation fetches"},
-	{name: "registration_tokens", purpose: "token-gated registration"},
-	{name: "threepid", unwired: true, purpose: "email and phone bindings"},
+	{name: "net::fetcher", unwired: true, purpose: "coalesced federation fetches"},
+	{name: "auth::registration_tokens", purpose: "token-gated registration"},
+	{name: "auth::threepid", unwired: true, purpose: "email and phone bindings"},
 
 	{name: "migrations", planned: true, purpose: "schema and data migrations"},
 }
@@ -210,9 +210,11 @@ func (s service) state() (resource.State, string) {
 	}
 }
 
+// area is the domain folder a service lives in under phantom-service/src, which
+// is the part of its registry name before "::".
 func (s service) area() string {
-	if strings.HasPrefix(s.name, "rooms::") {
-		return "rooms"
+	if area, _, ok := strings.Cut(s.name, "::"); ok {
+		return area
 	}
 	return "core"
 }

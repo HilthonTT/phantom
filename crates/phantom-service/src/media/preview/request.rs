@@ -6,7 +6,7 @@ use reqwest::{
 
 use crate::media::Service;
 #[cfg(feature = "url_preview")]
-use crate::{client::read_response_capped, media::Media};
+use crate::{media::Media, net::client::read_response_capped};
 
 #[derive(Clone, Copy)]
 pub(super) enum Agent {

@@ -41,7 +41,10 @@ Two smaller ones recur: `matrix::state_res` is phantom's own implementation
 rather than ruma's, which is why the `ruma` dependency deliberately omits the
 `state-res` feature; and the module layout was restructured, in particular by
 removing the `utils` catch-all — see
-[development.md](development.md#conventions).
+[development.md](development.md#conventions) — and by grouping
+`phantom-service` into domain folders, so a service upstream keeps at the top
+level lives one folder down here — see
+[architecture.md](architecture.md#phantom-service).
 
 ## The rule for divergences
 

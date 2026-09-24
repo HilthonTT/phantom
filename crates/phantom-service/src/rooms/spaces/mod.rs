@@ -24,8 +24,9 @@ use ruma::{
 pub use self::hierarchy::PagedHierarchy;
 use crate::{
     Dep,
-    moderation::{self, Restriction},
-    rooms, server_state,
+    ops::moderation::{self, Restriction},
+    ops::server_state,
+    rooms,
 };
 
 pub struct Service {
@@ -34,7 +35,7 @@ pub struct Service {
 }
 
 struct Services {
-    federation: Dep<crate::federation::Service>,
+    federation: Dep<crate::net::federation::Service>,
     metadata: Dep<rooms::metadata::Service>,
     moderation: Dep<moderation::Service>,
     server_state: Dep<server_state::Service>,
@@ -70,10 +71,10 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             cache: LruCache::new(usize_from_f64(capacity)?).into(),
             services: Services {
-                federation: args.depend::<crate::federation::Service>("federation"),
+                federation: args.depend::<crate::net::federation::Service>("net::federation"),
                 metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
-                moderation: args.depend::<moderation::Service>("moderation"),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                moderation: args.depend::<moderation::Service>("ops::moderation"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 short: args.depend::<rooms::short::Service>("rooms::short"),
                 state: args.depend::<rooms::state::Service>("rooms::state"),
                 state_accessor: args

@@ -9,7 +9,7 @@ use phantom_database::{Deserialized, Map, Qry};
 use ruma::{EventId, RoomId, events::StateEventType};
 use serde::Deserialize;
 
-use crate::{Dep, server_state};
+use crate::{Dep, ops::server_state};
 
 pub struct Service {
     db: Data,
@@ -43,7 +43,7 @@ impl crate::Service for Service {
                 statehash_shortstatehash: args.db["statehash_shortstatehash"].clone(),
             },
             services: Services {
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
             },
         }))
     }

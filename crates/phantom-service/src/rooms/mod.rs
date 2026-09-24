@@ -4,6 +4,7 @@ pub mod delete;
 pub mod directory;
 pub mod event_handler;
 pub mod lazy_loading;
+pub mod membership;
 pub mod metadata;
 pub mod outlier;
 pub mod pdu_metadata;
@@ -46,4 +47,5 @@ pub struct Services {
     pub typing: Arc<typing::Service>,
     pub user: Arc<user::Service>,
     pub retention: Arc<retention::Service>,
+    pub membership: Arc<membership::Service>,
 }

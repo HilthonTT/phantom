@@ -22,8 +22,10 @@ use ruma::{CanonicalJsonObject, EventId, OwnedEventId, OwnedRoomId, RoomId, Serv
 
 use crate::{
     Dep,
-    moderation::{self, Restriction},
-    rooms, server_keys, server_state,
+    net::server_keys,
+    ops::moderation::{self, Restriction},
+    ops::server_state,
+    rooms,
 };
 
 pub struct Service {
@@ -39,7 +41,7 @@ pub struct Service {
 
 struct Services {
     auth_chain: Dep<rooms::auth_chain::Service>,
-    federation: Dep<crate::federation::Service>,
+    federation: Dep<crate::net::federation::Service>,
     metadata: Dep<rooms::metadata::Service>,
     moderation: Dep<moderation::Service>,
     outlier: Dep<rooms::outlier::Service>,
@@ -73,12 +75,12 @@ impl crate::Service for Service {
             prev_event_budget: Duration::from_secs(budget),
             services: Services {
                 auth_chain: args.depend::<rooms::auth_chain::Service>("rooms::auth_chain"),
-                federation: args.depend::<crate::federation::Service>("federation"),
+                federation: args.depend::<crate::net::federation::Service>("net::federation"),
                 metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
-                moderation: args.depend::<moderation::Service>("moderation"),
+                moderation: args.depend::<moderation::Service>("ops::moderation"),
                 outlier: args.depend::<rooms::outlier::Service>("rooms::outlier"),
-                server_keys: args.depend::<server_keys::Service>("server_keys"),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_keys: args.depend::<server_keys::Service>("net::server_keys"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 short: args.depend::<rooms::short::Service>("rooms::short"),
                 state: args.depend::<rooms::state::Service>("rooms::state"),
                 state_accessor: args

@@ -12,9 +12,9 @@ use reqwest::{
 use super::UrlPreviewData;
 #[cfg(feature = "url_preview")]
 use super::{Agent, request::checked_media_size};
-#[cfg(feature = "url_preview")]
-use crate::client::read_response_capped;
 use crate::media::Service;
+#[cfg(feature = "url_preview")]
+use crate::net::client::read_response_capped;
 
 #[cfg(feature = "url_preview")]
 #[implement(Service)]

@@ -35,9 +35,12 @@ pub use self::thumbnail::Dim;
 #[cfg(feature = "media_thumbnail")]
 use self::video::{FAILURES, Failures, sweep_staging_dir};
 use crate::{
-    Dep, client, config, moderation,
+    Dep,
+    net::client,
+    ops::config,
+    ops::moderation,
+    ops::server_state,
     ratelimit::{Limit, Ratelimiter, check},
-    server_state,
 };
 
 pub const MXC_LENGTH: usize = 32;
@@ -61,7 +64,7 @@ struct Services {
     client: Dep<client::Service>,
 
     config: Dep<config::Service>,
-    federation: Dep<crate::federation::Service>,
+    federation: Dep<crate::net::federation::Service>,
     moderation: Dep<moderation::Service>,
     server: Arc<Server>,
     server_state: Dep<server_state::Service>,
@@ -113,12 +116,12 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             path: args.server.config.media_path(),
             services: Services {
-                client: args.depend::<client::Service>("client"),
-                config: args.depend::<config::Service>("config"),
-                federation: args.depend::<crate::federation::Service>("federation"),
-                moderation: args.depend::<moderation::Service>("moderation"),
+                client: args.depend::<client::Service>("net::client"),
+                config: args.depend::<config::Service>("ops::config"),
+                federation: args.depend::<crate::net::federation::Service>("net::federation"),
+                moderation: args.depend::<moderation::Service>("ops::moderation"),
                 server: args.server.clone(),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
             },
             url_preview_mutex: MutexMap::new(),
             federation_mutex: MutexMap::new(),

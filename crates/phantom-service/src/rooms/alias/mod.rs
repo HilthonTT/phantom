@@ -12,7 +12,8 @@ use ruma::{
 };
 
 use crate::{
-    Dep, admin, appservice, appservice::RegistrationInfo, federation, rooms, server_state,
+    Dep, net::federation, ops::admin, ops::appservice, ops::appservice::RegistrationInfo,
+    ops::server_state, rooms,
 };
 
 pub struct Service {
@@ -43,10 +44,10 @@ impl crate::Service for Service {
                 aliasid_alias: args.db["aliasid_alias"].clone(),
             },
             services: Services {
-                admin: args.depend::<admin::Service>("admin"),
-                appservice: args.depend::<appservice::Service>("appservice"),
-                federation: args.depend::<federation::Service>("federation"),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                admin: args.depend::<admin::Service>("ops::admin"),
+                appservice: args.depend::<appservice::Service>("ops::appservice"),
+                federation: args.depend::<federation::Service>("net::federation"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 state_accessor: args
                     .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
             },

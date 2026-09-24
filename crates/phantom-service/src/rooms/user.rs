@@ -7,11 +7,11 @@ use serde::Serialize;
 
 use crate::{
     Dep,
+    ops::server_state,
     rooms::{
         self,
         short::{ShortRoomId, ShortStateHash},
     },
-    server_state,
 };
 
 pub struct Service {
@@ -46,7 +46,7 @@ impl crate::Service for Service {
                 roomsynctoken_shortstatehash: args.db["roomsynctoken_shortstatehash"].clone(),
             },
             services: Services {
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 short: args.depend::<rooms::short::Service>("rooms::short"),
             },
         }))

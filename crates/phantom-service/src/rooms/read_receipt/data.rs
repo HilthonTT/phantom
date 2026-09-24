@@ -12,7 +12,7 @@ use ruma::{
     serde::Raw,
 };
 
-use crate::{Dep, server_state};
+use crate::{Dep, ops::server_state};
 
 pub(super) struct Data {
     roomuserid_privateread: Arc<Map>,
@@ -36,7 +36,7 @@ impl Data {
             roomuserid_lastprivatereadupdate: db["roomuserid_lastprivatereadupdate"].clone(),
             readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
             services: Services {
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
             },
         }
     }

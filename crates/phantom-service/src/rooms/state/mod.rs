@@ -25,12 +25,13 @@ use ruma::{
 };
 
 use crate::{
-    Dep, rooms,
+    Dep,
+    ops::server_state,
+    rooms,
     rooms::{
         short::{ShortEventId, ShortStateHash},
         state_compressor::{CompressedState, compress_state_event, parse_compressed_state_event},
     },
-    server_state,
 };
 
 pub struct Service {
@@ -63,7 +64,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             mutex: RoomMutexMap::new(),
             services: Services {
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 short: args.depend::<rooms::short::Service>("rooms::short"),
                 state_accessor: args
                     .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),

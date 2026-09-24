@@ -14,10 +14,12 @@ use super::{
     registry::{self, Map},
 };
 use crate::{
-    account_data, admin, appservice, client, config, deactivate, emergency, federation,
-    key_backups, media, membership, moderation, oauth, presence, profile, pusher,
-    registration_tokens, rendezvous, resolver, rooms, sending, sendmail, server_keys, server_state,
-    storage, sync, tasks, transaction_id, uiaa, updates, users,
+    accounts::account_data, accounts::deactivate, accounts::key_backups, accounts::presence,
+    accounts::profile, accounts::pusher, accounts::sync, accounts::transaction_id, accounts::users,
+    auth::oauth, auth::registration_tokens, auth::rendezvous, auth::uiaa, media, net::client,
+    net::federation, net::resolver, net::sending, net::sendmail, net::server_keys, ops::admin,
+    ops::appservice, ops::config, ops::emergency, ops::moderation, ops::server_state, ops::storage,
+    ops::tasks, ops::updates, rooms,
 };
 
 pub struct Services {
@@ -25,7 +27,6 @@ pub struct Services {
     pub config: Arc<config::Service>,
     pub storage: Arc<storage::Service>,
     pub media: Arc<media::Service>,
-    pub membership: Arc<membership::Service>,
     pub moderation: Arc<moderation::Service>,
     pub registration_tokens: Arc<registration_tokens::Service>,
     pub rendezvous: Arc<rendezvous::Service>,
@@ -83,7 +84,6 @@ impl Services {
             config: build!(config::Service),
             storage: build!(storage::Service),
             media: build!(media::Service),
-            membership: build!(membership::Service),
             moderation: build!(moderation::Service),
             registration_tokens: build!(registration_tokens::Service),
             rendezvous: build!(rendezvous::Service),
@@ -111,6 +111,7 @@ impl Services {
                 typing: build!(rooms::typing::Service),
                 user: build!(rooms::user::Service),
                 retention: build!(rooms::retention::Service),
+                membership: build!(rooms::membership::Service),
             },
             server_keys: build!(server_keys::Service),
             server_state: build!(server_state::Service),

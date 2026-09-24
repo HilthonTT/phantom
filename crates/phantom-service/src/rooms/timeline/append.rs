@@ -25,7 +25,7 @@ use serde::Deserialize;
 
 use super::Service;
 use crate::{
-    appservice::{NamespaceRegex, RegistrationInfo},
+    ops::appservice::{NamespaceRegex, RegistrationInfo},
     rooms::{short::ShortRoomId, state::RoomMutexGuard, state_compressor::CompressedState},
 };
 

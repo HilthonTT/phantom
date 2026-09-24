@@ -15,7 +15,7 @@ use ruma::{
 };
 use tokio::sync::{RwLock, broadcast};
 
-use crate::{Dep, account_data, sending, sending::EduBuf, server_state};
+use crate::{Dep, accounts::account_data, net::sending, net::sending::EduBuf, ops::server_state};
 
 const UPDATE_CHANNEL_CAP: usize = 100;
 
@@ -46,9 +46,9 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             server: args.server.clone(),
             services: Services {
-                account_data: args.depend::<account_data::Service>("account_data"),
-                sending: args.depend::<sending::Service>("sending"),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                account_data: args.depend::<account_data::Service>("accounts::account_data"),
+                sending: args.depend::<sending::Service>("net::sending"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
             },
             typing: RwLock::new(BTreeMap::new()),
             typing_update_sender: broadcast::channel(UPDATE_CHANNEL_CAP).0,

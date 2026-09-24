@@ -10,7 +10,7 @@ use ruma::{
 };
 
 use super::{Dim, Dimensions, FileMeta, Service, parts};
-use crate::moderation::Restriction;
+use crate::ops::moderation::Restriction;
 
 #[implement(Service)]
 pub async fn get_or_fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {

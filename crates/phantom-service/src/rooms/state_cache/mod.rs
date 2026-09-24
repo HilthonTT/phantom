@@ -34,7 +34,10 @@ use ruma::{
     serde::Raw,
 };
 
-use crate::{Dep, account_data, appservice::RegistrationInfo, rooms, server_state, users};
+use crate::{
+    Dep, accounts::account_data, accounts::users, ops::appservice::RegistrationInfo,
+    ops::server_state, rooms,
+};
 
 pub struct Service {
     appservice_in_room_cache: AppServiceInRoomCache,
@@ -78,12 +81,12 @@ impl crate::Service for Service {
             appservice_in_room_cache: RwLock::new(HashMap::new()),
             services: Services {
                 server: args.server.clone(),
-                account_data: args.depend::<account_data::Service>("account_data"),
+                account_data: args.depend::<account_data::Service>("accounts::account_data"),
                 metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 state_accessor: args
                     .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                users: args.depend::<users::Service>("users"),
+                users: args.depend::<users::Service>("accounts::users"),
             },
             db: Data {
                 roomid_invitedcount: args.db["roomid_invitedcount"].clone(),

@@ -80,7 +80,7 @@ Where the interesting ones live:
 - `phantom-database/src/tests.rs` and the map tests — these open a real
   database under a `tempfile` directory, and build a `Config` from a TOML string
   the same way the server does.
-- `phantom-service/src/resolver/tests.rs` — the server-name resolution steps.
+- `phantom-service/src/net/resolver/tests.rs` — the server-name resolution steps.
 - `phantom-core/tests/alloc_je.rs` — only meaningful with a jemalloc feature on.
 - `cli/internal/tui/{app,panel}/*_test.go` — rendering and truncation.
 

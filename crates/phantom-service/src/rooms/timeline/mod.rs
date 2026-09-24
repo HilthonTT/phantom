@@ -20,7 +20,8 @@ use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, RoomId, UserId};
 use self::data::Data;
 pub use self::data::PdusIterItem;
 use crate::{
-    Dep, account_data, admin, appservice, membership, rooms, sending, server_state, users,
+    Dep, accounts::account_data, accounts::users, net::sending, ops::admin, ops::appservice,
+    ops::server_state, rooms, rooms::membership,
 };
 
 pub struct Service {
@@ -36,12 +37,12 @@ struct Services {
     appservice: Dep<appservice::Service>,
     membership: Dep<membership::Service>,
     pdu_metadata: Dep<rooms::pdu_metadata::Service>,
-    pusher: Dep<crate::pusher::Service>,
+    pusher: Dep<crate::accounts::pusher::Service>,
     read_receipt: Dep<rooms::read_receipt::Service>,
     retention: Dep<rooms::retention::Service>,
     search: Dep<rooms::search::Service>,
     sending: Dep<sending::Service>,
-    server_keys: Dep<crate::server_keys::Service>,
+    server_keys: Dep<crate::net::server_keys::Service>,
     server_state: Dep<server_state::Service>,
     short: Dep<rooms::short::Service>,
     spaces: Dep<rooms::spaces::Service>,
@@ -63,19 +64,19 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             mutex_insert: RoomMutexMap::new(),
             services: Services {
-                account_data: args.depend::<account_data::Service>("account_data"),
-                admin: args.depend::<admin::Service>("admin"),
+                account_data: args.depend::<account_data::Service>("accounts::account_data"),
+                admin: args.depend::<admin::Service>("ops::admin"),
                 alias: args.depend::<rooms::alias::Service>("rooms::alias"),
-                appservice: args.depend::<appservice::Service>("appservice"),
-                membership: args.depend::<membership::Service>("membership"),
+                appservice: args.depend::<appservice::Service>("ops::appservice"),
+                membership: args.depend::<membership::Service>("rooms::membership"),
                 pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
-                pusher: args.depend::<crate::pusher::Service>("pusher"),
+                pusher: args.depend::<crate::accounts::pusher::Service>("accounts::pusher"),
                 read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
                 retention: args.depend::<rooms::retention::Service>("rooms::retention"),
                 search: args.depend::<rooms::search::Service>("rooms::search"),
-                sending: args.depend::<sending::Service>("sending"),
-                server_keys: args.depend::<crate::server_keys::Service>("server_keys"),
-                server_state: args.depend::<server_state::Service>("server_state"),
+                sending: args.depend::<sending::Service>("net::sending"),
+                server_keys: args.depend::<crate::net::server_keys::Service>("net::server_keys"),
+                server_state: args.depend::<server_state::Service>("ops::server_state"),
                 short: args.depend::<rooms::short::Service>("rooms::short"),
                 spaces: args.depend::<rooms::spaces::Service>("rooms::spaces"),
                 state: args.depend::<rooms::state::Service>("rooms::state"),
@@ -84,7 +85,7 @@ impl crate::Service for Service {
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
                 threads: args.depend::<rooms::threads::Service>("rooms::threads"),
                 user: args.depend::<rooms::user::Service>("rooms::user"),
-                users: args.depend::<users::Service>("users"),
+                users: args.depend::<users::Service>("accounts::users"),
             },
             db: Data::new(&args),
         }))

@@ -8,9 +8,9 @@ use serde::Deserialize;
 use super::UrlPreviewData;
 #[cfg(feature = "url_preview")]
 use super::{Agent, request::is_youtube};
-#[cfg(feature = "url_preview")]
-use crate::client::read_response_capped;
 use crate::media::Service;
+#[cfg(feature = "url_preview")]
+use crate::net::client::read_response_capped;
 
 #[cfg(feature = "url_preview")]
 const YOUTUBE_OEMBED: &str = "https://www.youtube.com/oembed";

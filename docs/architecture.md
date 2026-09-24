@@ -120,34 +120,59 @@ It is built in layers:
 ### `phantom-service`
 
 A service is a long-lived singleton owning one area of the server's behaviour.
-`runtime/` is the machinery they all plug into; every other module is one
-service.
+`runtime/` is the machinery they all plug into. Every other top-level module is
+a domain folder holding the services for one subject, and a service's registry
+name is its path below the crate root: `accounts::users`, `rooms::timeline`.
+`ratelimit` is the one exception, a private helper shared by several domains.
+
+This grouping is phantom's own. tuwunel keeps every service at the top level,
+so a service ported from `src/service/<name>` lands in `<domain>/<name>` here.
 
 Currently built, outside the room tree:
 
+`auth/` — proving who a client is:
+
 | Service | What it owns |
 | :--- | :--- |
-| `resolver` | turning a Matrix server name into an address, and caching the answer |
-| `client` | the HTTP clients every outbound request is made through |
-| `config` | re-reading the config file on `SIGUSR1` and swapping it in |
-| `server_state` | the server's own identity, its secrets, and the event counter |
-| `server_keys` | this server's signing keys and the keys it has fetched for others |
-| `federation` | one signed request to another server, sent and awaited |
-| `sending` | the outgoing queue: transactions to servers, appservices and pushers |
-| `transaction_id` | what a transaction id was answered with, so a retry gets the original response |
+| `uiaa` | interactive-auth sessions in progress |
+| `registration_tokens` | registration tokens from the config file and the database, their use counts and expiry |
+
+`accounts/` — what belongs to one account and its devices:
+
+| Service | What it owns |
+| :--- | :--- |
 | `users` | accounts, devices, keys, profiles and to-device messages |
 | `account_data` | the account data a client stores against itself and against a room |
 | `key_backups` | server-side backups of a client's room keys |
-| `uiaa` | interactive-auth sessions in progress |
-| `appservice` | the registered appservices and their namespaces |
 | `presence` | who is online, and when they stop counting as online |
 | `pusher` | the push gateways a client registered, and the notifications sent through them |
-| `media` | uploaded and cached files, their metadata, their thumbnails and the fetch from the server that holds them |
 | `sync` | parking a `/sync` until something happens, and the sliding-sync conversation state |
+| `transaction_id` | what a transaction id was answered with, so a retry gets the original response |
+
+`net/` — everything that talks to another host:
+
+| Service | What it owns |
+| :--- | :--- |
+| `client` | the HTTP clients every outbound request is made through |
+| `resolver` | turning a Matrix server name into an address, and caching the answer |
+| `federation` | one signed request to another server, sent and awaited |
+| `server_keys` | this server's signing keys and the keys it has fetched for others |
+| `sending` | the outgoing queue: transactions to servers, appservices and pushers |
+
+`ops/` — running the server itself:
+
+| Service | What it owns |
+| :--- | :--- |
+| `config` | re-reading the config file on `SIGUSR1` and swapping it in |
+| `server_state` | the server's own identity, its secrets, and the event counter |
+| `appservice` | the registered appservices and their namespaces |
 | `moderation` | which remote servers this operator refuses, and how far the refusal goes |
 | `updates` | the announcement feed, and which announcements have been surfaced |
 | `emergency` | the emergency password and what turning it on does |
 | `admin` | the admin room, who counts as an admin, and the command queue |
+
+`media/` is a domain of one: uploaded and cached files, their metadata, their
+thumbnails and the fetch from the server that holds them.
 
 And `rooms`, one service per area of room state:
 
@@ -163,6 +188,7 @@ And `rooms`, one service per area of room state:
 | `event_handler` | taking an event another server sent and deciding what it means |
 | `spaces` | walking a space hierarchy, locally and over federation |
 | `alias`, `directory` | room aliases and the public room directory |
+| `membership` | joining, leaving, inviting, knocking, kicking and banning |
 | `outlier` | events believed but not yet placed |
 | `metadata` | whether a room exists, is banned, or is disabled |
 | `pdu_metadata` | relations between events, and which events have been referenced |
