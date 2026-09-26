@@ -10,6 +10,18 @@ pub struct Database {
     #[serde(default = "default_database_backups_to_keep")]
     pub database_backups_to_keep: i16,
 
+    /// Apply pending database migrations on startup. Setting this to false
+    /// leaves the schema version untouched and skips every migration step;
+    /// it is intended for developer debugging only and may cause data loss.
+    #[serde(default = "true_fn")]
+    pub database_migrations: bool,
+
+    /// Open a database whose schema version is newer than this build
+    /// supports, stamping it down to this build's version. Extremely
+    /// dangerous; intended for developer debugging only.
+    #[serde(default)]
+    pub force_migration: bool,
+
     #[serde(default = "default_db_cache_capacity_mb")]
     pub db_cache_capacity_mb: f64,
 

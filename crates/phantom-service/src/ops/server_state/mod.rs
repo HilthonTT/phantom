@@ -9,6 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use phantom_core::{Result, bytes::pretty, runtime::server::Server, secret};
+use phantom_database::{Deserialized, Map};
 use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedUserId, RoomAliasId, ServerName, UserId};
 
 use self::counter::Counter;
@@ -17,6 +18,8 @@ pub struct Service {
     pub counter: Counter,
 
     server: Arc<Server>,
+
+    global: Arc<Map>,
 
     pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
     pub server_user: OwnedUserId,
@@ -48,6 +51,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             counter: Counter::new(&args),
             server: args.server.clone(),
+            global: args.db["global"].clone(),
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
             admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", args.server.name))
                 .expect("#admins:server_name is valid alias name"),
@@ -90,7 +94,24 @@ impl crate::Service for Service {
     }
 }
 
+const DATABASE_VERSION: &[u8] = b"version";
+
 impl Service {
+    /// Stores a new database schema version, replacing the existing one.
+    pub fn bump_database_version(&self, new_version: u64) -> Result {
+        self.global.raw_put(DATABASE_VERSION, new_version)
+    }
+
+    /// Loads the database schema version; a missing or undecodable value
+    /// reads as version zero.
+    pub async fn database_version(&self) -> u64 {
+        self.global
+            .get(DATABASE_VERSION)
+            .await
+            .deserialized()
+            .unwrap_or(0)
+    }
+
     #[inline]
     pub fn next_count(&self) -> Result<u64> {
         self.counter.next()

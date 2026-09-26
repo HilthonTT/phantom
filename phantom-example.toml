@@ -84,6 +84,18 @@
 #
 #database_backups_to_keep =
 
+# Apply pending database migrations on startup. Setting this to false
+# leaves the schema version untouched and skips every migration step;
+# it is intended for developer debugging only and may cause data loss.
+#
+#database_migrations = true
+
+# Open a database whose schema version is newer than this build
+# supports, stamping it down to this build's version. Extremely
+# dangerous; intended for developer debugging only.
+#
+#force_migration = false
+
 # This item is undocumented. Please contribute documentation for it.
 #
 #db_cache_capacity_mb =

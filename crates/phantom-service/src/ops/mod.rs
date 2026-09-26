@@ -4,6 +4,7 @@ pub mod admin;
 pub mod appservice;
 pub mod config;
 pub mod emergency;
+pub(crate) mod migrations;
 pub mod moderation;
 pub mod server_state;
 pub mod storage;

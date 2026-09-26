@@ -194,7 +194,7 @@ var registry = []service{
 	{name: "auth::registration_tokens", purpose: "token-gated registration"},
 	{name: "auth::threepid", purpose: "email and phone bindings"},
 
-	{name: "migrations", planned: true, purpose: "schema and data migrations"},
+	{name: "ops::migrations", purpose: "schema and data migrations, run at startup"},
 }
 
 func (s service) state() (resource.State, string) {

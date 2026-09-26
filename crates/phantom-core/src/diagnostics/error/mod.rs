@@ -186,6 +186,11 @@ impl Error {
     pub fn is_not_found(&self) -> bool {
         self.status_code() == http::StatusCode::NOT_FOUND
     }
+
+    #[inline]
+    pub fn is_interrupted(&self) -> bool {
+        matches!(self, Self::Io(error) if error.kind() == std::io::ErrorKind::Interrupted)
+    }
 }
 
 impl std::fmt::Debug for Error {

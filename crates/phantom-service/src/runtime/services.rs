@@ -148,6 +148,8 @@ impl Services {
     pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
         debug_info!("Starting services...");
 
+        crate::ops::migrations::migrations(self).await?;
+
         self.admin.set_services(Some(self));
 
         let manager = Manager::new(self);
