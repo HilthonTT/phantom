@@ -1,9 +1,6 @@
 use std::{borrow::Borrow, cmp, collections::HashSet, iter::once};
 
-use futures::{
-    FutureExt, StreamExt, TryStreamExt,
-    future::{self, ready},
-};
+use futures::{FutureExt, StreamExt, future::ready};
 use phantom_core::{
     Err, Error, Result, err, implement,
     json::to_canonical_object,
@@ -12,7 +9,7 @@ use phantom_core::{
         pdu::{EventHash, PduBuilder, PduEvent, gen_event_id},
         state_res::{self, RoomVersion},
     },
-    stream::{IterStream, ReadyExt, TryIgnore},
+    stream::{IterStream, ReadyExt},
     time::now_millis,
 };
 use ruma::{
@@ -38,6 +35,19 @@ const MAX_PREV_EVENTS: usize = 20;
 
 #[implement(Service)]
 pub async fn create_hash_and_sign_event(
+    &self,
+    pdu_builder: PduBuilder,
+    sender: &UserId,
+    room_id: &RoomId,
+    mutex_lock: &RoomMutexGuard,
+) -> Result<(PduEvent, CanonicalJsonObject)> {
+    self.build_hash_and_sign_event(pdu_builder, sender, room_id, mutex_lock)
+        .boxed()
+        .await
+}
+
+#[implement(Service)]
+async fn build_hash_and_sign_event(
     &self,
     pdu_builder: PduBuilder,
     sender: &UserId,
@@ -84,16 +94,14 @@ pub async fn create_hash_and_sign_event(
         .get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)
         .await?;
 
-    let depth = prev_events
-        .iter()
-        .stream()
-        .map(Ok)
-        .and_then(|event_id| self.get_pdu(event_id))
-        .and_then(|pdu| future::ok(pdu.depth))
-        .ignore_err()
-        .ready_fold(uint!(0), cmp::max)
-        .await
-        .saturating_add(uint!(1));
+    let mut depth = uint!(0);
+    for event_id in &prev_events {
+        if let Ok(pdu) = self.get_pdu(event_id).await {
+            depth = cmp::max(depth, pdu.depth);
+        }
+    }
+
+    let depth = depth.saturating_add(uint!(1));
 
     let mut unsigned = unsigned.unwrap_or_default();
 

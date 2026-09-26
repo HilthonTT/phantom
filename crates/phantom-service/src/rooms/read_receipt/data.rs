@@ -56,6 +56,7 @@ impl Data {
             .ignore_err()
             .ready_take_while(|(room, ..): &Key<'_>| *room == room_id.as_str())
             .ready_filter(|(_, _, user): &Key<'_>| *user == user_id.as_str())
+            .boxed()
             .ready_for_each(|key: Key<'_>| {
                 self.readreceiptid_readreceipt.del(key).ok();
             })
