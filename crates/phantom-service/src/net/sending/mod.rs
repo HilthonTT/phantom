@@ -41,7 +41,6 @@ struct Services {
     alias: Dep<rooms::alias::Service>,
     client: Dep<client::Service>,
     server_state: Dep<server_state::Service>,
-    state: Dep<rooms::state::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
     user: Dep<rooms::user::Service>,
     users: Dep<users::Service>,
@@ -87,7 +86,6 @@ impl crate::Service for Service {
                 alias: args.depend::<rooms::alias::Service>("rooms::alias"),
                 client: args.depend::<client::Service>("net::client"),
                 server_state: args.depend::<server_state::Service>("ops::server_state"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
                 user: args.depend::<rooms::user::Service>("rooms::user"),
                 users: args.depend::<users::Service>("accounts::users"),
@@ -321,6 +319,19 @@ impl Service {
         let servers = self.remote_servers(room_id);
 
         self.flush_servers(servers).await
+    }
+
+    pub async fn notify_peer_alive(&self, server: &ServerName) -> bool {
+        let recovered = self.services.federation.note_peer_alive(server).await;
+
+        if recovered {
+            self.flush_servers(once(server).stream())
+                .await
+                .log_err()
+                .ok();
+        }
+
+        recovered
     }
 
     #[tracing::instrument(skip(self, servers), level = "debug")]

@@ -194,7 +194,7 @@ async fn local_invite(
 }
 
 #[implement(Service)]
-async fn summary_pdus(
+pub async fn summary_pdus(
     &self,
     event: &PduEvent,
     event_json: &CanonicalJsonObject,

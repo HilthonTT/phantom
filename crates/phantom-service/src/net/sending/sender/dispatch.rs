@@ -10,8 +10,7 @@ use phantom_core::{
     tracing, warn,
 };
 use ruma::{
-    CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedTransactionId,
-    OwnedUserId, RoomId, RoomVersionId, UInt,
+    MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedTransactionId, OwnedUserId, UInt,
     api::{
         appservice::event::push_events::v1::EphemeralData,
         federation::transactions::{edu::Edu, send_transaction_message},
@@ -20,7 +19,6 @@ use ruma::{
     push,
     serde::Raw,
 };
-use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 
 impl Service {
     pub(super) fn send_events(
@@ -206,7 +204,7 @@ impl Service {
             })
             .stream()
             .wide_filter_map(|pdu_id| self.services.timeline.get_pdu_json_from_id(pdu_id).ok())
-            .wide_then(|pdu| self.convert_to_outgoing_federation_event(pdu))
+            .wide_then(|pdu| self.services.federation.format_pdu(pdu, None))
             .collect()
             .await;
 
@@ -259,34 +257,5 @@ impl Service {
             Err(error) => Err((Destination::Federation(server), error)),
             Ok(_) => Ok(Destination::Federation(server)),
         }
-    }
-
-    pub async fn convert_to_outgoing_federation_event(
-        &self,
-        mut pdu_json: CanonicalJsonObject,
-    ) -> Box<RawJsonValue> {
-        if let Some(unsigned) = pdu_json
-            .get_mut("unsigned")
-            .and_then(|val| val.as_object_mut())
-        {
-            unsigned.remove("transaction_id");
-        }
-
-        if let Some(room_id) = pdu_json
-            .get("room_id")
-            .and_then(|val| RoomId::parse(val.as_str()?).ok())
-        {
-            match self.services.state.get_room_version(&room_id).await {
-                Ok(room_version_id) => match room_version_id {
-                    RoomVersionId::V1 | RoomVersionId::V2 => {}
-                    _ => _ = pdu_json.remove("event_id"),
-                },
-                Err(_) => _ = pdu_json.remove("event_id"),
-            }
-        } else {
-            pdu_json.remove("event_id");
-        }
-
-        to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
     }
 }

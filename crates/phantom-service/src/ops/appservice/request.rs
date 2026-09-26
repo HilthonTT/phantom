@@ -9,7 +9,7 @@ use ruma::api::{
 };
 
 #[implement(super::Service)]
-pub(crate) async fn send_request<T>(
+pub async fn send_request<T>(
     &self,
     registration: Registration,
     request: T,

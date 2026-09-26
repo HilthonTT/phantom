@@ -147,6 +147,14 @@ pub async fn is_exclusive_user_id(&self, user_id: &UserId) -> bool {
 }
 
 #[implement(Service)]
+pub async fn is_interested_in_user(&self, user_id: &UserId) -> bool {
+    self.read()
+        .await
+        .values()
+        .any(|info| info.is_user_match(user_id))
+}
+
+#[implement(Service)]
 pub async fn is_exclusive_alias(&self, alias: &RoomAliasId) -> bool {
     self.read()
         .await

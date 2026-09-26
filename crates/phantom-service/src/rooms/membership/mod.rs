@@ -23,7 +23,6 @@ use ruma::{
     events::{AnyStrippedStateEvent, room::member::RoomMemberEventContent},
     serde::Raw,
 };
-use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 
 use self::auto_accept::Pending;
 pub use self::{
@@ -33,6 +32,7 @@ pub use self::{
         v12_room_ids, without_member,
     },
 };
+use crate::net::federation::outgoing_pdu;
 use crate::{
     Dep, accounts::account_data, accounts::profile, accounts::users, net::federation, net::sending,
     net::server_keys, ops::server_state, rooms,
@@ -114,7 +114,7 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-fn supported_room_version(&self, room_version: &RoomVersionId) -> bool {
+pub fn supported_room_version(&self, room_version: &RoomVersionId) -> bool {
     RoomVersion::is_supported(room_version)
 }
 
@@ -180,28 +180,6 @@ fn merge_member_content(
     }
 
     Ok(content)
-}
-
-fn outgoing_pdu(
-    mut pdu_json: CanonicalJsonObject,
-    room_version: &RoomVersionId,
-) -> Box<RawJsonValue> {
-    if let Some(unsigned) = pdu_json
-        .get_mut("unsigned")
-        .and_then(CanonicalJsonValue::as_object_mut)
-    {
-        unsigned.remove("transaction_id");
-    }
-
-    let keeps_event_id = room_version
-        .rules()
-        .is_some_and(|rules| rules.event_format.require_event_id);
-
-    if !keeps_event_id {
-        pdu_json.remove("event_id");
-    }
-
-    to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
 }
 
 fn sender_servers(state: &[Raw<AnyStrippedStateEvent>]) -> impl Iterator<Item = OwnedServerName> {

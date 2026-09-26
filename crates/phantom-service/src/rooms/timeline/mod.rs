@@ -5,7 +5,7 @@ mod purge;
 
 use std::sync::Arc;
 
-use futures::{Future, Stream, TryStreamExt, pin_mut};
+use futures::{Future, Stream, StreamExt, TryStreamExt, future::ready, pin_mut};
 pub use phantom_core::matrix::pdu::{PduId, RawPduId};
 use phantom_core::{
     Result, at, err,
@@ -15,7 +15,10 @@ use phantom_core::{
     stream::TryIgnore,
     sync::MutexMap,
 };
-use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, RoomId, UserId};
+use ruma::{
+    CanonicalJsonObject, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, RoomId,
+    UserId, api::Direction,
+};
 
 use self::data::Data;
 pub use self::data::PdusIterItem;
@@ -220,4 +223,38 @@ pub fn pdus<'a>(
 ) -> impl Stream<Item = Result<PdusIterItem>> + Send + 'a {
     self.db
         .pdus(user_id, room_id, from.unwrap_or_else(PduCount::min))
+}
+
+#[implement(Service)]
+pub async fn get_event_id_near_ts(
+    &self,
+    room_id: &RoomId,
+    ts: MilliSecondsSinceUnixEpoch,
+    dir: Direction,
+) -> Result<(MilliSecondsSinceUnixEpoch, OwnedEventId)> {
+    let nearest = match dir {
+        Direction::Forward => {
+            self.pdus(None, room_id, None)
+                .try_filter(|(_, pdu)| ready(pdu.origin_server_ts >= ts.0))
+                .boxed()
+                .try_next()
+                .await?
+        }
+        Direction::Backward => {
+            self.pdus_rev(None, room_id, None)
+                .try_filter(|(_, pdu)| ready(pdu.origin_server_ts <= ts.0))
+                .boxed()
+                .try_next()
+                .await?
+        }
+    };
+
+    nearest
+        .map(|(_, pdu)| {
+            (
+                MilliSecondsSinceUnixEpoch(pdu.origin_server_ts),
+                pdu.event_id,
+            )
+        })
+        .ok_or_else(|| err!(Request(NotFound("No event found near this timestamp."))))
 }

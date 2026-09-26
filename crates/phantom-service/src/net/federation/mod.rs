@@ -1,5 +1,6 @@
 mod execute;
 pub mod feds;
+mod format;
 mod peer;
 mod rank;
 
@@ -12,6 +13,7 @@ use phantom_core::{
 use phantom_database::Map;
 
 pub use self::{
+    format::outgoing_pdu,
     peer::{Classification, PeerBackoff, ShouldAttempt},
     rank::{Candidates, WhenAllBackedOff},
 };
@@ -40,6 +42,7 @@ struct Services {
     resolver: Dep<resolver::Service>,
     server_keys: Dep<server_keys::Service>,
     server_state: Dep<server_state::Service>,
+    state: Dep<rooms::state::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
 }
 
@@ -60,6 +63,7 @@ impl crate::Service for Service {
                 resolver: args.depend::<resolver::Service>("net::resolver"),
                 server_keys: args.depend::<server_keys::Service>("net::server_keys"),
                 server_state: args.depend::<server_state::Service>("ops::server_state"),
+                state: args.depend::<rooms::state::Service>("rooms::state"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
             },
             statuses: args.db["servername_status"].clone(),

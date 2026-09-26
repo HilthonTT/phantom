@@ -90,6 +90,24 @@ impl Service {
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
+    pub async fn heroes(&self, room_id: &RoomId, excluding: &UserId) -> Vec<ruma::OwnedUserId> {
+        const LIMIT: usize = 5;
+
+        let members: Vec<ruma::OwnedUserId> = self
+            .room_members(room_id)
+            .chain(self.room_members_invited(room_id))
+            .map(ToOwned::to_owned)
+            .take(LIMIT.saturating_add(1))
+            .collect()
+            .await;
+
+        members
+            .into_iter()
+            .filter(|user_id| user_id != excluding)
+            .take(LIMIT)
+            .collect()
+    }
+
     pub fn room_members_invited<'a>(
         &'a self,
         room_id: &'a RoomId,
