@@ -11,6 +11,7 @@ axum = "0.8.9"
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 bytes = "1.12.1"
 http = "1.5.0"
+ipnet = "2.12.2"
 phantom-core.workspace = true
 phantom-service.workspace = true
 serde = "1.0.229"
@@ -20,6 +21,9 @@ smallvec = { version = "1.16.1", features = ["serde"] }
 # The `#[instrument]` attribute; it expands to `::tracing` paths, so the
 # phantom-core re-export is not enough.
 tracing = "0.1.44"
+
+[dev-dependencies]
+tokio = { version = "1.49.0", features = ["macros", "rt"] }
 
 [lints]
 workspace = true
