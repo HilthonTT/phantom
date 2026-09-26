@@ -1,4 +1,5 @@
 mod defaults;
+pub mod ip_source;
 mod listen;
 pub mod manager;
 mod prelude;
@@ -37,6 +38,7 @@ pub use self::{
     smtp::SmtpConfig,
     storage::{StorageProvider, StorageProviderLocal, StorageProviderS3},
     validate::validate,
+    ip_source::IpSource,
 };
 use crate::{Result, diagnostics::log::fmt_span, err};
 
@@ -128,6 +130,9 @@ pub struct Config {
 
     #[serde(flatten)]
     pub updates: updates::Updates,
+
+    #[serde(flatten)]
+    pub ip_source: Option<IpSource>,
 }
 
 pub mod admin;
