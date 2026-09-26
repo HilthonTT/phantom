@@ -96,6 +96,12 @@ pub fn ruma_from_usize(val: usize) -> ruma::UInt {
 
 #[inline]
 #[must_use]
+pub fn usize_from_ruma_bounded(val: ruma::UInt, fallback: usize, max: usize) -> usize {
+    usize::try_from(val).unwrap_or(fallback).min(max)
+}
+
+#[inline]
+#[must_use]
 #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
 pub fn usize_from_u64_truncated(val: u64) -> usize {
     val as usize

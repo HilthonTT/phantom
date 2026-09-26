@@ -9,6 +9,9 @@ pub struct Federation {
     #[serde(default)]
     pub allow_device_name_federation: bool,
 
+    #[serde(default = "true_fn")]
+    pub allow_inbound_profile_lookup_federation_requests: bool,
+
     #[serde(default = "default_trusted_servers")]
     pub trusted_servers: Vec<OwnedServerName>,
 

@@ -81,6 +81,10 @@ pub(super) fn default_presence_offline_timeout_s() -> u64 {
     30 * 60
 }
 
+pub(super) fn default_typing_federation_timeout_s() -> u64 {
+    30
+}
+
 pub(super) fn default_db_pool_workers() -> usize {
     32
 }

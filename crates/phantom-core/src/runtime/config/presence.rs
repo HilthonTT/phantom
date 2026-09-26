@@ -20,4 +20,16 @@ pub struct Presence {
 
     #[serde(default = "true_fn")]
     pub allow_outgoing_typing: bool,
+
+    #[serde(default = "true_fn")]
+    pub allow_incoming_presence: bool,
+
+    #[serde(default = "true_fn")]
+    pub allow_incoming_read_receipts: bool,
+
+    #[serde(default = "true_fn")]
+    pub allow_incoming_typing: bool,
+
+    #[serde(default = "default_typing_federation_timeout_s")]
+    pub typing_federation_timeout_s: u64,
 }

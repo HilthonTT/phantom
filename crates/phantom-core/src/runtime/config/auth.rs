@@ -15,4 +15,6 @@ pub struct Auth {
     pub new_user_displayname_suffix: String,
 
     pub well_known_client: Option<Url>,
+
+    pub well_known_server: Option<OwnedServerName>,
 }

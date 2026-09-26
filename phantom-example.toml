@@ -78,6 +78,10 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#well_known_server =
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #database_path =
 
 # This item is undocumented. Please contribute documentation for it.
@@ -282,6 +286,10 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#allow_inbound_profile_lookup_federation_requests = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #trusted_servers =
 
 # This item is undocumented. Please contribute documentation for it.
@@ -482,6 +490,10 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#block_non_admin_invites = false
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #ip_range_denylist =
 
 # This item is undocumented. Please contribute documentation for it.
@@ -639,6 +651,22 @@
 # This item is undocumented. Please contribute documentation for it.
 #
 #allow_outgoing_typing = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#allow_incoming_presence = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#allow_incoming_read_receipts = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#allow_incoming_typing = true
+
+# This item is undocumented. Please contribute documentation for it.
+#
+#typing_federation_timeout_s =
 
 # This item is undocumented. Please contribute documentation for it.
 #

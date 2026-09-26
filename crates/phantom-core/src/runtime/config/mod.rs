@@ -32,13 +32,13 @@ use self::{
 };
 pub use self::{
     identity::IdentityProvider,
+    ip_source::IpSource,
     listen::IpLookupStrategy,
     manager::Manager,
     proxy::ProxyConfig,
     smtp::SmtpConfig,
     storage::{StorageProvider, StorageProviderLocal, StorageProviderS3},
     validate::validate,
-    ip_source::IpSource,
 };
 use crate::{Result, diagnostics::log::fmt_span, err};
 

@@ -23,4 +23,7 @@ pub struct Membership {
 
     #[serde(default)]
     pub enforce_stripped_state_pdu_validation: bool,
+
+    #[serde(default)]
+    pub block_non_admin_invites: bool,
 }
