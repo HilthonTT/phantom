@@ -5,6 +5,7 @@ pub mod content_disposition;
 pub mod diagnostics;
 pub mod future;
 pub mod hash;
+pub mod html;
 pub mod json;
 pub mod macros;
 pub mod math;

@@ -1,0 +1,289 @@
+:root {
+  color-scheme: light dark;
+
+  --bg: #fff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --surface: #f6f8fa;
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+  --accent-fg: #fff;
+  --danger: #cf222e;
+  --danger-hover: #a40e26;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --focus: #0969da66;
+  --radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #3d444d;
+    --surface: #151b23;
+    --accent: #4493f8;
+    --accent-hover: #6cb0ff;
+    --accent-fg: #0d1117;
+    --danger: #f85149;
+    --danger-hover: #ff7b72;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --focus: #4493f866;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 3rem 1rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 30rem;
+  margin: 0 auto;
+}
+
+body.wide main {
+  max-width: 56rem;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.2rem;
+}
+
+p {
+  margin: 0.75rem 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+code {
+  padding: 0.1em 0.35em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.875em;
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Tables */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tbody tr:hover {
+  background: var(--surface);
+}
+
+/* Definition lists (detail views) */
+
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 1rem;
+  margin: 1rem 0;
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Forms */
+
+form {
+  margin: 1.5rem 0;
+}
+
+label {
+  display: block;
+  margin: 1rem 0 0.3rem;
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  background: var(--bg);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+  border-color: var(--accent);
+  outline: 3px solid var(--focus);
+  outline-offset: 0;
+}
+
+button {
+  padding: 0.55rem 1.25rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+button.danger {
+  background: var(--danger);
+}
+
+button.danger:hover {
+  background: var(--danger-hover);
+}
+
+.submit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* Navigation */
+
+.actions,
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 2rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.sep {
+  color: var(--border);
+}
+
+/* Status text */
+
+.ok {
+  color: var(--ok);
+}
+
+.err {
+  color: var(--danger);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.meta {
+  margin: 0.4rem 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.center {
+  text-align: center;
+}
+
+/* Callouts */
+
+.callout {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted);
+  border-radius: var(--radius);
+}
+
+.callout p {
+  margin: 0.4rem 0;
+}
+
+.callout.warn {
+  color: inherit;
+  border-left-color: var(--warn);
+}
+
+.callout.danger {
+  border-left-color: var(--danger);
+}
+
+/* Checkbox with its label text */
+
+label.check {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+label.check input {
+  flex: none;
+  accent-color: var(--danger);
+}

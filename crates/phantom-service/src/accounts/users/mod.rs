@@ -3,7 +3,12 @@ mod keys;
 mod to_device;
 mod token;
 
-use std::{collections::BTreeMap, mem, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    mem,
+    sync::{Arc, RwLock},
+    time::{Duration, Instant},
+};
 
 use futures::{Stream, StreamExt, TryFutureExt};
 use phantom_core::{
@@ -32,7 +37,13 @@ use crate::{Dep, accounts::account_data, ops::server_state, rooms};
 pub struct Service {
     services: Services,
     db: Data,
+    /// Users who approved a cross-signing reset, and when that approval
+    /// lapses. Kept in memory only: a restart simply revokes the approval.
+    cross_signing_replacement_allowed: RwLock<HashMap<OwnedUserId, Instant>>,
 }
+
+/// How long an approved cross-signing reset stays open.
+pub const CROSS_SIGNING_REPLACEMENT_TTL: Duration = Duration::from_secs(10 * 60);
 
 struct Services {
     server: Arc<Server>,
@@ -92,6 +103,7 @@ impl crate::Service for Service {
                 userid_selfsigningkeyid: args.db["userid_selfsigningkeyid"].clone(),
                 userid_usersigningkeyid: args.db["userid_usersigningkeyid"].clone(),
             },
+            cross_signing_replacement_allowed: RwLock::new(HashMap::new()),
         }))
     }
 

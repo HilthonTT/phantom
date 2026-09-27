@@ -1,6 +1,30 @@
 use super::*;
 
 impl Service {
+    /// Lets `user_id` replace their existing cross-signing keys without UIA
+    /// for the next [`CROSS_SIGNING_REPLACEMENT_TTL`]. Approved from the OIDC
+    /// account management page (`org.matrix.cross_signing_reset`).
+    pub fn allow_cross_signing_replacement(&self, user_id: &UserId) {
+        let expires_at = Instant::now() + CROSS_SIGNING_REPLACEMENT_TTL;
+        let mut allowed = self
+            .cross_signing_replacement_allowed
+            .write()
+            .expect("locked for writing");
+
+        allowed.retain(|_, expires_at| *expires_at > Instant::now());
+        allowed.insert(user_id.to_owned(), expires_at);
+    }
+
+    /// Whether `user_id` has an unexpired cross-signing reset approval.
+    #[must_use]
+    pub fn can_replace_cross_signing_keys(&self, user_id: &UserId) -> bool {
+        self.cross_signing_replacement_allowed
+            .read()
+            .expect("locked for reading")
+            .get(user_id)
+            .is_some_and(|expires_at| *expires_at > Instant::now())
+    }
+
     pub async fn add_one_time_key(
         &self,
         user_id: &UserId,

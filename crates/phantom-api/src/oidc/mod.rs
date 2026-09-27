@@ -1,18 +1,16 @@
-/// Raw JS served at `/_phantom/oidc/account.js`.
-/// Referenced via `<script src>` for CSP compatibility.
-static ACCOUNT_JS: &str = include_str!("account.js");
+use std::fmt::Write;
 
-/// Shared stylesheet served at `/_phantom/oidc/account.css`.
-static ACCOUNT_CSS: &str = include_str!("account.css");
+pub mod account;
 
-pub(super) static ACCOUNT_HEAD: &str = r#"
-	<meta charset="UTF-8">
-	<link rel="stylesheet" href="/_phantom/oidc/account.css">
-"#;
+pub(crate) fn url_encode(s: &str) -> String {
+    s.bytes()
+        .fold(String::with_capacity(s.len()), |mut out, b| {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+                out.push(b.into());
+            } else {
+                write!(&mut out, "%{b:02X}").ok();
+            }
 
-static ACCOUNT_JS_INCLUDE: &str = r#"
-	<script src="/_phantom/oidc/account.js"></script>
-"#;
-
-/// Cache-control header value.
-static ACCOUNT_CACHE_CONTROL: &str = "no-store";
+            out
+        })
+}
