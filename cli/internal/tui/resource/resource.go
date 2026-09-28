@@ -13,6 +13,7 @@ const (
 	Tasks
 	Logs
 	Settings
+	Chat
 )
 
 type Group int
@@ -20,6 +21,7 @@ type Group int
 const (
 	ServerGroup Group = iota
 	OperationsGroup
+	MessagingGroup
 )
 
 func (s Section) String() string {
@@ -44,6 +46,8 @@ func (s Section) String() string {
 		return "Logs"
 	case Settings:
 		return "Settings"
+	case Chat:
+		return "Chat"
 	default:
 		return "Unknown"
 	}
@@ -53,6 +57,8 @@ func (s Section) Group() Group {
 	switch s {
 	case Overview, Services, Rooms, Users, Tokens, Federation, Media:
 		return ServerGroup
+	case Chat:
+		return MessagingGroup
 	default:
 		return OperationsGroup
 	}
@@ -64,6 +70,8 @@ func (g Group) String() string {
 		return "SERVER"
 	case OperationsGroup:
 		return "OPERATIONS"
+	case MessagingGroup:
+		return "MESSAGING"
 	default:
 		return "OTHER"
 	}
@@ -71,6 +79,7 @@ func (g Group) String() string {
 
 func Sections() []Section {
 	return []Section{
+		Chat,
 		Overview, Services, Rooms, Users, Tokens, Federation, Media,
 		Tasks, Logs, Settings,
 	}

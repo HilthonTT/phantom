@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/HilthonTT/phantom/cli/internal/tui/inspector"
 	"github.com/HilthonTT/phantom/cli/internal/tui/modal"
 	"github.com/HilthonTT/phantom/cli/internal/tui/panel"
 )
@@ -37,17 +38,25 @@ func (m Model) render() string {
 }
 
 func (m Model) renderMain() string {
-	open := m.workspace.Section()
+	open := m.openSection()
 	if m.focus == focusSidebar {
 		if selected, ok := m.sidebar.Selected(); ok {
 			open = selected
 		}
 	}
 
-	panels := []string{
-		m.sidebar.Render(m.focus == focusSidebar, open),
-		m.workspace.Render(m.focus == focusWorkspace),
+	panels := []string{m.sidebar.Render(m.focus == focusSidebar, open)}
+
+	if m.chatOpen {
+		panels = append(panels, m.chat.Render(m.focus == focusWorkspace))
+		if m.showInspector() {
+			panels = append(panels, m.chat.RenderMembers(inspector.Width, m.height-footerHeight))
+		}
+
+		return lipgloss.JoinHorizontal(lipgloss.Top, panels...)
 	}
+
+	panels = append(panels, m.workspace.Render(m.focus == focusWorkspace))
 
 	if m.showInspector() {
 		row, ok := m.workspace.Selected()
@@ -59,6 +68,9 @@ func (m Model) renderMain() string {
 
 func (m Model) renderFooter() string {
 	row, ok := m.workspace.Selected()
+	if m.chatOpen {
+		row, ok = m.chat.Summary()
+	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top,
 		m.taskbar.Render(m.focus == focusTasks),

@@ -5,6 +5,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/HilthonTT/phantom/cli/internal/tui/modal"
+	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -23,6 +24,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.modal != modal.None {
 		return m.handleModalKey(msg)
+	}
+	if m.chat.Composing() {
+		return m.handleComposeKey(msg)
 	}
 	if m.filtering() {
 		return m.handleFilterKey(msg)
@@ -75,6 +79,9 @@ func (m Model) startFiltering() (tea.Model, tea.Cmd) {
 	case focusSidebar:
 		return m, m.sidebar.StartFiltering()
 	case focusWorkspace:
+		if m.chatOpen {
+			return m, nil
+		}
 		return m, m.workspace.StartFiltering()
 	default:
 		return m, nil
@@ -121,6 +128,9 @@ func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case focusSidebar:
 		return m.handleSidebarKey(msg), nil
 	case focusWorkspace:
+		if m.chatOpen {
+			return m.handleChatKey(msg)
+		}
 		return m.handleWorkspaceKey(msg), nil
 	default:
 		return m.handleTaskbarKey(msg), nil
@@ -137,18 +147,67 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) tea.Model {
 
 	case key.Matches(msg, m.keys.Open):
 		if section, ok := m.sidebar.Selected(); ok {
-			m.workspace.Open(section)
+			m.chatOpen = section == resource.Chat
+			if !m.chatOpen {
+				m.workspace.Open(section)
+			}
 			m.focus = focusWorkspace
 		}
 
 	case key.Matches(msg, m.keys.OpenPanel):
 		if section, ok := m.sidebar.Selected(); ok {
-			m.workspace.OpenTab(section)
+			m.chatOpen = section == resource.Chat
+			if !m.chatOpen {
+				m.workspace.OpenTab(section)
+			}
 			m.focus = focusWorkspace
 		}
 	}
 
 	return m
+}
+
+func (m Model) handleChatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Up):
+		m.chat.MoveUp()
+	case key.Matches(msg, m.keys.Down):
+		m.chat.MoveDown()
+	case key.Matches(msg, m.keys.PageUp):
+		m.chat.ScrollUp()
+	case key.Matches(msg, m.keys.PageDown):
+		m.chat.ScrollDown()
+	case key.Matches(msg, m.keys.Top):
+		m.chat.ScrollOldest()
+	case key.Matches(msg, m.keys.Bottom):
+		m.chat.ScrollNewest()
+	case key.Matches(msg, m.keys.Compose):
+		return m, m.chat.StartComposing()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleComposeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Cancel):
+		m.chat.StopComposing()
+		return m, nil
+
+	case key.Matches(msg, m.keys.Send):
+		m.chat.Send()
+		return m, nil
+
+	case msg.Code == tea.KeyPgUp:
+		m.chat.ScrollUp()
+		return m, nil
+
+	case msg.Code == tea.KeyPgDown:
+		m.chat.ScrollDown()
+		return m, nil
+	}
+
+	return m, m.chat.UpdateComposer(msg)
 }
 
 func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) tea.Model {

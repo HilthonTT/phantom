@@ -17,6 +17,7 @@ type Glyphs struct {
 	Task      string
 	Log       string
 	Config    string
+	Chat      string
 
 	Running string
 	Done    string
@@ -45,6 +46,7 @@ func UnicodeGlyphs() Glyphs {
 		Task:      "⧗",
 		Log:       "≡",
 		Config:    "⚙",
+		Chat:      "◧",
 
 		Running: "◐",
 		Done:    "✔",
@@ -74,6 +76,7 @@ func ASCIIGlyphs() Glyphs {
 		Task:      "!",
 		Log:       "=",
 		Config:    "+",
+		Chat:      "\"",
 
 		Running: "~",
 		Done:    "+",

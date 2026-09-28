@@ -34,6 +34,7 @@ func (m *Model) resize(width, height int) {
 	m.sidebar.SetHeight(mainHeight)
 	m.inspector.SetHeight(mainHeight)
 	m.workspace.SetSize(m.workspaceWidth(), mainHeight)
+	m.chat.SetSize(m.workspaceWidth(), mainHeight)
 
 	tasks, summary, conn := m.footerWidths()
 	m.taskbar.SetSize(tasks, footerHeight)

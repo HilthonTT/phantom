@@ -94,6 +94,8 @@ func (m Model) glyph(s resource.Section) string {
 		return m.glyphs.Task
 	case resource.Logs:
 		return m.glyphs.Log
+	case resource.Chat:
+		return m.glyphs.Chat
 	default:
 		return m.glyphs.Config
 	}

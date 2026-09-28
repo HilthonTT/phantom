@@ -23,6 +23,9 @@ type KeyMap struct {
 	Open      key.Binding
 	Refresh   key.Binding
 
+	Compose key.Binding
+	Send    key.Binding
+
 	Filter key.Binding
 	Prompt key.Binding
 	Sort   key.Binding
@@ -53,6 +56,9 @@ func Default() KeyMap {
 		ClearMark: binding("clear all marks", "A"),
 		Open:      binding("open what the cursor is on", "enter"),
 		Refresh:   binding("reload the listing", "r"),
+
+		Compose: binding("write in the open room", "enter"),
+		Send:    binding("send what you wrote", "enter"),
 
 		Filter: binding("filter what is listed", "/"),
 		Prompt: binding("open the command prompt", ":"),
@@ -92,6 +98,7 @@ func (k KeyMap) Entries() []Entry {
 	help = append(help, section("Panels",
 		k.NextPanel, k.PrevPanel, k.OpenPanel, k.ClosePanel, k.FocusNext, k.FocusPrev)...)
 	help = append(help, section("Rows", k.Mark, k.MarkAll, k.ClearMark, k.Open, k.Refresh)...)
+	help = append(help, section("Chat", k.Compose, k.Send, k.PageUp, k.PageDown, k.Cancel)...)
 	help = append(help, section("Overlays", k.Filter, k.Prompt, k.Sort, k.Help, k.Cancel)...)
 	help = append(help, section("Session", k.Quit)...)
 
