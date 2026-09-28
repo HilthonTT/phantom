@@ -22,6 +22,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, m.keys.ForceQuit) {
+		return m.quit()
+	}
 	if m.modal != modal.None {
 		return m.handleModalKey(msg)
 	}
@@ -41,8 +44,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
-		m.quitting = true
-		return true, m, tea.Quit
+		if m.tooSmall() {
+			model, cmd := m.quit()
+			return true, model, cmd
+		}
+		m.ask(quitAction, "Quit phantom?", "The session ends and the terminal is handed back.")
+		return true, m, nil
 
 	case key.Matches(msg, m.keys.Help):
 		m.modal = modal.Help
@@ -65,9 +72,8 @@ func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, model, cmd
 
 	case key.Matches(msg, m.keys.Sort):
-		m.confirm.Ask("Change the sort order",
+		m.ask(noAction, "Change the sort order",
 			"Sorting is not wired up yet — this is where it will ask.")
-		m.modal = modal.Confirm
 		return true, m, nil
 	}
 
@@ -257,9 +263,8 @@ func (m Model) handleTaskbarKey(msg tea.KeyPressMsg) tea.Model {
 
 	case key.Matches(msg, m.keys.Cancel):
 		if task, ok := m.taskbar.Selected(); ok {
-			m.confirm.Ask("Cancel "+task.Name+"?",
+			m.ask(noAction, "Cancel "+task.Name+"?",
 				"Cancelling is not wired up yet — this is where it will ask.")
-			m.modal = modal.Confirm
 		}
 	}
 
@@ -286,7 +291,7 @@ func (m Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.NextPanel), key.Matches(msg, m.keys.PrevPanel):
 			m.confirm.Toggle()
 		case key.Matches(msg, m.keys.Open):
-			return m.closeModal(), nil
+			return m.answer()
 		}
 		return m, nil
 
@@ -309,10 +314,33 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.help.Update(msg)
 }
 
+func (m *Model) ask(a action, title, body string) {
+	m.confirm.Ask(title, body)
+	m.pending = a
+	m.modal = modal.Confirm
+}
+
+func (m Model) answer() (tea.Model, tea.Cmd) {
+	accepted, pending := m.confirm.Accepted(), m.pending
+	m = m.closeModal()
+
+	if accepted && pending == quitAction {
+		return m.quit()
+	}
+
+	return m, nil
+}
+
+func (m Model) quit() (tea.Model, tea.Cmd) {
+	m.quitting = true
+	return m, tea.Quit
+}
+
 func (m Model) closeModal() Model {
 	m.help.Blur()
 	m.prompt.Blur()
 	m.modal = modal.None
+	m.pending = noAction
 
 	return m
 }

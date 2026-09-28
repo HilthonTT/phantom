@@ -32,7 +32,8 @@ type KeyMap struct {
 	Help   key.Binding
 	Cancel key.Binding
 
-	Quit key.Binding
+	Quit      key.Binding
+	ForceQuit key.Binding
 }
 
 func Default() KeyMap {
@@ -66,7 +67,8 @@ func Default() KeyMap {
 		Help:   binding("show this help", "?"),
 		Cancel: binding("dismiss what is open, or cancel a task", "esc"),
 
-		Quit: binding("quit phantom", "q", "ctrl+c"),
+		Quit:      binding("quit phantom, after asking", "q"),
+		ForceQuit: binding("quit phantom at once", "ctrl+c"),
 	}
 }
 
@@ -100,7 +102,7 @@ func (k KeyMap) Entries() []Entry {
 	help = append(help, section("Rows", k.Mark, k.MarkAll, k.ClearMark, k.Open, k.Refresh)...)
 	help = append(help, section("Chat", k.Compose, k.Send, k.PageUp, k.PageDown, k.Cancel)...)
 	help = append(help, section("Overlays", k.Filter, k.Prompt, k.Sort, k.Help, k.Cancel)...)
-	help = append(help, section("Session", k.Quit)...)
+	help = append(help, section("Session", k.Quit, k.ForceQuit)...)
 
 	return help
 }

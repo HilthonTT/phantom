@@ -26,6 +26,13 @@ const (
 	focusCount
 )
 
+type action int
+
+const (
+	noAction action = iota
+	quitAction
+)
+
 type Model struct {
 	theme  theme.Theme
 	glyphs theme.Glyphs
@@ -45,6 +52,7 @@ type Model struct {
 	prompt  modal.PromptModel
 	confirm modal.ConfirmModel
 	modal   modal.Kind
+	pending action
 
 	focus focus
 
