@@ -2,6 +2,8 @@ mod account_deactivate;
 mod cross_signing_reset;
 mod profile;
 mod profile_saved;
+mod session_end_confirm;
+mod session_end_execute;
 
 use super::url_encode;
 
