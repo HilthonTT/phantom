@@ -1,10 +1,13 @@
 use axum::extract::State;
 use futures::{StreamExt, future::ready};
 use phantom_core::{Err, Result, err, rand};
+use phantom_service::Services;
 use ruma::{
-    OwnedServerName,
+    OwnedServerName, UserId,
     api::federation::query::{get_profile_information, get_room_information},
 };
+
+use serde_json::Value as JsonValue;
 
 use crate::router::Ruma;
 
@@ -72,15 +75,17 @@ pub(crate) async fn get_profile_information_route(
 
     match &body.field {
         Some(field) => {
-            if let Ok(value) = services
-                .profile
-                .profile_key(&body.user_id, field.as_str())
-                .await
-            {
+            if let Some(value) = profile_field(&services, &body.user_id, field.as_str()).await {
                 response.set(field.to_string(), value);
             }
         }
         None => {
+            for field in DEDICATED_PROFILE_FIELDS {
+                if let Some(value) = profile_field(&services, &body.user_id, field).await {
+                    response.set(field.to_owned(), value);
+                }
+            }
+
             services
                 .profile
                 .all_profile_keys(&body.user_id)
@@ -93,4 +98,25 @@ pub(crate) async fn get_profile_information_route(
     }
 
     Ok(response)
+}
+
+/// Profile fields kept in their own tables rather than the generic profile-key
+/// table.
+const DEDICATED_PROFILE_FIELDS: [&str; 3] = ["displayname", "avatar_url", BLURHASH_FIELD];
+
+const BLURHASH_FIELD: &str = "xyz.amorgan.blurhash";
+
+async fn profile_field(services: &Services, user_id: &UserId, field: &str) -> Option<JsonValue> {
+    let profile = &services.profile;
+
+    match field {
+        "displayname" => profile.displayname(user_id).await.ok().map(Into::into),
+        "avatar_url" => profile
+            .avatar_url(user_id)
+            .await
+            .ok()
+            .map(|url| url.to_string().into()),
+        BLURHASH_FIELD => profile.blurhash(user_id).await.ok().map(Into::into),
+        field => profile.profile_key(user_id, field).await.ok(),
+    }
 }

@@ -79,7 +79,28 @@ pub(super) async fn require_known_room(
         .await
 }
 
-pub(super) async fn require_event_in_room(
+/// Access check shared by the endpoints that return the state or auth chain at
+/// an event: the origin must be able to reach the room, and the event must be
+/// in it.
+pub(super) async fn check_event_in_room_access(
+    services: &Services,
+    origin: &ServerName,
+    room_id: &RoomId,
+    event_id: &EventId,
+) -> Result {
+    AccessCheck {
+        services,
+        origin,
+        room_id,
+        event_id: None,
+    }
+    .check()
+    .await?;
+
+    require_event_in_room(services, event_id, room_id).await
+}
+
+async fn require_event_in_room(
     services: &Services,
     event_id: &EventId,
     room_id: &RoomId,

@@ -85,14 +85,16 @@ pub(super) async fn sort_pdus(mut pdus: Vec<IndexedPdu>) -> Vec<IndexedPdu> {
         return pdus;
     }
 
-    let batch: HashSet<&OwnedEventId> = pdus.iter().map(|(_, (_, event_id, _))| event_id).collect();
+    let batch: HashMap<&str, &OwnedEventId> = pdus
+        .iter()
+        .map(|(_, (_, event_id, _))| (event_id.as_str(), event_id))
+        .collect();
 
     let graph: HashMap<OwnedEventId, HashSet<OwnedEventId>> = pdus
         .iter()
         .map(|(_, (_, event_id, value))| {
             let prev_events = prev_event_ids(value)
-                .filter_map(|prev| batch.iter().find(|id| id.as_str() == prev))
-                .map(|&id| id.clone())
+                .filter_map(|prev| batch.get(prev).map(|&id| id.clone()))
                 .collect();
 
             (event_id.clone(), prev_events)

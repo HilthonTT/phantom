@@ -1,7 +1,7 @@
-use std::{fmt::Debug, pin::pin};
+use std::iter::once;
 
-use futures::{StreamExt, stream::FuturesOrdered};
-use phantom_core::{Result, debug_error};
+use futures::{StreamExt, TryStreamExt, future::ready, stream::FuturesOrdered};
+use phantom_core::{Result, at, debug_error, err};
 use phantom_service::Services;
 use ruma::{EventId, OwnedEventId, RoomId, RoomVersionId};
 use serde_json::value::RawValue as RawJsonValue;
@@ -14,17 +14,13 @@ pub(super) async fn federation_pdus<I>(
 where
     I: IntoIterator<Item = OwnedEventId>,
 {
-    let mut pdus = FuturesOrdered::new();
-    for event_id in event_ids {
-        pdus.push_back(federation_pdu(services, event_id, room_version));
-    }
-
-    let mut formatted = Vec::with_capacity(pdus.len());
-    while let Some(pdu) = pdus.next().await {
-        formatted.extend(pdu.ok());
-    }
-
-    formatted
+    event_ids
+        .into_iter()
+        .map(|event_id| federation_pdu(services, event_id, room_version))
+        .collect::<FuturesOrdered<_>>()
+        .filter_map(|pdu| ready(pdu.ok()))
+        .collect()
+        .await
 }
 
 async fn federation_pdu(
@@ -45,24 +41,36 @@ async fn federation_pdu(
         .await)
 }
 
-pub(super) async fn auth_chain_ids<'a, I>(
-    services: &'a Services,
-    room_id: &'a RoomId,
-    starting_events: I,
-) -> Result<Vec<OwnedEventId>>
-where
-    I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
-{
-    let mut ids = Vec::new();
-    let mut chain = pin!(
-        services
-            .rooms
-            .auth_chain
-            .event_ids_iter(room_id, starting_events)
-    );
-    while let Some(id) = chain.next().await {
-        ids.push(id?);
-    }
+pub(super) async fn auth_chain_ids(
+    services: &Services,
+    room_id: &RoomId,
+    event_id: &EventId,
+) -> Result<Vec<OwnedEventId>> {
+    services
+        .rooms
+        .auth_chain
+        .event_ids_iter(room_id, once(event_id))
+        .try_collect()
+        .await
+}
 
-    Ok(ids)
+/// IDs of the full room state at `event_id`.
+pub(super) async fn state_ids_at(
+    services: &Services,
+    event_id: &EventId,
+) -> Result<Vec<OwnedEventId>> {
+    let shortstatehash = services
+        .rooms
+        .state_accessor
+        .pdu_shortstatehash(event_id)
+        .await
+        .map_err(|_| err!(Request(NotFound("PDU state not found."))))?;
+
+    Ok(services
+        .rooms
+        .state_accessor
+        .state_full_ids(shortstatehash)
+        .map(at!(1))
+        .collect()
+        .await)
 }

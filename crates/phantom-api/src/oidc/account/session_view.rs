@@ -42,27 +42,29 @@ pub(super) async fn session_view_html(
 		<title>Session: {name}</title>
 	</head>
 	<body>
-		<h1>Session Details</h1>
-		<p>
-			Signed in as <strong>{uid}</strong>.
-		</p>
-		<dl>
-			<dt>Name</dt><dd>{name}</dd>
-			<dt>Device ID</dt><dd><code>{id}</code></dd>
-			<dt>Last seen IP</dt><dd>{ip}</dd>
-			<dt>Last seen</dt><dd>{ts}</dd>
-		</dl>
-		<div class="actions">
-			<a href="/_phantom/oidc/account?action=org.matrix.sessions_list">
-				Back to sessions
-			</a>
-			<a
-				href="/_phantom/oidc/account_callback?action=org.matrix.session_end&device_id={id_enc}&loginToken={tok_enc}"
-				class="err"
-			>
-				Sign out this session
-			</a>
-		</div>
+		<main>
+			<h1>Session Details</h1>
+			<p>
+				Signed in as <strong>{uid}</strong>.
+			</p>
+			<dl>
+				<dt>Name</dt><dd>{name}</dd>
+				<dt>Device ID</dt><dd><code>{id}</code></dd>
+				<dt>Last seen IP</dt><dd>{ip}</dd>
+				<dt>Last seen</dt><dd>{ts}</dd>
+			</dl>
+			<div class="actions">
+				<a href="/_phantom/oidc/account?action=org.matrix.sessions_list">
+					Back to sessions
+				</a>
+				<a
+					href="/_phantom/oidc/account_callback?action=org.matrix.session_end&device_id={id_enc}&loginToken={tok_enc}"
+					class="err"
+				>
+					Sign out this session
+				</a>
+			</div>
+		</main>
 	</body>
 </html>"#
     ))

@@ -26,10 +26,17 @@ where
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         const ERROR: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
 
-        if let Some(&ConfiguredIpSource(source)) = parts.extensions.get::<ConfiguredIpSource>()
-            && !peer_is_trusted(&parts.extensions)
-        {
+        // A trusted peer (e.g. a bridge on loopback) may connect without going
+        // through the proxy, so it falls back to its socket address. It must not
+        // skip the configured source: a local reverse proxy is a trusted peer
+        // too, and the leftmost header entries are client-controlled.
+        if let Some(&ConfiguredIpSource(source)) = parts.extensions.get::<ConfiguredIpSource>() {
             return secure_extract(source, &parts.headers, &parts.extensions)
+                .or_else(|| {
+                    peer_is_trusted(&parts.extensions)
+                        .then(|| peer_ip(&parts.extensions))
+                        .flatten()
+                })
                 .map(Self)
                 .ok_or((ERROR, "Can't extract client IP from configured ip_source"));
         }
@@ -49,12 +56,16 @@ impl fmt::Display for ClientIp {
     }
 }
 
+fn peer_ip(extensions: &Extensions) -> Option<IpAddr> {
+    extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip())
+}
+
 fn peer_is_trusted(extensions: &Extensions) -> bool {
-    let Some(ConnectInfo(addr)) = extensions.get::<ConnectInfo<SocketAddr>>() else {
+    let Some(peer) = peer_ip(extensions).map(|ip| ip.to_canonical()) else {
         return false;
     };
-
-    let peer = addr.ip().to_canonical();
 
     peer.is_loopback()
         || extensions
@@ -68,9 +79,7 @@ fn secure_extract(
     extensions: &Extensions,
 ) -> Option<IpAddr> {
     match source {
-        IpSource::ConnectInfo => extensions
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|ConnectInfo(addr)| addr.ip()),
+        IpSource::ConnectInfo => peer_ip(extensions),
         IpSource::RightmostXForwardedFor => rightmost_x_forwarded_for(headers),
         IpSource::RightmostForwarded => rightmost_forwarded(headers),
         IpSource::XRealIp => single_ip_header(headers, "x-real-ip"),
@@ -81,24 +90,31 @@ fn secure_extract(
     }
 }
 
-fn rightmost_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
+/// Comma-separated entries of every instance of a list header, in order.
+fn header_entries<'a>(
+    headers: &'a HeaderMap,
+    name: &str,
+) -> impl DoubleEndedIterator<Item = &'a str> {
     headers
-        .get_all("x-forwarded-for")
+        .get_all(name)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|s| s.split(','))
-        .filter_map(|s| s.trim().parse::<IpAddr>().ok())
+}
+
+// The rightmost entry is the one our proxy appended. Only that entry is
+// trusted: if it doesn't parse, skipping to an earlier one would hand the
+// choice to the client.
+fn rightmost_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
+    header_entries(headers, "x-forwarded-for")
         .next_back()
+        .and_then(|s| s.trim().parse().ok())
 }
 
 fn rightmost_forwarded(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("forwarded")
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|s| s.split(','))
-        .filter_map(parse_forwarded_for)
+    header_entries(headers, "forwarded")
         .next_back()
+        .and_then(parse_forwarded_for)
 }
 
 /// Leftmost header scan with `ConnectInfo` fallback.
@@ -110,31 +126,17 @@ fn insecure_fallback(headers: &HeaderMap, extensions: &Extensions) -> Option<IpA
         .or_else(|| single_ip_header(headers, "true-client-ip"))
         .or_else(|| single_ip_header(headers, "cf-connecting-ip"))
         .or_else(|| cloudfront_viewer_address(headers))
-        .or_else(|| {
-            extensions
-                .get::<ConnectInfo<SocketAddr>>()
-                .map(|ConnectInfo(addr)| addr.ip())
-        })
+        .or_else(|| peer_ip(extensions))
 }
 
 fn leftmost_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("x-forwarded-for")
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|s| s.split(','))
-        .find_map(|s| s.trim().parse::<IpAddr>().ok())
+    header_entries(headers, "x-forwarded-for").find_map(|s| s.trim().parse().ok())
 }
 
 /// Parse `for=` from the leftmost RFC 7239 stanza. Tolerates quoted
 /// values, bracketed IPv6, and an optional `:port` suffix.
 fn leftmost_forwarded(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("forwarded")
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|s| s.split(','))
-        .find_map(parse_forwarded_for)
+    header_entries(headers, "forwarded").find_map(parse_forwarded_for)
 }
 
 fn parse_forwarded_for(stanza: &str) -> Option<IpAddr> {
@@ -267,6 +269,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rightmost_source_does_not_skip_unparseable_last_entry() {
+        let mut parts = parts([
+            ("X-Forwarded-For", "6.6.6.6, 203.0.113.7:51234"),
+            ("Forwarded", "for=6.6.6.6, for=unknown"),
+        ]);
+        parts
+            .extensions
+            .insert(ConfiguredIpSource(IpSource::RightmostXForwardedFor));
+        assert!(extract_client_ip(&mut parts).await.is_err());
+
+        parts
+            .extensions
+            .insert(ConfiguredIpSource(IpSource::RightmostForwarded));
+        assert!(extract_client_ip(&mut parts).await.is_err());
+    }
+
+    #[tokio::test]
     async fn configured_source_without_matching_header_rejects() {
         let mut parts = parts(iter::empty());
         parts
@@ -301,13 +320,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn loopback_peer_with_proxy_header_still_uses_insecure_fallback() {
-        // When a loopback peer also forwards a proxy header (e.g. a local
-        // reverse proxy in a sidecar), the insecure leftmost-XFF behaviour wins
-        // over the loopback ConnectInfo fallback, matching how the unconfigured
-        // path already behaves.
+    async fn loopback_peer_with_proxy_header_uses_configured_source() {
+        // A local reverse proxy is a loopback peer; the client-supplied
+        // leftmost entry must not win over the one the proxy appended.
         let socket_addr = SocketAddr::from(([127, 0, 0, 1], 38000));
-        let mut parts = parts([("X-Forwarded-For", "9.9.9.9")]);
+        let mut parts = parts([("X-Forwarded-For", "6.6.6.6, 9.9.9.9")]);
         parts.extensions.insert(ConnectInfo(socket_addr));
         parts
             .extensions
@@ -359,9 +376,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn trusted_subnet_peer_with_proxy_header_uses_insecure_fallback() {
+    async fn trusted_subnet_peer_with_proxy_header_uses_configured_source() {
         let socket_addr = SocketAddr::from(([172, 18, 0, 5], 38000));
-        let mut parts = parts([("X-Forwarded-For", "9.9.9.9")]);
+        let mut parts = parts([("X-Forwarded-For", "6.6.6.6, 9.9.9.9")]);
         parts.extensions.insert(ConnectInfo(socket_addr));
         parts
             .extensions

@@ -59,23 +59,25 @@ pub(super) async fn sessions_list_html(services: &Services, user_id: &UserId) ->
 		<title>Active Sessions</title>
 	</head>
 	<body class="wide">
-		<h1>Active Sessions</h1>
-		<p>
-			Signed in as <strong>{uid}</strong>. {count} active session(s).
-		</p>
-		<table>
-			<tr>
-				<th>Name</th>
-				<th>Device ID</th>
-				<th>Last seen IP</th>
-				<th>Last seen</th>
-				<th class="center">Actions</th>
-			</tr>
-			{rows}
-		</table>
-		<div class="nav">
-			<a href="/_phantom/oidc/account?action=org.matrix.profile">View Profile</a>
-		</div>
+		<main>
+			<h1>Active Sessions</h1>
+			<p>
+				Signed in as <strong>{uid}</strong>. {count} active session(s).
+			</p>
+			<table>
+				<tr>
+					<th>Name</th>
+					<th>Device ID</th>
+					<th>Last seen IP</th>
+					<th>Last seen</th>
+					<th class="center">Actions</th>
+				</tr>
+				{rows}
+			</table>
+			<div class="nav">
+				<a href="/_phantom/oidc/account?action=org.matrix.profile">View Profile</a>
+			</div>
+		</main>
 	</body>
 </html>"#
     ))

@@ -87,21 +87,21 @@ fn account_error_page(message: &str) -> String {
 
     format!(
         r#"<!DOCTYPE html>
-		<html lang="en">
-			<head>
-				{ACCOUNT_HEAD}
-				<title>Error</title>
-			</head>
-			<body>
-				<h1 class="err">Error</h1>
-				<p>{msg}</p>
-				<div class="nav">
-					<a href="/_phantom/oidc/account">
-						Return to account management
-					</a>
-				</div>
-			</body>
-		</html>"#
+<html lang="en">
+	<head>
+		{ACCOUNT_HEAD}
+		<title>Error</title>
+	</head>
+	<body>
+		<main>
+			<h1 class="err">Error</h1>
+			<p>{msg}</p>
+			<nav class="nav">
+				<a href="/_phantom/oidc/account">Return to account management</a>
+			</nav>
+		</main>
+	</body>
+</html>"#
     )
 }
 

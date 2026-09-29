@@ -103,7 +103,9 @@ pub async fn public_rooms_page(
 ) -> Result<PublicRoomsPage> {
     let limit = limit
         .and_then(|limit| usize::try_from(limit).ok())
-        .unwrap_or(DEFAULT_LIMIT);
+        .unwrap_or(DEFAULT_LIMIT)
+        // limit=0 would return next_batch pointing at the same page forever.
+        .max(1);
 
     let offset = match since {
         Some(since) => parse_since(since, limit)?,
