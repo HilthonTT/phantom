@@ -43,8 +43,15 @@ impl Service {
         let user_string = text::string_from_bytes(user_bytes)
             .map_err(|e| err!(Database("User ID in openid_userid is invalid unicode. {e}")))?;
 
-        OwnedUserId::try_from(user_string)
-            .map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))
+        let user_id = OwnedUserId::try_from(user_string)
+            .map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))?;
+
+        // Deactivation doesn't purge these, so don't vouch for the user past it.
+        if !self.is_active(&user_id).await {
+            return Err!(Request(Unauthorized("OpenID token is unrecognised")));
+        }
+
+        Ok(user_id)
     }
 
     pub fn create_login_token(&self, user_id: &UserId, token: &str) -> u64 {

@@ -146,17 +146,22 @@ async fn configure(&self, mut provider: Provider) -> Result<Provider> {
         provider.scope = ["openid".to_owned()].into();
     }
 
-    let response = self
-        .discover(&provider)
-        .await
-        .and_then(|response| {
-            response.as_object().cloned().ok_or_else(|| {
-                err!(Request(NotJson(
-                    "Expecting a JSON object for the discovery response"
-                )))
+    // Without discovery every endpoint comes from config or the brand defaults
+    // below; only a provider that opts into discovery has to answer it.
+    let response = if provider.discovery {
+        self.discover(&provider)
+            .await
+            .and_then(|response| {
+                response.as_object().cloned().ok_or_else(|| {
+                    err!(Request(NotJson(
+                        "Expecting a JSON object for the discovery response"
+                    )))
+                })
             })
-        })
-        .and_then(|response| check_issuer(response, &provider))?;
+            .and_then(|response| check_issuer(response, &provider))?
+    } else {
+        JsonObject::new()
+    };
 
     if provider.authorization_url.is_none() {
         provider.authorization_url = discovered(&response, "authorization_endpoint")?

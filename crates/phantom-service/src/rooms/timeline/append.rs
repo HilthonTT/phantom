@@ -522,6 +522,10 @@ pub async fn redact_pdu(
         )))
     })?;
 
+    if pdu.room_id != reason.room_id {
+        return Ok(());
+    }
+
     if let Ok(ExtractBody { body: Some(body) }) = pdu.get_content::<ExtractBody>() {
         self.services
             .search

@@ -24,13 +24,15 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
     origin: &ServerName,
     room_id: &RoomId,
 ) -> Result<Option<RawPduId>> {
-    if self
+    // Only an accepted timeline copy counts; pdu_exists also matches the outlier
+    // copy handle_outlier_pdu has just written, which would skip every upgrade.
+    if let Ok(pdu_id) = self
         .services
         .timeline
-        .pdu_exists(&incoming_pdu.event_id)
+        .get_pdu_id(&incoming_pdu.event_id)
         .await
     {
-        return Ok(None);
+        return Ok(Some(pdu_id));
     }
 
     if self.is_soft_failed(&incoming_pdu.event_id).await {
@@ -61,9 +63,22 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
         )));
     }
 
-    let soft_fail = !self
+    let authorized_now = self
         .authorized_against_current(&room_version, &incoming_pdu, room_id)
         .await?;
+
+    // A redaction the sender isn't allowed to make must not reach clients.
+    let soft_fail = match (authorized_now, incoming_pdu.redacts_id(&room_version_id)) {
+        (false, _) => true,
+        (true, None) => false,
+        (true, Some(redacts)) => {
+            !self
+                .services
+                .state_accessor
+                .user_can_redact(&redacts, &incoming_pdu.sender, room_id, true)
+                .await?
+        }
+    };
 
     let state_after = self
         .state_after(&incoming_pdu, state_at_event.clone())
@@ -109,7 +124,10 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
         .append_incoming_pdu(
             &incoming_pdu,
             value,
-            extremities.iter().map(Borrow::borrow),
+            extremities
+                .iter()
+                .map(Borrow::borrow)
+                .chain(once(incoming_pdu.event_id.borrow())),
             compressed_state_at_event,
             false,
             &state_lock,
@@ -241,7 +259,7 @@ async fn extremities(&self, room_id: &RoomId, incoming_pdu: &PduEvent) -> Vec<Ow
         .filter(|event_id| !superseded.contains(event_id))
         .collect();
 
-    let mut kept = Vec::with_capacity(extremities.len().saturating_add(1));
+    let mut kept = Vec::with_capacity(extremities.len());
 
     for event_id in extremities.drain(..) {
         if self.services.timeline.pdu_exists(&event_id).await {
@@ -251,7 +269,6 @@ async fn extremities(&self, room_id: &RoomId, incoming_pdu: &PduEvent) -> Vec<Ow
         }
     }
 
-    kept.extend(once(incoming_pdu.event_id.clone()));
     kept
 }
 

@@ -68,7 +68,7 @@ pub(super) async fn fill_gap(
             continue;
         }
 
-        if self.services.timeline.pdu_exists(&event_id).await {
+        if self.services.timeline.get_pdu_id(&event_id).await.is_ok() {
             continue;
         }
 

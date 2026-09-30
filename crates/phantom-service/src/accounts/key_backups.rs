@@ -179,16 +179,28 @@ pub async fn count_keys(&self, user_id: &UserId, version: &str) -> usize {
 }
 
 #[implement(Service)]
-pub async fn get_etag(&self, user_id: &UserId, version: &str) -> String {
+pub async fn get_etag(&self, user_id: &UserId, version: &str) -> Result<String> {
     let key = (user_id, version);
     self.db
         .backupid_etag
         .qry(&key)
         .await
         .deserialized::<u64>()
-        .as_ref()
-        .map(ToString::to_string)
-        .expect("Backup has no etag.")
+        .map(|count| count.to_string())
+}
+
+/// Deleting keys changes the backup just as adding them does, so other
+/// clients have to see a new etag.
+#[implement(Service)]
+async fn bump_etag(&self, user_id: &UserId, version: &str) {
+    let key = (user_id, version);
+    if self.db.backupid_algorithm.qry(&key).await.is_err() {
+        return;
+    }
+
+    if let Ok(count) = self.services.server_state.next_count() {
+        self.db.backupid_etag.put(key, count).ok();
+    }
 }
 
 #[implement(Service)]
@@ -262,6 +274,8 @@ pub async fn delete_all_keys(&self, user_id: &UserId, version: &str) {
         .backupkeyid_backup
         .del_prefix(&(user_id, version, Interfix))
         .await;
+
+    self.bump_etag(user_id, version).await;
 }
 
 #[implement(Service)]
@@ -270,11 +284,21 @@ pub async fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &
         .backupkeyid_backup
         .del_prefix(&(user_id, version, room_id, Interfix))
         .await;
+
+    self.bump_etag(user_id, version).await;
 }
 
 #[implement(Service)]
-pub fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) {
+pub async fn delete_room_key(
+    &self,
+    user_id: &UserId,
+    version: &str,
+    room_id: &RoomId,
+    session_id: &str,
+) {
     let key = (user_id, version, room_id, session_id);
 
     self.db.backupkeyid_backup.del(key).ok();
+
+    self.bump_etag(user_id, version).await;
 }

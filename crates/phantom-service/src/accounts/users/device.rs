@@ -42,6 +42,28 @@ impl Service {
 
         self.db.keyid_key.del(userdeviceid).ok();
 
+        // Pushers registered from this device must stop with it (this also runs
+        // for every device on deactivation).
+        let pushkeys: Vec<_> = self
+            .services
+            .pusher
+            .get_pushkeys(user_id)
+            .map(ToOwned::to_owned)
+            .collect()
+            .await;
+
+        for pushkey in pushkeys {
+            if self
+                .services
+                .pusher
+                .get_pusher_device(&pushkey)
+                .await
+                .is_ok_and(|pusher_device| pusher_device == device_id)
+            {
+                self.services.pusher.delete_pusher(user_id, &pushkey).ok();
+            }
+        }
+
         increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
         self.db.userdeviceid_metadata.del(userdeviceid).ok();

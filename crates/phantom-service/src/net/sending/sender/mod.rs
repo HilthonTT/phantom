@@ -133,6 +133,9 @@ impl Service {
                 error!(?dest, "Failed to mark queued events as active: {e}");
             }
 
+            // The peer just answered, so a later failure starts backoff afresh.
+            statuses.insert(dest.clone(), TransactionStatus::Running);
+
             let new_events_vec = new_events.into_iter().map(|(_, event)| event).collect();
             futures.push(self.send_events(dest.clone(), new_events_vec));
         } else {
@@ -149,7 +152,10 @@ impl Service {
         statuses: &mut CurTransactionStatus,
     ) {
         let iv = vec![(msg.queue_id, msg.event)];
-        if let Ok(Some(events)) = self.select_events(&msg.dest, iv, statuses).await {
+        if let Ok(Some(events)) = self
+            .select_events(&msg.dest, iv, statuses, msg.revive)
+            .await
+        {
             if !events.is_empty() {
                 futures.push(self.send_events(msg.dest, events));
             } else {

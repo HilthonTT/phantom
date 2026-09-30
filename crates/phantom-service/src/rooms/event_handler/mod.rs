@@ -115,6 +115,8 @@ impl crate::Service for Service {
     }
 }
 
+/// The caller must hold `mutex_federation` for the room. The lock isn't
+/// reentrant, so it is not taken again here.
 #[implement(Service)]
 #[tracing::instrument(name = "handle", level = "info", skip_all, fields(%origin, %room_id, %event_id))]
 pub async fn handle_incoming_pdu(
@@ -125,9 +127,11 @@ pub async fn handle_incoming_pdu(
     value: CanonicalJsonObject,
     is_timeline_event: bool,
 ) -> Result<Option<RawPduId>> {
-    if self.services.timeline.pdu_exists(event_id).await {
+    // An outlier copy (e.g. fetched earlier as an auth or prev event) still
+    // needs upgrading, so only an accepted timeline copy short-circuits.
+    if let Ok(pdu_id) = self.services.timeline.get_pdu_id(event_id).await {
         debug!("Event is already in the timeline");
-        return Ok(None);
+        return Ok(Some(pdu_id));
     }
 
     if !self.services.metadata.exists(room_id).await {
@@ -167,8 +171,6 @@ pub async fn handle_incoming_pdu(
         .first_pdu_in_room(room_id)
         .await
         .map(|pdu| pdu.origin_server_ts)?;
-
-    let _mutex = self.mutex_federation.lock(room_id).await;
 
     let (incoming_pdu, value) = self
         .handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false)

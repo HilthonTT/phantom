@@ -20,6 +20,8 @@ pub struct Sessions {
 
     write_locks: MutexMap<String, ()>,
 
+    user_locks: MutexMap<String, ()>,
+
     providers: Arc<Providers>,
     db: Data,
 }
@@ -81,6 +83,7 @@ impl Sessions {
         Self {
             association_pending: std::sync::Mutex::default(),
             write_locks: MutexMap::new(),
+            user_locks: MutexMap::new(),
             providers,
             db: Data {
                 oauthid_session: args.db["oauthid_session"].clone(),
@@ -109,6 +112,13 @@ pub async fn delete(&self, sess_id: &str) -> Result {
         (assoc_id == sess_id).then_some(unique_id)
     }
     .await;
+
+    // The user's session list is read-modify-written; sessions of one user can
+    // carry different unique_ids (or none), so that lock alone doesn't cover it.
+    let _user_guard = match session.user_id.as_deref() {
+        Some(user_id) => Some(self.user_locks.lock(user_id.as_str()).await),
+        None => None,
+    };
 
     let user_sessions = async {
         let user_id = session.user_id.as_deref()?;
@@ -235,6 +245,12 @@ where
 async fn put_locked(&self, session: &Session, unique_id: Option<&str>) -> Result {
     let Some(sess_id) = session.sess_id.as_deref() else {
         return Err!(Database("A session cannot be written without a sess_id"));
+    };
+
+    // See delete(): the user's session list needs its own lock.
+    let _user_guard = match session.user_id.as_deref() {
+        Some(user_id) => Some(self.user_locks.lock(user_id.as_str()).await),
+        None => None,
     };
 
     let user_sessions = async {

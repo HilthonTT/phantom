@@ -195,16 +195,8 @@ async fn remote_summary(
         let chunk =
             SpaceHierarchyRoomsChunk::new(response.room.summary, response.room.children_state);
 
-        for child in response.children {
-            let room_id = child.room_id.clone();
-
-            self.cache_summary(
-                &room_id,
-                suggested_only,
-                SpaceHierarchyRoomsChunk::new(child, Vec::new()),
-            );
-        }
-
+        // response.children carry no children_state, so caching them would make a
+        // child subspace look childless (and clobber a full entry) on the next walk.
         self.cache_summary(room_id, suggested_only, chunk.clone());
 
         return Some(chunk);

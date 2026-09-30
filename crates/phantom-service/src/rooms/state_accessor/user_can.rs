@@ -25,6 +25,14 @@ pub async fn user_can_redact(
 ) -> Result<bool> {
     let redacting_event = self.services.timeline.get_pdu(redacts).await;
 
+    // Power in this room says nothing about an event in another one.
+    if redacting_event
+        .as_ref()
+        .is_ok_and(|pdu| pdu.room_id != room_id)
+    {
+        return Ok(false);
+    }
+
     if redacting_event
         .as_ref()
         .is_ok_and(|pdu| pdu.kind == TimelineEventType::RoomCreate)

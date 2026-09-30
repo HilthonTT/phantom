@@ -80,7 +80,9 @@ pub async fn create_or_reuse_pending(
                 )));
             }
 
-            if existing.validated_at.is_none() && send_attempt <= existing.send_attempt {
+            // A repeated send_attempt is idempotent per the spec, validated or not;
+            // re-minting here would silently undo a completed validation.
+            if send_attempt <= existing.send_attempt {
                 return Ok(PendingOutcome {
                     sid,
                     freshly_minted_token: None,

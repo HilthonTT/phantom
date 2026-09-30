@@ -15,7 +15,9 @@ pub(super) async fn authenticate(
     }
     .map_err(|_| err!(Request(InvalidUsername("Username is invalid."))))?;
 
-    if !info.is_user_match(&user_id) {
+    // Namespaces and the sender check only look at the localpart/regex, which a
+    // remote user id can satisfy; an appservice may only act as local users.
+    if !services.server_state.user_is_local(&user_id) || !info.is_user_match(&user_id) {
         return Err!(Request(Exclusive("User is not in namespace.")));
     }
 

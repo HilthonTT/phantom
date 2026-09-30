@@ -72,6 +72,8 @@ struct Msg {
     dest: Destination,
     event: SendingEvent,
     queue_id: Vec<u8>,
+    /// Skip any remaining backoff: the peer just proved it is reachable.
+    revive: bool,
 }
 
 #[async_trait]
@@ -142,6 +144,7 @@ impl Service {
             dest,
             event,
             queue_id: keys.into_iter().next().expect("request queue results"),
+            revive: false,
         })
     }
 
@@ -160,6 +163,7 @@ impl Service {
                 dest,
                 event,
                 queue_id,
+                revive: false,
             })?;
         }
 
@@ -324,11 +328,17 @@ impl Service {
     pub async fn notify_peer_alive(&self, server: &ServerName) -> bool {
         let recovered = self.services.federation.note_peer_alive(server).await;
 
+        // A plain flush would sit out the sender's in-memory backoff, which
+        // note_peer_alive can't reset, so ask the sender to retry right away.
         if recovered {
-            self.flush_servers(once(server).stream())
-                .await
-                .log_err()
-                .ok();
+            self.dispatch(Msg {
+                dest: Destination::Federation(server.to_owned()),
+                event: SendingEvent::Flush,
+                queue_id: Vec::new(),
+                revive: true,
+            })
+            .log_err()
+            .ok();
         }
 
         recovered
@@ -346,6 +356,7 @@ impl Service {
                 dest,
                 event: SendingEvent::Flush,
                 queue_id: Vec::<u8>::new(),
+                revive: false,
             })
             .ready_for_each(|msg| {
                 self.dispatch(msg).log_err().ok();

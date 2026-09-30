@@ -139,6 +139,13 @@ async fn remote_invite(
         .and_then(|origin| OwnedServerName::try_from(origin).ok())
         .unwrap_or_else(|| user_id.server_name().to_owned());
 
+    let federation_lock = self
+        .services
+        .event_handler
+        .mutex_federation
+        .lock(room_id)
+        .await;
+
     let pdu_id = self
         .services
         .event_handler
@@ -149,6 +156,8 @@ async fn remote_invite(
                 "Could not accept incoming PDU as timeline event."
             )))
         })?;
+
+    drop(federation_lock);
 
     self.services.sending.send_pdu_room(room_id, &pdu_id).await
 }

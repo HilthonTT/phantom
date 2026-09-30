@@ -19,8 +19,9 @@ impl Service {
         dest: &Destination,
         new_events: Vec<QueueItem>,
         statuses: &mut CurTransactionStatus,
+        revive: bool,
     ) -> Result<Option<Vec<SendingEvent>>> {
-        let (allow, retry) = self.select_events_current(dest, statuses)?;
+        let (allow, retry) = self.select_events_current(dest, statuses, revive)?;
 
         if !allow {
             return Ok(None);
@@ -63,6 +64,7 @@ impl Service {
         &self,
         dest: &Destination,
         statuses: &mut CurTransactionStatus,
+        revive: bool,
     ) -> Result<(bool, bool)> {
         let (mut allow, mut retry) = (true, false);
         statuses
@@ -71,7 +73,8 @@ impl Service {
                 TransactionStatus::Failed(tries, time) => {
                     let min = self.server.config.network.sender_timeout;
                     let max = self.server.config.network.sender_retry_backoff_limit;
-                    if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries)
+                    if !revive
+                        && continue_exponential_backoff_secs(min, max, time.elapsed(), *tries)
                         && !matches!(dest, Destination::Appservice(_))
                     {
                         allow = false;

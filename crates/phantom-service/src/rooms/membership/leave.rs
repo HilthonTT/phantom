@@ -44,10 +44,11 @@ pub async fn leave<'a>(
 
     let state_cache = &self.services.state_cache;
 
-    let dont_have_room = member_event.is_err()
-        && !state_cache
-            .server_in_room(self.services.server_state.server_name(), room_id)
-            .await;
+    // Stale local state (a member event left over from an earlier stay) must not
+    // stop a remote leave, or rejecting a re-invite never reaches the room.
+    let dont_have_room = !state_cache
+        .server_in_room(self.services.server_state.server_name(), room_id)
+        .await;
 
     let leave_remotely =
         remote_leave_now || (dont_have_room && !state_cache.is_knocked(user_id, room_id).await);

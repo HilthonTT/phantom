@@ -35,6 +35,14 @@ pub(super) async fn preview_image(&self, image_url: &Url) -> Result<UrlPreviewDa
         return Ok(UrlPreviewData::default());
     }
 
+    // og:image is attacker-chosen; don't mint HTML or SVG as preview media, but
+    // keep the rest of the page's preview.
+    if super::request::require_media_type(&response, "image/").is_err() {
+        debug!(%image_url, "Skipping preview image that is not an image");
+
+        return Ok(UrlPreviewData::default());
+    }
+
     self.download_image(response).await
 }
 

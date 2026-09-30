@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     sync::{Arc, RwLock},
 };
 
@@ -15,7 +15,7 @@ use ruma::{
     },
 };
 
-use crate::{Dep, accounts::users, ops::config, ops::server_state};
+use crate::{Dep, accounts::users, auth::registration_tokens, ops::server_state};
 
 type RequestMap = BTreeMap<RequestKey, CanonicalJsonValue>;
 type RequestKey = (OwnedUserId, OwnedDeviceId, String);
@@ -29,7 +29,7 @@ pub struct Service {
 struct Services {
     server_state: Dep<server_state::Service>,
     users: Dep<users::Service>,
-    config: Dep<config::Service>,
+    registration_tokens: Dep<registration_tokens::Service>,
 }
 
 struct Data {
@@ -48,7 +48,8 @@ impl crate::Service for Service {
             services: Services {
                 server_state: args.depend::<server_state::Service>("ops::server_state"),
                 users: args.depend::<users::Service>("accounts::users"),
-                config: args.depend::<config::Service>("ops::config"),
+                registration_tokens: args
+                    .depend::<registration_tokens::Service>("auth::registration_tokens"),
             },
         }))
     }
@@ -56,26 +57,6 @@ impl crate::Service for Service {
     fn name(&self) -> &str {
         crate::make_name(std::module_path!())
     }
-}
-
-#[implement(Service)]
-pub async fn read_tokens(&self) -> Result<HashSet<String>> {
-    let mut tokens = HashSet::new();
-    if let Some(file) = self.services.config.auth.registration_token_file.as_ref() {
-        match std::fs::read_to_string(file) {
-            Ok(text) => {
-                text.split_ascii_whitespace().for_each(|token| {
-                    tokens.insert(token.to_owned());
-                });
-            }
-            Err(e) => error!("Failed to read the registration token file: {e}"),
-        }
-    }
-    if let Some(token) = &self.services.config.auth.registration_token {
-        tokens.insert(token.to_owned());
-    }
-
-    Ok(tokens)
 }
 
 #[implement(Service)]
@@ -157,8 +138,13 @@ pub async fn try_auth(
             uiaainfo.completed.push(AuthType::Password);
         }
         AuthData::RegistrationToken(t) => {
-            let tokens = self.read_tokens().await?;
-            if tokens.contains(t.token.trim()) {
+            if self
+                .services
+                .registration_tokens
+                .try_consume(t.token.trim())
+                .await
+                .is_ok()
+            {
                 uiaainfo.completed.push(AuthType::RegistrationToken);
             } else {
                 uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use futures::{FutureExt, StreamExt, future::select_all, pin_mut, stream::FuturesUnordered};
 use phantom_core::{Result, implement, trace};
 use phantom_database::{Interfix, serialize_to_vec};
-use ruma::{DeviceId, UserId};
+use ruma::{DeviceId, RoomId, UserId};
 
 use super::Service;
 
@@ -44,6 +44,12 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
     );
 
     waiters.push(
+        self.db["keychangeid_userid"]
+            .watch_prefix(&user_prefix)
+            .boxed(),
+    );
+
+    waiters.push(
         self.db["userid_presenceid"]
             .watch_prefix(user_id.as_bytes())
             .boxed(),
@@ -59,7 +65,7 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
 
     waiters.push(
         self.db["roomusertype_roomuserdataid"]
-            .watch_prefix(&serialize_to_vec((Interfix, user_id, Interfix))?)
+            .watch_prefix(&serialize_to_vec((None::<&RoomId>, user_id, Interfix))?)
             .boxed(),
     );
 

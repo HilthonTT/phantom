@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     fmt,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv6Addr, SocketAddr},
 };
 
 use arrayvec::ArrayString;
@@ -29,7 +29,12 @@ pub(crate) fn get_ip_with_port(dest_str: &str) -> Option<Destination> {
             DEFAULT_PORT_NUM,
         )))
     } else {
-        None
+        // A bracketed IPv6 literal without a port is a valid server name.
+        dest_str
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .and_then(|s| s.parse::<Ipv6Addr>().ok())
+            .map(|ip_addr| Destination::Literal(SocketAddr::new(ip_addr.into(), DEFAULT_PORT_NUM)))
     }
 }
 

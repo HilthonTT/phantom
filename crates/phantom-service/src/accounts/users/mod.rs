@@ -15,6 +15,7 @@ use phantom_core::{
     Err, Error, Result, at, bytes, debug_warn, err, hash, rand,
     runtime::server::Server,
     stream::{ReadyExt, TryIgnore},
+    sync::MutexMap,
     text::{self, Unquoted},
     time, trace,
 };
@@ -32,7 +33,7 @@ use ruma::{
 use serde_json::json;
 
 pub use self::keys::{parse_cross_signing_key, parse_master_key, parse_user_signing_key};
-use crate::{Dep, accounts::account_data, ops::server_state, rooms};
+use crate::{Dep, accounts, accounts::account_data, ops::server_state, rooms};
 
 pub struct Service {
     services: Services,
@@ -40,6 +41,8 @@ pub struct Service {
     /// Users who approved a cross-signing reset, and when that approval
     /// lapses. Kept in memory only: a restart simply revokes the approval.
     cross_signing_replacement_allowed: RwLock<HashMap<OwnedUserId, Instant>>,
+    /// Serializes one-time-key claims so a key is handed out at most once.
+    one_time_key_locks: MutexMap<OwnedUserId, ()>,
 }
 
 /// How long an approved cross-signing reset stays open.
@@ -48,6 +51,7 @@ pub const CROSS_SIGNING_REPLACEMENT_TTL: Duration = Duration::from_secs(10 * 60)
 struct Services {
     server: Arc<Server>,
     account_data: Dep<account_data::Service>,
+    pusher: Dep<accounts::pusher::Service>,
     alias: Dep<rooms::alias::Service>,
     server_state: Dep<server_state::Service>,
     state_accessor: Dep<rooms::state_accessor::Service>,
@@ -79,6 +83,7 @@ impl crate::Service for Service {
             services: Services {
                 server: args.server.clone(),
                 account_data: args.depend::<account_data::Service>("accounts::account_data"),
+                pusher: args.depend::<accounts::pusher::Service>("accounts::pusher"),
                 server_state: args.depend::<server_state::Service>("ops::server_state"),
                 state_accessor: args
                     .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
@@ -104,6 +109,7 @@ impl crate::Service for Service {
                 userid_usersigningkeyid: args.db["userid_usersigningkeyid"].clone(),
             },
             cross_signing_replacement_allowed: RwLock::new(HashMap::new()),
+            one_time_key_locks: MutexMap::new(),
         }))
     }
 

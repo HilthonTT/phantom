@@ -14,6 +14,12 @@ fn ips_get_default_ports() {
             "[dead:beef::]:8448".parse().expect("valid addr")
         ))
     );
+    assert_eq!(
+        get_ip_with_port("[dead:beef::]"),
+        Some(Destination::Literal(
+            "[dead:beef::]:8448".parse().expect("valid addr")
+        ))
+    );
 }
 
 #[test]

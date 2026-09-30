@@ -83,6 +83,10 @@ impl Service {
         OwnedKeyId<OneTimeKeyAlgorithm, OneTimeKeyName>,
         Raw<OneTimeKey>,
     )> {
+        // The read and the remove below aren't atomic; without this two
+        // concurrent claims can both take the same key.
+        let _lock = self.one_time_key_locks.lock(user_id).await;
+
         let count = self.services.server_state.next_count()?.to_be_bytes();
         self.db
             .userid_lastonetimekeyupdate

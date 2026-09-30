@@ -134,6 +134,8 @@ pub async fn exchange_auth_code(
     code_verifier: Option<&str>,
     require_pkce: bool,
 ) -> Result<AuthCodeSession> {
+    // Held across the read and the remove so a code redeems at most once.
+    let _lock = self.code_locks.lock(code).await;
     let session = self
         .db
         .oidccode_authsession

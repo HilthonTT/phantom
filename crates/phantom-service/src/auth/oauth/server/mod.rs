@@ -40,6 +40,8 @@ pub struct Server {
     rng: SystemRandom,
 
     device_locks: MutexMap<String, ()>,
+
+    code_locks: MutexMap<String, ()>,
 }
 
 struct Services {
@@ -90,6 +92,7 @@ impl Server {
             key_pair,
             rng,
             device_locks: MutexMap::new(),
+            code_locks: MutexMap::new(),
         }))
     }
 

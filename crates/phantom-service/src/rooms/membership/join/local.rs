@@ -138,6 +138,13 @@ pub(super) async fn join_local(
         ))));
     }
 
+    let _federation_lock = self
+        .services
+        .event_handler
+        .mutex_federation
+        .lock(room_id)
+        .await;
+
     self.services
         .event_handler
         .handle_incoming_pdu(

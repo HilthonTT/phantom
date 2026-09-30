@@ -69,6 +69,12 @@ impl Service {
             .await
             .map_err(|e| err!(Request(InvalidParam("Thread root not found: {e:?}"))))?;
 
+        // A reply can't thread onto another room's event; ignore it rather than
+        // fail the append of an event that is already stored.
+        if root_pdu.room_id != pdu.room_id {
+            return Ok(());
+        }
+
         let mut root_pdu_json = self
             .services
             .timeline
