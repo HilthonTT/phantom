@@ -7,7 +7,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     mem,
     sync::{Arc, RwLock},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use futures::{Stream, StreamExt, TryFutureExt};
@@ -19,7 +19,10 @@ use phantom_core::{
     text::{self, Unquoted},
     time, trace,
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, serialize_to_vec};
+use phantom_database::{
+    Database, Deserialized, Ignore, Interfix, Json, Map, Txn, deserialize, serialize_to_vec,
+    serialize_val,
+};
 use ruma::{
     DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId, OneTimeKeyName,
     OwnedDeviceId, OwnedKeyId, OwnedUserId, RoomId, UInt, UserId,
@@ -32,7 +35,10 @@ use ruma::{
 };
 use serde_json::json;
 
-pub use self::keys::{parse_cross_signing_key, parse_master_key, parse_user_signing_key};
+pub use self::{
+    keys::{parse_cross_signing_key, parse_master_key, parse_user_signing_key},
+    token::{RefreshToken, TOKEN_LENGTH, generate_refresh_token, is_refresh_token},
+};
 use crate::{Dep, accounts, accounts::account_data, ops::server_state, rooms};
 
 pub struct Service {
@@ -59,14 +65,19 @@ struct Services {
 }
 
 struct Data {
+    database: Arc<Database>,
     keychangeid_userid: Arc<Map>,
     keyid_key: Arc<Map>,
+    oidcdevice_userdeviceid: Arc<Map>,
     onetimekeyid_onetimekeys: Arc<Map>,
     openidtoken_expiresatuserid: Arc<Map>,
     logintoken_expiresatuserid: Arc<Map>,
+    spentrefresh_userdeviceid: Arc<Map>,
     todeviceid_events: Arc<Map>,
     token_userdeviceid: Arc<Map>,
     userdeviceid_metadata: Arc<Map>,
+    userdeviceid_refresh: Arc<Map>,
+    userdeviceid_spentrefresh: Arc<Map>,
     userdeviceid_token: Arc<Map>,
     userfilterid_filter: Arc<Map>,
     userid_devicelistversion: Arc<Map>,
@@ -91,14 +102,19 @@ impl crate::Service for Service {
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
             },
             db: Data {
+                database: args.db.clone(),
                 keychangeid_userid: args.db["keychangeid_userid"].clone(),
                 keyid_key: args.db["keyid_key"].clone(),
+                oidcdevice_userdeviceid: args.db["oidcdevice_userdeviceid"].clone(),
                 onetimekeyid_onetimekeys: args.db["onetimekeyid_onetimekeys"].clone(),
                 openidtoken_expiresatuserid: args.db["openidtoken_expiresatuserid"].clone(),
                 logintoken_expiresatuserid: args.db["logintoken_expiresatuserid"].clone(),
+                spentrefresh_userdeviceid: args.db["spentrefresh_userdeviceid"].clone(),
                 todeviceid_events: args.db["todeviceid_events"].clone(),
                 token_userdeviceid: args.db["token_userdeviceid"].clone(),
                 userdeviceid_metadata: args.db["userdeviceid_metadata"].clone(),
+                userdeviceid_refresh: args.db["userdeviceid_refresh"].clone(),
+                userdeviceid_spentrefresh: args.db["userdeviceid_spentrefresh"].clone(),
                 userdeviceid_token: args.db["userdeviceid_token"].clone(),
                 userfilterid_filter: args.db["userfilterid_filter"].clone(),
                 userid_devicelistversion: args.db["userid_devicelistversion"].clone(),
@@ -187,10 +203,6 @@ impl Service {
         self.db.userid_password.count().await
     }
 
-    pub async fn find_from_token(&self, token: &str) -> Result<(OwnedUserId, OwnedDeviceId)> {
-        self.db.token_userdeviceid.get(token).await.deserialized()
-    }
-
     #[allow(clippy::iter_without_into_iter, clippy::iter_not_returning_iterator)]
     pub fn iter(&self) -> impl Stream<Item = OwnedUserId> + Send + '_ {
         self.stream().map(ToOwned::to_owned)
@@ -245,6 +257,12 @@ impl Service {
     pub async fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<FilterDefinition> {
         let key = (user_id, filter_id);
         self.db.userfilterid_filter.qry(&key).await.deserialized()
+    }
+}
+
+impl Data {
+    fn txn(&self) -> Txn {
+        Txn::new(&self.database.engine)
     }
 }
 

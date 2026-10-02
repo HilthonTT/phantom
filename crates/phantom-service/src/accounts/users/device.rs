@@ -29,10 +29,7 @@ impl Service {
     pub async fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) {
         let userdeviceid = (user_id, device_id);
 
-        if let Ok(old_token) = self.db.userdeviceid_token.qry(&userdeviceid).await {
-            self.db.userdeviceid_token.del(userdeviceid).ok();
-            self.db.token_userdeviceid.remove(&old_token).ok();
-        }
+        self.remove_tokens(user_id, device_id).await;
 
         let prefix = (user_id, device_id, Interfix);
 
@@ -67,6 +64,7 @@ impl Service {
         increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
         self.db.userdeviceid_metadata.del(userdeviceid).ok();
+        self.db.oidcdevice_userdeviceid.del(userdeviceid).ok();
         self.mark_device_key_update(user_id).await;
     }
 
@@ -87,29 +85,15 @@ impl Service {
         self.db.userdeviceid_token.qry(&key).await.deserialized()
     }
 
+    /// Replace the access token of one device with a non-expiring one.
     pub async fn set_token(
         &self,
         user_id: &UserId,
         device_id: &DeviceId,
         token: &str,
     ) -> Result<()> {
-        let key = (user_id, device_id);
-        if self.db.userdeviceid_metadata.qry(&key).await.is_err() {
-            return Err!(Database(error!(
-                ?user_id,
-                ?device_id,
-                message = "User does not exist or device has no metadata."
-            )));
-        }
-
-        if let Ok(old_token) = self.db.userdeviceid_token.qry(&key).await {
-            self.db.token_userdeviceid.remove(&old_token).ok();
-        }
-
-        self.db.userdeviceid_token.put_raw(key, token).ok();
-        self.db.token_userdeviceid.raw_put(token, key).ok();
-
-        Ok(())
+        self.set_access_token(user_id, device_id, token, None, None)
+            .await
     }
 
     pub async fn update_device_metadata(
@@ -156,5 +140,45 @@ impl Service {
             .stream_prefix(&key)
             .ignore_err()
             .map(|(_, val): (Ignore, Device)| val)
+    }
+
+    pub async fn device_exists(&self, user_id: &UserId, device_id: &DeviceId) -> bool {
+        self.db
+            .userdeviceid_metadata
+            .contains(&(user_id, device_id))
+            .await
+    }
+
+    /// Whether the device was signed in through the OIDC server.
+    pub async fn is_oidc_device(&self, user_id: &UserId, device_id: &DeviceId) -> bool {
+        self.db
+            .oidcdevice_userdeviceid
+            .contains(&(user_id, device_id))
+            .await
+    }
+
+    /// The identity provider that authenticated this device, if it was one.
+    /// A native (local account) OIDC device records none.
+    pub async fn get_oidc_device_idp(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+    ) -> Option<String> {
+        self.db
+            .oidcdevice_userdeviceid
+            .qry(&(user_id, device_id))
+            .await
+            .ok()
+            .and_then(|idp| serde_json::from_slice::<String>(&idp).ok())
+            .filter(|idp| !idp.is_empty())
+    }
+
+    /// Mark the device as signed in through the OIDC server, recording the
+    /// identity provider that authenticated it (empty for a local account).
+    pub fn mark_oidc_device(&self, user_id: &UserId, device_id: &DeviceId, idp_id: &str) {
+        self.db
+            .oidcdevice_userdeviceid
+            .put((user_id, device_id), Json(idp_id))
+            .ok();
     }
 }

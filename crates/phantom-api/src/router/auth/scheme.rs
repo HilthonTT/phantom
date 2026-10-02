@@ -38,6 +38,7 @@ impl Authenticate for AccessToken {
         match token {
             Token::None => Err!(Request(MissingToken("Missing access token."))),
             Token::Invalid => unknown_token(),
+            Token::Expired => expired_token(),
             Token::User(user_id, device_id) => Ok(Auth::user(user_id, device_id)),
             Token::Appservice(info) => appservice::authenticate(services, request, *info).await,
         }
@@ -55,6 +56,7 @@ impl Authenticate for AppserviceToken {
         match token {
             Token::None => Err!(Request(MissingToken("Missing access token."))),
             Token::Invalid => unknown_token(),
+            Token::Expired => expired_token(),
             Token::User(..) => {
                 Err!(Request(Unauthorized(
                     "Appservice tokens must be used on this endpoint."
@@ -76,6 +78,7 @@ impl Authenticate for ServerSignatures {
         match token {
             Token::None => federation::authenticate(services, request).await,
             Token::Invalid => unknown_token(),
+            Token::Expired => expired_token(),
             Token::User(..) | Token::Appservice(_) => {
                 Err!(Request(Unauthorized(
                     "Server signatures must be used on this endpoint."
@@ -87,7 +90,7 @@ impl Authenticate for ServerSignatures {
 
 fn anonymous(token: Token) -> Auth {
     match token {
-        Token::None | Token::Invalid => Auth::default(),
+        Token::None | Token::Invalid | Token::Expired => Auth::default(),
         Token::User(user_id, device_id) => Auth::user(user_id, device_id),
         Token::Appservice(info) => Auth::appservice(*info),
     }
@@ -96,8 +99,21 @@ fn anonymous(token: Token) -> Auth {
 fn optional(token: Token) -> Result<Auth> {
     match token {
         Token::Invalid => unknown_token(),
+        Token::Expired => expired_token(),
         token => Ok(anonymous(token)),
     }
+}
+
+/// An expired access token is a soft logout: the client keeps its session and
+/// refreshes, rather than signing in again.
+fn expired_token() -> Result<Auth> {
+    let mut data = UnknownTokenErrorData::new();
+    data.soft_logout = true;
+
+    Err(Error::BadRequest(
+        ErrorKind::UnknownToken(data),
+        "Expired access token.",
+    ))
 }
 
 fn unknown_token() -> Result<Auth> {

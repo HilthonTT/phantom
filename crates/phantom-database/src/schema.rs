@@ -148,6 +148,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
+        name: "oidcdevice_userdeviceid",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
         name: "oidcdevicecode_devicegrant",
         ..descriptor::RANDOM_SMALL
     },
@@ -341,6 +345,10 @@ pub(crate) static MAPS: &[Descriptor] = &[
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
+        name: "spentrefresh_userdeviceid",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
         name: "statehash_shortstatehash",
         ..descriptor::RANDOM
     },
@@ -385,6 +393,14 @@ pub(crate) static MAPS: &[Descriptor] = &[
     },
     Descriptor {
         name: "userdeviceid_metadata",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "userdeviceid_refresh",
+        ..descriptor::RANDOM_SMALL
+    },
+    Descriptor {
+        name: "userdeviceid_spentrefresh",
         ..descriptor::RANDOM_SMALL
     },
     Descriptor {
