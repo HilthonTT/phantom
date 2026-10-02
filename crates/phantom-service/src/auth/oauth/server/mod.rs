@@ -42,6 +42,10 @@ pub struct Server {
     device_locks: MutexMap<String, ()>,
 
     code_locks: MutexMap<String, ()>,
+
+    /// Serializes every rewrite and removal of one pending authorization
+    /// request, so a provider binding cannot race a local claim or a take.
+    auth_request_locks: MutexMap<String, ()>,
 }
 
 struct Services {
@@ -93,6 +97,7 @@ impl Server {
             rng,
             device_locks: MutexMap::new(),
             code_locks: MutexMap::new(),
+            auth_request_locks: MutexMap::new(),
         }))
     }
 

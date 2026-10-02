@@ -18,7 +18,7 @@ use reqwest::{
     Method,
     header::{ACCEPT, CONTENT_TYPE},
 };
-use ruma::UserId;
+use ruma::{OwnedUserId, UserId};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use url::Url;
@@ -51,6 +51,7 @@ pub struct Service {
 
     ratelimiter: Ratelimiter,
     device_ratelimiter: Ratelimiter,
+    password_ratelimiter: crate::ratelimit::Ratelimiter<OwnedUserId>,
 }
 
 struct Services {
@@ -78,6 +79,7 @@ impl crate::Service for Service {
             server,
             ratelimiter: Mutex::new(HashMap::new()),
             device_ratelimiter: Mutex::new(HashMap::new()),
+            password_ratelimiter: Mutex::new(HashMap::new()),
         }))
     }
 
@@ -126,6 +128,25 @@ pub fn check_rate_limit(&self, client: IpAddr) -> Result {
 #[implement(Service)]
 pub fn check_device_rate_limit(&self, client: IpAddr) -> Result {
     check(&self.device_ratelimiter, &client, || client, DEVICE)
+}
+
+/// Password attempts against one account through the native sign-in page; a
+/// per-account floor that the per-address limits cannot give against an
+/// attacker spreading guesses over many addresses.
+const PASSWORD: Limit = Limit {
+    rate: 0.1,
+    burst: 5.0,
+    message: "Too many sign-in attempts for this account.",
+};
+
+#[implement(Service)]
+pub fn check_password_rate_limit(&self, user_id: &UserId) -> Result {
+    check(
+        &self.password_ratelimiter,
+        user_id,
+        || user_id.to_owned(),
+        PASSWORD,
+    )
 }
 
 #[implement(Service)]

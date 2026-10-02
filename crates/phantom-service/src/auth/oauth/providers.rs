@@ -52,29 +52,40 @@ pub async fn get(&self, id: &str) -> Result<Provider> {
 
 #[implement(Providers)]
 pub fn get_config(&self, id: &str) -> Result<Provider> {
-    let providers = &self.services.config.identity_provider;
-
-    if let Some(provider) = providers.values().find(|config| config.id() == id) {
-        return Ok(provider.clone());
-    }
-
-    if let Some(provider) = unique_by_brand(providers.values(), id) {
-        return Ok(provider.clone());
-    }
-
-    Err!(Request(NotFound("Unrecognized identity provider")))
+    self.find_config(id).cloned()
 }
 
+/// Borrow the admin-configured provider named by `id`, which may be its
+/// client_id or its brand when that brand is unique among providers.
+#[implement(Providers)]
+pub fn find_config(&self, id: &str) -> Result<&Provider> {
+    let providers = &self.services.config.identity_provider;
+
+    providers
+        .values()
+        .find(|config| config.id() == id)
+        .or_else(|| unique_by_brand(providers.values(), id))
+        .ok_or_else(|| err!(Request(NotFound("Unrecognized identity provider"))))
+}
+
+/// The ID of the provider considered "default", as selected by the admin or by
+/// fallback to the first configured.
 #[implement(Providers)]
 pub fn get_default_id(&self) -> Option<String> {
+    self.find_default_config()
+        .map(Provider::id)
+        .map(ToOwned::to_owned)
+}
+
+/// Borrow the admin-configured provider considered "default".
+#[implement(Providers)]
+pub fn find_default_config(&self) -> Option<&Provider> {
     let providers = &self.services.config.identity_provider;
 
     providers
         .values()
         .find(|provider| provider.default)
         .or_else(|| providers.values().next())
-        .map(Provider::id)
-        .map(ToOwned::to_owned)
 }
 
 #[implement(Providers)]

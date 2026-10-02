@@ -6,7 +6,12 @@ use phantom_database::{Cbor, Deserialized};
 use ruma::OwnedUserId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/// A pending authorization request, kept from the authorize redirect until the
+/// completion that mints its code.
+///
+/// Native sign-in binds it to one upstream provider or claims it for the local
+/// branch, and completion takes it exactly once.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AuthRequest {
     pub client_id: String,
 
@@ -22,7 +27,16 @@ pub struct AuthRequest {
 
     pub code_challenge_method: Option<String>,
 
+    /// The identity provider that authenticates the user, propagated to the
+    /// device at token exchange.
     pub idp_id: Option<String>,
+
+    /// Whether a local login or registration has claimed this request.
+    ///
+    /// A claim excludes provider selection, as `idp_id` excludes the local
+    /// branch.
+    #[serde(default)]
+    pub local_auth_selected: bool,
 
     pub response_mode: Option<String>,
 
@@ -120,6 +134,85 @@ pub async fn peek_auth_request(&self, req_id: &str) -> Result<AuthRequest> {
     Ok(request)
 }
 
+/// Bind a native authorization request to one selected upstream provider.
+///
+/// A different provider or a local claim is refused, so one request cannot
+/// complete through two branches. Choosing the same provider again is
+/// harmless, so a repeated click still redirects.
+#[implement(super::Server)]
+pub async fn bind_auth_request_to_provider(&self, req_id: &str, provider_id: &str) -> Result {
+    self.update_auth_request(req_id, |request| {
+        no_other_provider(request, Some(provider_id))
+            .and_then(local_unclaimed)
+            .map(|request| AuthRequest {
+                idp_id: Some(provider_id.to_owned()),
+                ..request
+            })
+    })
+    .await
+}
+
+/// Check that a pending request may still complete through the local branch.
+///
+/// A request bound to an upstream provider is refused. One the local branch
+/// already claimed passes, so a resubmitted form still completes.
+#[implement(super::Server)]
+pub async fn check_local_auth_request(&self, req_id: &str) -> Result {
+    self.peek_auth_request(req_id)
+        .await
+        .and_then(|request| no_other_provider(request, None))
+        .map(drop)
+}
+
+/// Claim the local branch of a native authorization request.
+///
+/// A request already bound to a provider is refused. Repeating the claim is
+/// harmless, so a resubmitted form still completes, and the request stays
+/// single-use when it is taken.
+#[implement(super::Server)]
+pub async fn bind_auth_request_to_local(&self, req_id: &str) -> Result {
+    self.update_auth_request(req_id, |request| {
+        no_other_provider(request, None).map(|request| AuthRequest {
+            local_auth_selected: true,
+            ..request
+        })
+    })
+    .await
+}
+
+/// Take a pending request exactly once, removing it.
+///
+/// A request that changed since the caller read it is refused. The lock is the
+/// one provider selection and local claims acquire, so neither can change the
+/// request between the comparison and the removal.
+#[implement(super::Server)]
+pub async fn take_auth_request(&self, req_id: &str, expected: &AuthRequest) -> Result<AuthRequest> {
+    let _lock = self.auth_request_locks.lock(req_id).await;
+    let request = self.peek_auth_request(req_id).await?;
+
+    if &request != expected {
+        return Err!(Request(Forbidden(
+            "The authorization request changed during sign-in"
+        )));
+    }
+
+    self.remove_auth_request(req_id)?;
+
+    Ok(request)
+}
+
+/// Retire a pending request under its lock without reading it.
+///
+/// A refusal needs nothing from the request, and holding the lock keeps a
+/// concurrent provider selection from writing it back.
+#[implement(super::Server)]
+pub async fn retire_auth_request(&self, req_id: &str) {
+    let _lock = self.auth_request_locks.lock(req_id).await;
+
+    self.remove_auth_request(req_id).ok();
+}
+
+/// Remove a pending authorization request without taking its lock.
 #[implement(super::Server)]
 pub fn remove_auth_request(&self, req_id: &str) -> Result {
     self.db.oidcreqid_authrequest.remove(req_id)
@@ -185,6 +278,47 @@ pub async fn exchange_auth_code(
     }
 
     Ok(session)
+}
+
+/// Rewrite a pending request under its lock, so a selection decided against
+/// one read cannot be lost to a concurrent one.
+#[implement(super::Server)]
+async fn update_auth_request<F>(&self, req_id: &str, update: F) -> Result
+where
+    F: FnOnce(AuthRequest) -> Result<AuthRequest> + Send,
+{
+    let _lock = self.auth_request_locks.lock(req_id).await;
+    let request = self.peek_auth_request(req_id).await.and_then(update)?;
+
+    self.store_auth_request(req_id, &request)
+}
+
+/// Refuse a request bound to any provider other than `provider`.
+///
+/// The local branch passes `None`, so every provider binding refuses it.
+fn no_other_provider(request: AuthRequest, provider: Option<&str>) -> Result<AuthRequest> {
+    if request
+        .idp_id
+        .as_deref()
+        .is_some_and(|bound| Some(bound) != provider)
+    {
+        return Err!(Request(Forbidden(
+            "The authorization request already selected a provider"
+        )));
+    }
+
+    Ok(request)
+}
+
+/// Refuse a request the local branch has already claimed.
+fn local_unclaimed(request: AuthRequest) -> Result<AuthRequest> {
+    if request.local_auth_selected {
+        return Err!(Request(Forbidden(
+            "A local sign-in already claimed this authorization request"
+        )));
+    }
+
+    Ok(request)
 }
 
 fn validate_code_verifier(verifier: &str) -> Result {
