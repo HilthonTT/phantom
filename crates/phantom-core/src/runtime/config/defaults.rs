@@ -69,6 +69,14 @@ pub(super) fn default_openid_token_ttl() -> u64 {
     60 * 60
 }
 
+pub(super) fn default_access_token_ttl() -> u64 {
+    7 * 24 * 60 * 60
+}
+
+pub(super) fn default_refresh_token_reuse_grace() -> u64 {
+    15
+}
+
 pub(super) fn default_login_token_ttl() -> u64 {
     2 * 60 * 1000
 }

@@ -64,6 +64,39 @@
 #
 #registration_token_file =
 
+# Open local registration (native OIDC sign-up included).
+#
+#allow_registration = false
+
+# Seconds an expiring access token stays valid before the client must
+# refresh it.
+#
+#access_token_ttl = 604800
+
+# Seconds a refresh token stays valid; `0` disables refresh-token expiry.
+#
+#refresh_token_ttl = 0
+
+# Slide the refresh-token deadline on every rotation (idle timeout)
+# rather than carrying the first deadline forward (absolute lifetime).
+#
+#refresh_token_idle_only = true
+
+# Delete the whole device, rather than just its refresh token, when an
+# expired refresh token is presented.
+#
+#refresh_token_hard_logout = false
+
+# Seconds after rotation in which presenting the previous refresh token
+# counts as a benign double-submit; `0` treats every reuse as a replay.
+#
+#refresh_token_reuse_grace = 15
+
+# Delete the device when a spent refresh token is replayed outside the
+# grace window.
+#
+#refresh_token_reuse_revoke = true
+
 # This item is undocumented. Please contribute documentation for it.
 #
 #openid_token_ttl =
@@ -615,6 +648,38 @@
 # This item is undocumented. Please contribute documentation for it.
 #
 #oidc_native_auth = false
+
+# Require PKCE (S256) on every authorization request.
+#
+#oidc_require_pkce = true
+
+# Reject, rather than drop, an unrecognised scope.
+#
+#oidc_strict_scope = false
+
+# Refuse a token grant whose scope names no MSC2967 device.
+#
+#oidc_require_device_scope = false
+
+# RFC 7591 initial access token; when set, dynamic client registration
+# requires it as a bearer token.
+#
+#oidc_registration_access_token =
+
+# Require registering clients to supply `client_uri`, which every other
+# URI must then share a host with.
+#
+#oidc_registration_require_client_uri = false
+
+# Hosts, or private-use schemes, every registered `redirect_uri` must
+# name. Empty allows any. Listed targets also skip the approval prompt.
+#
+#oidc_registration_allowed_redirect_hosts = []
+
+# Ask the user to approve each client before the authorization code is
+# released.
+#
+#oidc_require_client_approval = true
 
 # This item is undocumented. Please contribute documentation for it.
 #

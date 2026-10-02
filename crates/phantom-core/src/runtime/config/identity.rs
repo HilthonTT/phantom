@@ -51,4 +51,11 @@ impl IdentityProvider {
     pub fn id(&self) -> &str {
         self.client_id.as_str()
     }
+
+    /// The name shown to users: the configured `name`, else the brand.
+    #[inline]
+    #[must_use]
+    pub fn display_name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.brand)
+    }
 }
