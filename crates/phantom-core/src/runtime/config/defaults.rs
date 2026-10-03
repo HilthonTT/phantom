@@ -409,3 +409,39 @@ pub(super) fn default_max_make_join_attempts_per_join_attempt() -> usize {
 pub(super) fn default_deprioritize_joins_through_servers() -> regex::RegexSet {
     regex::RegexSet::new([r"matrix\.org"]).expect("valid set of regular expressions")
 }
+
+pub(super) fn default_default_room_version() -> ruma::RoomVersionId {
+    ruma::RoomVersionId::V12
+}
+
+pub(super) fn default_typing_client_timeout_min_s() -> u64 {
+    15
+}
+
+pub(super) fn default_typing_client_timeout_max_s() -> u64 {
+    45
+}
+
+pub(super) fn default_client_sync_timeout_min() -> u64 {
+    5000
+}
+
+pub(super) fn default_client_sync_timeout_default() -> u64 {
+    30000
+}
+
+pub(super) fn default_client_sync_timeout_max() -> u64 {
+    90000
+}
+
+pub(super) fn default_one_time_key_limit() -> usize {
+    256
+}
+
+pub(super) fn default_federation_keys_timeout() -> u64 {
+    8
+}
+
+pub(super) fn default_max_join_attempts_per_join_request() -> usize {
+    3
+}

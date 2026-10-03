@@ -6,6 +6,13 @@ macro_rules! is_equal_to {
 }
 
 #[macro_export]
+macro_rules! is_not_equal_to {
+    ($input:expr) => {
+        move |x| x != $input
+    };
+}
+
+#[macro_export]
 macro_rules! is_less_than {
     ($input:expr) => {
         move |x| x < $input

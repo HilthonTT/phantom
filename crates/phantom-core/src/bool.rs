@@ -1,3 +1,5 @@
+use futures::future::OptionFuture;
+
 pub trait BoolExt {
     fn and<T>(self, t: Option<T>) -> Option<T>;
 
@@ -37,6 +39,13 @@ pub trait BoolExt {
     fn or<T, F: FnOnce() -> T>(self, f: F) -> Option<T>;
 
     fn or_some<T>(self, t: T) -> Option<T>;
+
+    /// Runs the future `f` builds only when true; resolves to `None` otherwise.
+    fn then_async<O: Future, F: FnOnce() -> O>(self, f: F) -> OptionFuture<O>;
+
+    fn then_ok_or<T, E>(self, t: T, e: E) -> Result<T, E>;
+
+    fn then_ok_or_else<T, E, F: FnOnce() -> E>(self, t: T, e: F) -> Result<T, E>;
 }
 
 impl BoolExt for bool {
@@ -121,5 +130,20 @@ impl BoolExt for bool {
     #[inline]
     fn or_some<T>(self, t: T) -> Option<T> {
         (!self).then_some(t)
+    }
+
+    #[inline]
+    fn then_async<O: Future, F: FnOnce() -> O>(self, f: F) -> OptionFuture<O> {
+        OptionFuture::from(self.then(f))
+    }
+
+    #[inline]
+    fn then_ok_or<T, E>(self, t: T, e: E) -> Result<T, E> {
+        if self { Ok(t) } else { Err(e) }
+    }
+
+    #[inline]
+    fn then_ok_or_else<T, E, F: FnOnce() -> E>(self, t: T, e: F) -> Result<T, E> {
+        if self { Ok(t) } else { Err(e()) }
     }
 }

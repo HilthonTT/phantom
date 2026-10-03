@@ -59,8 +59,8 @@ use crate::{Result, diagnostics::log::fmt_span, err};
 ###
 ### Any values pre-populated are the default values for said config option.
 "#,
-    flattened = "auth rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates",
-    ignore = "catchall smtp identity_provider storage_provider auth rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
+    flattened = "auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates",
+    ignore = "catchall smtp identity_provider storage_provider auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
 )]
 pub struct Config {
     pub server_name: String,
@@ -88,6 +88,9 @@ pub struct Config {
 
     #[serde(flatten)]
     pub auth: auth::Auth,
+
+    #[serde(flatten)]
+    pub client: client::Client,
 
     #[serde(flatten)]
     pub rooms: rooms::Rooms,
@@ -137,6 +140,7 @@ pub struct Config {
 
 pub mod admin;
 pub mod auth;
+pub mod client;
 pub mod database;
 pub mod dns;
 pub mod federation;
