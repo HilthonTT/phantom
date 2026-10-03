@@ -31,21 +31,28 @@ func (m Model) Render(focused bool, open resource.Section) string {
 func (m Model) renderSections(p *panel.Panel, sections []resource.Section, focused bool, open resource.Section) {
 	heading := resource.Group(-1)
 
+	var lines []string
+	cursorLine := 0
 	for i, section := range sections {
-		if p.Remaining() < 1 {
-			return
-		}
-
 		if group := section.Group(); group != heading {
 			heading = group
 			if i > 0 {
-				p.AddLine("")
+				lines = append(lines, "")
 			}
-			p.AddLine(m.heading(group, p.ContentWidth()))
+			lines = append(lines, m.heading(group, p.ContentWidth()))
 		}
 
-		p.AddLine(m.entry(section, i == m.cursor && focused && !m.filtering, section == open))
+		if i == m.cursor {
+			cursorLine = len(lines)
+		}
+		lines = append(lines, m.entry(section, i == m.cursor && focused && !m.filtering, section == open))
 	}
+
+	// More sections than rows: slide the window just far enough that the
+	// cursor stays on screen.
+	height := p.Remaining()
+	start := min(max(cursorLine-height+1, 0), max(len(lines)-height, 0))
+	p.AddLines(lines[start:min(start+height, len(lines))]...)
 }
 
 func (m Model) heading(g resource.Group, width int) string {
@@ -80,18 +87,26 @@ func (m Model) glyph(s resource.Section) string {
 		return m.glyphs.Server
 	case resource.Services:
 		return m.glyphs.Service
+	case resource.API:
+		return m.glyphs.API
 	case resource.Rooms:
 		return m.glyphs.Room
 	case resource.Users:
 		return m.glyphs.User
+	case resource.Devices:
+		return m.glyphs.Device
 	case resource.Tokens:
 		return m.glyphs.Token
 	case resource.Federation:
 		return m.glyphs.Federated
+	case resource.Appservices:
+		return m.glyphs.Bridge
 	case resource.Media:
 		return m.glyphs.Media
 	case resource.Tasks:
 		return m.glyphs.Task
+	case resource.Reports:
+		return m.glyphs.Report
 	case resource.Logs:
 		return m.glyphs.Log
 	case resource.Chat:

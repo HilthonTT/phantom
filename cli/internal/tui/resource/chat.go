@@ -32,6 +32,22 @@ type Message struct {
 	Body   string
 
 	Kind MessageKind
+
+	Edited   bool
+	Redacted bool
+
+	Reactions []Reaction
+
+	// Replies is how many messages the thread rooted at this one holds.
+	Replies int
+}
+
+type Reaction struct {
+	Key   string
+	Count int
+
+	// Mine is whether the user reading the room sent one of them.
+	Mine bool
 }
 
 type Channel struct {
@@ -42,6 +58,11 @@ type Channel struct {
 	Encrypted bool
 
 	Unread int
+
+	// Typing and ReadBy are the IDs of the members typing now, and of those
+	// whose read receipt sits on the newest message.
+	Typing []string
+	ReadBy []string
 
 	Members  []Member
 	Messages []Message

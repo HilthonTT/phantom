@@ -9,12 +9,16 @@ type Glyphs struct {
 
 	Server    string
 	Service   string
+	API       string
 	Room      string
 	User      string
+	Device    string
 	Token     string
 	Federated string
+	Bridge    string
 	Media     string
 	Task      string
+	Report    string
 	Log       string
 	Config    string
 	Chat      string
@@ -38,12 +42,16 @@ func UnicodeGlyphs() Glyphs {
 
 		Server:    "◆",
 		Service:   "◫",
+		API:       "⇄",
 		Room:      "▣",
 		User:      "◍",
+		Device:    "▭",
 		Token:     "◇",
 		Federated: "◈",
+		Bridge:    "⋈",
 		Media:     "▤",
 		Task:      "⧗",
+		Report:    "⚑",
 		Log:       "≡",
 		Config:    "⚙",
 		Chat:      "◧",
@@ -68,12 +76,16 @@ func ASCIIGlyphs() Glyphs {
 
 		Server:    "#",
 		Service:   "&",
+		API:       "/",
 		Room:      "#",
 		User:      "@",
+		Device:    "d",
 		Token:     "$",
 		Federated: "~",
+		Bridge:    "^",
 		Media:     "%",
 		Task:      "!",
+		Report:    "?",
 		Log:       "=",
 		Config:    "+",
 		Chat:      "\"",

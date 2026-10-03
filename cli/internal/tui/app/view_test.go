@@ -278,3 +278,40 @@ func TestSidebarFilterNarrowsTheSections(t *testing.T) {
 		t.Errorf("leaving the filter left %d sections, want %d", got, all)
 	}
 }
+
+func TestEverySectionFillsTheTerminalExactly(t *testing.T) {
+	for _, size := range []struct{ width, height int }{{80, 24}, {140, 40}} {
+		for _, section := range resource.Sections() {
+			m := sized(t, size.width, size.height)
+			m.chatOpen = section == resource.Chat
+			if !m.chatOpen {
+				m.workspace.Open(section)
+			}
+
+			out := m.render()
+			if got := lipgloss.Width(out); got != size.width {
+				t.Errorf("%s at %dx%d: width = %d", section, size.width, size.height, got)
+			}
+			if got := lipgloss.Height(out); got != size.height {
+				t.Errorf("%s at %dx%d: height = %d", section, size.width, size.height, got)
+			}
+		}
+	}
+}
+
+func TestSidebarScrollsToKeepTheCursorVisible(t *testing.T) {
+	m := sized(t, 80, 24)
+	m.focus = focusSidebar
+
+	for range resource.Sections() {
+		m = arrow(t, m, tea.KeyDown)
+
+		selected, ok := m.sidebar.Selected()
+		if !ok {
+			t.Fatal("nothing selected in the sidebar")
+		}
+		if !strings.Contains(m.render(), selected.String()) {
+			t.Fatalf("the cursor moved to %s, which is off screen", selected)
+		}
+	}
+}

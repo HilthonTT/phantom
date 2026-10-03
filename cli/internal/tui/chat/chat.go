@@ -119,6 +119,7 @@ func (m *Model) Send() {
 
 	ch := &m.channels[m.cursor]
 	ch.Messages = append(ch.Messages, message)
+	ch.ReadBy = nil
 	ch.Draft = ""
 	m.composer.SetValue("")
 	m.scroll = 0
@@ -163,8 +164,30 @@ func (m Model) Summary() (resource.Row, bool) {
 			{Label: "Members", Value: itoa(len(ch.Members))},
 			{Label: "Messages", Value: itoa(len(ch.Messages))},
 			{Label: "Encrypted", Value: encryption, Emphasis: emphasis},
+			{Label: "Threads", Value: itoa(threads(ch))},
+			{Label: "Typing", Value: orNone(strings.Join(m.names(ch, ch.Typing), ", "))},
+			{Label: "Read by", Value: orNone(strings.Join(m.names(ch, ch.ReadBy), ", "))},
 		},
 	}, true
+}
+
+func threads(ch resource.Channel) int {
+	n := 0
+	for _, msg := range ch.Messages {
+		if msg.Replies > 0 {
+			n++
+		}
+	}
+
+	return n
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "nobody"
+	}
+
+	return s
 }
 
 func (m Model) showChannels() bool {

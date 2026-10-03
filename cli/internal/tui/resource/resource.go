@@ -5,12 +5,16 @@ type Section int
 const (
 	Overview Section = iota
 	Services
+	API
 	Rooms
 	Users
+	Devices
 	Tokens
 	Federation
+	Appservices
 	Media
 	Tasks
+	Reports
 	Logs
 	Settings
 	Chat
@@ -30,18 +34,26 @@ func (s Section) String() string {
 		return "Overview"
 	case Services:
 		return "Services"
+	case API:
+		return "API"
 	case Rooms:
 		return "Rooms"
 	case Users:
 		return "Users"
+	case Devices:
+		return "Devices"
 	case Tokens:
 		return "Tokens"
 	case Federation:
 		return "Federation"
+	case Appservices:
+		return "Appservices"
 	case Media:
 		return "Media"
 	case Tasks:
 		return "Tasks"
+	case Reports:
+		return "Reports"
 	case Logs:
 		return "Logs"
 	case Settings:
@@ -55,7 +67,7 @@ func (s Section) String() string {
 
 func (s Section) Group() Group {
 	switch s {
-	case Overview, Services, Rooms, Users, Tokens, Federation, Media:
+	case Overview, Services, API, Rooms, Users, Devices, Tokens, Federation, Appservices, Media:
 		return ServerGroup
 	case Chat:
 		return MessagingGroup
@@ -80,8 +92,8 @@ func (g Group) String() string {
 func Sections() []Section {
 	return []Section{
 		Chat,
-		Overview, Services, Rooms, Users, Tokens, Federation, Media,
-		Tasks, Logs, Settings,
+		Overview, Services, API, Rooms, Users, Devices, Tokens, Federation, Appservices, Media,
+		Tasks, Reports, Logs, Settings,
 	}
 }
 

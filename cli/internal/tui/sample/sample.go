@@ -64,18 +64,26 @@ func Listing(s resource.Section) resource.Listing {
 		return overview()
 	case resource.Services:
 		return services()
+	case resource.API:
+		return api()
 	case resource.Rooms:
 		return rooms()
 	case resource.Users:
 		return users()
+	case resource.Devices:
+		return devices()
 	case resource.Tokens:
 		return tokens()
 	case resource.Federation:
 		return federation()
+	case resource.Appservices:
+		return appservices()
 	case resource.Media:
 		return media()
 	case resource.Tasks:
 		return tasks()
+	case resource.Reports:
+		return reports()
 	case resource.Logs:
 		return logs()
 	case resource.Settings:
@@ -87,6 +95,7 @@ func Listing(s resource.Section) resource.Listing {
 
 func overview() resource.Listing {
 	built, workers, planned := serviceCounts()
+	routedN, unwiredN, unportedN := routeCounts()
 
 	row := func(k, v string, state resource.State) resource.Row {
 		return resource.Row{
@@ -111,13 +120,21 @@ func overview() resource.Listing {
 			row("Uptime", "6d 04:11", resource.NoState),
 			row("Services", fmt.Sprintf("%d built, %d with workers, %d planned",
 				built, workers, planned), resource.Done),
+			row("API routes", fmt.Sprintf("%d routed, %d unwired, %d modules not ported",
+				routedN, unwiredN, unportedN), resource.Held),
+			row("HTTP listener", "not mounted yet", resource.Held),
 			row("Local users", "1,284", resource.NoState),
+			row("Devices", "3,912, 71% cross-signed", resource.NoState),
+			row("Key backups", "804 users", resource.NoState),
 			row("Rooms", "312", resource.NoState),
 			row("Events today", "48,910", resource.NoState),
 			row("Database size", "1.8 GiB", resource.NoState),
 			row("Media store", "24.6 GiB", resource.NoState),
 			row("Federation", "42 servers reachable", resource.Done),
-			row("Registration", "token required", resource.Held),
+			row("Registration", "token, then email, then terms", resource.Held),
+			row("Login", "password, token, appservice, OIDC", resource.Done),
+			row("Appservices", fmt.Sprintf("%d registered", len(appservices().Rows)), resource.NoState),
+			row("Open reports", fmt.Sprint(openReports()), resource.Held),
 			row("Backup", "12 hours ago", resource.Held),
 			row("Read-only mode", "off", resource.NoState),
 		},
@@ -278,30 +295,83 @@ func serviceCounts() (built, workers, planned int) {
 	return built, workers, planned
 }
 
-func rooms() resource.Listing {
-	room := func(alias, id, members, ver, vis string, encrypted bool, marked bool) resource.Row {
-		encryption := "no"
-		emphasis := resource.Held
-		if encrypted {
-			encryption, emphasis = "yes", resource.Done
-		}
+type room struct {
+	alias, id    string
+	members, ver string
+	visibility   string
 
-		return resource.Row{
-			Cells:  []string{alias, members, ver, vis},
-			Marked: marked,
-			Detail: []resource.Field{
-				{Label: "Alias", Value: alias + ":phantom.chat"},
-				{Label: "Room ID", Value: id},
-				{Label: "Members", Value: members},
-				{Label: "Version", Value: ver},
-				{Label: "Visibility", Value: vis},
-				{Label: "Encrypted", Value: encryption, Emphasis: emphasis},
-				{Label: "Created", Value: "2026-01-04 09:12"},
-				{Label: "Creator", Value: "@admin:phantom.chat"},
-				{Label: "State events", Value: "1,904"},
-				{Label: "Federated", Value: "yes"},
-			},
-		}
+	kind      string
+	joinRule  string
+	history   string
+	published bool
+	encrypted bool
+	threads   string
+	marked    bool
+}
+
+func (r room) row() resource.Row {
+	encryption, emphasis := "no", resource.Held
+	if r.encrypted {
+		encryption, emphasis = "yes", resource.Done
+	}
+
+	published := "no"
+	if r.published {
+		published = "yes"
+	}
+
+	return resource.Row{
+		Cells:  []string{r.alias, r.members, r.ver, r.visibility},
+		Marked: r.marked,
+		Detail: []resource.Field{
+			{Label: "Alias", Value: r.alias + ":phantom.chat"},
+			{Label: "Room ID", Value: r.id},
+			{Label: "Type", Value: r.kind},
+			{Label: "Members", Value: r.members},
+			{Label: "Version", Value: r.ver},
+			{Label: "Visibility", Value: r.visibility},
+			{Label: "Join rule", Value: r.joinRule},
+			{Label: "In directory", Value: published},
+			{Label: "History", Value: r.history},
+			{Label: "Encrypted", Value: encryption, Emphasis: emphasis},
+			{Label: "Threads", Value: r.threads},
+			{Label: "Created", Value: "2026-01-04 09:12"},
+			{Label: "Creator", Value: "@admin:phantom.chat"},
+			{Label: "State events", Value: "1,904"},
+			{Label: "Federated", Value: "yes"},
+		},
+	}
+}
+
+func rooms() resource.Listing {
+	all := []room{
+		{alias: "#general", id: "!QsWaEdRfTgYh:phantom.chat", members: "1,204", ver: "11", visibility: "public",
+			kind: "room", joinRule: "public", history: "shared", published: true, encrypted: true, threads: "38"},
+		{alias: "#announcements", id: "!ZxCvBnMaSdF:phantom.chat", members: "1,198", ver: "11", visibility: "public",
+			kind: "room", joinRule: "public", history: "world_readable", published: true, encrypted: true, threads: "0"},
+		{alias: "#phantom", id: "!SpAcEhOmEx:phantom.chat", members: "1,102", ver: "11", visibility: "public",
+			kind: "space, 9 children", joinRule: "public", history: "world_readable", published: true, threads: "—"},
+		{alias: "#random", id: "!PoIuYtReWq:phantom.chat", members: "874", ver: "11", visibility: "public",
+			kind: "room", joinRule: "public", history: "shared", published: true, threads: "12", marked: true},
+		{alias: "#support", id: "!RfVtGbYhNj:phantom.chat", members: "623", ver: "11", visibility: "public",
+			kind: "room", joinRule: "knock", history: "joined", published: true, encrypted: true, threads: "51"},
+		{alias: "#matrix-spec", id: "!LkJhGfDsAp:phantom.chat", members: "512", ver: "10", visibility: "public",
+			kind: "room", joinRule: "public", history: "shared", published: true, threads: "7"},
+		{alias: "#offtopic", id: "!TgBnHyMjUk:phantom.chat", members: "341", ver: "11", visibility: "public",
+			kind: "room", joinRule: "public", history: "shared", threads: "3"},
+		{alias: "#dev", id: "!MnBvCxZaSd:phantom.chat", members: "218", ver: "11", visibility: "private",
+			kind: "room", joinRule: "restricted, #phantom", history: "shared", encrypted: true, threads: "22"},
+		{alias: "#ops", id: "!QwErTyUiOp:phantom.chat", members: "96", ver: "11", visibility: "private",
+			kind: "room", joinRule: "invite", history: "invited", encrypted: true, threads: "4", marked: true},
+		{alias: "#bridge-irc", id: "!ZaQxSwCdEv:phantom.chat", members: "88", ver: "9", visibility: "public",
+			kind: "room, bridged", joinRule: "public", history: "shared", published: true, threads: "0"},
+		{alias: "#admins", id: "!AsDfGhJkLz:phantom.chat", members: "12", ver: "11", visibility: "private",
+			kind: "room", joinRule: "invite", history: "joined", encrypted: true, threads: "1"},
+	}
+
+	rows := make([]resource.Row, 0, len(all))
+	for _, r := range all {
+		rows = append(rows, r.row())
 	}
 
 	return resource.Listing{
@@ -312,38 +382,82 @@ func rooms() resource.Listing {
 			{Title: "Ver", Width: 5, Right: true},
 			{Title: "Visibility", Width: 12},
 		},
-		Rows: []resource.Row{
-			room("#general", "!QsWaEdRfTgYh:phantom.chat", "1,204", "11", "public", true, false),
-			room("#announcements", "!ZxCvBnMaSdF:phantom.chat", "1,198", "11", "public", true, false),
-			room("#random", "!PoIuYtReWq:phantom.chat", "874", "11", "public", false, true),
-			room("#matrix-spec", "!LkJhGfDsAp:phantom.chat", "512", "10", "public", false, false),
-			room("#dev", "!MnBvCxZaSd:phantom.chat", "218", "11", "private", true, false),
-			room("#ops", "!QwErTyUiOp:phantom.chat", "96", "11", "private", true, true),
-			room("#admins", "!AsDfGhJkLz:phantom.chat", "12", "11", "private", true, false),
-			room("#bridge-irc", "!ZaQxSwCdEv:phantom.chat", "88", "9", "public", false, false),
-			room("#offtopic", "!TgBnHyMjUk:phantom.chat", "341", "11", "public", false, false),
-			room("#support", "!RfVtGbYhNj:phantom.chat", "623", "11", "public", true, false),
+		Rows: rows,
+	}
+}
+
+type user struct {
+	id, name     string
+	admin        bool
+	state        string
+	seen         string
+	presence     string
+	devices      string
+	crossSigning bool
+	backup       string
+	email        string
+	emphasis     resource.State
+}
+
+func (u user) row() resource.Row {
+	admin := "no"
+	if u.admin {
+		admin = "yes"
+	}
+
+	signing, signed := "not set up", resource.Held
+	if u.crossSigning {
+		signing, signed = "set up", resource.Done
+	}
+
+	return resource.Row{
+		Cells: []string{u.id, admin, u.state, u.seen},
+		State: u.emphasis,
+		Detail: []resource.Field{
+			{Label: "User ID", Value: u.id + ":phantom.chat"},
+			{Label: "Display name", Value: u.name},
+			{Label: "Admin", Value: admin},
+			{Label: "State", Value: u.state, Emphasis: u.emphasis},
+			{Label: "Presence", Value: u.presence},
+			{Label: "Last seen", Value: u.seen},
+			{Label: "Email", Value: u.email},
+			{Label: "Devices", Value: u.devices},
+			{Label: "Cross-signing", Value: signing, Emphasis: signed},
+			{Label: "Key backup", Value: u.backup},
+			{Label: "Rooms joined", Value: "27"},
+			{Label: "Registered", Value: "2025-11-02"},
+			{Label: "Upload usage", Value: "412 MiB"},
 		},
 	}
 }
 
 func users() resource.Listing {
-	user := func(id, admin, state, seen string, emphasis resource.State) resource.Row {
-		return resource.Row{
-			Cells: []string{id, admin, state, seen},
-			State: emphasis,
-			Detail: []resource.Field{
-				{Label: "User ID", Value: id + ":phantom.chat"},
-				{Label: "Display name", Value: "Ada L."},
-				{Label: "Admin", Value: admin},
-				{Label: "State", Value: state, Emphasis: emphasis},
-				{Label: "Last seen", Value: seen},
-				{Label: "Devices", Value: "3"},
-				{Label: "Rooms joined", Value: "27"},
-				{Label: "Registered", Value: "2025-11-02"},
-				{Label: "Upload usage", Value: "412 MiB"},
-			},
-		}
+	all := []user{
+		{id: "@ada", name: "Ada L.", admin: true, state: "active", seen: "2 min ago", presence: "online",
+			devices: "3", crossSigning: true, backup: "version 4, 12,804 keys", email: "ada@phantom.chat", emphasis: resource.Done},
+		{id: "@grace", name: "Grace H.", admin: true, state: "active", seen: "18 min ago", presence: "online · reviewing PRs",
+			devices: "1", crossSigning: true, backup: "version 2, 6,410 keys", email: "grace@phantom.chat", emphasis: resource.Done},
+		{id: "@alan", name: "Alan T.", state: "active", seen: "1 hour ago", presence: "unavailable",
+			devices: "1", backup: "none", email: "—", emphasis: resource.Done},
+		{id: "@edsger", name: "Edsger D.", state: "active", seen: "3 hours ago", presence: "offline",
+			devices: "1", crossSigning: true, backup: "version 1, 980 keys", email: "edsger@example.org", emphasis: resource.Done},
+		{id: "@barbara", name: "Barbara L.", state: "suspended", seen: "2 days ago", presence: "offline",
+			devices: "2", crossSigning: true, backup: "version 1, 2,113 keys", email: "barbara@phantom.chat", emphasis: resource.Held},
+		{id: "@donald", name: "Donald K.", state: "deactivated", seen: "41 days ago", presence: "offline",
+			devices: "0", backup: "deleted", email: "—", emphasis: resource.Failed},
+		{id: "@ken", name: "Ken T.", state: "active", seen: "5 hours ago", presence: "offline",
+			devices: "1", backup: "none", email: "ken@phantom.chat", emphasis: resource.Done},
+		{id: "@dennis", name: "Dennis R.", state: "active", seen: "6 hours ago", presence: "offline",
+			devices: "2", crossSigning: true, backup: "version 3, 4,002 keys", email: "dennis@phantom.chat", emphasis: resource.Done},
+		{id: "@bjarne", name: "Bjarne S.", state: "shadowbanned", seen: "9 days ago", presence: "offline",
+			devices: "1", backup: "none", email: "—", emphasis: resource.Failed},
+		{id: "@linus", name: "Linus T.", state: "active", seen: "12 hours ago", presence: "offline",
+			devices: "4", crossSigning: true, backup: "version 1, 310 keys", email: "linus@phantom.chat", emphasis: resource.Done},
+	}
+
+	rows := make([]resource.Row, 0, len(all))
+	for _, u := range all {
+		rows = append(rows, u.row())
 	}
 
 	return resource.Listing{
@@ -354,18 +468,7 @@ func users() resource.Listing {
 			{Title: "State", Width: 12},
 			{Title: "Last seen", Width: 14, Right: true},
 		},
-		Rows: []resource.Row{
-			user("@ada", "yes", "active", "2 min ago", resource.Done),
-			user("@grace", "yes", "active", "18 min ago", resource.Done),
-			user("@alan", "no", "active", "1 hour ago", resource.Done),
-			user("@edsger", "no", "active", "3 hours ago", resource.Done),
-			user("@barbara", "no", "suspended", "2 days ago", resource.Held),
-			user("@donald", "no", "deactivated", "41 days ago", resource.Failed),
-			user("@ken", "no", "active", "5 hours ago", resource.Done),
-			user("@dennis", "no", "active", "6 hours ago", resource.Done),
-			user("@bjarne", "no", "shadowbanned", "9 days ago", resource.Failed),
-			user("@linus", "no", "active", "12 hours ago", resource.Done),
-		},
+		Rows: rows,
 	}
 }
 
@@ -601,6 +704,20 @@ func settings() resource.Listing {
 			option("database_backend", "rocksdb", "default"),
 			option("db_cache_capacity_mb", "512", "file"),
 			option("allow_public_room_directory_over_federation", "true", "file"),
+			option("client.login_with_password", "true", "default"),
+			option("client.login_via_token", "true", "default"),
+			option("client.login_via_existing_session", "true", "default"),
+			option("client.allow_guest_registration", "false", "default"),
+			option("client.enable_set_displayname", "true", "default"),
+			option("client.default_room_version", "12", "default"),
+			option("client.allow_encryption", "true", "default"),
+			option("client.allow_local_presence", "true", "default"),
+			option("client.one_time_key_limit", "256", "default"),
+			option("client.federation_keys_timeout", "8", "default"),
+			option("client.client_sync_timeout_default", "30000", "default"),
+			option("client.lockdown_public_room_directory", "false", "default"),
+			option("client.show_all_local_users_in_user_directory", "false", "default"),
+			option("client.well_known_support_email", "admin@phantom.chat", "file"),
 		},
 	}
 }

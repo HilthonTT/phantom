@@ -159,16 +159,53 @@ func (m Model) title(ch resource.Channel) string {
 }
 
 func (m Model) info(ch resource.Channel) []string {
-	members := itoa(len(ch.Members)) + " members"
+	first := itoa(len(ch.Members)) + " members"
+	if typing := m.typing(ch); typing != "" {
+		first = typing
+	}
 
 	switch {
 	case m.scroll > 0:
-		return []string{members, "↑ " + itoa(m.scroll) + " lines"}
+		return []string{first, "↑ " + itoa(m.scroll) + " lines"}
 	case m.composing:
-		return []string{members, "enter sends"}
+		return []string{first, "enter sends"}
 	default:
-		return []string{members, "enter to write"}
+		return []string{first, "enter to write"}
 	}
+}
+
+func (m Model) typing(ch resource.Channel) string {
+	switch names := m.names(ch, ch.Typing); len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0] + " is typing…"
+	case 2:
+		return names[0] + " and " + names[1] + " are typing…"
+	default:
+		return itoa(len(names)) + " people are typing…"
+	}
+}
+
+// names turns member IDs into display names, leaving out the reader's own.
+func (m Model) names(ch resource.Channel, ids []string) []string {
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == m.self {
+			continue
+		}
+
+		name := localpart(id)
+		for _, member := range ch.Members {
+			if member.ID == id {
+				name = member.Name
+				break
+			}
+		}
+		names = append(names, name)
+	}
+
+	return names
 }
 
 func (m Model) timeline(ch resource.Channel, width int) []string {
@@ -182,6 +219,12 @@ func (m Model) timeline(ch resource.Channel, width int) []string {
 		if msg.Kind == resource.Text {
 			previous = msg.Sender
 		}
+	}
+
+	if seen := m.names(ch, ch.ReadBy); len(seen) > 0 {
+		receipt := panel.Truncate(m.glyphs.Done+" seen by "+strings.Join(seen, ", "), max(width-2, 1))
+		lines = append(lines, m.theme.Faint.Render(
+			strings.Repeat(" ", max(width-panel.Width(receipt)-1, 0))+receipt))
 	}
 
 	return lines
@@ -213,12 +256,64 @@ func (m Model) message(msg resource.Message, continued bool, width int) []string
 		m.senderStyle(msg.Sender).Render(panel.Pad(panel.Truncate(name, senderWidth), senderWidth)) +
 		m.theme.Text.Render(strings.Repeat(" ", gutter))
 
+	if msg.Redacted {
+		return m.wrap(prefix, m.theme.Faint.Italic(true), "message deleted", width)
+	}
+
 	body := m.theme.Text
 	if msg.Kind == resource.Notice {
 		body = m.theme.Muted.Italic(true)
 	}
 
-	return m.wrap(prefix, body, msg.Body, width)
+	lines := m.wrap(prefix, body, msg.Body, width)
+	if msg.Edited {
+		lines = m.suffix(lines, " (edited)", panel.Width(prefix), width)
+	}
+
+	return append(lines, m.annotations(msg, panel.Width(prefix), width)...)
+}
+
+// suffix appends a faint marker to the last line, or below it when the line
+// is already full.
+func (m Model) suffix(lines []string, marker string, indent, width int) []string {
+	last := len(lines) - 1
+	if panel.Width(lines[last])+panel.Width(marker) < width {
+		lines[last] += m.theme.Faint.Render(marker)
+		return lines
+	}
+
+	return append(lines, m.theme.Text.Render(strings.Repeat(" ", indent))+
+		m.theme.Faint.Render(strings.TrimSpace(marker)))
+}
+
+// annotations are the lines under a message's body: its reactions, then a
+// summary of the thread it starts.
+func (m Model) annotations(msg resource.Message, indent, width int) []string {
+	pad := m.theme.Text.Render(strings.Repeat(" ", indent))
+	room := max(width-indent-1, 1)
+
+	var lines []string
+	if len(msg.Reactions) > 0 {
+		chips := make([]string, 0, len(msg.Reactions))
+		for _, r := range msg.Reactions {
+			style := m.theme.Muted
+			if r.Mine {
+				style = m.theme.Cursor
+			}
+			chips = append(chips, style.Render(r.Key+" "+itoa(r.Count)))
+		}
+		lines = append(lines, pad+panel.Truncate(strings.Join(chips, m.theme.Text.Render("  ")), room))
+	}
+
+	if msg.Replies > 0 {
+		replies := itoa(msg.Replies) + " replies"
+		if msg.Replies == 1 {
+			replies = "1 reply"
+		}
+		lines = append(lines, pad+m.theme.Faint.Render(panel.Truncate("↳ "+replies+" in thread", room)))
+	}
+
+	return lines
 }
 
 func (m Model) wrap(prefix string, style lipgloss.Style, body string, width int) []string {
