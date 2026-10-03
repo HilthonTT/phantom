@@ -9,13 +9,19 @@ use ruma::{
     CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedUserId, UserId,
     api::{
         client::uiaa::{
-            AuthData, AuthType, MatrixUserIdentifier, Password, UiaaInfo, UserIdentifier,
+            AuthData, AuthType, EmailIdentity, MatrixUserIdentifier, Password,
+            ThirdpartyIdCredentials, UiaaInfo, UserIdentifier,
         },
         error::{ErrorKind, StandardErrorBody},
     },
 };
 
-use crate::{Dep, accounts::users, auth::registration_tokens, ops::server_state};
+use crate::{
+    Dep,
+    accounts::users,
+    auth::{registration_tokens, threepid},
+    ops::server_state,
+};
 
 type RequestMap = BTreeMap<RequestKey, CanonicalJsonValue>;
 type RequestKey = (OwnedUserId, OwnedDeviceId, String);
@@ -30,6 +36,7 @@ struct Services {
     server_state: Dep<server_state::Service>,
     users: Dep<users::Service>,
     registration_tokens: Dep<registration_tokens::Service>,
+    threepid: Dep<threepid::Service>,
 }
 
 struct Data {
@@ -37,6 +44,17 @@ struct Data {
 }
 
 pub const SESSION_ID_LENGTH: usize = 32;
+
+/// What an `m.login.email.identity` stage does with a validated session.
+#[derive(Clone, Copy)]
+enum EmailIdentityMode {
+    /// Accept any validated session (account management).
+    Validate,
+
+    /// Claim the session for this UIAA session, so registration can redeem
+    /// the address exactly once.
+    Claim,
+}
 
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -50,6 +68,7 @@ impl crate::Service for Service {
                 users: args.depend::<users::Service>("accounts::users"),
                 registration_tokens: args
                     .depend::<registration_tokens::Service>("auth::registration_tokens"),
+                threepid: args.depend::<threepid::Service>("auth::threepid"),
             },
         }))
     }
@@ -89,6 +108,41 @@ pub async fn try_auth(
     device_id: &DeviceId,
     auth: &AuthData,
     uiaainfo: &UiaaInfo,
+) -> Result<(bool, UiaaInfo)> {
+    self.try_auth_inner(
+        user_id,
+        device_id,
+        auth,
+        uiaainfo,
+        EmailIdentityMode::Validate,
+    )
+    .await
+}
+
+/// Authenticate one registration stage and claim an email proof when present.
+///
+/// The claim is tied to the exact user, device, and UIAA session tuple before
+/// the email stage is recorded as complete.
+#[implement(Service)]
+pub async fn try_auth_registration(
+    &self,
+    user_id: &UserId,
+    device_id: &DeviceId,
+    auth: &AuthData,
+    uiaainfo: &UiaaInfo,
+) -> Result<(bool, UiaaInfo)> {
+    self.try_auth_inner(user_id, device_id, auth, uiaainfo, EmailIdentityMode::Claim)
+        .await
+}
+
+#[implement(Service)]
+async fn try_auth_inner(
+    &self,
+    user_id: &UserId,
+    device_id: &DeviceId,
+    auth: &AuthData,
+    uiaainfo: &UiaaInfo,
+    email_identity_mode: EmailIdentityMode,
 ) -> Result<(bool, UiaaInfo)> {
     let mut uiaainfo = if let Some(session) = auth.session() {
         self.get_uiaa_session(user_id, device_id, session).await?
@@ -157,6 +211,38 @@ pub async fn try_auth(
         AuthData::Dummy(_) => {
             uiaainfo.completed.push(AuthType::Dummy);
         }
+        AuthData::Terms(_) => {
+            // MSC1692: an empty auth dict accepts every presented policy.
+            uiaainfo.completed.push(AuthType::Terms);
+        }
+        AuthData::FallbackAcknowledgement(_) => {
+            // A re-poll of the session; the fallback page records completion.
+        }
+        AuthData::EmailIdentity(EmailIdentity {
+            thirdparty_id_creds,
+            ..
+        }) => {
+            let validated = self
+                .authenticate_email_identity(
+                    user_id,
+                    device_id,
+                    &uiaainfo,
+                    thirdparty_id_creds,
+                    email_identity_mode,
+                )
+                .await?;
+
+            if !validated {
+                uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(
+                    ErrorKind::Forbidden,
+                    "Email address has not been validated.".to_owned(),
+                )));
+
+                return Ok((false, uiaainfo));
+            }
+
+            uiaainfo.completed.push(AuthType::EmailIdentity);
+        }
         k => error!("type not supported: {k:?}"),
     }
 
@@ -171,25 +257,85 @@ pub async fn try_auth(
         break;
     }
 
+    let session = uiaainfo.session.clone().expect("session is always set");
+
+    // A claim from an earlier request may have lapsed since; re-check it.
+    if matches!(email_identity_mode, EmailIdentityMode::Claim)
+        && !matches!(auth, AuthData::EmailIdentity(_))
+        && uiaainfo.completed.contains(&AuthType::EmailIdentity)
+    {
+        let claim = (
+            user_id.to_owned(),
+            device_id.to_owned(),
+            session.as_str().into(),
+        );
+
+        if !self.services.threepid.refresh_claim(&claim).await? {
+            uiaainfo
+                .completed
+                .retain(|stage| stage != &AuthType::EmailIdentity);
+
+            uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(
+                ErrorKind::Forbidden,
+                "Email address has not been validated.".to_owned(),
+            )));
+
+            self.update_uiaa_session(user_id, device_id, &session, Some(&uiaainfo))?;
+
+            return Ok((false, uiaainfo));
+        }
+    }
+
     if !completed {
-        self.update_uiaa_session(
-            user_id,
-            device_id,
-            uiaainfo.session.as_ref().expect("session is always set"),
-            Some(&uiaainfo),
-        )?;
+        self.update_uiaa_session(user_id, device_id, &session, Some(&uiaainfo))?;
 
         return Ok((false, uiaainfo));
     }
 
+    // Retain the session until registration spends its email claim.
+    let retain_session = matches!(email_identity_mode, EmailIdentityMode::Claim)
+        && uiaainfo.completed.contains(&AuthType::EmailIdentity);
+
     self.update_uiaa_session(
         user_id,
         device_id,
-        uiaainfo.session.as_ref().expect("session is always set"),
-        None,
+        &session,
+        retain_session.then_some(&uiaainfo),
     )?;
 
     Ok((true, uiaainfo))
+}
+
+#[implement(Service)]
+async fn authenticate_email_identity(
+    &self,
+    user_id: &UserId,
+    device_id: &DeviceId,
+    uiaainfo: &UiaaInfo,
+    creds: &ThirdpartyIdCredentials,
+    mode: EmailIdentityMode,
+) -> Result<bool> {
+    match mode {
+        EmailIdentityMode::Validate => Ok(self
+            .services
+            .threepid
+            .session_validated(creds.sid.as_str(), creds.client_secret.as_str())
+            .await),
+        EmailIdentityMode::Claim => {
+            let session = uiaainfo.session.as_ref().expect("session is always set");
+
+            let claim = (
+                user_id.to_owned(),
+                device_id.to_owned(),
+                session.as_str().into(),
+            );
+
+            self.services
+                .threepid
+                .claim_validated(creds.sid.as_str(), creds.client_secret.as_str(), claim)
+                .await
+        }
+    }
 }
 
 #[implement(Service)]
@@ -228,7 +374,7 @@ pub fn get_uiaa_request(
 }
 
 #[implement(Service)]
-fn update_uiaa_session(
+pub fn update_uiaa_session(
     &self,
     user_id: &UserId,
     device_id: &DeviceId,

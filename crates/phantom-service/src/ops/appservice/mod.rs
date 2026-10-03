@@ -1,6 +1,7 @@
 mod namespace_regex;
 mod registration_info;
 mod request;
+mod thirdparty;
 #[cfg(test)]
 mod tests;
 
