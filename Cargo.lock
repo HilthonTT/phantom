@@ -2766,6 +2766,7 @@ dependencies = [
  "http",
  "http-body-util",
  "ipnet",
+ "itertools 0.14.0",
  "phantom-core",
  "phantom-service",
  "ruma",

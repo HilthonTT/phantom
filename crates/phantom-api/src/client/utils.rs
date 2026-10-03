@@ -1,6 +1,10 @@
-use phantom_core::{Err, Result, matrix::Event, warn};
+use phantom_core::{Err, Error, Result, http::StatusCode, matrix::Event, warn};
 use phantom_service::Services;
-use ruma::{EventId, RoomId, UserId, presence::PresenceState};
+use ruma::{
+    EventId, RoomId, UserId,
+    api::error::{ErrorKind, SenderIgnoredErrorData},
+    presence::PresenceState,
+};
 
 use crate::router::Ruma;
 
@@ -74,3 +78,11 @@ where
         .await
 }
 
+/// The `M_SENDER_IGNORED` error for an event whose sender the caller ignores.
+pub(crate) fn sender_ignored(sender: &UserId) -> Error {
+    Error::Request(
+        ErrorKind::SenderIgnored(SenderIgnoredErrorData::with_sender(sender.to_owned())),
+        "You have ignored the user that sent this event".into(),
+        StatusCode::NOT_FOUND,
+    )
+}

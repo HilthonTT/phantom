@@ -19,6 +19,7 @@ hmac = "0.12.1"
 http = "1.5.0"
 http-body-util = "0.1.5"
 ipnet = "2.12.2"
+itertools = "0.14.0"
 phantom-core.workspace = true
 phantom-service.workspace = true
 ruma = { version = "0.17.0", features = [
@@ -32,6 +33,7 @@ ruma = { version = "0.17.0", features = [
     "unstable-msc4186",
     "unstable-msc4262",
     "unstable-msc4383",
+    "unstable-msc4406",
 ] }
 serde = "1.0.229"
 serde_html_form = "0.4.1"
