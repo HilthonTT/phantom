@@ -11,7 +11,11 @@ axum = "0.8.9"
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 base64 = "0.23.1"
 bytes = "1.12.1"
+# Builds the static email-validation pages at compile time.
+const-str = { version = "1.1.0", features = ["proc"] }
 futures = "0.3.34"
+# TURN REST credentials are an HMAC-SHA1 over the expiry and user ID.
+hmac = "0.12.1"
 http = "1.5.0"
 http-body-util = "0.1.5"
 ipnet = "2.12.2"
@@ -20,14 +24,23 @@ phantom-service.workspace = true
 ruma = { version = "0.17.0", features = [
     "api",
     "client-api",
+    "compat-upload-signatures",
     "federation-api",
     "signatures",
+    "unstable-msc2448",
+    "unstable-msc4143",
+    "unstable-msc4186",
+    "unstable-msc4262",
+    "unstable-msc4383",
 ] }
 serde = "1.0.229"
 serde_html_form = "0.4.1"
 serde_json = "1.0.151"
+sha1 = "0.10.7"
 smallstr = { version = "0.3.1", features = ["serde"] }
 smallvec = { version = "1.16.1", features = ["serde"] }
+# Bounds federation key lookups and long-polling sync with timers.
+tokio = { version = "1.49.0", features = ["time"] }
 # The `#[instrument]` attribute; it expands to `::tracing` paths, so the
 # phantom-core re-export is not enough.
 tracing = "0.1.44"
