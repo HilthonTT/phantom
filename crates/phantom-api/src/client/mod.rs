@@ -29,6 +29,7 @@ mod send;
 mod session;
 mod space;
 mod state;
+mod sync;
 mod tag;
 mod thirdparty;
 mod threads;
@@ -215,6 +216,8 @@ pub fn register(router: Router<State>, _config: &Config) -> Router<State> {
                 .put(state::send_state_event_for_empty_key_route),
         )
         .ruma_route(&events::events_route)
+        .ruma_route(&sync::sync_events_route)
+        .ruma_route(&sync::sync_events_v5_route)
         .ruma_route(&context::get_context_route)
         .ruma_route(&room::get_event_by_timestamp_route)
         .ruma_route(&message::get_message_events_route)
