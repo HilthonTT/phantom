@@ -10,6 +10,8 @@ mod directory;
 mod events;
 mod filter;
 mod keys;
+mod media;
+mod media_legacy;
 mod membership;
 mod message;
 mod openid;
@@ -222,6 +224,19 @@ pub fn register(router: Router<State>, _config: &Config) -> Router<State> {
         .ruma_route(&relations::get_relating_events_with_rel_type_route)
         .ruma_route(&relations::get_relating_events_route)
         .ruma_route(&space::get_hierarchy_route)
+        .ruma_route(&media::create_content_route)
+        .ruma_route(&media::create_mxc_uri_route)
+        .ruma_route(&media::create_content_async_route)
+        .ruma_route(&media::get_media_preview_route)
+        .ruma_route(&media::get_media_config_route)
+        .ruma_route(&media::get_content_thumbnail_route)
+        .ruma_route(&media::get_content_route)
+        .ruma_route(&media::get_content_as_filename_route)
+        .ruma_route(&media_legacy::get_media_config_legacy_route)
+        .ruma_route(&media_legacy::get_media_preview_legacy_route)
+        .ruma_route(&media_legacy::get_content_legacy_route)
+        .ruma_route(&media_legacy::get_content_as_filename_legacy_route)
+        .ruma_route(&media_legacy::get_content_thumbnail_legacy_route)
 }
 
 /// Keeps a timeline item only when the user may see its event.
