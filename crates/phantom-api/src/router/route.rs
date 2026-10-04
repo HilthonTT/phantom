@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin};
+use std::{any::Any, future::Future};
 
 use axum::{
     Router,
@@ -31,19 +31,48 @@ impl RouterExt for Router<State> {
 
 pub trait RumaHandler<T> {
     fn register(&'static self, router: Router<State>) -> Router<State>;
+
+    /// Runs the handler for one request.
+    ///
+    /// The future is opaque on purpose: axum's `Handler` impl below then needs
+    /// only this declared `Send` bound, so codegen never has to prove `Send`
+    /// for each concrete handler future. rustc (1.96, 1.97) fails at that with
+    /// an ICE in `Instance::expect_resolve` when the future awaits an opaque
+    /// `impl Stream + Send`/`impl Future + Send` from a trait method.
+    fn call_route(
+        handler: RouteHandler,
+        state: State,
+        request: Request<Body>,
+    ) -> impl Future<Output = Response> + Send + 'static;
 }
 
-struct RumaRoute<F: 'static>(&'static F);
+struct Route<Fut> {
+    call: RouteCall<Fut>,
+    handler: RouteHandler,
+}
 
-impl<F> Clone for RumaRoute<F> {
+type RouteCall<Fut> = fn(RouteHandler, State, Request<Body>) -> Fut;
+
+type RouteHandler = &'static (dyn Any + Send + Sync);
+
+impl<Fut> Clone for Route<Fut> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<F> Copy for RumaRoute<F> {}
+impl<Fut> Copy for Route<Fut> {}
 
-type BoxedResponse = Pin<Box<dyn Future<Output = Response> + Send>>;
+impl<Fut> Handler<(), State> for Route<Fut>
+where
+    Fut: Future<Output = Response> + Send + 'static,
+{
+    type Future = Fut;
+
+    fn call(self, request: Request<Body>, state: State) -> Self::Future {
+        (self.call)(self.handler, state, request)
+    }
+}
 
 macro_rules! ruma_handler {
     ($($extractor:ident),*) => {
@@ -62,27 +91,23 @@ macro_rules! ruma_handler {
                 let filter = MethodFilter::try_from(Req::METHOD)
                     .expect("ruma endpoints only use routable HTTP methods");
 
+                let route = Route { handler: self, call: Self::call_route };
+
                 Req::PATH_BUILDER
                     .all_paths()
-                    .fold(router, |router, path| router.route(path, on(filter, RumaRoute(self))))
+                    .fold(router, |router, path| router.route(path, on(filter, route)))
             }
-        }
 
-        #[allow(non_snake_case)]
-        impl<F, Fut, Req, Err, const ADMIN: bool, $($extractor,)*> Handler<($($extractor,)* Ruma<Req, ADMIN>,), State> for RumaRoute<F>
-        where
-            F: Fn($($extractor,)* Ruma<Req, ADMIN>) -> Fut + Send + Sync + 'static,
-            Fut: Future<Output = Result<Req::OutgoingResponse, Err>> + Send + 'static,
-            Req: IncomingRequest + Send + Sync + 'static,
-            Req::Authentication: Authenticate,
-            Req::OutgoingResponse: Send,
-            Err: IntoResponse + Send,
-            $($extractor: FromRequestParts<State> + Send + 'static,)*
-        {
-            type Future = BoxedResponse;
+            fn call_route(
+                handler: RouteHandler,
+                state: State,
+                request: Request<Body>,
+            ) -> impl Future<Output = Response> + Send + 'static {
+                let handler: &'static F = handler
+                    .downcast_ref()
+                    .expect("route handler matches the type it registered with");
 
-            fn call(self, request: Request<Body>, state: State) -> Self::Future {
-                Box::pin(async move {
+                let response = async move {
                     #[allow(unused_mut)]
                     let (mut parts, body) = request.into_parts();
 
@@ -99,11 +124,17 @@ macro_rules! ruma_handler {
                         Err(rejection) => return rejection.into_response(),
                     };
 
-                    match (self.0)($($extractor,)* args).await {
+                    match handler($($extractor,)* args).await {
                         Ok(response) => RumaResponse(response).into_response(),
                         Err(error) => error.into_response(),
                     }
-                })
+                };
+
+                // Debug builds keep handler futures off the stack.
+                #[cfg(debug_assertions)]
+                let response = Box::pin(response);
+
+                response
             }
         }
     };
