@@ -36,6 +36,12 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
