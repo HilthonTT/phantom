@@ -15,6 +15,7 @@ mod media_legacy;
 mod membership;
 mod message;
 mod openid;
+mod phantom;
 mod presence;
 mod profile;
 mod push;
@@ -59,8 +60,8 @@ const TOKEN_LENGTH: usize = phantom_service::accounts::users::TOKEN_LENGTH;
 /// generated user session ID length
 const SESSION_ID_LENGTH: usize = phantom_service::auth::uiaa::SESSION_ID_LENGTH;
 
-pub fn register(router: Router<State>, _config: &Config) -> Router<State> {
-    router
+pub fn register(router: Router<State>, config: &Config) -> Router<State> {
+    let router = router
         .ruma_route(&versions::get_supported_versions_route)
         .ruma_route(&register::get_register_available_route)
         .ruma_route(&register::register_route)
@@ -240,6 +241,20 @@ pub fn register(router: Router<State>, _config: &Config) -> Router<State> {
         .ruma_route(&media_legacy::get_content_legacy_route)
         .ruma_route(&media_legacy::get_content_as_filename_legacy_route)
         .ruma_route(&media_legacy::get_content_thumbnail_legacy_route)
+        .route(
+            "/_phantom/server_version",
+            get(phantom::phantom_server_version),
+        );
+
+    // The local user count is withheld for privacy when federation is off.
+    if config.federation.allow_federation {
+        router.route(
+            "/_phantom/local_user_count",
+            get(phantom::phantom_local_user_count),
+        )
+    } else {
+        router
+    }
 }
 
 /// Keeps a timeline item only when the user may see its event.
