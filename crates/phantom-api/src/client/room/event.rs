@@ -1,12 +1,11 @@
 use axum::extract::State;
-use futures::{TryFutureExt, future::join, pin_mut};
+use futures::TryFutureExt;
+use phantom_core::{Err, Result, err};
 use ruma::api::client::room::get_room_event;
-use phantom_core::{Err, matrix::Event, Result, err, result::IsErrOr, bool::BoolExt, future::BoolExt as FutureBoolExt, future::TryExt as TryFutureExtExt, future::OptionFutureExt, matrix::Pdu};
 
-use crate::client::utils::sender_ignored;
 use crate::{
+    client::{annotate_membership, is_ignored_pdu, utils::sender_ignored},
     router::Ruma,
-    client::{annotate_membership, is_ignored_pdu},
 };
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/event/{eventId}`
@@ -20,68 +19,31 @@ pub(crate) async fn get_room_event_route(
     let event_id = &body.event_id;
     let room_id = &body.room_id;
 
-    let event = services
+    let mut event = services
         .rooms
         .timeline
         .get_pdu(event_id)
-        .map_err(|_| err!(Request(NotFound("Event {} not found.", event_id))));
+        .map_err(|_| err!(Request(NotFound("Event {} not found.", event_id))))
+        .await?;
 
-    let retained_event = body
-        .include_unredacted_content
-        .then_async(async || {
-            let is_admin = services.admin.user_is_admin(sender_user);
-
-            let can_redact = services
-                .config
-                .client.allow_room_admins_to_request_unredacted_events
-                .then_async(|| {
-                    services
-                        .rooms
-                        .state_accessor
-                        .get_power_levels(room_id)
-                        .map_ok_or(false, |power_levels| {
-                            power_levels.for_user(sender_user) >= power_levels.redact
-                        })
-                })
-                .unwrap_or(false);
-
-            pin_mut!(is_admin, can_redact);
-
-            if is_admin.or(can_redact).await {
-                services
-                    .rooms
-                    .retention
-                    .get_original_pdu(event_id)
-                    .await
-                    .map_err(|_| err!(Request(NotFound("Event {} not found.", event_id))))
-            } else {
-                Err!(Request(Forbidden("You are not allowed to see the original event")))
-            }
-        });
-
-    let (event, retained_event) = join(event, retained_event).await;
-
-    let event: Result<Pdu> = retained_event
-        .filter(|_| event.as_ref().is_err_or(Event::is_redacted))
-        .unwrap_or(event);
-
-    let mut event = event?;
-
-    if event.room_id() != room_id
+    if event.room_id != *room_id
         || !services
             .rooms
             .state_accessor
-            .user_can_see_event(sender_user, &event)
+            .user_can_see_event(sender_user, room_id, event_id)
             .await
     {
         return Err!(Request(NotFound("Event not found.")));
     }
 
-    if is_ignored_pdu(&services, &event, body.sender_user()).await {
-        return Err(sender_ignored(event.sender()));
+    if is_ignored_pdu(&services, &event, sender_user).await {
+        return Err(sender_ignored(&event.sender));
     }
 
-    debug_assert!(event.event_id() == event_id, "Fetched PDU must match requested");
+    debug_assert!(
+        event.event_id == *event_id,
+        "Fetched PDU must match requested"
+    );
 
     event.add_age().ok();
 
@@ -93,11 +55,5 @@ pub(crate) async fn get_room_event_route(
 
     annotate_membership(&services, &mut event, sender_user, encrypted).await;
 
-    let event = services
-        .rooms
-        .pdu_metadata
-        .bundle_aggregations(sender_user, event)
-        .await;
-
-    Ok(get_room_event::v3::Response::new(event.into_format()))
+    Ok(get_room_event::v3::Response::new(event.into_room_event()))
 }

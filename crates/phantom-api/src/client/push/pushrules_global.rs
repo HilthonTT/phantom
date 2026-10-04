@@ -1,4 +1,5 @@
 use axum::extract::State;
+use phantom_core::{Result, err};
 use ruma::{
     CanonicalJsonObject, CanonicalJsonValue,
     api::client::push::get_pushrules_global_scope,
@@ -8,7 +9,6 @@ use ruma::{
     },
     push::{PredefinedContentRuleId, PredefinedOverrideRuleId, Ruleset},
 };
-use phantom_core::{Result, err};
 
 use crate::router::Ruma;
 
@@ -35,23 +35,30 @@ pub(crate) async fn get_pushrules_global_route(
         // default silently
 
         let ty = GlobalAccountDataEventType::PushRules;
-        let event = PushRulesEvent {
-            content: PushRulesEventContent {
-                global: Ruleset::server_default(sender_user),
-            },
-        };
+        let event = PushRulesEvent::new(PushRulesEventContent::new(Ruleset::server_default(
+            sender_user,
+        )));
 
         services
             .account_data
-            .update(None, sender_user, ty.to_string().into(), &serde_json::to_value(event)?)
+            .update(
+                None,
+                sender_user,
+                ty.to_string().into(),
+                &serde_json::to_value(event)?,
+            )
             .await?;
 
-        return Ok(get_pushrules_global_scope::v3::Response::new(Ruleset::server_default(sender_user)));
+        return Ok(get_pushrules_global_scope::v3::Response::new(
+            Ruleset::server_default(sender_user),
+        ));
     };
 
     let account_data_content =
         serde_json::from_value::<PushRulesEventContent>(content_value.into()).map_err(|e| {
-            err!(Database(warn!("Invalid push rules account data event in database: {e}")))
+            err!(Database(warn!(
+                "Invalid push rules account data event in database: {e}"
+            )))
         })?;
 
     let mut global_ruleset = account_data_content.global;
@@ -62,7 +69,10 @@ pub(crate) async fn get_pushrules_global_route(
     {
         use ruma::push::RuleKind::*;
         if global_ruleset
-            .get(Override, PredefinedOverrideRuleId::ContainsDisplayName.as_str())
+            .get(
+                Override,
+                PredefinedOverrideRuleId::ContainsDisplayName.as_str(),
+            )
             .is_some()
             || global_ruleset
                 .get(Override, PredefinedOverrideRuleId::RoomNotif.as_str())
@@ -70,9 +80,6 @@ pub(crate) async fn get_pushrules_global_route(
             || global_ruleset
                 .get(Content, PredefinedContentRuleId::ContainsUserName.as_str())
                 .is_some()
-            || global_ruleset
-                .get(Override, PredefinedOverrideRuleId::Reply.as_str())
-                .is_none()
         {
             global_ruleset
                 .remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
@@ -91,17 +98,17 @@ pub(crate) async fn get_pushrules_global_route(
                 .update(
                     None,
                     sender_user,
-                    GlobalAccountDataEventType::PushRules
-                        .to_string()
-                        .into(),
-                    &serde_json::to_value(PushRulesEvent {
-                        content: PushRulesEventContent { global: global_ruleset.clone() },
-                    })
+                    GlobalAccountDataEventType::PushRules.to_string().into(),
+                    &serde_json::to_value(PushRulesEvent::new(PushRulesEventContent::new(
+                        global_ruleset.clone(),
+                    )))
                     .expect("to json always works"),
                 )
                 .await?;
         }
     };
 
-    Ok(get_pushrules_global_scope::v3::Response::new(global_ruleset))
+    Ok(get_pushrules_global_scope::v3::Response::new(
+        global_ruleset,
+    ))
 }

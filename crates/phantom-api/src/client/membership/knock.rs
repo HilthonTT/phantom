@@ -1,9 +1,9 @@
 use axum::extract::State;
-use ruma::api::client::knock::knock_room;
 use phantom_core::Result;
+use ruma::api::client::knock::knock_room;
 
 use super::banned_room_check;
-use crate::{router::{ClientIp, Ruma}};
+use crate::router::{ClientIp, Ruma};
 
 /// # `POST /_matrix/client/*/knock/{roomIdOrAlias}`
 ///
@@ -22,10 +22,16 @@ pub(crate) async fn knock_room_route(
         .maybe_resolve_with_servers(&body.room_id_or_alias, Some(&body.via))
         .await?;
 
-    banned_room_check(&services, sender_user, &room_id, Some(&body.room_id_or_alias), client)
-        .await?;
+    banned_room_check(
+        &services,
+        sender_user,
+        &room_id,
+        Some(&body.room_id_or_alias),
+        client,
+    )
+    .await?;
 
-    let state_lock = services.rooms.state.mutex.lock(&room_id).await;
+    let state_lock = services.rooms.state.mutex.lock(&*room_id).await;
 
     services
         .rooms

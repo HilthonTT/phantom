@@ -7,9 +7,9 @@ use futures::{
 };
 use phantom_core::{
     Err, Error, Result, err, future::TryExt as TryFutureExtExt, info, math::Expected,
-    matrix::Event, stream::IterStream, stream::ReadyExt, stream::WidebandExt, warn,
+    matrix::Event, stream::ReadyExt, stream::WidebandExt, warn,
 };
-use phantom_service::Services;
+use phantom_service::{Services, ops::moderation::Restriction};
 use ruma::{
     OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, ServerName, UInt, UserId,
     api::{
@@ -22,7 +22,7 @@ use ruma::{
         },
         federation,
     },
-    directory::{Filter, PublicRoomsChunk, RoomNetwork, RoomTypeFilter},
+    directory::{Filter, PublicRoomsChunk, PublicRoomsChunkInit, RoomNetwork, RoomTypeFilter},
     events::StateEventType,
     uint,
 };
@@ -78,12 +78,12 @@ pub(crate) async fn get_public_rooms_route(
     .map_err(|e| mask_remote_failure(&services, body.server.as_deref(), e))
     .await?;
 
-    Ok(get_public_rooms::v3::Response {
-        chunk: response.chunk,
-        prev_batch: response.prev_batch,
-        next_batch: response.next_batch,
-        total_room_count_estimate: response.total_room_count_estimate,
-    })
+    let mut public_rooms = get_public_rooms::v3::Response::new(response.chunk);
+    public_rooms.prev_batch = response.prev_batch;
+    public_rooms.next_batch = response.next_batch;
+    public_rooms.total_room_count_estimate = response.total_room_count_estimate;
+
+    Ok(public_rooms)
 }
 
 /// # `PUT /_matrix/client/r0/directory/list/room/{roomId}`
@@ -132,47 +132,19 @@ pub(crate) async fn set_room_visibility_route(
                     body.room_id
                 );
 
-                services
-                    .admin
-                    .notify_loud(&format!(
-                        "Non-admin user {sender_user} tried to publish {0} to the room \
-                         directory while \"lockdown_public_room_directory\" is enabled",
-                        body.room_id
-                    ))
-                    .await;
-
                 return Err!(Request(Forbidden(
                     "Publishing rooms to the room directory is not allowed"
                 )));
             }
 
-            // Preserve the alias the room was published under.
-            let published_alias = services
-                .rooms
-                .directory
-                .published_alias(&body.room_id)
-                .await
-                .ok();
-
-            services
-                .rooms
-                .directory
-                .set_public(&body.room_id, published_alias.as_deref());
-
-            services
-                .admin
-                .notify_loud(&format!(
-                    "{sender_user} made {} public to the room directory",
-                    body.room_id
-                ))
-                .await;
+            services.rooms.directory.set_public(&body.room_id)?;
 
             info!(
                 "{sender_user} made {0} public to the room directory",
                 body.room_id
             );
         }
-        room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id),
+        room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id)?,
         _ => {
             return Err!(Request(InvalidParam(
                 "Room visibility type is not supported."
@@ -195,13 +167,13 @@ pub(crate) async fn get_room_visibility_route(
         return Err!(Request(NotFound("Room not found")));
     }
 
-    Ok(get_room_visibility::v3::Response {
-        visibility: if services.rooms.directory.is_public_room(&body.room_id).await {
-            room::Visibility::Public
-        } else {
-            room::Visibility::Private
-        },
-    })
+    let visibility = if services.rooms.directory.is_public_room(&body.room_id).await {
+        room::Visibility::Public
+    } else {
+        room::Visibility::Private
+    };
+
+    Ok(get_room_visibility::v3::Response::new(visibility))
 }
 
 pub(crate) async fn get_public_rooms_filtered_helper(
@@ -213,28 +185,21 @@ pub(crate) async fn get_public_rooms_filtered_helper(
     _network: &RoomNetwork,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
     if let Some(other_server) = remote_server(services, server) {
-        let response = services
-            .federation
-            .execute(
-                other_server,
-                federation::directory::get_public_rooms_filtered::v1::Request {
-                    limit,
-                    since: since.map(ToOwned::to_owned),
-                    filter: Filter {
-                        generic_search_term: filter.generic_search_term.clone(),
-                        room_types: filter.room_types.clone(),
-                    },
-                    room_network: RoomNetwork::Matrix,
-                },
-            )
-            .await?;
+        let mut request = federation::directory::get_public_rooms_filtered::v1::Request::new();
+        request.limit = limit;
+        request.since = since.map(ToOwned::to_owned);
+        request.filter = filter.clone();
+        request.room_network = RoomNetwork::Matrix;
 
-        return Ok(get_public_rooms_filtered::v3::Response {
-            chunk: response.chunk,
-            prev_batch: response.prev_batch,
-            next_batch: response.next_batch,
-            total_room_count_estimate: response.total_room_count_estimate,
-        });
+        let response = services.federation.execute(other_server, request).await?;
+
+        let mut public_rooms = get_public_rooms_filtered::v3::Response::new();
+        public_rooms.chunk = response.chunk;
+        public_rooms.prev_batch = response.prev_batch;
+        public_rooms.next_batch = response.next_batch;
+        public_rooms.total_room_count_estimate = response.total_room_count_estimate;
+
+        return Ok(public_rooms);
     }
 
     // Use limit or else 10, with maximum 100
@@ -270,19 +235,11 @@ pub(crate) async fn get_public_rooms_filtered_helper(
         .filter(|s| s.starts_with('!'))
         .filter(|s| s.len() > 5); // require some characters to limit scope.
 
-    let meta_public_rooms = search_room_id
-        .filter(|_| services.config.client.allow_unlisted_room_search_by_id)
-        .map(|prefix| services.rooms.metadata.public_ids_prefix(prefix))
-        .into_iter()
-        .stream()
-        .flatten();
-
     let mut all_rooms: Vec<PublicRoomsChunk> = services
         .rooms
         .directory
         .public_rooms()
         .map(ToOwned::to_owned)
-        .chain(meta_public_rooms)
         .wide_then(|room_id| public_rooms_chunk(services, room_id))
         .ready_filter_map(|chunk| {
             if !filter.room_types.is_empty()
@@ -343,12 +300,13 @@ pub(crate) async fn get_public_rooms_filtered_helper(
         .ge(&limit)
         .then_some(format!("n{}", num_since.expected_add(limit)));
 
-    Ok(get_public_rooms_filtered::v3::Response {
-        chunk,
-        prev_batch,
-        next_batch,
-        total_room_count_estimate,
-    })
+    let mut public_rooms = get_public_rooms_filtered::v3::Response::new();
+    public_rooms.chunk = chunk;
+    public_rooms.prev_batch = prev_batch;
+    public_rooms.next_batch = next_batch;
+    public_rooms.total_room_count_estimate = total_room_count_estimate;
+
+    Ok(public_rooms)
 }
 
 /// Check whether the user can publish to the room directory via power levels of
@@ -394,8 +352,7 @@ async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> Public
         .rooms
         .state_accessor
         .get_avatar(&room_id)
-        .map_ok(|content| content.url)
-        .ok();
+        .map(|content| content.into_option().and_then(|content| content.url));
 
     let topic = services.rooms.state_accessor.get_room_topic(&room_id).ok();
 
@@ -429,29 +386,25 @@ async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> Public
     .boxed()
     .await;
 
-    PublicRoomsChunk {
-        avatar_url: avatar_url.flatten(),
-        canonical_alias,
-        guest_can_join,
-        join_rule,
-        name,
+    let mut chunk = PublicRoomsChunk::from(PublicRoomsChunkInit {
         num_joined_members,
         room_id,
-        room_type,
-        topic,
         world_readable,
-    }
+        guest_can_join,
+    });
+    chunk.avatar_url = avatar_url;
+    chunk.canonical_alias = canonical_alias;
+    chunk.join_rule = join_rule;
+    chunk.name = name;
+    chunk.room_type = room_type;
+    chunk.topic = topic;
+
+    chunk
 }
 
-/// Alias for the room's directory entry: the alias it was published under
-/// while it still resolves to the room, else the room's canonical alias.
+/// Alias for the room's directory entry: the room's canonical alias while it
+/// still resolves to the room.
 async fn directory_alias(services: &Services, room_id: &RoomId) -> Option<OwnedRoomAliasId> {
-    if let Ok(alias) = services.rooms.directory.published_alias(room_id).await
-        && alias_resolves_to(services, &alias, room_id).await
-    {
-        return Some(alias);
-    }
-
     let alias = services
         .rooms
         .state_accessor
@@ -480,11 +433,8 @@ fn check_server_banned(services: &Services, server: Option<&ServerName>) -> Resu
     };
 
     if services
-        .config
-        .federation
-        .forbidden_remote_room_directory_server_names
-        .is_match(server.host())
-        || services.config.is_forbidden_remote_server_name(server)
+        .moderation
+        .forbids(server, Restriction::RoomDirectory)
     {
         return Err!(Request(Forbidden("Server is banned on this homeserver.")));
     }

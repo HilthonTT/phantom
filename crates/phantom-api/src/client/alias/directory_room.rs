@@ -1,13 +1,12 @@
 use axum::extract::State;
 use futures::StreamExt;
-use rand::seq::SliceRandom;
+use phantom_core::{Err, Result, debug, err, matrix::pdu::PduBuilder};
+use phantom_service::Services;
 use ruma::{
     OwnedServerName, RoomAliasId, RoomId, UserId,
     api::client::alias::{create_alias, delete_alias, get_alias},
     events::{StateEventType, room::canonical_alias::RoomCanonicalAliasEventContent},
 };
-use phantom_core::{Err, Result, debug, err, matrix::pdu::PduBuilder};
-use phantom_service::Services;
 
 use crate::router::Ruma;
 
@@ -23,12 +22,6 @@ pub(crate) async fn create_alias_route(
     services
         .rooms
         .alias
-        .creation_check(sender_user, body.appservice_info.as_ref())
-        .await?;
-
-    services
-        .rooms
-        .alias
         .appservice_checks(&body.room_alias, &body.appservice_info)
         .await?;
 
@@ -36,7 +29,8 @@ pub(crate) async fn create_alias_route(
     // allow removing forbidden room aliases
     if services
         .config
-        .rooms.forbidden_alias_names
+        .rooms
+        .forbidden_alias_names
         .is_match(body.room_alias.alias())
     {
         return Err!(Request(Forbidden("Room alias is forbidden.")));
@@ -79,6 +73,13 @@ pub(crate) async fn delete_alias_route(
         .await?;
 
     let room_id = services
+        .rooms
+        .alias
+        .resolve_local_alias(&body.room_alias)
+        .await
+        .map_err(|_| err!(Request(NotFound("Alias does not exist or is invalid."))))?;
+
+    services
         .rooms
         .alias
         .remove_alias_by(&body.room_alias, sender_user)
@@ -140,23 +141,30 @@ async fn retire_canonical_alias(
         return Ok(());
     };
 
-    if !content.aliases().any(|alias| alias == deleted) {
+    let mentions_deleted = content.alias.as_deref() == Some(deleted)
+        || content.alt_aliases.iter().any(|alias| alias == deleted);
+
+    if !mentions_deleted {
         return Ok(());
     }
 
-    let content = RoomCanonicalAliasEventContent {
-        alias: content.alias.filter(|alias| alias != deleted),
-        alt_aliases: content
-            .alt_aliases
-            .into_iter()
-            .filter(|alt| alt != deleted)
-            .collect(),
-    };
+    let mut retired = RoomCanonicalAliasEventContent::new();
+    retired.alias = content.alias.filter(|alias| alias != deleted);
+    retired.alt_aliases = content
+        .alt_aliases
+        .into_iter()
+        .filter(|alt| alt != deleted)
+        .collect();
 
     services
         .rooms
         .timeline
-        .build_and_append_pdu(PduBuilder::state("", &content), sender_user, room_id, &state_lock)
+        .build_and_append_pdu(
+            PduBuilder::state("", &retired),
+            sender_user,
+            room_id,
+            &state_lock,
+        )
         .await
         .map(|_| ())
 }
@@ -184,7 +192,7 @@ async fn room_available_servers(
     servers.dedup();
 
     // shuffle list of servers randomly after sort and dedupe
-    servers.shuffle(&mut rand::rng());
+    phantom_core::rand::shuffle(&mut servers);
 
     // insert our server as the very first choice if in list, else check if we can
     // prefer the room alias server first

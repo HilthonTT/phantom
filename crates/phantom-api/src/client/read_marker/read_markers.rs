@@ -1,20 +1,19 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
+use phantom_core::Result;
 use ruma::{
     MilliSecondsSinceUnixEpoch,
     api::client::read_marker::set_read_marker,
     events::{
         RoomAccountDataEventType,
         fully_read::{FullyReadEvent, FullyReadEventContent},
-        receipt::{Receipt, ReceiptEvent, ReceiptEventContent, ReceiptThread, ReceiptType},
+        receipt::{Receipt, ReceiptEvent, ReceiptEventContent, ReceiptType},
     },
 };
-use phantom_core::Result;
-use phantom_service::accounts::presence::Ping;
 
-use super::{reset_and_refresh_badge, set_private_marker};
-use crate::{router::{ClientIp, Ruma}};
+use super::{reset_notification_counts, set_private_marker};
+use crate::{client::utils::ping_presence, router::Ruma};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///
@@ -25,15 +24,12 @@ use crate::{router::{ClientIp, Ruma}};
 ///   EDU
 pub(crate) async fn set_read_marker_route(
     State(services): State<crate::router::State>,
-    ClientIp(client): ClientIp,
     body: Ruma<set_read_marker::v3::Request>,
 ) -> Result<set_read_marker::v3::Response> {
     let sender_user = body.sender_user();
 
     if let Some(event) = &body.fully_read {
-        let fully_read_event = FullyReadEvent {
-            content: FullyReadEventContent { event_id: event.clone() },
-        };
+        let fully_read_event = FullyReadEvent::new(FullyReadEventContent::new(event.clone()));
 
         services
             .account_data
@@ -48,69 +44,42 @@ pub(crate) async fn set_read_marker_route(
     }
 
     let private_advanced = match &body.private_read_receipt {
-        | None => false,
-        | Some(event) =>
-            set_private_marker(
-                &services,
-                &body.room_id,
-                sender_user,
-                event,
-                &ReceiptThread::Unthreaded,
-            )
-            .await?,
+        None => false,
+        Some(event) => set_private_marker(&services, &body.room_id, sender_user, event).await?,
     };
 
     let public_advanced = match &body.read_receipt {
-        | None => false,
-        | Some(event) => {
+        None => false,
+        Some(event) => {
             let receipt_content = BTreeMap::from_iter([(
                 event.to_owned(),
                 BTreeMap::from_iter([(
                     ReceiptType::Read,
-                    BTreeMap::from_iter([(sender_user.to_owned(), Receipt {
-                        ts: Some(MilliSecondsSinceUnixEpoch::now()),
-                        thread: ReceiptThread::Unthreaded,
-                    })]),
+                    BTreeMap::from_iter([(
+                        sender_user.to_owned(),
+                        Receipt::new(MilliSecondsSinceUnixEpoch::now()),
+                    )]),
                 )]),
             )]);
 
-            let advanced = services
+            services
                 .rooms
                 .read_receipt
-                .readreceipt_update(sender_user, &body.room_id, &ReceiptEvent {
-                    content: ReceiptEventContent(receipt_content),
-                    room_id: body.room_id.clone(),
-                })
-                .await;
+                .readreceipt_update(
+                    sender_user,
+                    &body.room_id,
+                    &ReceiptEvent::new(body.room_id.clone(), ReceiptEventContent(receipt_content)),
+                )
+                .await?;
 
-            let ping = Ping {
-                device_id: body.sender_device.as_deref(),
-                client_ip: Some(client),
-                appservice: body.appservice_info.as_ref(),
-                ..Default::default()
-            };
+            ping_presence(&services, &body, sender_user).await.ok();
 
-            services
-                .presence
-                .maybe_ping_presence(sender_user, ping)
-                .await
-                .ok();
-
-            advanced
-        },
+            true
+        }
     };
 
-    // Route through the dispatcher so per-thread counts are also cleared;
-    // `/read_markers` predates MSC3771 and carries no thread field.
     if private_advanced || public_advanced {
-        reset_and_refresh_badge(
-            &services,
-            sender_user,
-            &body.room_id,
-            None,
-            &ReceiptThread::Unthreaded,
-        )
-        .await;
+        reset_notification_counts(&services, sender_user, &body.room_id);
     }
 
     Ok(set_read_marker::v3::Response::new())

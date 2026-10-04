@@ -1,6 +1,6 @@
 use axum::extract::State;
-use ruma::api::client::push::{get_pushrule_enabled, set_pushrule_enabled};
 use phantom_core::{Err, Result, err};
+use ruma::api::client::push::{get_pushrule_enabled, set_pushrule_enabled};
 
 use crate::router::Ruma;
 

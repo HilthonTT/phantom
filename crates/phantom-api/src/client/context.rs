@@ -3,38 +3,45 @@ use futures::{
     FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
     future::{OptionFuture, join, join3, try_join},
 };
-use ruma::{
-    DeviceId, EventId, OwnedEventId, RoomId, UInt, UserId,
-    api::client::{context::get_context, filter::RoomEventFilter},
-    events::{AnyStateEvent, StateEventType},
-    serde::Raw,
-};
 use phantom_core::{
-    Err, matrix::Event, Result, at, debug_warn, err,
+    Err, Result, at, debug_warn, err,
+    future::TryExt,
+    math::usize_from_ruma_bounded,
+    matrix::Event,
     matrix::pdu::{PduEvent, RawPduId},
     ref_at,
-    bool::BoolExt, stream::IterStream, future::TryExt, math::usize_from_ruma_bounded, stream::BroadbandExt, stream::ReadyExt, stream::TryIgnore, stream::WidebandExt,
+    stream::BroadbandExt,
+    stream::IterStream,
+    stream::ReadyExt,
+    stream::TryIgnore,
+    stream::WidebandExt,
 };
 use phantom_service::{
     Services,
     rooms::{
         lazy_loading,
         lazy_loading::{Options, Witness},
-        short::{ShortRoomId, ShortStateKey},
+        short::ShortStateKey,
         timeline::PdusIterItem,
     },
+};
+use ruma::{
+    DeviceId, EventId, OwnedEventId, RoomId, UInt, UserId,
+    api::client::{context::get_context, filter::RoomEventFilter},
+    events::{AnyStateEvent, StateEventType},
+    serde::Raw,
 };
 
 use crate::client::utils::sender_ignored;
 use crate::{
-    router::Ruma,
     client::{
         is_ignored_pdu,
         message::{
             add_membership_unsigned, event_filter, event_filters, ignored_filter,
-            lazy_loading_witness, related_by_filter, with_membership,
+            lazy_loading_witness, with_membership,
         },
     },
+    router::Ruma,
 };
 
 const LIMIT_MAX: usize = 100;
@@ -50,15 +57,18 @@ pub(crate) async fn get_context_route(
     State(services): State<crate::router::State>,
     body: Ruma<get_context::v3::Request>,
 ) -> Result<get_context::v3::Response> {
-    event_context(&services, ContextArgs {
-        room_id: &body.room_id,
-        event_id: &body.event_id,
-        sender_user: body.sender_user(),
-        sender_device: body.sender_device.as_deref(),
-        filter: &body.filter,
-        limit: Some(body.limit),
-        bypass_visibility: false,
-    })
+    event_context(
+        &services,
+        ContextArgs {
+            room_id: &body.room_id,
+            event_id: &body.event_id,
+            sender_user: body.sender_user(),
+            sender_device: body.sender_device.as_deref(),
+            filter: &body.filter,
+            limit: Some(body.limit),
+            bypass_visibility: false,
+        },
+    )
     .await
 }
 
@@ -98,8 +108,9 @@ pub(crate) async fn event_context(
         return Err!(Request(Forbidden("Room does not exist to this server")));
     }
 
-    let limit = limit
-        .map_or(LIMIT_DEFAULT, |limit| usize_from_ruma_bounded(limit, LIMIT_DEFAULT, LIMIT_MAX));
+    let limit = limit.map_or(LIMIT_DEFAULT, |limit| {
+        usize_from_ruma_bounded(limit, LIMIT_DEFAULT, LIMIT_MAX)
+    });
 
     let (base_id, base_pdu) =
         resolve_base_event(services, room_id, event_id, sender_user, bypass_visibility).await?;
@@ -111,8 +122,6 @@ pub(crate) async fn event_context(
         .state_accessor
         .is_encrypted_room(room_id)
         .await;
-
-    let shortroomid = services.rooms.short.get_shortroomid(room_id).await?;
 
     let base_event = async {
         let item = if bypass_visibility {
@@ -127,7 +136,6 @@ pub(crate) async fn event_context(
     let half = TimelineHalf {
         services,
         filter,
-        shortroomid,
         sender_user,
         encrypted,
         bypass_visibility,
@@ -152,38 +160,39 @@ pub(crate) async fn event_context(
     );
 
     let (base_event, events_before, events_after): (_, Vec<_>, Vec<_>) =
-        join3(base_event, events_before, events_after)
-            .boxed()
-            .await;
+        join3(base_event, events_before, events_after).boxed().await;
 
-    let lazy_loading_context = lazy_loading::Context {
+    let lazy_loading_context = sender_device.map(|device_id| lazy_loading::Context {
         user_id: sender_user,
-        device_id: sender_device,
+        device_id,
         room_id,
         token: Some(base_count.into_unsigned()),
         options: Some(&filter.lazy_load_options),
-        mode: lazy_loading::Mode::Update,
-    };
+    });
 
-    let lazy_loading_witnessed = filter
-        .lazy_load_options
-        .is_enabled()
-        .then_async(|| {
+    let lazy_loading_witnessed = lazy_loading_context
+        .as_ref()
+        .filter(|_| filter.lazy_load_options.is_enabled())
+        .map(|lazy_loading_context| {
             let witnessed = base_event
                 .iter()
                 .chain(events_before.iter())
                 .chain(events_after.iter());
 
-            lazy_loading_witness(services, &lazy_loading_context, witnessed)
+            lazy_loading_witness(services, lazy_loading_context, witnessed)
         });
+    let lazy_loading_witnessed = OptionFuture::from(lazy_loading_witnessed);
 
     let state_at = events_after
         .last()
         .map(ref_at!(1))
         .map_or_else(|| event_id, |pdu| pdu.event_id.as_ref());
 
-    let (lazy_loading_witnessed, state_ids) =
-        join(lazy_loading_witnessed, load_state_ids(services, room_id, state_at)).await;
+    let (lazy_loading_witnessed, state_ids) = join(
+        lazy_loading_witnessed,
+        load_state_ids(services, room_id, state_at),
+    )
+    .await;
 
     let state = build_state_response(
         services,
@@ -195,48 +204,41 @@ pub(crate) async fn event_context(
     )
     .await;
 
-    let event = OptionFuture::from(base_event.map(at!(1)).map(|pdu| {
-        services
-            .rooms
-            .pdu_metadata
-            .bundle_aggregations(sender_user, pdu)
-    }))
-    .await
-    .map(Event::into_format);
+    let event = base_event.map(at!(1)).map(PduEvent::into_room_event);
 
-    Ok(get_context::v3::Response {
-        event,
+    let mut response = get_context::v3::Response::new();
+    response.event = event;
+    response.start = events_before
+        .last()
+        .map(at!(0))
+        .or(Some(base_count))
+        .as_ref()
+        .map(ToString::to_string);
 
-        start: events_before
-            .last()
-            .map(at!(0))
-            .or(Some(base_count))
-            .as_ref()
-            .map(ToString::to_string),
+    // `end` is one past the base so a backward page from it still yields the base;
+    // `start` stays at `base_count` (a bare count can't suit both directions).
+    response.end = events_after
+        .last()
+        .map(at!(0))
+        .or_else(|| Some(base_count.saturating_add(1)))
+        .as_ref()
+        .map(ToString::to_string);
 
-        // `end` is one past the base so a backward page from it still yields the base;
-        // `start` stays at `base_count` (a bare count can't suit both directions).
-        end: events_after
-            .last()
-            .map(at!(0))
-            .or_else(|| Some(base_count.saturating_add(1)))
-            .as_ref()
-            .map(ToString::to_string),
+    response.events_before = events_before
+        .into_iter()
+        .map(at!(1))
+        .map(PduEvent::into_room_event)
+        .collect();
 
-        events_before: events_before
-            .into_iter()
-            .map(at!(1))
-            .map(Event::into_format)
-            .collect(),
+    response.events_after = events_after
+        .into_iter()
+        .map(at!(1))
+        .map(PduEvent::into_room_event)
+        .collect();
 
-        events_after: events_after
-            .into_iter()
-            .map(at!(1))
-            .map(Event::into_format)
-            .collect(),
+    response.state = state;
 
-        state,
-    })
+    Ok(response)
 }
 
 async fn resolve_base_event(
@@ -262,25 +264,7 @@ async fn resolve_base_event(
         try_join(base_id, base_pdu)
     };
 
-    let resolve_remote = services
-        .config
-        .client.fetch_unreceived_contexts_over_federation
-        && services.config.federation.allow_federation;
-
-    let (base_id, base_pdu) = match lookup().await {
-        | Ok(found) => found,
-        | Err(e) if !resolve_remote => return Err(e),
-        | Err(_) => {
-            services
-                .rooms
-                .timeline
-                .fetch_remote_event(room_id, event_id)
-                .await
-                .ok();
-
-            lookup().await?
-        },
-    };
+    let (base_id, base_pdu) = lookup().await?;
 
     if base_pdu.room_id != *room_id || base_pdu.event_id != *event_id {
         return Err!(Request(NotFound("Base event not found.")));
@@ -290,7 +274,7 @@ async fn resolve_base_event(
         && !services
             .rooms
             .state_accessor
-            .user_can_see_event(sender_user, &base_pdu)
+            .user_can_see_event(sender_user, room_id, event_id)
             .await
     {
         debug_warn!(
@@ -314,7 +298,6 @@ async fn resolve_base_event(
 struct TimelineHalf<'a> {
     services: &'a Services,
     filter: &'a RoomEventFilter,
-    shortroomid: ShortRoomId,
     sender_user: &'a UserId,
     encrypted: bool,
     bypass_visibility: bool,
@@ -331,7 +314,6 @@ where
     let TimelineHalf {
         services,
         filter,
-        shortroomid,
         sender_user,
         encrypted,
         bypass_visibility,
@@ -339,19 +321,9 @@ where
 
     pdus.ignore_err()
         .ready_filter_map(|item| event_filter(item, filter))
-        .wide_filter_map(|item| related_by_filter(services, shortroomid, filter, item))
         .wide_filter_map(|item| event_filters(services, sender_user, item, bypass_visibility))
         .take(take)
         .wide_then(|item| add_membership_unsigned(services, item, sender_user, encrypted))
-        .wide_then(async |(count, pdu)| {
-            let pdu = services
-                .rooms
-                .pdu_metadata
-                .bundle_aggregations(sender_user, pdu)
-                .await;
-
-            (count, pdu)
-        })
         .collect()
         .await
 }
@@ -363,7 +335,7 @@ async fn load_state_ids(
 ) -> Result<Vec<(ShortStateKey, OwnedEventId)>> {
     services
         .rooms
-        .state
+        .state_accessor
         .pdu_shortstatehash(state_at)
         .or_else(|_| services.rooms.state.get_room_shortstatehash(room_id))
         .map_ok(|shortstatehash| {
@@ -414,7 +386,7 @@ async fn build_state_response(
             services.rooms.timeline.get_pdu(event_id.as_ref()).ok()
         })
         .broad_then(|pdu| with_membership(services, pdu, sender_user, encrypted))
-        .map(Event::into_format)
+        .map(PduEvent::into_state_event)
         .collect()
         .await
 }

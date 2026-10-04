@@ -2,13 +2,21 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use futures::future::try_join4;
+use phantom_core::{
+    Err, Result, debug_warn, err,
+    matrix::{PduCount, PduEvent, pdu::PduBuilder},
+    text::string_from_bytes,
+    warn,
+};
+use phantom_service::Services;
 use ruma::{
     DeviceId, RoomId, TransactionId, UserId,
+    api::Direction,
     api::client::message::{
         send_message_event, send_message_event::v3::Response as SendMessageResponse,
     },
     events::{
-        AnyMessageLikeEventContent, MessageLikeEventType,
+        AnyMessageLikeEventContent, MessageLikeEventType, TimelineEventType,
         reaction::ReactionEventContent,
         room::{encrypted::Relation, redaction::RoomRedactionEventContent},
     },
@@ -16,10 +24,8 @@ use ruma::{
 };
 use serde::Deserialize;
 use serde_json::from_str;
-use phantom_core::{Err, Result, debug_warn, err, matrix::{Event, pdu::PduBuilder}, result::NotFound, text::string_from_bytes, warn, matrix::PduEvent};
-use phantom_service::Services;
 
-use crate::{router::Ruma, client::utils::is_self_redaction};
+use crate::router::Ruma;
 
 #[derive(Deserialize)]
 struct ExtractRelatesTo {
@@ -45,7 +51,8 @@ pub(crate) async fn send_message_event_route(
     let appservice_info = body.appservice_info.as_ref();
 
     // Forbid m.room.encrypted if encryption is disabled
-    if body.event_type == MessageLikeEventType::RoomEncrypted && !services.config.client.allow_encryption
+    if body.event_type == MessageLikeEventType::RoomEncrypted
+        && !services.config.client.allow_encryption
     {
         return Err!(Request(Forbidden("Encryption has been disabled")));
     }
@@ -85,28 +92,13 @@ pub(crate) async fn send_message_event_route(
             ?redacts_id
         );
 
-        return Err!(Request(Forbidden("Redactions are disabled on this server.")));
+        return Err!(Request(Forbidden(
+            "Redactions are disabled on this server."
+        )));
     }
 
-    if services.users.is_suspended(sender_user).await {
-        if body.event_type != MessageLikeEventType::RoomRedaction {
-            return Err!(Request(UserSuspended(
-                "Cannot send non-redaction events while suspended."
-            )));
-        }
-
-        let is_self = match &redacts_id {
-            | None => false,
-            | Some(redacts_id) => is_self_redaction(&services, sender_user, redacts_id).await,
-        };
-
-        if !is_self {
-            return Err!(Request(UserSuspended("Can only redact own events while suspended.")));
-        }
-    }
-
-    let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
-    let event_type = body.event_type.to_cow_str();
+    let state_lock = services.rooms.state.mutex.lock(&*body.room_id).await;
+    let event_type = body.event_type.to_string();
 
     let (existing_txnid, ..) = try_join4(
         check_existing_txnid(
@@ -117,7 +109,13 @@ pub(crate) async fn send_message_event_route(
             &body.room_id,
             &event_type,
         ),
-        check_duplicate_reaction(&services, &body.event_type, sender_user, &body.body.body),
+        check_duplicate_reaction(
+            &services,
+            &body.event_type,
+            sender_user,
+            &body.room_id,
+            &body.body.body,
+        ),
         check_public_call_invite(&services, &body.event_type, &body.room_id),
         check_nested_thread(&services, &body.body.body),
     )
@@ -151,12 +149,10 @@ pub(crate) async fn send_message_event_route(
         )
         .await?;
 
-    services.transaction_id.add_room_txnid(
+    services.transaction_id.add_txnid(
         sender_user,
         sender_device,
         &body.txn_id,
-        &body.room_id,
-        &event_type,
         event_id.as_bytes(),
     );
 
@@ -178,7 +174,9 @@ async fn check_public_call_invite(
         return Ok(());
     }
 
-    Err!(Request(Forbidden("Room call invites are not allowed in public rooms")))
+    Err!(Request(Forbidden(
+        "Room call invites are not allowed in public rooms"
+    )))
 }
 
 // Forbid duplicate reactions
@@ -186,6 +184,7 @@ async fn check_duplicate_reaction(
     services: &Services,
     event_type: &MessageLikeEventType,
     sender_user: &UserId,
+    room_id: &RoomId,
     body: &Raw<AnyMessageLikeEventContent>,
 ) -> Result {
     if *event_type != MessageLikeEventType::Reaction {
@@ -196,21 +195,35 @@ async fn check_duplicate_reaction(
         return Ok(());
     };
 
-    if !services
+    let relations = services
         .rooms
         .pdu_metadata
-        .event_has_relation(
+        .get_relations(
+            sender_user,
+            room_id,
             &content.relates_to.event_id,
-            Some(sender_user),
-            None,
-            Some(&content.relates_to.key),
+            PduCount::max(),
+            usize::MAX,
+            0,
+            Direction::Backward,
         )
-        .await
-    {
+        .await;
+
+    let duplicate = relations.iter().any(|(_, pdu)| {
+        pdu.sender == sender_user
+            && pdu.kind == TimelineEventType::Reaction
+            && pdu
+                .get_content::<ReactionEventContent>()
+                .is_ok_and(|reaction| reaction.relates_to.key == content.relates_to.key)
+    });
+
+    if !duplicate {
         return Ok(());
     }
 
-    Err!(Request(DuplicateAnnotation("Duplicate reactions are not allowed.")))
+    Err!(Request(DuplicateAnnotation(
+        "Duplicate reactions are not allowed."
+    )))
 }
 
 // MSC3440/Matrix 1.4: a thread may only target an event which itself carries
@@ -219,8 +232,9 @@ async fn check_nested_thread(
     services: &Services,
     body: &Raw<AnyMessageLikeEventContent>,
 ) -> Result {
-    let Ok(ExtractRelatesTo { relates_to: Relation::Thread(thread) }) =
-        body.deserialize_as_unchecked()
+    let Ok(ExtractRelatesTo {
+        relates_to: Relation::Thread(thread),
+    }) = body.deserialize_as_unchecked()
     else {
         return Ok(());
     };
@@ -237,12 +251,26 @@ async fn check_nested_thread(
         return Ok(());
     }
 
-    Err!(Request(Unknown("Cannot start threads from an event with a relation.")))
+    Err!(Request(Unknown(
+        "Cannot start threads from an event with a relation."
+    )))
+}
+
+/// Lifts a not-found error into `None`, keeping every other error.
+fn optional<T>(result: Result<T>) -> Result<Option<T>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(e) if e.is_not_found() => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 /// Check if this is a new transaction id. Returns Some when the transaction id
 /// exists and the send must then be terminated by returning the contained
 /// result.
+///
+/// Phantom keys transaction ids by user and device only, so a reused id is
+/// honoured only when the stored event matches this room, type and sender.
 async fn check_existing_txnid(
     services: &Services,
     sender_user: &UserId,
@@ -251,51 +279,36 @@ async fn check_existing_txnid(
     room_id: &RoomId,
     event_type: &str,
 ) -> Result<Option<SendMessageResponse>> {
-    let response = services
-        .transaction_id
-        .existing_room_txnid(sender_user, sender_device, txn_id, room_id, event_type)
-        .await;
+    let response = optional(
+        services
+            .transaction_id
+            .existing_txnid(sender_user, sender_device, txn_id)
+            .await,
+    )?;
 
-    if let Some(response) = response.optional()? {
-        return txnid_response(&response).map(Some);
-    }
-
-    let response = services
-        .transaction_id
-        .existing_txnid(sender_user, sender_device, txn_id)
-        .await;
-
-    let Some(response) = response.optional()? else {
+    let Some(response) = response else {
         return Ok(None);
     };
 
-    let Some(response) = legacy_txnid_response(&response)? else {
+    let Some(response) = legacy_txnid_response(response.as_ref())? else {
         return Ok(None);
     };
 
-    let event_id = &response.event_id;
-    let Some(pdu) = services
-        .rooms
-        .timeline
-        .get_non_outlier_pdu(event_id)
-        .await
-        .optional()?
-    else {
+    let pdu = optional(
+        services
+            .rooms
+            .timeline
+            .get_non_outlier_pdu(&response.event_id)
+            .await,
+    )?;
+
+    let Some(pdu) = pdu else {
         return Ok(None);
     };
 
     if !legacy_txnid_matches(&pdu, room_id, event_type, sender_user) {
         return Ok(None);
     }
-
-    services.transaction_id.add_room_txnid(
-        sender_user,
-        sender_device,
-        txn_id,
-        room_id,
-        event_type,
-        event_id.as_bytes(),
-    );
 
     Ok(Some(response))
 }
@@ -322,7 +335,7 @@ fn legacy_txnid_matches(
     event_type: &str,
     sender_user: &UserId,
 ) -> bool {
-    pdu.room_id == room_id && pdu.kind.to_cow_str() == event_type && pdu.sender == sender_user
+    pdu.room_id == room_id && pdu.kind.to_string() == event_type && pdu.sender == sender_user
 }
 
 #[cfg(test)]

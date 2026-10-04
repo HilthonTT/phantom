@@ -6,7 +6,11 @@ mod pushrules_global;
 mod pushrules_rule;
 mod pushrules_rule_actions;
 mod pushrules_rule_enabled;
+#[cfg(test)]
+mod tests;
 
+use phantom_core::{Err, Result, err};
+use phantom_service::Services;
 use ruma::{
     UserId,
     events::{GlobalAccountDataEventType, push_rules::PushRulesEvent},
@@ -14,11 +18,6 @@ use ruma::{
         AnyPushRuleRef, NewPushRule, PredefinedContentRuleId, PredefinedOverrideRuleId, RuleKind,
         Ruleset, SimplePushRule,
     },
-};
-use phantom_core::{Err, Result, err, json::serialized_len};
-use phantom_service::{
-    Services,
-    accounts::account_data::{MAX_RULE_BYTES, MAX_RULE_ID_BYTES, admits_rule},
 };
 
 pub(crate) use self::{
@@ -31,6 +30,29 @@ pub(crate) use self::{
     pushrules_rule_actions::{get_pushrule_actions_route, set_pushrule_actions_route},
     pushrules_rule_enabled::{get_pushrule_enabled_route, set_pushrule_enabled_route},
 };
+
+/// Most push rules one account may hold.
+const MAX_RULES: usize = 10_000;
+
+/// Longest rule ID stored, in bytes.
+const MAX_RULE_ID_BYTES: usize = 300;
+
+/// Largest match and action data stored for one rule, in bytes.
+///
+/// Rule IDs are excluded and bounded separately by [`MAX_RULE_ID_BYTES`].
+const MAX_RULE_BYTES: usize = 1024;
+
+/// Whether the ruleset has room for the rule: an existing rule may always be
+/// replaced, a new one only while the account is under [`MAX_RULES`].
+fn admits_rule(ruleset: &Ruleset, kind: RuleKind, rule_id: &str) -> bool {
+    rule_id.len() <= MAX_RULE_ID_BYTES
+        && (ruleset.get(kind, rule_id).is_some()
+            || ruleset.iter().take(MAX_RULES).count() < MAX_RULES)
+}
+
+fn serialized_len<T: serde::Serialize>(value: &T) -> Result<usize> {
+    Ok(serde_json::to_vec(value)?.len())
+}
 
 async fn load_push_rules(services: &Services, sender_user: &UserId) -> Result<PushRulesEvent> {
     services
@@ -49,7 +71,12 @@ async fn save_push_rules(
 
     services
         .account_data
-        .update(None, sender_user, ty.to_string().into(), &serde_json::to_value(event)?)
+        .update(
+            None,
+            sender_user,
+            ty.to_string().into(),
+            &serde_json::to_value(event)?,
+        )
         .await
 }
 
@@ -73,13 +100,16 @@ fn check_rule_size(ruleset: &Ruleset, kind: RuleKind, rule_id: &str) -> Result {
         .ok_or_else(|| err!(Request(NotFound("Push rule not found."))))?;
 
     let size = match rule {
-        | AnyPushRuleRef::Override(rule) | AnyPushRuleRef::Underride(rule) =>
-            serialized_len(&(&rule.conditions, &rule.actions))?,
+        AnyPushRuleRef::Override(rule) | AnyPushRuleRef::Underride(rule) => {
+            serialized_len(&(&rule.conditions, &rule.actions))?
+        }
 
-        | AnyPushRuleRef::Content(rule) => serialized_len(&(&rule.pattern, &rule.actions))?,
+        AnyPushRuleRef::Content(rule) => serialized_len(&(&rule.pattern, &rule.actions))?,
 
-        | AnyPushRuleRef::Room(SimplePushRule { actions, .. })
+        AnyPushRuleRef::Room(SimplePushRule { actions, .. })
         | AnyPushRuleRef::Sender(SimplePushRule { actions, .. }) => serialized_len(actions)?,
+
+        _ => return Err!(Request(InvalidParam("Unsupported push rule kind."))),
     };
 
     if size > MAX_RULE_BYTES {

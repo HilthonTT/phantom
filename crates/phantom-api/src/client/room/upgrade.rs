@@ -1,10 +1,15 @@
-use itertools::Itertools;
-use std::{cmp::max, iter::once};
+use std::cmp::max;
 
 use axum::extract::State;
 use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use phantom_core::{
+    Err, Result, debug_info, err, error, implement, info,
+    matrix::{PduEvent, RoomVersion, StateKey, pdu::PduBuilder},
+    stream::{IterStream, ReadyExt, WidebandExt},
+};
+use phantom_service::{Services, rooms::state::RoomMutexGuard};
 use ruma::{
-    CanonicalJsonObject, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId, UserId,
+    CanonicalJsonObject, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
     api::client::room::upgrade_room::v3,
     events::{
         StateEventType, TimelineEventType,
@@ -17,16 +22,11 @@ use ruma::{
     },
     int,
     room::RoomType,
-    room_version_rules::{RoomIdFormatVersion, RoomVersionRules},
+    room_version_rules::RoomVersionRules,
 };
-use serde_json::{Value as JsonValue, json, value::to_raw_value};
-use phantom_core::{
-    Err, Result, debug_info, err, error, implement, info, is_equal_to, is_less_than,
-    matrix::{Event, StateKey, pdu::PduBuilder, room_version},
-    stream::ReadyExt, future::TryExt, stream::IterStream, stream::TryIgnore, stream::WidebandExt,
-};
-use phantom_service::{Services, rooms::timeline::RoomMutexGuard};
+use serde_json::{json, value::to_raw_value};
 
+use super::create::{copy_room_push_rule, new_room_id};
 use crate::router::Ruma;
 
 //TODO: Upgrade Ruma
@@ -42,18 +42,14 @@ const RECOMMENDED_TRANSFERABLE_STATE_EVENT_TYPES: &[StateEventType; 9] = &[
     StateEventType::RoomPowerLevels,
 ];
 
-#[derive(Debug)]
 struct RoomUpgradeContext<'a> {
     services: &'a Services,
     sender_user: &'a UserId,
     creator: &'a UserId,
     old_room_id: &'a RoomId,
     old_state_lock: &'a RoomMutexGuard,
-    old_version_rules: &'a RoomVersionRules,
     new_room_id: &'a RoomId,
     new_state_lock: &'a RoomMutexGuard,
-    new_version_rules: &'a RoomVersionRules,
-    additional_creators: &'a [OwnedUserId],
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/upgrade`
@@ -66,55 +62,61 @@ struct RoomUpgradeContext<'a> {
 /// - Transfers some state events
 /// - Moves local aliases
 /// - Modifies old room power levels to prevent users from speaking
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 pub(crate) async fn upgrade_room_route(
     State(services): State<crate::router::State>,
     body: Ruma<v3::Request>,
 ) -> Result<v3::Response> {
     let sender_user = body.sender_user();
     let new_version = &body.new_version;
-    let version_rules = room_version::rules(new_version)?;
 
-    if !services
-        .config
-        .supported_room_version(new_version)
-    {
+    if !RoomVersion::is_supported(new_version) {
         return Err!(Request(UnsupportedRoomVersion(
             "This server does not support that room version."
         )));
     }
 
+    let version_rules = new_version.rules().ok_or_else(|| {
+        err!(Request(UnsupportedRoomVersion(
+            "This server does not support that room version."
+        )))
+    })?;
+
     let old_room_id = &body.room_id;
-    let old_state_lock = services.rooms.state.mutex.lock(old_room_id).await;
+    let old_state_lock = services.rooms.state.mutex.lock(&**old_room_id).await;
 
     if !services
         .rooms
         .state_accessor
-        .user_can_tombstone(old_room_id, sender_user, &old_state_lock)
+        .room_power_levels(old_room_id)
         .await
+        .user_can_send_state(sender_user, StateEventType::RoomTombstone)
     {
-        return Err!(Request(Forbidden("You are not permitted to upgrade the room.")));
+        return Err!(Request(Forbidden(
+            "You are not permitted to upgrade the room."
+        )));
     }
 
-    let latest_event = services
+    let latest_event_id = services
         .rooms
         .timeline
         .latest_pdu_in_room(old_room_id)
         .await
-        .ok();
+        .ok()
+        .map(|pdu| pdu.event_id);
 
-    let predecessor = PreviousRoom {
-        room_id: old_room_id.to_owned(),
-        event_id: latest_event
-            .as_ref()
-            .map(Event::event_id)
-            .map(ToOwned::to_owned),
-    };
+    let mut predecessor = PreviousRoom::new(old_room_id.to_owned());
+    // Every room version this server supports still carries the predecessor's
+    // last event ID.
+    #[expect(deprecated)]
+    {
+        predecessor.event_id.clone_from(&latest_event_id);
+    }
 
     debug_info!(
         %sender_user,
         %old_room_id,
-        last_event = ?predecessor.event_id,
+        last_event = ?latest_event_id,
         ?new_version,
         "Attempting upgrade of room..."
     );
@@ -125,39 +127,16 @@ pub(crate) async fn upgrade_room_route(
         sender_user
     };
 
-    let (replacement_room, state_lock) = match version_rules.room_id_format {
-        | RoomIdFormatVersion::V2 =>
-            upgrade_room_create(
-                &services,
-                creator,
-                old_room_id,
-                new_version,
-                &version_rules,
-                predecessor,
-                body.additional_creators.clone(),
-            )
-            .await,
-
-        | RoomIdFormatVersion::V1 =>
-            upgrade_room_create_legacy(
-                &services,
-                creator,
-                old_room_id,
-                new_version,
-                &version_rules,
-                predecessor,
-            )
-            .await,
-    }
-    .inspect_err(|e| error!(?body, "Upgrade m.room.create event failed: {e}"))?;
-
-    let old_room_id = &body.room_id;
-    let old_version = services
-        .rooms
-        .state
-        .get_room_version(old_room_id)
-        .await?;
-    let old_version_rules = room_version::rules(&old_version)?;
+    let (replacement_room, state_lock) = upgrade_room_create_legacy(
+        &services,
+        creator,
+        old_room_id,
+        new_version,
+        &version_rules,
+        predecessor,
+    )
+    .await
+    .inspect_err(|e| error!(%old_room_id, "Upgrade m.room.create event failed: {e}"))?;
 
     let context = RoomUpgradeContext {
         services: &services,
@@ -165,20 +144,17 @@ pub(crate) async fn upgrade_room_route(
         creator,
         old_room_id,
         old_state_lock: &old_state_lock,
-        old_version_rules: &old_version_rules,
         new_room_id: &replacement_room,
         new_state_lock: &state_lock,
-        new_version_rules: &version_rules,
-        additional_creators: &body.additional_creators,
     };
 
     if let Err(e) = context.transfer_room().await {
-        error!(?e, ?context, "Room upgrade failed. Cleaning up incomplete room...");
+        error!(?e, %old_room_id, %replacement_room, "Room upgrade failed. Cleaning up incomplete room...");
 
         if let Err(e) = services
             .rooms
             .delete
-            .delete_room(&replacement_room, false, state_lock)
+            .delete_room(&replacement_room, false, &state_lock)
             .await
         {
             error!("Additional errors while deleting incomplete room: {e}");
@@ -197,82 +173,7 @@ pub(crate) async fn upgrade_room_route(
     Ok(v3::Response::new(replacement_room))
 }
 
-#[tracing::instrument(level = "info")]
-async fn upgrade_room_create(
-    services: &Services,
-    sender_user: &UserId,
-    old_room_id: &RoomId,
-    new_version: &RoomVersionId,
-    version_rules: &RoomVersionRules,
-    predecessor: PreviousRoom,
-    additional_creators: Vec<OwnedUserId>,
-) -> Result<(OwnedRoomId, RoomMutexGuard)> {
-    // Get the old room creation event
-    let mut content: CanonicalJsonObject = services
-        .rooms
-        .state_accessor
-        .room_state_get_content(old_room_id, &StateEventType::RoomCreate, "")
-        .await
-        .map_err(|_| err!(Database("Found room without m.room.create event.")))?;
-
-    content.remove("creator");
-    // MSC4291: v12 create events omit the deprecated predecessor.event_id.
-    let predecessor = PreviousRoom { event_id: None, ..predecessor };
-
-    content.insert("predecessor".into(), json!(predecessor).try_into()?);
-    content.insert("room_version".into(), json!(new_version).try_into()?);
-
-    if version_rules
-        .authorization
-        .additional_room_creators
-    {
-        let additional_creators = additional_creators
-            .into_iter()
-            .sorted()
-            .dedup()
-            .collect_vec();
-
-        content.remove("additional_creators");
-        if !additional_creators.is_empty() {
-            content.insert("additional_creators".into(), json!(additional_creators).try_into()?);
-        }
-    }
-
-    // Validate creation event content
-    let raw_content = to_raw_value(&content)?;
-    if let Err(e) = serde_json::from_str::<CanonicalJsonObject>(raw_content.get()) {
-        return Err!(Request(BadJson("Error forming creation event: {e}")));
-    }
-
-    let room_id = ruma::room_id!("!thiswillbereplaced").to_owned();
-    let state_lock = services.rooms.state.mutex.lock(&room_id).await;
-    let create_event_id = services
-        .rooms
-        .timeline
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: TimelineEventType::RoomCreate,
-                content: to_raw_value(&content)?.into(),
-                state_key: Some(StateKey::new()),
-                ..Default::default()
-            },
-            sender_user,
-            &room_id,
-            &state_lock,
-        )
-        .boxed()
-        .await?;
-
-    drop(state_lock);
-
-    // The real room_id is now the event_id.
-    let room_id = OwnedRoomId::from_parts('!', create_event_id.localpart(), None)?;
-    let state_lock = services.rooms.state.mutex.lock(&room_id).await;
-
-    Ok((room_id, state_lock))
-}
-
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip_all)]
 async fn upgrade_room_create_legacy(
     services: &Services,
     sender_user: &UserId,
@@ -282,8 +183,8 @@ async fn upgrade_room_create_legacy(
     predecessor: PreviousRoom,
 ) -> Result<(OwnedRoomId, RoomMutexGuard)> {
     // Create a replacement room
-    let new_room_id = RoomId::new_v1(services.server_state.server_name());
-    let state_lock = services.rooms.state.mutex.lock(&new_room_id).await;
+    let new_room_id = new_room_id(services).await?;
+    let state_lock = services.rooms.state.mutex.lock(&*new_room_id).await;
     let _short_id = services
         .rooms
         .short
@@ -321,7 +222,7 @@ async fn upgrade_room_create_legacy(
         .build_and_append_pdu(
             PduBuilder {
                 event_type: TimelineEventType::RoomCreate,
-                content: to_raw_value(&content)?.into(),
+                content: to_raw_value(&content)?,
                 state_key: Some(StateKey::new()),
                 ..Default::default()
             },
@@ -335,7 +236,7 @@ async fn upgrade_room_create_legacy(
 }
 
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn transfer_room(&self) -> Result {
     self.move_creator().await?;
 
@@ -354,7 +255,9 @@ async fn transfer_room(&self) -> Result {
     // After commitment to the tombstone above no more errors can propagate.
     self.lockdown_old_room()
         .await
-        .inspect_err(|e| error!(?self, "Failed to lockdown old room: {e}"))
+        .inspect_err(
+            |e| error!(old_room_id = %self.old_room_id, "Failed to lockdown old room: {e}"),
+        )
         .ok();
 
     Ok(())
@@ -362,7 +265,7 @@ async fn transfer_room(&self) -> Result {
 
 // Join the new room
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_creator(&self) -> Result {
     self.move_member(self.creator).await?;
 
@@ -370,7 +273,7 @@ async fn move_creator(&self) -> Result {
 }
 
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_sender_user(&self) -> Result {
     if self.sender_user != self.creator {
         self.services
@@ -394,34 +297,40 @@ async fn move_sender_user(&self) -> Result {
 }
 
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_push_rules(&self) -> Result {
-    self.services
-        .account_data
-        .copy_room_push_rule(self.sender_user, self.old_room_id, self.new_room_id)
-        .await
+    copy_room_push_rule(
+        self.services,
+        self.sender_user,
+        self.old_room_id,
+        self.new_room_id,
+    )
+    .await
 }
 
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_member(&self, user_id: &UserId) -> Result {
-    let old_content: RoomMemberEventContent = self
+    let mut content: RoomMemberEventContent = self
         .services
         .rooms
         .state_accessor
-        .room_state_get_content(self.old_room_id, &StateEventType::RoomMember, user_id.as_str())
-        .inspect_err(|e| error!(?self, "Missing room member event: {e}"))
+        .room_state_get_content(
+            self.old_room_id,
+            &StateEventType::RoomMember,
+            user_id.as_str(),
+        )
+        .inspect_err(|e| error!(%user_id, "Missing room member event: {e}"))
         .await?;
+
+    content.membership = MembershipState::Join;
+    content.join_authorized_via_users_server = None;
 
     self.services
         .rooms
         .timeline
         .build_and_append_pdu(
-            PduBuilder::state(user_id.as_str(), &RoomMemberEventContent {
-                membership: MembershipState::Join,
-                join_authorized_via_users_server: None,
-                ..old_content
-            }),
+            PduBuilder::state(user_id.as_str(), &content),
             user_id,
             self.new_room_id,
             self.new_state_lock,
@@ -433,7 +342,7 @@ async fn move_member(&self, user_id: &UserId) -> Result {
 
 // Replicate transferable state events to the new room
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_state_events(&self) -> Result {
     RECOMMENDED_TRANSFERABLE_STATE_EVENT_TYPES
         .iter()
@@ -444,7 +353,7 @@ async fn move_state_events(&self) -> Result {
                 .rooms
                 .state_accessor
                 .room_state_get(self.old_room_id, event_type, "")
-                .ok()
+                .map(Result::ok)
         })
         .map(Ok)
         .try_for_each(async |event| {
@@ -458,7 +367,7 @@ async fn move_state_events(&self) -> Result {
                     self.new_state_lock,
                 )
                 .inspect_err(|e| {
-                    error!(?event, ?self, "Failed to transfer state on upgrade: {e}");
+                    error!(event_id = %event.event_id, "Failed to transfer state on upgrade: {e}");
                 })
                 .map_ok(|_| ())
                 .await
@@ -472,7 +381,7 @@ async fn move_state_events(&self) -> Result {
 // try_for_each requires FnMut returning a nameable future; an async closure
 // capturing self does not satisfy it.
 #[expect(closure_returning_async_block)]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_space_state(&self) -> Result {
     let old_room_is_space = self
         .services
@@ -489,9 +398,16 @@ async fn move_space_state(&self) -> Result {
         .is_some_and(|t| matches!(t, RoomType::Space));
 
     let event_types: &[StateEventType] = match old_room_is_space {
-        | true => &[StateEventType::SpaceParent, StateEventType::SpaceChild],
-        | false => &[StateEventType::SpaceParent],
+        true => &[StateEventType::SpaceParent, StateEventType::SpaceChild],
+        false => &[StateEventType::SpaceParent],
     };
+
+    let shortstatehash = self
+        .services
+        .rooms
+        .state
+        .get_room_shortstatehash(self.old_room_id)
+        .await?;
 
     event_types
         .iter()
@@ -501,8 +417,7 @@ async fn move_space_state(&self) -> Result {
             self.services
                 .rooms
                 .state_accessor
-                .room_state_keys(self.old_room_id, event_type)
-                .ignore_err()
+                .state_keys(shortstatehash, event_type)
                 .map(Ok)
                 .try_for_each(move |state_key| async move {
                     let Ok(event) = self
@@ -525,7 +440,7 @@ async fn move_space_state(&self) -> Result {
                             self.new_state_lock,
                         )
                         .inspect_err(|e| {
-                            error!(?event, ?self, "Failed to copy space state: {e}");
+                            error!(event_id = %event.event_id, "Failed to copy space state: {e}");
                         })
                         .await
                         .ok();
@@ -537,93 +452,37 @@ async fn move_space_state(&self) -> Result {
 }
 
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
-async fn rebuild_state_event<Pdu: Event>(&self, event: &Pdu) -> Result<PduBuilder> {
-    let content = match event.kind() {
-        | TimelineEventType::RoomPowerLevels => {
-            let mut content = event.get_content_as_value();
-
-            if self
-                .new_version_rules
-                .authorization
-                .explicitly_privilege_room_creators
-            {
-                if let Some(users) = content
-                    .get_mut("users")
-                    .and_then(JsonValue::as_object_mut)
-                {
-                    users.retain(|user_id, _pl| {
-                        !self
-                            .additional_creators
-                            .iter()
-                            .map(AsRef::as_ref)
-                            .chain(once(self.creator))
-                            .map(UserId::as_str)
-                            .any(is_equal_to!(user_id.as_str()))
-                    });
-                }
-
-                if self.creator == self.sender_user
-                    && content["events"]["m.room.tombstone"]
-                        .as_i64()
-                        .is_none_or(is_less_than!(150))
-                {
-                    content["events"]["m.room.tombstone"] = json!(150);
-                }
-            } else if self
-                .old_version_rules
-                .authorization
-                .explicitly_privilege_room_creators
-            {
-                #[expect(clippy::collapsible_if)]
-                if let Some(users) = content
-                    .as_object_mut()
-                    .expect("power levels event content must be an object")
-                    .entry("users")
-                    .or_insert(json!({}))
-                    .as_object_mut()
-                {
-                    let level = json!(1000);
-
-                    self.services
-                        .rooms
-                        .state_accessor
-                        .get_create(self.old_room_id)
-                        .await?
-                        .creators(&self.old_version_rules.authorization)?
-                        .for_each(|user_id| {
-                            users.insert(user_id.to_string(), level.clone());
-                        });
-                }
-            }
-
-            to_raw_value(&content)?
-        },
+#[tracing::instrument(level = "debug", skip_all)]
+async fn rebuild_state_event(&self, event: &PduEvent) -> Result<PduBuilder> {
+    let content = match event.kind {
         // MSC4168: rewrite `via` to the upgrading server's name on copied
         // space-graph state events, since the previous room's via list may
         // no longer cover the upgraded room.
-        | TimelineEventType::SpaceChild | TimelineEventType::SpaceParent => {
+        TimelineEventType::SpaceChild | TimelineEventType::SpaceParent => {
             let mut content = event.get_content_as_value();
             if let Some(obj) = content.as_object_mut() {
-                obj.insert("via".to_owned(), json!([self.sender_user.server_name().as_str()]));
+                obj.insert(
+                    "via".to_owned(),
+                    json!([self.sender_user.server_name().as_str()]),
+                );
             }
 
             to_raw_value(&content)?
-        },
-        | _ => to_raw_value(event.content())?,
+        }
+        _ => event.content.clone(),
     };
 
     Ok(PduBuilder {
-        content: content.into(),
-        event_type: event.kind().clone(),
-        state_key: event.state_key().map(Into::into),
+        content,
+        event_type: event.kind.clone(),
+        state_key: event.state_key.clone(),
         ..Default::default()
     })
 }
 
 // Moves any local aliases to the new room
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn move_local_aliases(&self) -> Result {
     self.services
         .rooms
@@ -634,7 +493,7 @@ async fn move_local_aliases(&self) -> Result {
                 .rooms
                 .alias
                 .set_alias_by(alias, self.new_room_id, self.creator)
-                .inspect_err(|e| error!(?self, "Failed to add alias: {e}"))
+                .inspect_err(|e| error!(%alias, "Failed to add alias: {e}"))
                 .ok();
         })
         .map(Ok)
@@ -645,16 +504,19 @@ async fn move_local_aliases(&self) -> Result {
 // intended to be used any further Fail if the sender does not have the required
 // permissions.
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn tombstone_old_room(&self) -> Result<OwnedEventId> {
     self.services
         .rooms
         .timeline
         .build_and_append_pdu(
-            PduBuilder::state(StateKey::new(), &RoomTombstoneEventContent {
-                body: "This room has been upgraded.".to_owned(),
-                replacement_room: self.new_room_id.to_owned(),
-            }),
+            PduBuilder::state(
+                StateKey::new(),
+                &RoomTombstoneEventContent::new(
+                    "This room has been upgraded.".to_owned(),
+                    self.new_room_id.to_owned(),
+                ),
+            ),
             self.sender_user,
             self.old_room_id,
             self.old_state_lock,
@@ -666,10 +528,10 @@ async fn tombstone_old_room(&self) -> Result<OwnedEventId> {
 // inviting new users. Though a Result is returned, the callsite above treats it
 // as infallible because the tombstone represents the commitment.
 #[implement(RoomUpgradeContext, params = "<'_>")]
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip_all)]
 async fn lockdown_old_room(&self) -> Result<OwnedEventId> {
     // Get the old room power levels
-    let old_content: RoomPowerLevelsEventContent = self
+    let mut content: RoomPowerLevelsEventContent = self
         .services
         .rooms
         .state_accessor
@@ -677,25 +539,22 @@ async fn lockdown_old_room(&self) -> Result<OwnedEventId> {
         .await
         .map_err(|_| err!(Database("Found room without m.room.power_levels event.")))?;
 
-    let old_users_default = old_content
-        .users_default
-        .checked_add(int!(1))
-        .ok_or_else(|| {
-            err!(Request(BadJson("users_default power levels event content is not valid")))
-        })?;
+    let old_users_default = content.users_default.checked_add(int!(1)).ok_or_else(|| {
+        err!(Request(BadJson(
+            "users_default power levels event content is not valid"
+        )))
+    })?;
 
     // Setting events_default and invite to the greater of 50 and users_default + 1
     let new_level = max(int!(50), old_users_default);
+    content.events_default = new_level;
+    content.invite = new_level;
 
     self.services
         .rooms
         .timeline
         .build_and_append_pdu(
-            PduBuilder::state(StateKey::new(), &RoomPowerLevelsEventContent {
-                events_default: new_level,
-                invite: new_level,
-                ..old_content
-            }),
+            PduBuilder::state(StateKey::new(), &content),
             self.sender_user,
             self.old_room_id,
             self.old_state_lock,

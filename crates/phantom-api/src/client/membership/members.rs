@@ -1,6 +1,14 @@
 use axum::extract::State;
 use futures::{FutureExt, StreamExt};
+use phantom_core::{
+    Err, Result, at, err, is_equal_to, is_not_equal_to,
+    matrix::{PduCount, PduEvent},
+    stream::ReadyExt,
+};
+use phantom_service::{Services, rooms::short::ShortStateHash};
 use ruma::{
+    RoomId,
+    api::Direction,
     api::client::membership::{
         get_member_events,
         joined_members::{self, v3::RoomMember},
@@ -9,11 +17,6 @@ use ruma::{
         StateEventType,
         room::member::{MembershipState, RoomMemberEventContent},
     },
-};
-use phantom_core::{
-    Err, Result, at, err, is_equal_to, is_not_equal_to,
-    matrix::{Event, PduCount},
-    stream::ReadyExt,
 };
 
 use crate::router::Ruma;
@@ -46,19 +49,14 @@ pub(crate) async fn get_member_events_route(
         .map_err(|_| err!(Request(InvalidParam("Invalid `at` token."))))?;
 
     let shortstatehash = match at {
-        | None => services
+        None => services
             .rooms
             .state
             .get_room_shortstatehash(&body.room_id)
             .await
             .map_err(|e| err!(Database("Missing state for {:?}: {e:?}", body.room_id)))?,
 
-        | Some(at) =>
-            services
-                .rooms
-                .timeline
-                .shortstatehash_after(&body.room_id, at)
-                .await?,
+        Some(at) => shortstatehash_after(&services, &body.room_id, at).await?,
     };
 
     let membership = body.membership.as_ref();
@@ -68,23 +66,23 @@ pub(crate) async fn get_member_events_route(
             && not_membership.is_none_or(is_not_equal_to!(&content.membership))
     };
 
-    Ok(get_member_events::v3::Response {
-        chunk: services
-            .rooms
-            .state_accessor
-            .state_full(shortstatehash)
-            .ready_filter(|((ty, _), _)| *ty == StateEventType::RoomMember)
-            .map(at!(1))
-            .ready_filter(|pdu| {
-                pdu.get_content::<RoomMemberEventContent>()
-                    .as_ref()
-                    .is_ok_and(membership_filter)
-            })
-            .map(Event::into_format)
-            .collect()
-            .boxed()
-            .await,
-    })
+    let chunk = services
+        .rooms
+        .state_accessor
+        .state_full(shortstatehash)
+        .ready_filter(|((ty, _), _)| *ty == StateEventType::RoomMember)
+        .map(at!(1))
+        .ready_filter(|pdu| {
+            pdu.get_content::<RoomMemberEventContent>()
+                .as_ref()
+                .is_ok_and(membership_filter)
+        })
+        .map(PduEvent::into_member_event)
+        .collect()
+        .boxed()
+        .await;
+
+    Ok(get_member_events::v3::Response::new(chunk))
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/joined_members`
@@ -97,40 +95,78 @@ pub(crate) async fn joined_members_route(
     State(services): State<crate::router::State>,
     body: Ruma<joined_members::v3::Request>,
 ) -> Result<joined_members::v3::Response> {
-    if !services
+    let can_peek = services
         .rooms
-        .state_accessor
-        .user_can_peek(body.sender_user(), &body.room_id)
+        .state_cache
+        .is_joined(body.sender_user(), &body.room_id)
         .await
-    {
+        || services
+            .rooms
+            .state_accessor
+            .is_world_readable(&body.room_id)
+            .await;
+
+    if !can_peek {
         return Err!(Request(Forbidden("You aren't a member of the room.")));
     }
 
-    Ok(joined_members::v3::Response {
-        joined: services
-            .rooms
-            .state_accessor
-            .room_state_full(&body.room_id)
-            .ready_filter_map(Result::ok)
-            .ready_filter(|((ty, _), _)| *ty == StateEventType::RoomMember)
-            .map(at!(1))
-            .ready_filter_map(|pdu| {
-                let content = pdu.get_content::<RoomMemberEventContent>().ok()?;
+    let joined = services
+        .rooms
+        .state_accessor
+        .room_state_full(&body.room_id)
+        .ready_filter_map(Result::ok)
+        .ready_filter(|((ty, _), _)| *ty == StateEventType::RoomMember)
+        .map(at!(1))
+        .ready_filter_map(|pdu| {
+            let content = pdu.get_content::<RoomMemberEventContent>().ok()?;
 
-                let matches = content.membership == MembershipState::Join;
+            let matches = content.membership == MembershipState::Join;
 
-                matches.then(|| {
-                    let sender = pdu.sender().to_owned();
-                    let member = RoomMember {
-                        display_name: content.displayname,
-                        avatar_url: content.avatar_url,
-                    };
+            matches.then(|| {
+                let sender = pdu.sender.clone();
+                let mut member = RoomMember::new();
+                member.display_name = content.displayname;
+                member.avatar_url = content.avatar_url;
 
-                    (sender, member)
-                })
+                (sender, member)
             })
-            .collect()
-            .boxed()
-            .await,
-    })
+        })
+        .collect()
+        .boxed()
+        .await;
+
+    Ok(joined_members::v3::Response::new(joined))
+}
+
+/// The room's state just after the timeline position `at`: the state before
+/// the next event, or the current state when nothing follows.
+async fn shortstatehash_after(
+    services: &Services,
+    room_id: &RoomId,
+    at: PduCount,
+) -> Result<ShortStateHash> {
+    let next = services
+        .rooms
+        .timeline
+        .pdus(None, room_id, Some(at.saturating_inc(Direction::Forward)))
+        .ready_filter_map(Result::ok)
+        .boxed()
+        .next()
+        .await;
+
+    match next {
+        Some((_, pdu)) => {
+            services
+                .rooms
+                .state_accessor
+                .pdu_shortstatehash(&pdu.event_id)
+                .await
+        }
+        None => services
+            .rooms
+            .state
+            .get_room_shortstatehash(room_id)
+            .await
+            .map_err(|e| err!(Request(NotFound("Room {room_id:?} not found: {e:?}")))),
+    }
 }

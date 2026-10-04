@@ -2,6 +2,16 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt, future::join};
+use phantom_core::{
+    Err, Result, at, is_true,
+    math::usize_from_ruma_bounded,
+    matrix::PduEvent,
+    stream::{IterStream, ReadyExt, TryIgnore, WidebandExt},
+};
+use phantom_service::{
+    Services,
+    rooms::{search::RoomQuery, timeline::PdusIterItem},
+};
 use ruma::{
     OwnedRoomId, RoomId, UInt, UserId,
     api::client::search::search_events::{
@@ -15,15 +25,6 @@ use ruma::{
     serde::Raw,
 };
 use search_events::v3::{Request, Response};
-use phantom_core::{
-    Err, Result, at, is_true,
-    matrix::Event,
-    stream::IterStream, math::usize_from_ruma_bounded, future::OptionExt, stream::ReadyExt, stream::TryIgnore, stream::WidebandExt,
-};
-use phantom_service::{
-    Services,
-    rooms::{search::RoomQuery, timeline::PdusIterItem},
-};
 
 use super::visibility_filter;
 use crate::router::Ruma;
@@ -48,19 +49,17 @@ pub(crate) async fn search_events_route(
 ) -> Result<Response> {
     let sender_user = body.sender_user();
     let next_batch = body.next_batch.as_deref();
-    let room_events = body
-        .search_categories
-        .room_events
-        .as_ref()
-        .map_async(|criteria| category_room_events(&services, sender_user, next_batch, criteria))
-        .await
-        .transpose()?;
+    let room_events = match body.search_categories.room_events.as_ref() {
+        Some(criteria) => {
+            category_room_events(&services, sender_user, next_batch, criteria).await?
+        }
+        None => ResultRoomEvents::default(),
+    };
 
-    Ok(Response {
-        search_categories: ResultCategories {
-            room_events: room_events.unwrap_or_default(),
-        },
-    })
+    let mut search_categories = ResultCategories::new();
+    search_categories.room_events = room_events;
+
+    Ok(Response::new(search_categories))
 }
 
 #[expect(clippy::map_unwrap_or)]
@@ -72,9 +71,9 @@ async fn category_room_events(
 ) -> Result<ResultRoomEvents> {
     let filter = &criteria.filter;
 
-    let limit = filter
-        .limit
-        .map_or(LIMIT_DEFAULT, |limit| usize_from_ruma_bounded(limit, LIMIT_DEFAULT, LIMIT_MAX));
+    let limit = filter.limit.map_or(LIMIT_DEFAULT, |limit| {
+        usize_from_ruma_bounded(limit, LIMIT_DEFAULT, LIMIT_MAX)
+    });
 
     let next_batch: usize = next_batch
         .map(str::parse)
@@ -147,22 +146,13 @@ async fn category_room_events(
         .map(at!(2))
         .flatten()
         .stream()
-        .map(Event::into_pdu)
         .wide_then(async |pdu| {
-            let context =
-                event_context(services, sender_user, &pdu, &criteria.event_context).await;
+            let context = event_context(services, sender_user, &pdu, &criteria.event_context).await;
 
-            let pdu = services
-                .rooms
-                .pdu_metadata
-                .bundle_aggregations(sender_user, pdu)
-                .await;
-
-            SearchResult {
-                rank: None,
-                result: Some(pdu.into_format()),
-                context,
-            }
+            let mut result = SearchResult::new();
+            result.result = Some(pdu.into_room_event());
+            result.context = context;
+            result
         })
         .collect()
         .await;
@@ -178,41 +168,33 @@ async fn category_room_events(
         .as_ref()
         .map(ToString::to_string);
 
-    Ok(ResultRoomEvents {
-        count: Some(total),
-        next_batch,
-        results,
-        state,
-        highlights,
-        groups: Default::default(), // TODO
-    })
+    let mut room_events = ResultRoomEvents::new();
+    room_events.count = Some(total);
+    room_events.next_batch = next_batch;
+    room_events.results = results;
+    room_events.state = state;
+    room_events.highlights = highlights;
+
+    Ok(room_events)
 }
 
-async fn event_context<E>(
+async fn event_context(
     services: &Services,
     sender_user: &UserId,
-    pdu: &E,
+    pdu: &PduEvent,
     event_context: &EventContext,
-) -> EventContextResult
-where
-    E: Event,
-{
+) -> EventContextResult {
     // An absent event_context deserializes to the default 5/5; treat that as no
     // request.
     if event_context.is_default() {
         return EventContextResult::default();
     }
 
-    let Ok(base_count) = services
-        .rooms
-        .timeline
-        .get_pdu_count(pdu.event_id())
-        .await
-    else {
+    let Ok(base_count) = services.rooms.timeline.get_pdu_count(&pdu.event_id).await else {
         return EventContextResult::default();
     };
 
-    let room_id = pdu.room_id();
+    let room_id = &pdu.room_id;
     let before_limit = usize_from_ruma_bounded(event_context.before_limit, 0, CONTEXT_MAX);
     let after_limit = usize_from_ruma_bounded(event_context.after_limit, 0, CONTEXT_MAX);
 
@@ -255,22 +237,21 @@ where
     let events_before = events_before
         .into_iter()
         .map(at!(1))
-        .map(Event::into_format)
+        .map(PduEvent::into_room_event)
         .collect();
 
     let events_after = events_after
         .into_iter()
         .map(at!(1))
-        .map(Event::into_format)
+        .map(PduEvent::into_room_event)
         .collect();
 
-    EventContextResult {
-        start,
-        end,
-        events_before,
-        events_after,
-        profile_info: BTreeMap::new(),
-    }
+    let mut context = EventContextResult::new();
+    context.start = start;
+    context.end = end;
+    context.events_before = events_before;
+    context.events_after = events_after;
+    context
 }
 
 async fn collect_context_half<'a, S>(
@@ -285,15 +266,6 @@ where
     pdus.ignore_err()
         .wide_filter_map(|item| visibility_filter(services, item, sender_user))
         .take(take)
-        .wide_then(async |(count, pdu)| {
-            let pdu = services
-                .rooms
-                .pdu_metadata
-                .bundle_aggregations(sender_user, pdu)
-                .await;
-
-            (count, pdu)
-        })
         .collect()
         .await
 }
@@ -303,7 +275,7 @@ async fn procure_room_state(services: &Services, room_id: &RoomId) -> Result<Roo
         .rooms
         .state_accessor
         .room_state_full_pdus(room_id)
-        .map_ok(Event::into_format)
+        .map_ok(PduEvent::into_state_event)
         .try_collect()
         .await?;
 
@@ -319,12 +291,7 @@ async fn check_room_visible(
     let check_visible = search.filter.rooms.is_some();
     let check_state = check_visible && search.include_state.is_some_and(is_true!());
 
-    let is_joined = !check_visible
-        || services
-            .rooms
-            .state_cache
-            .is_joined(user_id, room_id)
-            .await;
+    let is_joined = !check_visible || services.rooms.state_cache.is_joined(user_id, room_id).await;
 
     let state_visible = !check_state
         || services
@@ -334,7 +301,9 @@ async fn check_room_visible(
             .await;
 
     if !is_joined || !state_visible {
-        return Err!(Request(Forbidden("You don't have permission to view {room_id:?}")));
+        return Err!(Request(Forbidden(
+            "You don't have permission to view {room_id:?}"
+        )));
     }
 
     Ok(())

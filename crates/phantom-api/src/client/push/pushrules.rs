@@ -1,4 +1,6 @@
 use axum::extract::State;
+use phantom_core::{Result, err};
+use phantom_service::Services;
 use ruma::{
     CanonicalJsonObject, CanonicalJsonValue,
     api::client::push::get_pushrules_all,
@@ -8,8 +10,6 @@ use ruma::{
     },
     push::{PredefinedContentRuleId, PredefinedOverrideRuleId, Ruleset},
 };
-use phantom_core::{Result, err};
-use phantom_service::Services;
 
 use crate::router::Ruma;
 
@@ -37,7 +37,9 @@ pub(crate) async fn get_pushrules_all_route(
 
     let account_data_content =
         serde_json::from_value::<PushRulesEventContent>(content_value.into()).map_err(|e| {
-            err!(Database(warn!("Invalid push rules account data event in database: {e}")))
+            err!(Database(warn!(
+                "Invalid push rules account data event in database: {e}"
+            )))
         })?;
 
     let mut global_ruleset = account_data_content.global;
@@ -48,7 +50,10 @@ pub(crate) async fn get_pushrules_all_route(
     {
         use ruma::push::RuleKind::*;
         if global_ruleset
-            .get(Override, PredefinedOverrideRuleId::ContainsDisplayName.as_str())
+            .get(
+                Override,
+                PredefinedOverrideRuleId::ContainsDisplayName.as_str(),
+            )
             .is_some()
             || global_ruleset
                 .get(Override, PredefinedOverrideRuleId::RoomNotif.as_str())
@@ -56,9 +61,6 @@ pub(crate) async fn get_pushrules_all_route(
             || global_ruleset
                 .get(Content, PredefinedContentRuleId::ContainsUserName.as_str())
                 .is_some()
-            || global_ruleset
-                .get(Override, PredefinedOverrideRuleId::Reply.as_str())
-                .is_none()
         {
             global_ruleset
                 .remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
@@ -73,13 +75,16 @@ pub(crate) async fn get_pushrules_all_route(
             global_ruleset.update_with_server_default(Ruleset::server_default(sender_user));
 
             let ty = GlobalAccountDataEventType::PushRules;
-            let event = PushRulesEvent {
-                content: PushRulesEventContent { global: global_ruleset.clone() },
-            };
+            let event = PushRulesEvent::new(PushRulesEventContent::new(global_ruleset.clone()));
 
             services
                 .account_data
-                .update(None, sender_user, ty.to_string().into(), &serde_json::to_value(event)?)
+                .update(
+                    None,
+                    sender_user,
+                    ty.to_string().into(),
+                    &serde_json::to_value(event)?,
+                )
                 .await?;
         }
     };
@@ -94,16 +99,21 @@ async fn recreate_push_rules_and_return(
     sender_user: &ruma::UserId,
 ) -> Result<get_pushrules_all::v3::Response> {
     let ty = GlobalAccountDataEventType::PushRules;
-    let event = PushRulesEvent {
-        content: PushRulesEventContent {
-            global: Ruleset::server_default(sender_user),
-        },
-    };
+    let event = PushRulesEvent::new(PushRulesEventContent::new(Ruleset::server_default(
+        sender_user,
+    )));
 
     services
         .account_data
-        .update(None, sender_user, ty.to_string().into(), &serde_json::to_value(event)?)
+        .update(
+            None,
+            sender_user,
+            ty.to_string().into(),
+            &serde_json::to_value(event)?,
+        )
         .await?;
 
-    Ok(get_pushrules_all::v3::Response::new(Ruleset::server_default(sender_user)))
+    Ok(get_pushrules_all::v3::Response::new(
+        Ruleset::server_default(sender_user),
+    ))
 }

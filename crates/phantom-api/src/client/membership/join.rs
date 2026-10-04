@@ -1,13 +1,13 @@
 use axum::extract::State;
+use phantom_core::{Result, warn};
+use phantom_service::rooms::membership::Join;
 use ruma::{
     CanonicalJsonObject, CanonicalJsonValue, RoomId,
     api::client::membership::{join_room_by_id, join_room_by_id_or_alias},
 };
-use phantom_core::{Result, warn};
-use phantom_service::membership::Join;
 
 use super::banned_room_check;
-use crate::{router::{ClientIp, Ruma}};
+use crate::router::{ClientIp, Ruma};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/join`
 ///
@@ -83,8 +83,14 @@ pub(crate) async fn join_room_by_id_or_alias_route(
         .maybe_resolve_with_servers(&body.room_id_or_alias, Some(&body.via))
         .await?;
 
-    banned_room_check(&services, sender_user, &room_id, Some(&body.room_id_or_alias), client)
-        .await?;
+    banned_room_check(
+        &services,
+        sender_user,
+        &room_id,
+        Some(&body.room_id_or_alias),
+        client,
+    )
+    .await?;
 
     let extra_content = extra_member_content(body.json_body.as_ref());
 
@@ -116,8 +122,11 @@ pub(crate) async fn join_room_by_id_or_alias_route(
     Ok(join_room_by_id_or_alias::v3::Response::new(room_id.clone()))
 }
 
-const RESERVED_JOIN_KEYS: [&str; 3] =
-    ["reason", "third_party_signed", "join_authorised_via_users_server"];
+const RESERVED_JOIN_KEYS: [&str; 3] = [
+    "reason",
+    "third_party_signed",
+    "join_authorised_via_users_server",
+];
 
 // Drop recognized and server-owned keys the client must not set.
 fn extra_member_content(json_body: Option<&CanonicalJsonValue>) -> Option<CanonicalJsonObject> {

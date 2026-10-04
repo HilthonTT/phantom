@@ -12,9 +12,9 @@ use std::net::IpAddr;
 
 use axum::extract::State;
 use futures::{FutureExt, StreamExt};
-use ruma::{RoomId, RoomOrAliasId, UserId, api::client::membership::joined_rooms};
 use phantom_core::{Err, Result, result::LogErr, warn};
-use phantom_service::Services;
+use phantom_service::{Services, ops::moderation::Restriction};
+use ruma::{RoomId, RoomOrAliasId, UserId, api::client::membership::joined_rooms};
 
 pub(crate) use self::{
     ban::ban_user_route,
@@ -36,13 +36,15 @@ pub(crate) async fn joined_rooms_route(
     State(services): State<crate::router::State>,
     body: Ruma<joined_rooms::v3::Request>,
 ) -> Result<joined_rooms::v3::Response> {
-    Ok(joined_rooms::v3::Response::new(services
+    Ok(joined_rooms::v3::Response::new(
+        services
             .rooms
             .state_cache
             .rooms_joined(body.sender_user())
             .map(ToOwned::to_owned)
             .collect()
-            .await))
+            .await,
+    ))
 }
 
 /// Checks if the room is banned in any way possible and the sender user is not
@@ -66,16 +68,12 @@ pub(crate) async fn banned_room_check(
     if services.rooms.metadata.is_banned(room_id).await
         // ... or legacy room id server is banned ...
         || room_id.server_name().is_some_and(|server_name| {
-            services
-                .config
-                .is_forbidden_remote_server_name(server_name)
+            services.moderation.forbids(server_name, Restriction::Federation)
         })
         // ... or alias server is banned
         || orig_room_id.is_some_and(|orig_room_id| {
             orig_room_id.server_name().is_some_and(|orig_server_name| {
-            services
-                .config
-                .is_forbidden_remote_server_name(orig_server_name)
+            services.moderation.forbids(orig_server_name, Restriction::Federation)
         })
     }) {
         warn!(
@@ -88,7 +86,9 @@ pub(crate) async fn banned_room_check(
             .log_err()
             .ok();
 
-        return Err!(Request(Forbidden("This room is banned on this homeserver.")));
+        return Err!(Request(Forbidden(
+            "This room is banned on this homeserver."
+        )));
     }
 
     Ok(())
@@ -98,7 +98,8 @@ async fn maybe_deactivate(services: &Services, user_id: &UserId, client_ip: IpAd
     if services
         .server
         .config
-        .client.auto_deactivate_banned_room_attempts
+        .client
+        .auto_deactivate_banned_room_attempts
     {
         let notice = format!(
             "Automatically deactivating user {user_id} due to attempted banned room join from \
@@ -106,8 +107,6 @@ async fn maybe_deactivate(services: &Services, user_id: &UserId, client_ip: IpAd
         );
 
         warn!("{notice}");
-
-        services.admin.notify_loud(&notice).await;
 
         services
             .deactivate

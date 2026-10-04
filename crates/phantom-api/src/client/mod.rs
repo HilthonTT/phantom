@@ -1,19 +1,35 @@
 mod account;
 mod account_data;
+mod alias;
 mod appservice;
 mod backup;
 mod capabilities;
+mod context;
 mod device;
+mod directory;
+mod events;
 mod filter;
 mod keys;
+mod membership;
+mod message;
 mod openid;
 mod presence;
 mod profile;
+mod push;
+mod read_marker;
+mod redact;
 mod register;
+mod relations;
 mod report;
+mod room;
+mod search;
+mod send;
 mod session;
+mod space;
+mod state;
 mod tag;
 mod thirdparty;
+mod threads;
 mod to_device;
 mod typing;
 mod unstable;
@@ -28,6 +44,7 @@ use phantom_core::{Config, matrix::Event};
 use phantom_service::{Services, rooms::timeline::PdusIterItem};
 use ruma::UserId;
 
+pub(crate) use self::message::{annotate_membership, is_ignored_pdu, with_membership};
 use crate::router::{RouterExt, State};
 
 /// generated device ID length
@@ -124,13 +141,93 @@ pub fn register(router: Router<State>, _config: &Config) -> Router<State> {
         .ruma_route(&thirdparty::get_location_for_protocol_route)
         .ruma_route(&thirdparty::get_user_for_user_id_route)
         .ruma_route(&thirdparty::get_location_for_room_alias_route)
+        .ruma_route(&push::get_pushrules_all_route)
+        .ruma_route(&push::get_pushrules_global_route)
+        .ruma_route(&push::set_pushrule_route)
+        .ruma_route(&push::get_pushrule_route)
+        .ruma_route(&push::set_pushrule_enabled_route)
+        .ruma_route(&push::get_pushrule_enabled_route)
+        .ruma_route(&push::get_pushrule_actions_route)
+        .ruma_route(&push::set_pushrule_actions_route)
+        .ruma_route(&push::delete_pushrule_route)
+        .ruma_route(&push::get_pushers_route)
+        .ruma_route(&push::set_pushers_route)
+        .ruma_route(&push::get_notifications_route)
+        .ruma_route(&read_marker::set_read_marker_route)
+        .ruma_route(&read_marker::create_receipt_route)
+        .ruma_route(&room::create_room_route)
+        .ruma_route(&redact::redact_event_route)
+        .ruma_route(&alias::create_alias_route)
+        .ruma_route(&alias::delete_alias_route)
+        .ruma_route(&alias::get_alias_route)
+        .ruma_route(&membership::join_room_by_id_route)
+        .ruma_route(&membership::join_room_by_id_or_alias_route)
+        .ruma_route(&membership::joined_members_route)
+        .ruma_route(&membership::knock_room_route)
+        .ruma_route(&membership::leave_room_route)
+        .ruma_route(&membership::forget_room_route)
+        .ruma_route(&membership::joined_rooms_route)
+        .ruma_route(&membership::kick_user_route)
+        .ruma_route(&membership::ban_user_route)
+        .ruma_route(&membership::unban_user_route)
+        .ruma_route(&membership::invite_user_route)
+        .ruma_route(&membership::get_member_events_route)
+        .ruma_route(&directory::set_room_visibility_route)
+        .ruma_route(&directory::get_room_visibility_route)
+        .ruma_route(&directory::get_public_rooms_route)
+        .ruma_route(&directory::get_public_rooms_filtered_route)
+        .ruma_route(&room::upgrade_room_route)
+        .ruma_route(&room::get_room_summary)
+        .route(
+            "/_matrix/client/unstable/im.nheko.summary/rooms/{room_id_or_alias}/summary",
+            get(room::get_room_summary_legacy),
+        )
+        .ruma_route(&room::get_room_event_route)
+        .ruma_route(&room::get_room_aliases_route)
+        .ruma_route(&send::send_message_event_route)
+        .ruma_route(&state::send_state_event_for_key_route)
+        .ruma_route(&state::get_state_events_route)
+        .ruma_route(&state::get_state_events_for_key_route)
+        // Ruma doesn't have support for multiple paths for a single endpoint yet, and these
+        // routes share one Ruma request / response type pair with
+        // {get,send}_state_event_for_key_route
+        .route(
+            "/_matrix/client/r0/rooms/{room_id}/state/{event_type}",
+            get(state::get_state_events_for_empty_key_route)
+                .put(state::send_state_event_for_empty_key_route),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/{room_id}/state/{event_type}",
+            get(state::get_state_events_for_empty_key_route)
+                .put(state::send_state_event_for_empty_key_route),
+        )
+        // These two endpoints allow trailing slashes
+        .route(
+            "/_matrix/client/r0/rooms/{room_id}/state/{event_type}/",
+            get(state::get_state_events_for_empty_key_route)
+                .put(state::send_state_event_for_empty_key_route),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/{room_id}/state/{event_type}/",
+            get(state::get_state_events_for_empty_key_route)
+                .put(state::send_state_event_for_empty_key_route),
+        )
+        .ruma_route(&events::events_route)
+        .ruma_route(&context::get_context_route)
+        .ruma_route(&room::get_event_by_timestamp_route)
+        .ruma_route(&message::get_message_events_route)
+        .ruma_route(&search::search_events_route)
+        .ruma_route(&threads::get_threads_route)
+        .ruma_route(&relations::get_relating_events_with_rel_type_and_event_type_route)
+        .ruma_route(&relations::get_relating_events_with_rel_type_route)
+        .ruma_route(&relations::get_relating_events_route)
+        .ruma_route(&space::get_hierarchy_route)
 }
 
 /// Keeps a timeline item only when the user may see its event.
 ///
 /// The room's history visibility is read as it stood at that event rather than
 /// as it stands at the time of the request.
-#[allow(dead_code)]
 #[inline]
 async fn visibility_filter(
     services: &Services,

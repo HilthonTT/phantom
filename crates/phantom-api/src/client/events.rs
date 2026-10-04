@@ -1,18 +1,21 @@
-use std::iter::once;
-
 use axum::extract::State;
-use futures::{Stream, StreamExt, future::ok, pin_mut};
+use futures::{FutureExt, Stream, StreamExt, future::pending, pin_mut};
+use phantom_core::{
+    Err, Result, err,
+    matrix::{PduCount, PduEvent},
+    result::FlatOk,
+    stream::{ReadyExt, WidebandExt},
+};
+use phantom_service::{Services, rooms::timeline::PdusIterItem};
 use ruma::{
     UserId,
     api::client::peeking::listen_to_new_events::v3::{Request, Response},
+    events::{
+        StateEventType,
+        room::history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+    },
 };
 use tokio::time::{Duration, Instant, timeout_at};
-use phantom_core::{
-    Err, matrix::Event, Result, err,
-    matrix::PduCount,
-    bool::BoolExt, OptionExt, future::OptionFutureExt, result::FlatOk, stream::IterStream, stream::ReadyExt, stream::WidebandExt,
-};
-use phantom_service::{Services, rooms::timeline::PdusIterItem};
 
 use super::visibility_filter;
 use crate::router::Ruma;
@@ -49,20 +52,18 @@ pub(crate) async fn events_route(
 
     let room_id = body.room_id.as_ref();
 
-    let peeking = services
+    let peeking = !services
         .rooms
         .state_cache
         .is_joined(sender_user, room_id)
-        .await
-        .is_false();
+        .await;
 
     if peeking
-        && services
+        && !services
             .rooms
             .state_accessor
             .is_world_readable(room_id)
             .await
-            .is_false()
     {
         return Err!(Request(Forbidden("No room preview available.")));
     }
@@ -75,15 +76,7 @@ pub(crate) async fn events_route(
         .map(str::parse)
         .transpose()
         .map_err(|_| err!(Request(InvalidParam("Invalid `from` token."))))?
-        .map_async(ok)
-        .unwrap_or_else_async(async || {
-            services
-                .server_state
-                .wait_pending()
-                .await
-                .map(PduCount::Normal)
-        })
-        .await?;
+        .unwrap_or_else(|| PduCount::Normal(services.server_state.current_count()));
 
     let listen = Listen {
         services: &services,
@@ -96,12 +89,14 @@ pub(crate) async fn events_route(
         .expect("configuration must limit maximum timeout");
 
     loop {
-        let watchers = services
-            .sync
-            .watch(sender_user, body.sender_device.as_deref(), once(room_id).stream())
-            .await;
+        // Without a device there is nothing to watch, so the listen runs out its
+        // timeout.
+        let watchers = match body.sender_device.as_deref() {
+            Some(device_id) => services.sync.watch(sender_user, device_id).boxed(),
+            None => pending().boxed(),
+        };
 
-        let next_batch = services.server_state.wait_pending().await?;
+        let next_batch = services.server_state.current_count();
 
         let window = services
             .rooms
@@ -116,17 +111,14 @@ pub(crate) async fn events_route(
         }
 
         if timeout_at(stop_at, watchers).await.is_err() || services.server.is_stopping() {
-            return Ok(Response {
-                chunk: Default::default(),
-                start: from.to_string().into(),
-                end: services
-                    .server
-                    .is_stopping()
-                    .is_false()
-                    .then_some(next_batch)
-                    .as_ref()
-                    .map(ToString::to_string),
-            });
+            let mut response = Response::new();
+            response.start = from.to_string().into();
+            response.end = (!services.server.is_stopping())
+                .then_some(next_batch)
+                .as_ref()
+                .map(ToString::to_string);
+
+            return Ok(response);
         }
     }
 }
@@ -148,9 +140,7 @@ where
     pin_mut!(window);
     window.as_mut().peek().await?;
 
-    visible_page(listen, window, from, next_batch)
-        .await
-        .into()
+    visible_page(listen, window, from, next_batch).await.into()
 }
 
 /// The events of a window the user may see, as one page of the stream.
@@ -170,10 +160,13 @@ where
     let (first, last, chunk) = window
         .wide_filter_map(|item| listen_filter(listen, item))
         .take(EVENT_LIMIT)
-        .ready_fold((None, None, Vec::new()), |(first, _, mut chunk), (count, pdu)| {
-            chunk.push(pdu.into_format());
-            (first.or(Some(count)), Some(count), chunk)
-        })
+        .ready_fold(
+            (None, None, Vec::new()),
+            |(first, _, mut chunk), (count, pdu)| {
+                chunk.push(PduEvent::into_room_event(pdu));
+                (first.or(Some(count)), Some(count), chunk)
+            },
+        )
         .await;
 
     let start = first.unwrap_or(from).to_string().into();
@@ -184,7 +177,12 @@ where
         .to_string()
         .into();
 
-    Response { start, end, chunk }
+    let mut response = Response::new();
+    response.start = start;
+    response.end = end;
+    response.chunk = chunk;
+
+    response
 }
 
 /// Keeps an event the listener may see.
@@ -199,11 +197,32 @@ async fn listen_filter(listen: &Listen<'_>, item: PdusIterItem) -> Option<PdusIt
 
     let (_, pdu) = &item;
 
-    listen
-        .services
-        .rooms
-        .state_accessor
-        .is_world_readable_at(pdu)
+    is_world_readable_at(listen.services, pdu)
         .await
         .then_some(item)
+}
+
+/// Whether the room's history was world-readable at `pdu`, or `pdu` is the
+/// history-visibility event that made it so.
+async fn is_world_readable_at(services: &Services, pdu: &PduEvent) -> bool {
+    let world_readable = |content: RoomHistoryVisibilityEventContent| {
+        content.history_visibility == HistoryVisibility::WorldReadable
+    };
+
+    if pdu.kind == StateEventType::RoomHistoryVisibility.into()
+        && pdu.state_key.as_deref() == Some("")
+        && pdu.get_content().is_ok_and(world_readable)
+    {
+        return true;
+    }
+
+    let state_accessor = &services.rooms.state_accessor;
+    let Ok(shortstatehash) = state_accessor.pdu_shortstatehash(&pdu.event_id).await else {
+        return false;
+    };
+
+    state_accessor
+        .state_get_content(shortstatehash, &StateEventType::RoomHistoryVisibility, "")
+        .await
+        .is_ok_and(world_readable)
 }

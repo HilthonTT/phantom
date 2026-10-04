@@ -1,5 +1,27 @@
 use axum::extract::State;
 use futures::{FutureExt, StreamExt, TryFutureExt, pin_mut};
+use phantom_core::{
+    Err, Result, at,
+    bool::BoolExt,
+    err,
+    math::usize_from_ruma_bounded,
+    matrix::{
+        event::Event,
+        pdu::{PduCount, PduEvent},
+    },
+    ref_at,
+    result::LogErr,
+    stream::{BroadbandExt, IterStream, ReadyExt, TryIgnore, WidebandExt},
+};
+use phantom_service::{
+    Services,
+    ops::moderation::Restriction,
+    rooms::{
+        lazy_loading,
+        lazy_loading::{Options, Witness},
+        timeline::PdusIterItem,
+    },
+};
 use ruma::{
     DeviceId, RoomId, UInt, UserId,
     api::{
@@ -7,24 +29,12 @@ use ruma::{
         client::{filter::RoomEventFilter, message::get_message_events},
     },
     events::{
-        AnyStateEvent, StateEventType, TimelineEventType, TimelineEventType::*,
-        relation::RelationType,
+        AnyStateEvent, StateEventType, TimelineEventType,
+        room::member::{MembershipState, RoomMemberEventContent},
     },
     serde::Raw,
 };
-use phantom_core::{Err, Result, at, err, matrix::{
-        event::{Event, Matches},
-        pdu::{PduCount, PduEvent},
-    }, ref_at, bool::BoolExt, stream::IterStream, stream::ReadyExt, math::usize_from_ruma_bounded, result::LogErr, stream::BroadbandExt, stream::TryIgnore, stream::WidebandExt, matrix::PduId};
-use phantom_service::{
-    Services,
-    rooms::{
-        lazy_loading,
-        lazy_loading::{Options, Witness},
-        short::ShortRoomId,
-        timeline::PdusIterItem,
-    },
-};
+use serde_json::value::to_raw_value;
 
 use super::visibility_filter;
 use crate::router::Ruma;
@@ -47,29 +57,14 @@ pub(crate) struct MessagesArgs<'a> {
 }
 
 /// list of safe and common non-state events to ignore if the user is ignored.
-/// MUST be sorted by `TimelineEventType::event_type_str()` for `binary_search`.
 const IGNORED_MESSAGE_TYPES: &[TimelineEventType] = &[
-    CallInvite,           // m.call.invite
-    KeyVerificationStart, // m.key.verification.start
-    Location,             // m.location
-    PollStart,            // m.poll.start
-    Reaction,             // m.reaction
-    RoomEncrypted,        // m.room.encrypted
-    RoomMessage,          // m.room.message
-    Sticker,              // m.sticker
-    Audio,                // org.matrix.msc1767.audio
-    Emote,                // org.matrix.msc1767.emote
-    File,                 // org.matrix.msc1767.file
-    Image,                // org.matrix.msc1767.image
-    Video,                // org.matrix.msc1767.video
-    Voice,                // org.matrix.msc3245.voice.v2
-    UnstablePollStart,    // org.matrix.msc3381.poll.start
-    Beacon,               // org.matrix.msc3672.beacon
-    CallNotify,           // org.matrix.msc4075.call.notify
+    TimelineEventType::CallInvite,
+    TimelineEventType::KeyVerificationStart,
+    TimelineEventType::Reaction,
+    TimelineEventType::RoomEncrypted,
+    TimelineEventType::RoomMessage,
+    TimelineEventType::Sticker,
 ];
-
-/// MSC3440 `related_by_rel_types` entries, typed at the compare boundary.
-type RelTypes = SmallVec<[RelationType; 1]>;
 
 const LIMIT_MAX: usize = 1000;
 const LIMIT_DEFAULT: usize = 10;
@@ -84,17 +79,20 @@ pub(crate) async fn get_message_events_route(
     State(services): State<crate::router::State>,
     body: Ruma<get_message_events::v3::Request>,
 ) -> Result<get_message_events::v3::Response> {
-    get_messages(&services, MessagesArgs {
-        room_id: &body.room_id,
-        sender_user: body.sender_user(),
-        sender_device: body.sender_device.as_deref(),
-        from: body.from.as_deref(),
-        to: body.to.as_deref(),
-        dir: body.dir,
-        limit: Some(body.limit),
-        filter: &body.filter,
-        bypass_visibility: false,
-    })
+    get_messages(
+        &services,
+        MessagesArgs {
+            room_id: &body.room_id,
+            sender_user: body.sender_user(),
+            sender_device: body.sender_device.as_deref(),
+            from: body.from.as_deref(),
+            to: body.to.as_deref(),
+            dir: body.dir,
+            limit: Some(body.limit),
+            filter: &body.filter,
+            bypass_visibility: false,
+        },
+    )
     .await
 }
 
@@ -121,14 +119,10 @@ pub(crate) async fn get_messages(
         return Err!(Request(Forbidden("Room does not exist to this server")));
     }
 
-    if !bypass_visibility
-        && !services
-            .rooms
-            .state_accessor
-            .user_can_see_room(sender_user, room_id)
-            .await
-    {
-        return Err!(Request(Forbidden("You don't have permission to view this room.")));
+    if !bypass_visibility && !user_can_see_room(services, sender_user, room_id).await {
+        return Err!(Request(Forbidden(
+            "You don't have permission to view this room."
+        )));
     }
 
     let from: PduCount = from
@@ -136,8 +130,8 @@ pub(crate) async fn get_messages(
         .transpose()
         .map_err(|_| err!(Request(InvalidParam("Invalid `from` token."))))?
         .unwrap_or_else(|| match dir {
-            | Direction::Forward => PduCount::min(),
-            | Direction::Backward => PduCount::max(),
+            Direction::Forward => PduCount::min(),
+            Direction::Backward => PduCount::max(),
         });
 
     let to: Option<PduCount> = to
@@ -145,28 +139,19 @@ pub(crate) async fn get_messages(
         .transpose()
         .map_err(|_| err!(Request(InvalidParam("Invalid `to` token."))))?;
 
-    let limit = limit
-        .map_or(LIMIT_DEFAULT, |limit| usize_from_ruma_bounded(limit, LIMIT_DEFAULT, LIMIT_MAX));
-
-    if matches!(dir, Direction::Backward) {
-        services
-            .rooms
-            .timeline
-            .backfill_if_required(room_id, from)
-            .await
-            .log_err()
-            .ok();
-    }
+    let limit = limit.map_or(LIMIT_DEFAULT, |limit| {
+        usize_from_ruma_bounded(limit, LIMIT_DEFAULT, LIMIT_MAX)
+    });
 
     let it = match dir {
-        | Direction::Forward => services
+        Direction::Forward => services
             .rooms
             .timeline
             .pdus(Some(sender_user), room_id, Some(from))
             .ignore_err()
             .left_stream(),
 
-        | Direction::Backward => services
+        Direction::Backward => services
             .rooms
             .timeline
             .pdus_rev(Some(sender_user), room_id, Some(from))
@@ -180,12 +165,11 @@ pub(crate) async fn get_messages(
         .is_encrypted_room(room_id)
         .await;
 
-    let shortroomid = services.rooms.short.get_shortroomid(room_id).await?;
     let mut scanned = None;
     let reached_to = |count: PduCount| {
         to.is_some_and(|to| match dir {
-            | Direction::Forward => count >= to,
-            | Direction::Backward => count <= to,
+            Direction::Forward => count >= to,
+            Direction::Backward => count <= to,
         })
     };
 
@@ -193,35 +177,31 @@ pub(crate) async fn get_messages(
         .inspect(|(count, _)| scanned = Some(*count))
         .ready_take_while(|(count, _)| !reached_to(*count))
         .ready_filter_map(|item| event_filter(item, filter))
-        .wide_filter_map(|item| related_by_filter(services, shortroomid, filter, item))
         .wide_filter_map(|item| event_filters(services, sender_user, item, bypass_visibility))
         .take(limit)
         .wide_then(|item| add_membership_unsigned(services, item, sender_user, encrypted))
-        .wide_then(async |(count, pdu)| {
-            let pdu = services
-                .rooms
-                .pdu_metadata
-                .bundle_aggregations(sender_user, pdu)
-                .await;
-
-            (count, pdu)
-        })
         .collect()
         .await;
 
-    let lazy_loading_context = lazy_loading::Context {
+    let lazy_loading_context = sender_device.map(|device_id| lazy_loading::Context {
         user_id: sender_user,
-        device_id: sender_device,
+        device_id,
         room_id,
         token: Some(from.into_unsigned()),
         options: Some(&filter.lazy_load_options),
-        mode: lazy_loading::Mode::Update,
-    };
+    });
 
-    let witness = filter
-        .lazy_load_options
-        .is_enabled()
-        .then_async(|| lazy_loading_witness(services, &lazy_loading_context, events.iter()));
+    let witness = lazy_loading_context
+        .as_ref()
+        .filter(|_| filter.lazy_load_options.is_enabled())
+        .is_some()
+        .then_async(|| {
+            let ctx = lazy_loading_context
+                .as_ref()
+                .expect("context present when lazy loading");
+
+            lazy_loading_witness(services, ctx, events.iter())
+        });
 
     let state = witness
         .map(Option::into_iter)
@@ -237,20 +217,25 @@ pub(crate) async fn get_messages(
     // from stream exhaustion.
     let stopped_at_to = scanned.is_some_and(reached_to);
     let exhausted = matches!(dir, Direction::Backward) && events.len() < limit && !stopped_at_to;
-    let next_token = if exhausted { scanned } else { events.last().map(at!(0)) };
+    let next_token = if exhausted {
+        scanned
+    } else {
+        events.last().map(at!(0))
+    };
 
     let chunk = events
         .into_iter()
         .map(at!(1))
-        .map(Event::into_format)
+        .map(PduEvent::into_room_event)
         .collect();
 
-    Ok(get_message_events::v3::Response {
-        start: from.to_string(),
-        end: next_token.as_ref().map(ToString::to_string),
-        chunk,
-        state,
-    })
+    let mut response = get_message_events::v3::Response::new();
+    response.start = from.to_string();
+    response.end = next_token.as_ref().map(ToString::to_string);
+    response.chunk = chunk;
+    response.state = state;
+
+    Ok(response)
 }
 
 pub(crate) async fn lazy_loading_witness<'a, I>(
@@ -275,11 +260,10 @@ where
         .max()
         .unwrap_or_else(PduCount::max);
 
-    let receipts = services.rooms.read_receipt.readreceipts_since(
-        lazy_loading_context.room_id,
-        oldest.into_unsigned(),
-        Some(newest.into_unsigned()),
-    );
+    let receipts = services
+        .rooms
+        .read_receipt
+        .readreceipts_since(lazy_loading_context.room_id, oldest.into_unsigned());
 
     pin_mut!(receipts);
     let witness: Witness = events
@@ -311,7 +295,7 @@ async fn get_member_event(
         .rooms
         .state_accessor
         .room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
-        .map_ok(Event::into_format)
+        .map_ok(PduEvent::into_state_event)
         .await
         .ok()
 }
@@ -332,37 +316,6 @@ pub(crate) async fn event_filters(
     Some(item)
 }
 
-/// MSC3440 `related_by_*`: include an event only when another event relates
-/// to it matching the filter's reverse-relation criteria. A no-op stage when
-/// the filter carries neither field.
-pub(crate) async fn related_by_filter(
-    services: &Services,
-    shortroomid: ShortRoomId,
-    filter: &RoomEventFilter,
-    item: PdusIterItem,
-) -> Option<PdusIterItem> {
-    if filter.related_by_senders.is_empty() && filter.related_by_rel_types.is_empty() {
-        return Some(item);
-    }
-
-    let rel_types: RelTypes = filter
-        .related_by_rel_types
-        .iter()
-        .map(String::as_str)
-        .map(RelationType::from)
-        .collect();
-
-    let (count, _) = &item;
-    let target = PduId { shortroomid, count: *count };
-
-    services
-        .rooms
-        .pdu_metadata
-        .has_incoming_relation(target, &filter.related_by_senders, &rel_types)
-        .await
-        .then_some(item)
-}
-
 #[inline]
 pub(crate) async fn ignored_filter(
     services: &Services,
@@ -373,35 +326,28 @@ pub(crate) async fn ignored_filter(
 
     is_ignored_pdu(services, pdu, user_id)
         .await
-        .is_false()
+        .eq(&false)
         .then_some(item)
 }
 
 #[inline]
-pub(crate) async fn is_ignored_pdu<Pdu>(
-    services: &Services,
-    event: &Pdu,
-    user_id: &UserId,
-) -> bool
+pub(crate) async fn is_ignored_pdu<Pdu>(services: &Services, event: &Pdu, user_id: &UserId) -> bool
 where
     Pdu: Event,
 {
     // exclude Synapse's dummy events from bloating up response bodies. clients
     // don't need to see this.
-    if event.kind().to_cow_str() == "org.matrix.dummy_event" {
+    if event.event_type().to_string() == "org.matrix.dummy_event" {
         return true;
     }
 
-    if IGNORED_MESSAGE_TYPES
-        .binary_search(event.kind())
-        .is_err()
-    {
+    if !IGNORED_MESSAGE_TYPES.contains(event.event_type()) {
         return false;
     }
 
     let ignored_server = services
-        .config
-        .is_forbidden_remote_server_name(event.sender().server_name());
+        .moderation
+        .forbids(event.sender().server_name(), Restriction::Federation);
 
     ignored_server
         || services
@@ -413,7 +359,7 @@ where
 #[inline]
 pub(crate) fn event_filter(item: PdusIterItem, filter: &RoomEventFilter) -> Option<PdusIterItem> {
     let (_, pdu) = &item;
-    filter.matches(pdu).then_some(item)
+    pdu.matches(filter).then_some(item)
 }
 
 /// MSC4115: stamp `unsigned.membership` on a served PDU with the requesting
@@ -431,13 +377,9 @@ pub(crate) async fn annotate_membership(
         return;
     }
 
-    let membership = services
-        .rooms
-        .state_accessor
-        .user_membership_at_pdu(user_id, pdu)
-        .await;
+    let membership = user_membership_at_pdu(services, user_id, pdu).await;
 
-    pdu.add_membership(&membership).log_err().ok();
+    add_membership(pdu, &membership).log_err().ok();
 }
 
 /// `annotate_membership` consume-and-return adapter for stream chains.
@@ -460,13 +402,68 @@ pub(crate) async fn add_membership_unsigned(
     user_id: &UserId,
     encrypted: bool,
 ) -> PdusIterItem {
-    (count, with_membership(services, pdu, user_id, encrypted).await)
+    (
+        count,
+        with_membership(services, pdu, user_id, encrypted).await,
+    )
 }
 
-#[cfg_attr(debug_assertions, phantom_core::ctor(unsafe))]
-fn _is_sorted() {
-    debug_assert!(
-        IGNORED_MESSAGE_TYPES.is_sorted(),
-        "IGNORED_MESSAGE_TYPES must be sorted by the developer"
-    );
+/// Whether the user may read the room at all: a current or past member, an
+/// invitee, or anyone while the history is world-readable. Per-event
+/// visibility is still applied afterwards.
+pub(crate) async fn user_can_see_room(
+    services: &Services,
+    user_id: &UserId,
+    room_id: &RoomId,
+) -> bool {
+    let state_cache = &services.rooms.state_cache;
+
+    state_cache.is_joined(user_id, room_id).await
+        || state_cache.is_invited(user_id, room_id).await
+        || state_cache.is_left(user_id, room_id).await
+        || services
+            .rooms
+            .state_accessor
+            .is_world_readable(room_id)
+            .await
+}
+
+/// The user's membership as of `pdu`, read from the event itself when it is
+/// that user's member event, otherwise from the room state at the event.
+async fn user_membership_at_pdu(
+    services: &Services,
+    user_id: &UserId,
+    pdu: &PduEvent,
+) -> MembershipState {
+    if pdu.kind == TimelineEventType::RoomMember
+        && pdu.state_key.as_deref() == Some(user_id.as_str())
+        && let Ok(content) = pdu.get_content::<RoomMemberEventContent>()
+    {
+        return content.membership;
+    }
+
+    let state_accessor = &services.rooms.state_accessor;
+    let Ok(shortstatehash) = state_accessor.pdu_shortstatehash(&pdu.event_id).await else {
+        return MembershipState::Leave;
+    };
+
+    state_accessor
+        .user_membership(shortstatehash, user_id)
+        .await
+}
+
+/// Sets `unsigned.membership`, keeping the other unsigned properties.
+fn add_membership(pdu: &mut PduEvent, membership: &MembershipState) -> Result {
+    let mut unsigned: serde_json::Map<String, serde_json::Value> = pdu
+        .unsigned
+        .as_deref()
+        .map(|raw| serde_json::from_str(raw.get()))
+        .transpose()
+        .map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?
+        .unwrap_or_default();
+
+    unsigned.insert("membership".to_owned(), serde_json::to_value(membership)?);
+    pdu.unsigned = Some(to_raw_value(&unsigned)?);
+
+    Ok(())
 }

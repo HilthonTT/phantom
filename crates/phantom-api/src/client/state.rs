@@ -1,5 +1,13 @@
 use axum::extract::State;
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use phantom_core::{
+    Err, Result,
+    bool::BoolExt,
+    err, is_false,
+    matrix::pdu::{PduBuilder, PduEvent},
+    stream::TryBroadbandExt,
+};
+use phantom_service::Services;
 use ruma::{
     CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomAliasId, RoomId,
     UserId,
@@ -9,7 +17,6 @@ use ruma::{
     },
     events::{
         AnyStateEventContent, StateEventType,
-        invite_permission_config::InvitePermission,
         room::{
             canonical_alias::RoomCanonicalAliasEventContent,
             history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
@@ -21,18 +28,11 @@ use ruma::{
     serde::Raw,
 };
 use serde_json::{json, value::to_raw_value};
-use phantom_core::{
-    Err, Result, err, is_false,
-    matrix::{
-        matrix::Event,
-        pdu::{PduBuilder, PduEvent},
-    },
-    result::NotFound,
-    bool::BoolExt, stream::TryBroadbandExt,
-};
-use phantom_service::Services;
 
-use crate::{router::Ruma, RumaResponse, client::with_membership};
+use crate::{
+    client::with_membership,
+    router::{Ruma, RumaResponse},
+};
 
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
 ///
@@ -43,22 +43,22 @@ pub(crate) async fn send_state_event_for_key_route(
 ) -> Result<send_state_event::v3::Response> {
     let sender_user = body.sender_user();
 
-    Ok(send_state_event::v3::Response {
-        event_id: send_state_event_for_key_helper(
-            &services,
-            sender_user,
-            &body.room_id,
-            &body.event_type,
-            &body.body.body,
-            &body.state_key,
-            if body.appservice_info.is_some() {
-                body.timestamp
-            } else {
-                None
-            },
-        )
-        .await?,
-    })
+    let event_id = send_state_event_for_key_helper(
+        &services,
+        sender_user,
+        &body.room_id,
+        &body.event_type,
+        &body.body.body,
+        &body.state_key,
+        if body.appservice_info.is_some() {
+            body.timestamp
+        } else {
+            None
+        },
+    )
+    .await?;
+
+    Ok(send_state_event::v3::Response::new(event_id))
 }
 
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}`
@@ -92,7 +92,9 @@ pub(crate) async fn get_state_events_route(
         .user_can_see_state_events(sender_user, &body.room_id)
         .await
     {
-        return Err!(Request(Forbidden("You don't have permission to view the room state.")));
+        return Err!(Request(Forbidden(
+            "You don't have permission to view the room state."
+        )));
     }
 
     let encrypted = services
@@ -105,11 +107,10 @@ pub(crate) async fn get_state_events_route(
         .rooms
         .state_accessor
         .room_state_full_pdus(&body.room_id)
-        .map_ok(Event::into_pdu)
         .broad_and_then(async |pdu| {
             Ok(with_membership(&services, pdu, sender_user, encrypted).await)
         })
-        .map_ok(Event::into_format)
+        .map_ok(PduEvent::into_state_event)
         .try_collect()
         .await?;
 
@@ -155,18 +156,18 @@ pub(crate) async fn get_state_events_for_key_route(
         })?;
 
     let event_or_content = match body.format {
-        | StateEventFormat::Event => json!({
-            "content": event.content(),
-            "event_id": event.event_id(),
-            "origin_server_ts": event.origin_server_ts(),
-            "room_id": event.room_id(),
-            "sender": event.sender(),
-            "state_key": event.state_key(),
-            "type": event.kind(),
-            "unsigned": event.unsigned(),
+        StateEventFormat::Event => json!({
+            "content": event.content,
+            "event_id": event.event_id,
+            "origin_server_ts": event.origin_server_ts,
+            "room_id": event.room_id,
+            "sender": event.sender,
+            "state_key": event.state_key,
+            "type": event.kind,
+            "unsigned": event.unsigned,
         }),
 
-        | _ => event.get_content_as_value(),
+        _ => event.get_content_as_value(),
     };
 
     let event_or_content = to_raw_value(&event_or_content).expect("serializable JSON value");
@@ -200,32 +201,32 @@ async fn send_state_event_for_key_helper(
     state_key: &str,
     timestamp: Option<MilliSecondsSinceUnixEpoch>,
 ) -> Result<OwnedEventId> {
-    allowed_to_send_state_event(services, sender, room_id, event_type, state_key, json).await?;
+    allowed_to_send_state_event(services, room_id, event_type, state_key, json).await?;
     let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
     let current = match state_dedup_eligible(event_type, timestamp.as_ref()) {
-        | false => None,
-        | true => services
+        false => None,
+        true => match services
             .rooms
             .state_accessor
             .room_state_get(room_id, event_type, state_key)
             .await
-            .optional()?,
+        {
+            Ok(current) => Some(current),
+            Err(e) if e.is_not_found() => None,
+            Err(e) => return Err(e),
+        },
     };
 
     if let Some(current) = current
-        && current.sender() == sender
+        && current.sender == sender
     {
         let content = json.deserialize_as_unchecked::<CanonicalJsonObject>()?;
 
         if is_duplicate_state(event_type, sender, &content, &current)?
-            && services
-                .rooms
-                .state_cache
-                .is_joined(sender, room_id)
-                .await
+            && services.rooms.state_cache.is_joined(sender, room_id).await
         {
-            return Ok(current.event_id().to_owned());
+            return Ok(current.event_id.clone());
         }
     }
 
@@ -272,53 +273,53 @@ fn is_duplicate_state(
     content: &CanonicalJsonObject,
     current: &PduEvent,
 ) -> Result<bool> {
-    if matches!(event_type, StateEventType::RoomMember) || current.sender() != sender {
+    if matches!(event_type, StateEventType::RoomMember) || current.sender != sender {
         return Ok(false);
     }
 
-    let current_content = current.content.deserialize()?;
+    let current_content: CanonicalJsonObject = serde_json::from_str(current.content.get())?;
 
     Ok(current_content == *content)
 }
 
 async fn allowed_to_send_state_event(
     services: &Services,
-    sender: &UserId,
     room_id: &RoomId,
     event_type: &StateEventType,
     state_key: &str,
     json: &Raw<AnyStateEventContent>,
 ) -> Result {
-    let suspended = services.users.is_suspended(sender).await;
-
-    if suspended && !matches!(event_type, StateEventType::RoomMember) {
-        return Err!(Request(UserSuspended("Account is suspended.")));
-    }
-
     match event_type {
-        | StateEventType::RoomCreate => Err!(Request(BadJson(debug_warn!(
-            message = format_args!("You cannot update m.room.create after a room has been created."),
+        StateEventType::RoomCreate => Err!(Request(BadJson(debug_warn!(
+            message =
+                format_args!("You cannot update m.room.create after a room has been created."),
             ?room_id
         )))),
-        | StateEventType::RoomServerAcl => validate_server_acl(services, room_id, json),
-        | StateEventType::RoomEncryption => validate_encryption(services),
-        | StateEventType::RoomJoinRules => validate_join_rules(services, room_id, json).await,
-        | StateEventType::RoomHistoryVisibility =>
-            validate_history_visibility(services, room_id, json).await,
-        | StateEventType::RoomCanonicalAlias =>
-            validate_canonical_alias(services, room_id, json).await,
-        | StateEventType::RoomMember =>
-            validate_member(services, sender, room_id, state_key, json, suspended).await,
-        | _ => Ok(()),
+        StateEventType::RoomServerAcl => validate_server_acl(services, room_id, json),
+        StateEventType::RoomEncryption => validate_encryption(services),
+        StateEventType::RoomJoinRules => validate_join_rules(services, room_id, json).await,
+        StateEventType::RoomHistoryVisibility => {
+            validate_history_visibility(services, room_id, json).await
+        }
+        StateEventType::RoomCanonicalAlias => {
+            validate_canonical_alias(services, room_id, json).await
+        }
+        StateEventType::RoomMember => validate_member(services, room_id, state_key, json).await,
+        _ => Ok(()),
     }
 }
 
 fn validate_encryption(services: &Services) -> Result {
     services
         .config
-        .client.allow_encryption
+        .client
+        .allow_encryption
         .then_some(())
-        .ok_or_else(|| err!(Request(Forbidden("Encryption is disabled on this homeserver."))))
+        .ok_or_else(|| {
+            err!(Request(Forbidden(
+                "Encryption is disabled on this homeserver."
+            )))
+        })
 }
 
 fn validate_server_acl(
@@ -329,43 +330,55 @@ fn validate_server_acl(
     let acl_content = json
         .deserialize_as_unchecked::<RoomServerAclEventContent>()
         .map_err(|e| {
-            err!(Request(BadJson(debug_warn!("Room server ACL event is invalid: {e}"))))
+            err!(Request(BadJson(debug_warn!(
+                "Room server ACL event is invalid: {e}"
+            ))))
         })?;
 
-    if acl_content.allow_is_empty() {
+    let allow_contains = |server: &str| acl_content.allow.iter().any(|allow| allow == server);
+    let deny_contains = |server: &str| acl_content.deny.iter().any(|deny| deny == server);
+
+    if acl_content.allow.is_empty() {
         return Err!(Request(BadJson(debug_warn!(
-            message = format_args!("Sending an ACL event with an empty allow key will permanently brick the room for \
+            message = format_args!(
+                "Sending an ACL event with an empty allow key will permanently brick the room for \
              non-phantom servers as this equates to no servers being allowed to participate in this \
-             room."),
+             room."
+            ),
             ?room_id
         ))));
     }
 
-    if acl_content.deny_contains("*") && acl_content.allow_contains("*") {
+    if deny_contains("*") && allow_contains("*") {
         return Err!(Request(BadJson(debug_warn!(
-            message = format_args!("Sending an ACL event with a deny and allow key value of \"*\" will permanently \
+            message = format_args!(
+                "Sending an ACL event with a deny and allow key value of \"*\" will permanently \
              brick the room for non-phantom servers as this equates to no servers being allowed to \
-             participate in this room."),
+             participate in this room."
+            ),
             ?room_id
         ))));
     }
 
     let server_name = services.server_state.server_name();
-    let self_allowed =
-        acl_content.is_allowed(server_name) || acl_content.allow_contains(server_name.as_str());
+    let self_allowed = acl_content.is_allowed(server_name) || allow_contains(server_name.as_str());
 
-    if acl_content.deny_contains("*") && !self_allowed {
+    if deny_contains("*") && !self_allowed {
         return Err!(Request(BadJson(debug_warn!(
-            message = format_args!("Sending an ACL event with a deny key value of \"*\" and without your own server \
-             name in the allow key will result in you being unable to participate in this room."),
+            message = format_args!(
+                "Sending an ACL event with a deny key value of \"*\" and without your own server \
+             name in the allow key will result in you being unable to participate in this room."
+            ),
             ?room_id
         ))));
     }
 
-    if !acl_content.allow_contains("*") && !self_allowed {
+    if !allow_contains("*") && !self_allowed {
         return Err!(Request(BadJson(debug_warn!(
-            message = format_args!("Sending an ACL event for an allow key without \"*\" and without your own server \
-             name in the allow key will result in you being unable to participate in this room."),
+            message = format_args!(
+                "Sending an ACL event for an allow key without \"*\" and without your own server \
+             name in the allow key will result in you being unable to participate in this room."
+            ),
             ?room_id
         ))));
     }
@@ -389,7 +402,9 @@ async fn validate_join_rules(
     let join_rule = json
         .deserialize_as_unchecked::<RoomJoinRulesEventContent>()
         .map_err(|e| {
-            err!(Request(BadJson(debug_warn!("Room join rules event is invalid: {e}"))))
+            err!(Request(BadJson(debug_warn!(
+                "Room join rules event is invalid: {e}"
+            ))))
         })?;
 
     if join_rule.join_rule == JoinRule::Public {
@@ -413,7 +428,9 @@ async fn validate_history_visibility(
     let visibility_content = json
         .deserialize_as_unchecked::<RoomHistoryVisibilityEventContent>()
         .map_err(|e| {
-            err!(Request(BadJson(debug_warn!("Room history visibility event is invalid: {e}"))))
+            err!(Request(BadJson(debug_warn!(
+                "Room history visibility event is invalid: {e}"
+            ))))
         })?;
 
     if admin_room_id == room_id
@@ -436,7 +453,9 @@ async fn validate_canonical_alias(
     let canonical_alias_content = json
         .deserialize_as_unchecked::<RoomCanonicalAliasEventContent>()
         .map_err(|e| {
-            err!(Request(InvalidParam(debug_warn!("Room canonical alias event is invalid: {e}"))))
+            err!(Request(InvalidParam(debug_warn!(
+                "Room canonical alias event is invalid: {e}"
+            ))))
         })?;
 
     let current_aliases: Vec<OwnedRoomAliasId> = services
@@ -449,11 +468,19 @@ async fn validate_canonical_alias(
         )
         .await
         .ok()
-        .map(|content| content.aliases().cloned().collect())
+        .map(|content| {
+            content
+                .alias
+                .into_iter()
+                .chain(content.alt_aliases)
+                .collect()
+        })
         .unwrap_or_default();
 
     let new_aliases = canonical_alias_content
-        .aliases()
+        .alias
+        .iter()
+        .chain(&canonical_alias_content.alt_aliases)
         .filter(|alias| !current_aliases.contains(alias));
 
     for alias in new_aliases {
@@ -476,11 +503,9 @@ async fn validate_canonical_alias(
 
 async fn validate_member(
     services: &Services,
-    sender: &UserId,
     room_id: &RoomId,
     state_key: &str,
     json: &Raw<AnyStateEventContent>,
-    suspended: bool,
 ) -> Result {
     let membership_content = json
         .deserialize_as_unchecked::<RoomMemberEventContent>()
@@ -492,25 +517,10 @@ async fn validate_member(
         })?;
 
     let Ok(target_user) = UserId::parse(state_key) else {
-        return Err!(Request(BadJson("Membership event has invalid or non-existent state key")));
+        return Err!(Request(BadJson(
+            "Membership event has invalid or non-existent state key"
+        )));
     };
-
-    if suspended
-        && (membership_content.membership != MembershipState::Leave || target_user != sender)
-    {
-        return Err!(Request(UserSuspended("Account is suspended.")));
-    }
-
-    if membership_content.membership == MembershipState::Invite
-        && services.server_state.user_is_local(&target_user)
-        && services
-            .users
-            .invite_permission(sender, &target_user)
-            .await
-            .eq(&InvitePermission::Block)
-    {
-        return Err!(Request(InviteBlocked("{target_user} has blocked this invite.")));
-    }
 
     let Some(authorising_user) = membership_content.join_authorized_via_users_server else {
         return Ok(());
@@ -586,10 +596,9 @@ mod tests {
             &json!({ "history_visibility": "shared", "extra": true }),
         );
 
-        let content = from_str::<CanonicalJsonObject>(
-            r#"{ "extra": true, "history_visibility": "shared" }"#,
-        )
-        .expect("canonical content");
+        let content =
+            from_str::<CanonicalJsonObject>(r#"{ "extra": true, "history_visibility": "shared" }"#)
+                .expect("canonical content");
 
         assert!(
             is_duplicate_state(
@@ -622,11 +631,12 @@ mod tests {
 
     #[test]
     fn different_sender_is_not_duplicate() {
-        let current =
-            current_state("@alice:example.com", &json!({ "history_visibility": "shared" }));
+        let current = current_state(
+            "@alice:example.com",
+            &json!({ "history_visibility": "shared" }),
+        );
 
-        let content =
-            from_str(r#"{ "history_visibility": "shared" }"#).expect("canonical content");
+        let content = from_str(r#"{ "history_visibility": "shared" }"#).expect("canonical content");
 
         assert!(
             !is_duplicate_state(

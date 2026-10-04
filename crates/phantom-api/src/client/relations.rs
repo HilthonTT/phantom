@@ -1,11 +1,15 @@
-use std::iter::once;
-
 use axum::extract::State;
-use futures::{
-    FutureExt, StreamExt, TryFutureExt,
-    future::try_join3,
-    stream::{select_all, unfold},
+use futures::{FutureExt, StreamExt, future::try_join3};
+use phantom_core::{
+    Err, Result, at,
+    bool::BoolExt,
+    err,
+    math::usize_from_ruma_bounded,
+    matrix::pdu::{PduCount, PduEvent},
+    result::FlatOk,
+    stream::{IterStream, ReadyExt, WidebandExt},
 };
+use phantom_service::Services;
 use ruma::{
     EventId, RoomId, UInt, UserId,
     api::{
@@ -17,18 +21,11 @@ use ruma::{
     },
     events::{TimelineEventType, relation::RelationType},
 };
-use phantom_core::{
-    Err, Error, Result, at, err,
-    matrix::{
-        event::{Event, RelationTypeEqual},
-        pdu::{PduCount, PduId},
-    },
-    bool::BoolExt, math::usize_from_ruma_bounded, result::FlatOk, stream::ReadyExt, stream::WidebandExt,
-};
-use phantom_service::Services;
 
-use crate::client::utils::sender_ignored;
-use crate::{router::Ruma, client::is_ignored_pdu};
+use crate::{
+    client::{is_ignored_pdu, utils::sender_ignored},
+    router::Ruma,
+};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}/{eventType}`
 pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
@@ -49,11 +46,13 @@ pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
         body.dir,
     )
     .await
-    .map(|res| get_relating_events_with_rel_type_and_event_type::v1::Response {
-        chunk: res.chunk,
-        next_batch: res.next_batch,
-        prev_batch: res.prev_batch,
-        recursion_depth: res.recursion_depth,
+    .map(|res| {
+        let mut response =
+            get_relating_events_with_rel_type_and_event_type::v1::Response::new(res.chunk);
+        response.next_batch = res.next_batch;
+        response.prev_batch = res.prev_batch;
+        response.recursion_depth = res.recursion_depth;
+        response
     })
 }
 
@@ -76,11 +75,12 @@ pub(crate) async fn get_relating_events_with_rel_type_route(
         body.dir,
     )
     .await
-    .map(|res| get_relating_events_with_rel_type::v1::Response {
-        chunk: res.chunk,
-        next_batch: res.next_batch,
-        prev_batch: res.prev_batch,
-        recursion_depth: res.recursion_depth,
+    .map(|res| {
+        let mut response = get_relating_events_with_rel_type::v1::Response::new(res.chunk);
+        response.next_batch = res.next_batch;
+        response.prev_batch = res.prev_batch;
+        response.recursion_depth = res.recursion_depth;
+        response
     })
 }
 
@@ -130,18 +130,11 @@ async fn paginate_relations_with_filter(
     let to: Option<PduCount> = to.map(str::parse).flat_ok();
 
     // Spec (v1.10) recommends depth of at least 3
-    let max_depth: usize = if recurse { 3 } else { 0 };
+    let max_depth: u8 = if recurse { 3 } else { 0 };
 
     let limit = limit.map_or(30, |limit| usize_from_ruma_bounded(limit, 30, 100));
 
-    let target_event_id: &EventId = target;
-
-    let target = services
-        .rooms
-        .timeline
-        .get_pdu_id(target)
-        .map_ok(PduId::from)
-        .map_ok(Ok::<_, Error>);
+    let target_count = services.rooms.timeline.get_pdu_count(target).map(Ok);
 
     let visible = services
         .rooms
@@ -153,106 +146,81 @@ async fn paginate_relations_with_filter(
                 .ok_or_else(|| err!(Request(Forbidden("You cannot view this room."))))
         });
 
-    let shortroomid = services.rooms.short.get_shortroomid(room_id);
+    let target_pdu = services.rooms.timeline.get_pdu(target).map(Ok);
 
-    let (shortroomid, target, ()) = try_join3(shortroomid, target, visible).await?;
+    let (target_count, (), target_pdu) = try_join3(target_count, visible, target_pdu).await?;
 
-    let Ok(target) = target else {
+    let (Ok(target_count), Ok(target_pdu)) = (target_count, target_pdu) else {
         return Ok(get_relating_events::v1::Response::new(Vec::new()));
     };
 
-    if shortroomid != target.shortroomid {
+    if target_pdu.room_id != room_id {
         return Err!(Request(NotFound("Event not found in room.")));
     }
 
-    if let PduCount::Backfilled(_) = target.count {
+    if let PduCount::Backfilled(_) = target_count {
         return Ok(get_relating_events::v1::Response::new(Vec::new()));
     }
 
-    if let Ok(target_pdu) = services.rooms.timeline.get_pdu(target_event_id).await
-        && is_ignored_pdu(services, &target_pdu, sender_user).await
-    {
-        return Err(sender_ignored(target_pdu.sender()));
+    if is_ignored_pdu(services, &target_pdu, sender_user).await {
+        return Err(sender_ignored(&target_pdu.sender));
     }
 
-    let fetch = |depth: usize, count: PduCount| {
-        services
-            .rooms
-            .pdu_metadata
-            .get_relations(shortroomid, count, from, dir, Some(sender_user))
-            .map(move |(count, pdu)| (depth, count, pdu))
-            .ready_filter(|(_, count, _)| matches!(count, PduCount::Normal(_)))
-            .boxed()
-    };
+    let start = from.unwrap_or_else(|| match dir {
+        Direction::Forward => PduCount::min(),
+        Direction::Backward => PduCount::max(),
+    });
 
-    let events = unfold(select_all(once(fetch(0, target.count))), async |mut relations| {
-        let (depth, count, pdu) = relations.next().await?;
+    let relations = services
+        .rooms
+        .pdu_metadata
+        .get_relations(sender_user, room_id, target, start, limit, max_depth, dir)
+        .await;
 
-        if depth < max_depth {
-            relations.push(fetch(depth.saturating_add(1), count));
-        }
+    let events: Vec<_> = relations
+        .into_iter()
+        .stream()
+        .ready_filter(|(count, _)| matches!(count, PduCount::Normal(_)))
+        .ready_take_while(|&(count, _)| Some(count) != to)
+        .ready_filter(|(_, pdu)| {
+            filter_event_type
+                .as_ref()
+                .is_none_or(|kind| *kind == pdu.kind)
+        })
+        .ready_filter(|(_, pdu)| {
+            filter_rel_type
+                .as_ref()
+                .is_none_or(|rel_type| pdu.relation_type_equal(rel_type))
+        })
+        .wide_filter_map(async |(count, pdu)| {
+            services
+                .rooms
+                .state_accessor
+                .user_can_see_event(sender_user, room_id, &pdu.event_id)
+                .await
+                .then_some((count, pdu))
+        })
+        .take(limit)
+        .collect()
+        .await;
 
-        Some(((depth, count, pdu), relations))
-    })
-    .ready_take_while(|&(_, count, _)| Some(count) != to)
-    .ready_filter(|(_, _, pdu)| {
-        filter_event_type
-            .as_ref()
-            .is_none_or(|kind| kind == pdu.kind())
-    })
-    .ready_filter(|(_, _, pdu)| {
-        filter_rel_type
-            .as_ref()
-            .is_none_or(|rel_type| rel_type.relation_type_equal(pdu))
-    })
-    .wide_filter_map(async |(depth, count, pdu)| {
-        services
-            .rooms
-            .state_accessor
-            .user_can_see_event(sender_user, &pdu)
-            .await
-            .then_some((depth, count, pdu))
-    })
-    .take(limit)
-    .wide_then(async |(depth, count, pdu)| {
-        let pdu = services
-            .rooms
-            .pdu_metadata
-            .bundle_aggregations(sender_user, pdu)
-            .await;
+    let mut response = get_relating_events::v1::Response::new(Vec::new());
+    response.recursion_depth = recurse.then(|| max_depth.into());
 
-        (depth, count, pdu)
-    })
-    .collect::<Vec<_>>()
-    .await;
+    response.next_batch = events.last().map(at!(0)).as_ref().map(ToString::to_string);
 
-    Ok(get_relating_events::v1::Response {
-        recursion_depth: max_depth
-            .gt(&0)
-            .then(|| events.iter().map(at!(0)))
-            .into_iter()
-            .flatten()
-            .max()
-            .map(TryInto::try_into)
-            .transpose()?,
+    response.prev_batch = events
+        .first()
+        .map(at!(0))
+        .or(from)
+        .as_ref()
+        .map(ToString::to_string);
 
-        next_batch: events
-            .last()
-            .map(at!(1))
-            .as_ref()
-            .map(ToString::to_string),
+    response.chunk = events
+        .into_iter()
+        .map(at!(1))
+        .map(PduEvent::into_message_like_event)
+        .collect();
 
-        prev_batch: events
-            .first()
-            .map(at!(1))
-            .or(from)
-            .as_ref()
-            .map(ToString::to_string),
-
-        chunk: events
-            .into_iter()
-            .map(at!(2))
-            .map(Event::into_format)
-            .collect(),
-    })
+    Ok(response)
 }

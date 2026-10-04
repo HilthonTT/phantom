@@ -1,7 +1,7 @@
 use axum::extract::State;
 use futures::FutureExt;
-use ruma::api::client::membership::ban_user;
 use phantom_core::{Err, Result};
+use ruma::api::client::membership::ban_user;
 
 use crate::router::Ruma;
 
@@ -18,12 +18,18 @@ pub(crate) async fn ban_user_route(
         return Err!(Request(Forbidden("You cannot ban yourself.")));
     }
 
-    let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
+    let state_lock = services.rooms.state.mutex.lock(&*body.room_id).await;
 
     services
         .rooms
         .membership
-        .ban(&body.room_id, &body.user_id, body.reason.as_ref(), sender_user, &state_lock)
+        .ban(
+            &body.room_id,
+            &body.user_id,
+            body.reason.as_ref(),
+            sender_user,
+            &state_lock,
+        )
         .boxed()
         .await?;
 

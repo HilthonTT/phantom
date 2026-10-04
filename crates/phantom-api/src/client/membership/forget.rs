@@ -1,10 +1,9 @@
 use axum::extract::State;
 use futures::{TryFutureExt, pin_mut};
-use ruma::{api::client::membership::forget_room, events::room::member::MembershipState};
 use phantom_core::{
-    Err, Result, is_matching,
-    future::BoolExt as FutureBoolExt, future::TryExt as TryFutureExtExt,
+    Err, Result, future::BoolExt as FutureBoolExt, future::TryExt as TryFutureExtExt, is_matching,
 };
+use ruma::{api::client::membership::forget_room, events::room::member::MembershipState};
 
 use crate::router::Ruma;
 
@@ -31,7 +30,9 @@ pub(crate) async fn forget_room_route(
 
     pin_mut!(joined, knocked, invited);
     if joined.or(knocked).or(invited).await {
-        return Err!(Request(Unknown("You must leave the room before forgetting it")));
+        return Err!(Request(Unknown(
+            "You must leave the room before forgetting it"
+        )));
     }
 
     let left = services.rooms.state_cache.is_left(user_id, room_id);
@@ -40,7 +41,10 @@ pub(crate) async fn forget_room_route(
         .state_accessor
         .get_member(room_id, user_id)
         .map_ok(|member| member.membership)
-        .map_ok_or(false, is_matching!(MembershipState::Leave | MembershipState::Ban));
+        .map_ok_or(
+            false,
+            is_matching!(MembershipState::Leave | MembershipState::Ban),
+        );
 
     pin_mut!(left, left_or_banned);
     if left.or(left_or_banned).await {

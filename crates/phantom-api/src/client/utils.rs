@@ -1,7 +1,7 @@
-use phantom_core::{Err, Error, Result, http::StatusCode, matrix::Event, warn};
+use phantom_core::{Err, Error, Result, http::StatusCode, warn};
 use phantom_service::Services;
 use ruma::{
-    EventId, RoomId, UserId,
+    RoomId, UserId,
     api::error::{ErrorKind, SenderIgnoredErrorData},
     presence::PresenceState,
 };
@@ -23,19 +23,6 @@ pub(crate) async fn invite_check(
     }
 
     Ok(())
-}
-
-pub(crate) async fn is_self_redaction(
-    services: &Services,
-    user_id: &UserId,
-    event_id: &EventId,
-) -> bool {
-    services
-        .rooms
-        .timeline
-        .get_pdu(event_id)
-        .await
-        .is_ok_and(|target| target.sender() == user_id)
 }
 
 /// Whether the caller may change display names under `enable_set_displayname`.

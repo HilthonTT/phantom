@@ -1,7 +1,7 @@
 use axum::extract::State;
 use futures::FutureExt;
-use ruma::api::client::membership::unban_user;
 use phantom_core::Result;
+use ruma::api::client::membership::unban_user;
 
 use crate::router::Ruma;
 
@@ -12,7 +12,7 @@ pub(crate) async fn unban_user_route(
     State(services): State<crate::router::State>,
     body: Ruma<unban_user::v3::Request>,
 ) -> Result<unban_user::v3::Response> {
-    let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
+    let state_lock = services.rooms.state.mutex.lock(&*body.room_id).await;
 
     services
         .rooms

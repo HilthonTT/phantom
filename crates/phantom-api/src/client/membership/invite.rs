@@ -1,5 +1,6 @@
 use axum::extract::State;
 use futures::{FutureExt, join};
+use phantom_core::{Err, Result};
 use ruma::{
     api::client::membership::invite_user::{
         self,
@@ -7,10 +8,12 @@ use ruma::{
     },
     events::room::member::MembershipState,
 };
-use phantom_core::{Err, Result};
 
 use super::banned_room_check;
-use crate::{router::{ClientIp, Ruma}, client::utils::invite_check};
+use crate::{
+    client::utils::invite_check,
+    router::{ClientIp, Ruma},
+};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
 ///
@@ -29,21 +32,21 @@ pub(crate) async fn invite_user_route(
 
     banned_room_check(&services, sender_user, room_id, None, client).await?;
 
-    let InvitationRecipient::UserId(InviteUserId { user_id, reason }) = &body.recipient else {
-        return Err!(Request(ThreepidDenied("Third party identifiers are not implemented")));
+    let InvitationRecipient::UserId(InviteUserId {
+        user_id, reason, ..
+    }) = &body.recipient
+    else {
+        return Err!(Request(ThreepidDenied(
+            "Third party identifiers are not implemented"
+        )));
     };
 
     // TODO: this should be in the service, but moving it from here would run the
     // sender's ignore-list check before the banned check, revealing the ignore
     // state to the sending user if the recipient is banned
-    let member = services
-        .rooms
-        .state_accessor
-        .get_member(room_id, user_id);
+    let member = services.rooms.state_accessor.get_member(room_id, user_id);
 
-    let ignored = services
-        .users
-        .user_is_ignored(user_id, sender_user);
+    let ignored = services.users.user_is_ignored(user_id, sender_user);
 
     let (member, ignored) = join!(member, ignored);
 

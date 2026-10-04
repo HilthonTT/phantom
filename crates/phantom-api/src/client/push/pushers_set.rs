@@ -1,6 +1,6 @@
 use axum::extract::State;
-use ruma::api::client::push::set_pusher;
 use phantom_core::Result;
+use ruma::api::client::push::set_pusher;
 
 use crate::router::Ruma;
 

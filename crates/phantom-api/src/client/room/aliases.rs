@@ -1,7 +1,7 @@
 use axum::extract::State;
 use futures::StreamExt;
-use ruma::api::client::room::aliases;
 use phantom_core::{Err, Result};
+use ruma::api::client::room::aliases;
 
 use crate::router::Ruma;
 
@@ -23,14 +23,18 @@ pub(crate) async fn get_room_aliases_route(
         .user_can_see_state_events(sender_user, &body.room_id)
         .await
     {
-        return Err!(Request(Forbidden("You don't have permission to view this room.")));
+        return Err!(Request(Forbidden(
+            "You don't have permission to view this room."
+        )));
     }
 
-    Ok(aliases::v3::Response::new(services
+    Ok(aliases::v3::Response::new(
+        services
             .rooms
             .alias
             .local_aliases_for_room(&body.room_id)
             .map(ToOwned::to_owned)
             .collect()
-            .await))
+            .await,
+    ))
 }

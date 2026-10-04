@@ -1,6 +1,6 @@
 use axum::extract::State;
+use phantom_core::{Err, Result};
 use ruma::api::client::room::get_event_by_timestamp::v1;
-use phantom_core::{Err, Result, result::NotFound};
 
 use crate::router::Ruma;
 
@@ -20,30 +20,29 @@ pub(crate) async fn get_event_by_timestamp_route(
         .user_can_see_state_events(sender_user, room_id)
         .await
     {
-        return Err!(Request(Forbidden("You don't have permission to view this room.")));
+        return Err!(Request(Forbidden(
+            "You don't have permission to view this room."
+        )));
     }
 
+    // Only events this server holds are searched; there is no federation
+    // fallback for rooms with no local event near the timestamp.
     let (origin_server_ts, event_id) = services
         .rooms
         .timeline
-        .get_event_id_near_ts_with_fallback(room_id, body.ts, body.dir)
+        .get_event_id_near_ts(room_id, body.ts, body.dir)
         .await?;
 
-    // An event this server does not hold has no recorded state, which the
-    // visibility check would allow as well.
-    if let Some(pdu) = services
+    // An event with no recorded state is visible, matching the visibility check.
+    if !services
         .rooms
-        .timeline
-        .get_pdu(&event_id)
+        .state_accessor
+        .user_can_see_event(sender_user, room_id, &event_id)
         .await
-        .optional()?
-        && !services
-            .rooms
-            .state_accessor
-            .user_can_see_event(sender_user, &pdu)
-            .await
     {
-        return Err!(Request(Forbidden("You don't have permission to view this event.")));
+        return Err!(Request(Forbidden(
+            "You don't have permission to view this event."
+        )));
     }
 
     Ok(v1::Response::new(event_id, origin_server_ts))

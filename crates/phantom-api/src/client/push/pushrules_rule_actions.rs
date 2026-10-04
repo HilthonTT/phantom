@@ -1,6 +1,6 @@
 use axum::extract::State;
-use ruma::api::client::push::{get_pushrule_actions, set_pushrule_actions};
 use phantom_core::{Err, Result, err};
+use ruma::api::client::push::{get_pushrule_actions, set_pushrule_actions};
 
 use crate::router::Ruma;
 
@@ -42,13 +42,17 @@ pub(crate) async fn set_pushrule_actions_route(
     if account_data
         .content
         .global
-        .set_actions(body.kind.clone(), &body.rule_id, body.actions.clone().into())
+        .set_actions(body.kind.clone(), &body.rule_id, body.actions.clone())
         .is_err()
     {
         return Err!(Request(NotFound("Push rule not found.")));
     }
 
-    super::check_rule_size(&account_data.content.global, body.kind.clone(), &body.rule_id)?;
+    super::check_rule_size(
+        &account_data.content.global,
+        body.kind.clone(),
+        &body.rule_id,
+    )?;
 
     super::save_push_rules(&services, sender_user, &account_data).await?;
 

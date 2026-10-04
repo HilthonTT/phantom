@@ -1,7 +1,7 @@
 use axum::extract::State;
 use futures::FutureExt;
-use ruma::api::client::membership::kick_user;
 use phantom_core::{Err, Result};
+use ruma::api::client::membership::kick_user;
 
 use crate::router::Ruma;
 
@@ -18,12 +18,18 @@ pub(crate) async fn kick_user_route(
         return Err!(Request(Forbidden("You cannot kick yourself.")));
     }
 
-    let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
+    let state_lock = services.rooms.state.mutex.lock(&*body.room_id).await;
 
     services
         .rooms
         .membership
-        .kick(&body.room_id, &body.user_id, body.reason.as_ref(), sender_user, &state_lock)
+        .kick(
+            &body.room_id,
+            &body.user_id,
+            body.reason.as_ref(),
+            sender_user,
+            &state_lock,
+        )
         .boxed()
         .await?;
 
