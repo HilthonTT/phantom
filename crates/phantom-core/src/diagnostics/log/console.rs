@@ -38,11 +38,11 @@ pub struct ConsoleWriter {
 
 impl ConsoleWriter {
     #[must_use]
-    pub fn new(_config: &Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
             stdout: io::stdout(),
             stderr: io::stderr(),
-            use_stderr: journal_stream().is_some(),
+            use_stderr: config.logging.log_to_journald || journal_stream().is_some(),
         }
     }
 }
@@ -82,7 +82,7 @@ pub struct ConsoleFormat {
 impl ConsoleFormat {
     #[must_use]
     pub fn new(config: &Config) -> Self {
-        let ansi = config.logging.log_colors && !is_systemd_mode();
+        let ansi = ansi_enabled(config);
 
         Self {
             full: Format::<Full>::default()
@@ -187,6 +187,18 @@ fn parse_journal_stream(var: &str) -> Option<(u64, u64)> {
     let (device, inode) = var.split_once(':')?;
 
     Some((device.parse().ok()?, inode.parse().ok()?))
+}
+
+#[inline]
+#[must_use]
+pub fn journald_enabled(config: &Config) -> bool {
+    config.logging.log_to_journald || is_systemd_mode()
+}
+
+#[inline]
+#[must_use]
+pub fn ansi_enabled(config: &Config) -> bool {
+    config.logging.log_colors && !journald_enabled(config)
 }
 
 #[cfg(test)]

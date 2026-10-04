@@ -577,9 +577,20 @@
 #
 #log =
 
-# This item is undocumented. Please contribute documentation for it.
+# Whether to colour console log output with ANSI escape codes.
+#
+# Colours are always turned off when logging to journald, see
+# `log_to_journald`.
 #
 #log_colors = true
+
+# Treat the console output as going to the systemd journal, which
+# turns off ANSI colours and writes to stderr.
+#
+# This is detected automatically when running as a systemd service, so
+# it only needs to be set when that detection fails.
+#
+#log_to_journald = false
 
 # This item is undocumented. Please contribute documentation for it.
 #

@@ -17,7 +17,7 @@ use tracing_subscriber::{Layer as _, Registry, layer::SubscriberExt};
 
 pub use self::{
     capture::Capture,
-    console::{ConsoleFormat, ConsoleWriter, is_systemd_mode},
+    console::{ConsoleFormat, ConsoleWriter, ansi_enabled, is_systemd_mode, journald_enabled},
     debug::INFO_SPAN_LEVEL,
     reload::{LogLevelReloadHandles, ReloadHandle},
     suppress::Suppress,

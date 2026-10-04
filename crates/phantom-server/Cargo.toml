@@ -7,7 +7,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+opentelemetry = "0.33.0"
 phantom-core.workspace = true
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
 
 [lints]
 workspace = true
