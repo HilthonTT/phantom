@@ -15,7 +15,7 @@ import (
 func sized(t *testing.T, width, height int) Model {
 	t.Helper()
 
-	next, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: height})
+	next, _ := New(offline(t)).Update(tea.WindowSizeMsg{Width: width, Height: height})
 
 	m, ok := next.(Model)
 	if !ok {

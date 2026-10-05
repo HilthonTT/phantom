@@ -7,22 +7,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
-func Server() resource.Server {
-	return resource.Server{
-		Name:    "phantom.chat",
-		URL:     "https://phantom.chat:8448",
-		Version: "phantom 0.1.0",
-		Admin:   "@admin:phantom.chat",
-		State:   resource.Done,
-		Status:  "connected",
-		Facts: []resource.Field{
-			{Label: "Uptime", Value: "6d 04:11"},
-			{Label: "Database", Value: "1.8 GiB"},
-			{Label: "Federating", Value: "42 servers"},
-		},
-	}
-}
-
 func Tasks() []resource.Task {
 	return []resource.Task{
 		{
@@ -122,7 +106,7 @@ func overview() resource.Listing {
 				built, workers, planned), resource.Done),
 			row("API routes", fmt.Sprintf("%d routed, %d unwired, %d modules not ported",
 				routedN, unwiredN, unportedN), resource.Held),
-			row("HTTP listener", "not mounted yet", resource.Held),
+			row("HTTP listener", "not connected", resource.Held),
 			row("Local users", "1,284", resource.NoState),
 			row("Devices", "3,912, 71% cross-signed", resource.NoState),
 			row("Key backups", "804 users", resource.NoState),

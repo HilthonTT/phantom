@@ -111,7 +111,7 @@ func api() resource.Listing {
 				{Label: "Module", Value: e.group + "::" + e.module},
 				{Label: "State", Value: word, Emphasis: state},
 				{Label: "Routes", Value: e.count()},
-				{Label: "Served", Value: "no, the router is not mounted yet", Emphasis: resource.Held},
+				{Label: "Served", Value: "unknown, not connected", Emphasis: resource.Held},
 				{Label: "Covers", Value: e.covers},
 			},
 		})

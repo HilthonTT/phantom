@@ -31,7 +31,7 @@ ties them to a socket.
 | **`phantom-service`** | the service runtime and the 40 services on it | partial |
 | **`phantom-macros`** | proc macros, including the config-example generator | usable |
 | **`phantom-server`** | the binary | a stub |
-| **`cli/`** | the `phantom` admin console | runs on placeholder data |
+| **`cli/`** | the `phantom` admin console | probes a running server; most sections still placeholder data |
 
 "Partial" means the services are written and compile, but nothing drives them:
 no request ever reaches one. [docs/architecture.md](docs/architecture.md) has
@@ -54,7 +54,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 git clone https://github.com/HilthonTT/phantom.git
 cd phantom
 just build          # cargo build --release, then the Go console into target/phantom
-./target/phantom    # opens the admin console
+./target/phantom    # opens the admin console on http://localhost:8008
+                    # (--server URL or $PHANTOM_SERVER to point it elsewhere)
 ```
 
 `./target/release/phantom-server` also exists after that build. Running it

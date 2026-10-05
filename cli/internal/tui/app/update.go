@@ -4,6 +4,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/HilthonTT/phantom/cli/internal/tui/live"
 	"github.com/HilthonTT/phantom/cli/internal/tui/modal"
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
@@ -16,6 +17,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case live.TickMsg:
+		return m, live.Probe(m.client, true)
+
+	case live.ProbedMsg:
+		return m.probed(msg)
+	}
+
+	return m, nil
+}
+
+func (m Model) probed(msg live.ProbedMsg) (tea.Model, tea.Cmd) {
+	prev := m.live
+	m.live = m.live.Apply(msg)
+	m.connection.SetServer(m.live.Server())
+
+	if m.live.Differs(prev) {
+		m.workspace.SetSource(m.live.Listing)
+	}
+
+	if msg.Scheduled {
+		return m, live.Tick()
 	}
 
 	return m, nil
@@ -137,7 +160,7 @@ func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.chatOpen {
 			return m.handleChatKey(msg)
 		}
-		return m.handleWorkspaceKey(msg), nil
+		return m.handleWorkspaceKey(msg)
 	default:
 		return m.handleTaskbarKey(msg), nil
 	}
@@ -216,7 +239,7 @@ func (m Model) handleComposeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.chat.UpdateComposer(msg)
 }
 
-func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) tea.Model {
+func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Up):
 		m.workspace.MoveUp()
@@ -248,9 +271,10 @@ func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) tea.Model {
 		m.workspace.ClearMarks()
 	case key.Matches(msg, m.keys.Refresh):
 		m.workspace.Reload()
+		return m, live.Probe(m.client, false)
 	}
 
-	return m
+	return m, nil
 }
 
 func (m Model) handleTaskbarKey(msg tea.KeyPressMsg) tea.Model {

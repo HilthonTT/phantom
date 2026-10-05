@@ -4,7 +4,6 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/detail"
 	"github.com/HilthonTT/phantom/cli/internal/tui/panel"
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
-	"github.com/HilthonTT/phantom/cli/internal/tui/sample"
 	"github.com/HilthonTT/phantom/cli/internal/tui/theme"
 )
 
@@ -18,9 +17,11 @@ type Model struct {
 	height int
 }
 
-func New(t theme.Theme, g theme.Glyphs) Model {
-	return Model{theme: t, glyphs: g, server: sample.Server()}
+func New(t theme.Theme, g theme.Glyphs, s resource.Server) Model {
+	return Model{theme: t, glyphs: g, server: s}
 }
+
+func (m *Model) SetServer(s resource.Server) { m.server = s }
 
 func (m *Model) SetSize(width, height int) { m.width, m.height = width, height }
 

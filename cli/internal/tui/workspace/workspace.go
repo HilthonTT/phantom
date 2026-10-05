@@ -24,9 +24,14 @@ type Tab struct {
 	top int
 }
 
+// Source builds a section's listing.
+type Source func(resource.Section) resource.Listing
+
 type Model struct {
 	theme  theme.Theme
 	glyphs theme.Glyphs
+
+	source Source
 
 	tabs   []Tab
 	active int
@@ -44,13 +49,40 @@ func New(t theme.Theme, g theme.Glyphs, s resource.Section) Model {
 	return Model{
 		theme:  t,
 		glyphs: g,
-		tabs:   []Tab{newTab(s)},
+		source: sample.Listing,
+		tabs:   []Tab{{Section: s, listing: sample.Listing(s)}},
 		filter: filter,
 	}
 }
 
-func newTab(s resource.Section) Tab {
-	return Tab{Section: s, listing: sample.Listing(s)}
+func (m Model) newTab(s resource.Section) Tab {
+	return Tab{Section: s, listing: m.source(s)}
+}
+
+// SetSource switches where listings come from and rebuilds every open tab,
+// keeping each one's cursor and the rows it had marked.
+func (m *Model) SetSource(src Source) {
+	m.source = src
+
+	for i, t := range m.tabs {
+		fresh := m.newTab(t.Section)
+		fresh.cursor, fresh.top = t.cursor, t.top
+
+		for j := range fresh.listing.Rows {
+			for _, old := range t.listing.Rows {
+				if old.Marked && old.Cells[0] == fresh.listing.Rows[j].Cells[0] {
+					fresh.listing.Rows[j].Marked = true
+				}
+			}
+		}
+
+		m.tabs[i] = fresh
+	}
+
+	for i := range m.tabs {
+		m.tabs[i].cursor = min(m.tabs[i].cursor, max(len(m.rowsOf(i))-1, 0))
+	}
+	m.clampScrollAll()
 }
 
 func (m *Model) SetSize(width, height int) {
@@ -96,7 +128,7 @@ func (m Model) Selected() (resource.Row, bool) {
 }
 
 func (m *Model) Open(s resource.Section) {
-	m.tabs[m.active] = newTab(s)
+	m.tabs[m.active] = m.newTab(s)
 	m.clearFilter()
 }
 
@@ -105,7 +137,7 @@ func (m *Model) OpenTab(s resource.Section) {
 		return
 	}
 
-	m.tabs = append(m.tabs, newTab(s))
+	m.tabs = append(m.tabs, m.newTab(s))
 	m.active = len(m.tabs) - 1
 	m.clearFilter()
 	m.SetSize(m.width, m.height)
@@ -186,7 +218,7 @@ func marks(t Tab) int {
 
 func (m *Model) Reload() {
 	cursor := m.tabs[m.active].cursor
-	m.tabs[m.active] = newTab(m.tabs[m.active].Section)
+	m.tabs[m.active] = m.newTab(m.tabs[m.active].Section)
 	m.moveTo(cursor)
 }
 
