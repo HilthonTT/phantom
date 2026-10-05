@@ -163,6 +163,12 @@ async fn fresh(services: &Services) -> Result {
         global.insert(step.marker, [])?;
     }
 
+    // Creating the server user also ends the fresh path: users.count() is no
+    // longer zero on the next start.
+    if services.server.config.admin.create_admin_room {
+        crate::ops::admin::create_admin_room(services).await?;
+    }
+
     warn!("Created new RocksDB database with version {DATABASE_VERSION}");
 
     Ok(())

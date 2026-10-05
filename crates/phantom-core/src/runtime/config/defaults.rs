@@ -20,6 +20,10 @@ pub(super) fn default_multipart_part_size() -> ByteSize {
     ByteSize::mib(10)
 }
 
+pub(super) fn default_admin_room_tag() -> String {
+    "m.server_notice".to_owned()
+}
+
 pub(super) fn default_log() -> String {
     cfg!(debug_assertions)
         .then_some("debug")

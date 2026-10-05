@@ -1,6 +1,7 @@
 mod execute;
 #[cfg(test)]
 mod tests;
+mod write;
 
 use std::{
     future::Future,
@@ -18,7 +19,8 @@ use ruma::{
 };
 use tokio::sync::{Mutex, Notify, broadcast::error::RecvError, mpsc};
 
-use crate::{Dep, ops::server_state, rooms};
+pub(crate) use self::write::create_admin_room;
+use crate::{Dep, accounts::account_data, ops::server_state, rooms};
 
 pub struct Service {
     services: Services,
@@ -36,9 +38,13 @@ pub struct Service {
 
 struct Services {
     server: Arc<Server>,
+    account_data: Dep<account_data::Service>,
     alias: Dep<rooms::alias::Service>,
     server_state: Dep<server_state::Service>,
+    state: Dep<rooms::state::Service>,
+    state_accessor: Dep<rooms::state_accessor::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
+    timeline: Dep<rooms::timeline::Service>,
 
     services: RwLock<Option<Weak<crate::Services>>>,
 }
@@ -69,9 +75,14 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             services: Services {
                 server: args.server.clone(),
+                account_data: args.depend::<account_data::Service>("accounts::account_data"),
                 server_state: args.depend::<server_state::Service>("ops::server_state"),
                 alias: args.depend::<rooms::alias::Service>("rooms::alias"),
+                state: args.depend::<rooms::state::Service>("rooms::state"),
+                state_accessor: args
+                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
                 state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
                 services: RwLock::new(None),
             },
             sender,

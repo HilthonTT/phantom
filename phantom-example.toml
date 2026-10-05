@@ -56,6 +56,20 @@
 #
 #config_reload_signal = true
 
+# Create the admin room (`#admins:<server_name>`) and the server user on
+# a fresh database. The first user to register then joins it as admin.
+#
+#create_admin_room = true
+
+# Room tag set on the admin room for each user granted admin, so clients
+# file it apart. Empty sets no tag.
+#
+#admin_room_tag = "m.server_notice"
+
+# Post a welcome notice into the admin room when a user is granted admin.
+#
+#admin_room_notices = true
+
 # This item is undocumented. Please contribute documentation for it.
 #
 #registration_token =

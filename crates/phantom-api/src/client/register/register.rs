@@ -1,7 +1,7 @@
 use std::{fmt::Write, net::IpAddr};
 
 use axum::extract::State;
-use phantom_core::{Err, Error, Result, debug_info, debug_warn, info, warn};
+use phantom_core::{Err, Error, Result, debug_info, debug_warn, error, info, warn};
 use phantom_service::{
     Services, accounts::users::generate_refresh_token, auth::threepid::Association,
 };
@@ -114,6 +114,10 @@ pub(crate) async fn register_route(
         && (!is_guest || services.config.client.log_guest_registrations)
     {
         announce_new_user(&user_id, &body, is_guest, &client).await?;
+    }
+
+    if !is_guest && body.appservice_info.is_none() {
+        grant_admin_to_first_user(&services, &user_id).await;
     }
 
     let mut response = register::v3::Response::new(user_id);
@@ -424,6 +428,31 @@ async fn announce_new_user(
     }
 
     Ok(())
+}
+
+/// Makes the first account registered on the server an admin, judged by the
+/// admin room holding only the server user. Failing here leaves the account
+/// registered, just not admin.
+async fn grant_admin_to_first_user(services: &Services, user_id: &UserId) {
+    let Ok(admin_room) = services.admin.get_admin_room().await else {
+        return;
+    };
+
+    let only_server_user = services
+        .rooms
+        .state_cache
+        .room_joined_count(&admin_room)
+        .await
+        .is_ok_and(|count| count == 1);
+
+    if !only_server_user {
+        return;
+    }
+
+    match services.admin.make_user_admin(user_id).await {
+        Ok(()) => warn!(%user_id, "Granted admin to the first user to register"),
+        Err(e) => error!(%user_id, "Failed to grant admin to the first user: {e}"),
+    }
 }
 
 /// Creates a local account with its initial profile and account data.
