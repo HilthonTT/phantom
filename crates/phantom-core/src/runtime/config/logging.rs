@@ -39,4 +39,46 @@ pub struct Logging {
 
     #[serde(default = "default_login_token_ttl")]
     pub login_token_ttl: u64,
+
+    /// Enables OTLP span export for Jaeger-compatible tracing.
+    ///
+    /// Only a build with the `perf_measurements` feature installs the
+    /// OpenTelemetry layer; elsewhere this has no effect. `jaeger_filter`
+    /// selects the exported spans.
+    ///
+    /// default: false
+    #[serde(default)]
+    pub allow_jaeger: bool,
+
+    /// Filter directives selecting the spans exported to Jaeger, in the same
+    /// syntax as `log`. Debug builds default to "trace,h2=off".
+    ///
+    /// default: "info"
+    #[serde(default = "default_jaeger_filter")]
+    pub jaeger_filter: String,
+
+    /// Collects a folded stack trace profile of tracing spans with
+    /// tracing_flame, in a build with the `perf_measurements` feature. The
+    /// profile can be visualized with inferno[1], speedscope[2], or a number
+    /// of other tools.
+    ///
+    /// [1]: https://github.com/jonhoo/inferno
+    /// [2]: www.speedscope.app
+    ///
+    /// default: false
+    #[serde(default)]
+    pub tracing_flame: bool,
+
+    /// Filter directives selecting the spans profiled by `tracing_flame`, in
+    /// the same syntax as `log`. Debug builds default to "trace,h2=off".
+    ///
+    /// default: "info"
+    #[serde(default = "default_tracing_flame_filter")]
+    pub tracing_flame_filter: String,
+
+    /// File the `tracing_flame` profile is written to.
+    ///
+    /// default: "./tracing.folded"
+    #[serde(default = "default_tracing_flame_output_path")]
+    pub tracing_flame_output_path: String,
 }

@@ -31,6 +31,24 @@ pub(super) fn default_log_span_events() -> String {
     "none".to_owned()
 }
 
+pub(super) fn default_jaeger_filter() -> String {
+    cfg!(debug_assertions)
+        .then_some("trace,h2=off")
+        .unwrap_or("info")
+        .to_owned()
+}
+
+pub(super) fn default_tracing_flame_filter() -> String {
+    cfg!(debug_assertions)
+        .then_some("trace,h2=off")
+        .unwrap_or("info")
+        .to_owned()
+}
+
+pub(super) fn default_tracing_flame_output_path() -> String {
+    "./tracing.folded".to_owned()
+}
+
 pub(super) fn default_address() -> ListeningAddr {
     ListeningAddr {
         addrs: Right(vec![Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()]),
