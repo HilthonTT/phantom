@@ -144,9 +144,10 @@
 #login_via_token = true
 
 # Room version newly created rooms use when the client does not ask for
-# one.
+# one. It must be a version the server supports, 1 through 11; version 12
+# needs state resolution v2.1, which phantom does not have yet.
 #
-#default_room_version = "12"
+#default_room_version = "11"
 
 # Whether encrypted rooms and events are allowed.
 #

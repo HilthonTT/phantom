@@ -2,7 +2,7 @@ use ruma::ServerName;
 use tracing::{debug, warn};
 
 use super::{Config, DEPRECATED_KEYS};
-use crate::{Result, err};
+use crate::{Result, err, matrix::state_res::RoomVersion};
 
 pub fn validate_reload(old: &Config, new: &Config) -> Result {
     validate(new)?;
@@ -34,6 +34,15 @@ pub fn validate(config: &Config) -> Result {
 
     config.log_filter()?;
     config.span_events()?;
+
+    // Rooms the server creates without a requested version use this one, and
+    // building a room in a version it cannot run panics.
+    let room_version = &config.client.default_room_version;
+    if !RoomVersion::is_supported(room_version) {
+        return Err(err!(
+            "`default_room_version` {room_version} is not a room version this server supports"
+        ));
+    }
 
     check_database(config)?;
     check_registration(config)?;

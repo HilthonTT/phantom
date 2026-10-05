@@ -429,7 +429,7 @@ pub(super) fn default_deprioritize_joins_through_servers() -> regex::RegexSet {
 }
 
 pub(super) fn default_default_room_version() -> ruma::RoomVersionId {
-    ruma::RoomVersionId::V12
+    ruma::RoomVersionId::V11
 }
 
 pub(super) fn default_typing_client_timeout_min_s() -> u64 {
