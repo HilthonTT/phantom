@@ -150,6 +150,7 @@ fn router(services: &Arc<Services>) -> Router {
     let router = phantom_api::client::register(router, config);
     let router = phantom_api::server::register(router, config);
     let router = phantom_api::oidc::register(router);
+    let router = phantom_api::admin::register(router);
 
     let router = router
         .fallback(not_found)

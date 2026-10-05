@@ -1,4 +1,4 @@
-use http::header::AUTHORIZATION;
+use http::{HeaderMap, header::AUTHORIZATION};
 use phantom_core::{Result, time::timepoint_has_passed};
 use phantom_service::{
     Services, accounts::users::is_refresh_token, ops::appservice::RegistrationInfo,
@@ -18,7 +18,12 @@ pub enum Token {
 
 impl Token {
     pub(super) async fn find(services: &Services, request: &RawRequest) -> Result<Self> {
-        let Some(access_token) = access_token(request) else {
+        Self::lookup(services, access_token(request)).await
+    }
+
+    /// Resolves a presented access token, if any, without a parsed request.
+    pub(super) async fn lookup(services: &Services, access_token: Option<&str>) -> Result<Self> {
+        let Some(access_token) = access_token else {
             return Ok(Self::None);
         };
 
@@ -41,13 +46,15 @@ impl Token {
 }
 
 fn access_token(request: &RawRequest) -> Option<&str> {
-    request
-        .parts
-        .headers
+    bearer(&request.parts.headers).or(request.query.access_token.as_deref())
+}
+
+/// The token of an `Authorization: Bearer` header.
+pub(super) fn bearer(headers: &HeaderMap) -> Option<&str> {
+    headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.split_once(' '))
         .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
         .map(|(_, token)| token.trim())
-        .or(request.query.access_token.as_deref())
 }

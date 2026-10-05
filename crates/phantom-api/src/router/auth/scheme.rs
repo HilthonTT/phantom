@@ -106,7 +106,7 @@ fn optional(token: Token) -> Result<Auth> {
 
 /// An expired access token is a soft logout: the client keeps its session and
 /// refreshes, rather than signing in again.
-fn expired_token() -> Result<Auth> {
+pub(super) fn expired_token<T>() -> Result<T> {
     let mut data = UnknownTokenErrorData::new();
     data.soft_logout = true;
 
@@ -116,7 +116,7 @@ fn expired_token() -> Result<Auth> {
     ))
 }
 
-fn unknown_token() -> Result<Auth> {
+pub(super) fn unknown_token<T>() -> Result<T> {
     Err(Error::BadRequest(
         ErrorKind::UnknownToken(UnknownTokenErrorData::new()),
         "Unknown access token.",

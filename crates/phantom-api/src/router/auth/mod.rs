@@ -1,3 +1,4 @@
+mod admin;
 mod appservice;
 mod federation;
 mod scheme;
@@ -9,7 +10,7 @@ use phantom_service::{Services, ops::appservice::RegistrationInfo};
 use ruma::{OwnedDeviceId, OwnedServerName, OwnedUserId};
 
 use self::token::Token;
-pub use self::{scheme::Authenticate, uiaa::authenticate_uiaa};
+pub use self::{admin::AdminAuth, scheme::Authenticate, uiaa::authenticate_uiaa};
 use super::raw_request::RawRequest;
 
 #[derive(Debug, Default)]
