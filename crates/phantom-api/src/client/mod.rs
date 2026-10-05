@@ -182,10 +182,6 @@ pub fn register(router: Router<State>, config: &Config) -> Router<State> {
         .ruma_route(&directory::get_public_rooms_filtered_route)
         .ruma_route(&room::upgrade_room_route)
         .ruma_route(&room::get_room_summary)
-        .route(
-            "/_matrix/client/unstable/im.nheko.summary/rooms/{room_id_or_alias}/summary",
-            get(room::get_room_summary_legacy),
-        )
         .ruma_route(&room::get_room_event_route)
         .ruma_route(&room::get_room_aliases_route)
         .ruma_route(&send::send_message_event_route)

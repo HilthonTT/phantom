@@ -12,31 +12,15 @@ use ruma::{
     room::{JoinRuleSummary, RoomSummary},
 };
 
-use crate::router::{ClientIp, Ruma, RumaResponse};
+use crate::router::{ClientIp, Ruma};
 
-/// # `GET /_matrix/client/unstable/im.nheko.summary/rooms/{roomIdOrAlias}/summary`
+/// # `GET /_matrix/client/v1/room_summary/{roomIdOrAlias}`
 ///
 /// Returns a short description of the state of a room.
 ///
-/// This is the "wrong" endpoint that some implementations/clients may use
-/// according to the MSC. Request and response bodies are the same as
-/// `get_room_summary`.
-///
-/// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
-pub(crate) async fn get_room_summary_legacy(
-    State(services): State<crate::router::State>,
-    ClientIp(client): ClientIp,
-    body: Ruma<get_summary::v1::Request>,
-) -> Result<RumaResponse<get_summary::v1::Response>> {
-    get_room_summary(State(services), ClientIp(client), body)
-        .boxed()
-        .await
-        .map(RumaResponse)
-}
-
-/// # `GET /_matrix/client/unstable/im.nheko.summary/summary/{roomIdOrAlias}`
-///
-/// Returns a short description of the state of a room.
+/// ruma also routes the unstable
+/// `/_matrix/client/unstable/im.nheko.summary/rooms/{roomIdOrAlias}/summary`
+/// path here, so it needs no separate route.
 ///
 /// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
 #[tracing::instrument(skip_all, fields(%client), name = "room_summary")]
