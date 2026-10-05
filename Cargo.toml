@@ -10,6 +10,7 @@ license = "Apache-2.0"
 repository = "https://github.com/HilthonTT/phantom"
 
 [workspace.dependencies]
+phantom-api = { path = "crates/phantom-api" }
 phantom-core = { path = "crates/phantom-core" }
 phantom-database = { path = "crates/phantom-database" }
 phantom-macros = { path = "crates/phantom-macros" }

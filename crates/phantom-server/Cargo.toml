@@ -7,10 +7,42 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-opentelemetry = "0.33.0"
+# http2 on top of axum's defaults: federation peers and reverse proxies may
+# speak it over the plain listener.
+axum = { version = "0.8.9", features = ["http2"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
+figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
+futures = "0.3.34"
+opentelemetry = { version = "0.33.0", optional = true }
+opentelemetry-otlp = { version = "0.33.0", optional = true }
+opentelemetry_sdk = { version = "0.33.0", optional = true }
+phantom-api.workspace = true
 phantom-core.workspace = true
+phantom-service.workspace = true
+serde_json = "1.0.151"
+tokio = { version = "1.49.0", features = [
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+toml = "1.1.4"
 tracing = "0.1.44"
-tracing-subscriber = "0.3.23"
+tracing-flame = { version = "0.2.0", optional = true }
+# 0.34 is the release built against opentelemetry 0.33; the two must move together.
+tracing-opentelemetry = { version = "0.34.0", optional = true }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[features]
+perf_measurements = [
+    "dep:opentelemetry",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry_sdk",
+    "dep:tracing-flame",
+    "dep:tracing-opentelemetry",
+]
 
 [lints]
 workspace = true
