@@ -87,6 +87,8 @@ func (m Model) renderModal() string {
 		return m.prompt.Render(m.width, m.height)
 	case modal.Confirm:
 		return m.confirm.Render(m.width, m.height)
+	case modal.Login:
+		return m.login.Render(m.width, m.height)
 	default:
 		return ""
 	}

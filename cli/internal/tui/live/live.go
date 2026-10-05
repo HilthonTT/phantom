@@ -35,6 +35,8 @@ type State struct {
 	Err    error
 
 	Checked time.Time
+
+	Account Account
 }
 
 func New(c *client.Client) State { return State{Host: c.Host()} }
@@ -96,7 +98,7 @@ func errText(err error) string {
 func (s State) Server() resource.Server {
 	srv := resource.Server{
 		Name:  s.Host,
-		Admin: "not logged in",
+		Admin: s.Account.adminLine(),
 	}
 
 	switch s.Link {

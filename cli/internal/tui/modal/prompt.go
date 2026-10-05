@@ -30,6 +30,8 @@ func Commands() []Command {
 		{Name: "quarantine", Usage: "quarantine <media>    quarantine a media item"},
 		{Name: "reload", Usage: "reload                re-read the config file"},
 		{Name: "backup", Usage: "backup                start a database backup"},
+		{Name: "login", Usage: "login                 sign in to the server"},
+		{Name: "logout", Usage: "logout                sign out and forget the session"},
 	}
 }
 

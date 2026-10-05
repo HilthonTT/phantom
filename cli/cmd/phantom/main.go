@@ -8,6 +8,7 @@ import (
 
 	"github.com/HilthonTT/phantom/cli/internal/client"
 	"github.com/HilthonTT/phantom/cli/internal/config"
+	"github.com/HilthonTT/phantom/cli/internal/session"
 	"github.com/HilthonTT/phantom/cli/internal/tui"
 )
 
@@ -25,7 +26,12 @@ func main() {
 		fail(err)
 	}
 
-	if err := tui.Run(c); err != nil {
+	store, err := session.Default()
+	if err != nil {
+		fail(err)
+	}
+
+	if err := tui.Run(c, store); err != nil {
 		fail(err)
 	}
 }

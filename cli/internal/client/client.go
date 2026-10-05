@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,11 @@ const requestTimeout = 3 * time.Second
 type Client struct {
 	base *url.URL
 	http *http.Client
+
+	// mu guards session: probes run on their own goroutines while a login or
+	// logout replaces it.
+	mu      sync.RWMutex
+	session *Session
 }
 
 // New parses raw as the server's base URL, taking a bare host[:port] as
@@ -134,51 +140,37 @@ func (c *Client) Probe(ctx context.Context) (Status, error) {
 }
 
 // StatusError is a response other than 200, carrying the Matrix error code
-// when the body had one.
+// and message when the body had them.
 type StatusError struct {
 	Path    string
 	Code    int
 	ErrCode string
+	Message string
 }
 
 func (e *StatusError) Error() string {
-	if e.ErrCode != "" {
+	switch {
+	case e.Message != "":
+		return e.Message
+	case e.ErrCode != "":
 		return fmt.Sprintf("%s: %d %s", e.Path, e.Code, e.ErrCode)
+	default:
+		return fmt.Sprintf("%s: %d %s", e.Path, e.Code, http.StatusText(e.Code))
 	}
+}
 
-	return fmt.Sprintf("%s: %d %s", e.Path, e.Code, http.StatusText(e.Code))
+func statusError(path string, resp *http.Response) error {
+	var body struct {
+		ErrCode string `json:"errcode"`
+		Error   string `json:"error"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+
+	return &StatusError{Path: path, Code: resp.StatusCode, ErrCode: body.ErrCode, Message: body.Error}
 }
 
 func (c *Client) get(ctx context.Context, path string, into any) error {
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base.String()+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return unwrapURLError(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		var body struct {
-			ErrCode string `json:"errcode"`
-		}
-		_ = json.NewDecoder(resp.Body).Decode(&body)
-
-		return &StatusError{Path: path, Code: resp.StatusCode, ErrCode: body.ErrCode}
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(into); err != nil {
-		return fmt.Errorf("%s: %w", path, err)
-	}
-
-	return nil
+	return c.do(ctx, http.MethodGet, path, nil, into)
 }
 
 // unwrapURLError drops the method and URL net/http wraps every transport

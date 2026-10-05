@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
@@ -23,9 +25,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case live.ProbedMsg:
 		return m.probed(msg)
+
+	case live.AuthMsg:
+		return m.authed(msg)
+
+	case live.LoggedOutMsg:
+		m.live = m.live.SignOut()
+		m.connection.SetServer(m.live.Server())
+		return m, nil
 	}
 
 	return m, nil
+}
+
+// authed takes a login, or the check of a saved session, finishing.
+func (m Model) authed(msg live.AuthMsg) (tea.Model, tea.Cmd) {
+	m.live = m.live.SignIn(msg)
+	m.connection.SetServer(m.live.Server())
+
+	switch {
+	case msg.Refused && msg.Resumed:
+		_ = m.store.Forget(m.client.URL())
+		m.saved = nil
+		return m.openLogin("the saved session has ended; sign in again")
+
+	case msg.Refused:
+		if m.modal != modal.Login {
+			return m, nil
+		}
+		return m, m.login.Fail(msg.Err.Error())
+
+	case !msg.Resumed:
+		if err := m.store.Save(m.client.URL(), msg.Session); err != nil {
+			m.live.Account.Err = err
+			m.connection.SetServer(m.live.Server())
+		}
+		if m.modal == modal.Login {
+			m = m.closeModal()
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) openLogin(reason string) (tea.Model, tea.Cmd) {
+	m.loginOffered = true
+	m.help.Blur()
+	m.prompt.Blur()
+	m.modal = modal.Login
+
+	return m, m.login.Open(m.live.Host, reason)
 }
 
 func (m Model) probed(msg live.ProbedMsg) (tea.Model, tea.Cmd) {
@@ -37,11 +86,21 @@ func (m Model) probed(msg live.ProbedMsg) (tea.Model, tea.Cmd) {
 		m.workspace.SetSource(m.live.Listing)
 	}
 
+	var cmds []tea.Cmd
 	if msg.Scheduled {
-		return m, live.Tick()
+		cmds = append(cmds, live.Tick())
 	}
 
-	return m, nil
+	// A reachable server with no session asks for one, once; :login opens the
+	// form again after it is dismissed.
+	if m.live.Link == live.Connected && m.saved == nil && !m.live.Account.SignedIn() &&
+		!m.loginOffered && m.modal == modal.None {
+		next, cmd := m.openLogin("")
+		m = next.(Model)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -306,9 +365,22 @@ func (m Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case modal.Prompt:
 		if key.Matches(msg, m.keys.Open) {
-			return m.closeModal(), nil
+			return m.runCommand(m.prompt.Value())
 		}
 		return m, m.prompt.Update(msg)
+
+	case modal.Login:
+		switch {
+		case key.Matches(msg, m.keys.NextPanel), key.Matches(msg, m.keys.PrevPanel):
+			return m, m.login.Toggle()
+		case key.Matches(msg, m.keys.Open):
+			user, password, ok, cmd := m.login.Submit()
+			if !ok {
+				return m, cmd
+			}
+			return m, live.Login(m.client, user, password)
+		}
+		return m, m.login.Update(msg)
 
 	case modal.Confirm:
 		switch {
@@ -338,6 +410,27 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.help.Update(msg)
 }
 
+// runCommand runs what was typed at the command prompt.
+func (m Model) runCommand(line string) (tea.Model, tea.Cmd) {
+	m = m.closeModal()
+
+	word, _, _ := strings.Cut(strings.TrimSpace(line), " ")
+	switch word {
+	case "login":
+		return m.openLogin("")
+
+	case "logout":
+		if !m.live.Account.SignedIn() {
+			return m, nil
+		}
+		_ = m.store.Forget(m.client.URL())
+		m.saved = nil
+		return m, live.Logout(m.client)
+	}
+
+	return m, nil
+}
+
 func (m *Model) ask(a action, title, body string) {
 	m.confirm.Ask(title, body)
 	m.pending = a
@@ -363,6 +456,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 func (m Model) closeModal() Model {
 	m.help.Blur()
 	m.prompt.Blur()
+	m.login.Blur()
 	m.modal = modal.None
 	m.pending = noAction
 

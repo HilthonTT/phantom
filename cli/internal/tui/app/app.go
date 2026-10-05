@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/HilthonTT/phantom/cli/internal/client"
+	"github.com/HilthonTT/phantom/cli/internal/session"
 	"github.com/HilthonTT/phantom/cli/internal/tui/chat"
 	"github.com/HilthonTT/phantom/cli/internal/tui/connection"
 	"github.com/HilthonTT/phantom/cli/internal/tui/inspector"
@@ -41,7 +42,15 @@ type Model struct {
 	keys   keymap.KeyMap
 
 	client *client.Client
+	store  session.Store
 	live   live.State
+
+	// saved is the session found on disk at startup, checked by Init.
+	saved *client.Session
+
+	// loginOffered is set once the login form has opened by itself, so a
+	// dismissed form is not forced open again on the next probe.
+	loginOffered bool
 
 	sidebar    sidebar.Model
 	workspace  workspace.Model
@@ -56,6 +65,7 @@ type Model struct {
 	help    modal.HelpModel
 	prompt  modal.PromptModel
 	confirm modal.ConfirmModel
+	login   modal.LoginModel
 	modal   modal.Kind
 	pending action
 
@@ -67,7 +77,9 @@ type Model struct {
 	quitting bool
 }
 
-func New(c *client.Client) Model {
+// New builds the console for the server c talks to, resuming the session
+// store holds for it, if any.
+func New(c *client.Client, store session.Store) Model {
 	t := theme.Default()
 	g := theme.UnicodeGlyphs()
 	keys := keymap.Default()
@@ -76,13 +88,20 @@ func New(c *client.Client) Model {
 	ws := workspace.New(t, g, resource.Overview)
 	ws.SetSource(state.Listing)
 
+	var saved *client.Session
+	if s, ok, err := store.Load(c.URL()); err == nil && ok {
+		saved = &s
+	}
+
 	return Model{
 		theme:  t,
 		glyphs: g,
 		keys:   keys,
 
 		client: c,
+		store:  store,
 		live:   state,
+		saved:  saved,
 
 		sidebar:    sidebar.New(t, g),
 		workspace:  ws,
@@ -95,12 +114,19 @@ func New(c *client.Client) Model {
 		help:    modal.NewHelp(t, g, keys),
 		prompt:  modal.NewPrompt(t),
 		confirm: modal.NewConfirm(t),
+		login:   modal.NewLogin(t),
 
 		focus: focusWorkspace,
 	}
 }
 
-func (m Model) Init() tea.Cmd { return live.Probe(m.client, true) }
+func (m Model) Init() tea.Cmd {
+	if m.saved == nil {
+		return live.Probe(m.client, true)
+	}
+
+	return tea.Batch(live.Probe(m.client, true), live.Resume(m.client, *m.saved))
+}
 
 func (m Model) openSection() resource.Section {
 	if m.chatOpen {

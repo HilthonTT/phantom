@@ -11,6 +11,7 @@ const (
 	Help
 	Prompt
 	Confirm
+	Login
 )
 
 func Overlay(layout, box string, width, height int) string {
