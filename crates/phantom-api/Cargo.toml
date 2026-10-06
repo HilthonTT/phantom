@@ -19,7 +19,7 @@ hmac = "0.12.1"
 http = "1.5.0"
 http-body-util = "0.1.5"
 ipnet = "2.12.2"
-itertools = "0.14.0"
+itertools = "0.15.0"
 phantom-core.workspace = true
 phantom-service.workspace = true
 ruma = { version = "0.17.0", features = [
