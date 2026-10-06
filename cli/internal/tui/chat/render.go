@@ -33,11 +33,17 @@ func (m Model) Render(focused bool) string {
 func (m Model) renderChannels(focused bool) string {
 	p := panel.New(m.theme.PanelConfig(ChannelsWidth, m.height, focused && !m.composing))
 	p.SetTitle("Channels")
+	if !m.live {
+		p.SetTitle("Channels " + m.glyphs.Bullet + " sample")
+	}
 
 	p.AddLine("")
 
 	direct := false
 	p.AddLine(m.heading("ROOMS", p.ContentWidth()))
+	if len(m.channels) == 0 {
+		p.AddLine(m.theme.Faint.Render("   no rooms yet"))
+	}
 	for i, ch := range m.channels {
 		if p.Remaining() < 1 {
 			break
@@ -50,7 +56,10 @@ func (m Model) renderChannels(focused bool) string {
 		p.AddLine(m.channelEntry(ch, i == m.cursor, focused && !m.composing, p.ContentWidth()))
 	}
 
-	if unread := m.unread(); unread > 0 {
+	switch unread := m.unread(); {
+	case m.status != "":
+		p.SetInfo(m.status)
+	case unread > 0:
 		p.SetInfo(itoa(unread) + " unread")
 	}
 
@@ -191,21 +200,24 @@ func (m Model) typing(ch resource.Channel) string {
 func (m Model) names(ch resource.Channel, ids []string) []string {
 	names := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if id == m.self {
-			continue
+		if id != m.self {
+			names = append(names, m.displayName(ch, id))
 		}
-
-		name := localpart(id)
-		for _, member := range ch.Members {
-			if member.ID == id {
-				name = member.Name
-				break
-			}
-		}
-		names = append(names, name)
 	}
 
 	return names
+}
+
+// displayName is a member's name in the room, or the localpart of an ID the
+// room has no member for.
+func (m Model) displayName(ch resource.Channel, id string) string {
+	for _, member := range ch.Members {
+		if member.ID == id {
+			return member.Name
+		}
+	}
+
+	return localpart(id)
 }
 
 func (m Model) timeline(ch resource.Channel, width int) []string {
@@ -213,7 +225,7 @@ func (m Model) timeline(ch resource.Channel, width int) []string {
 
 	previous := ""
 	for _, msg := range ch.Messages {
-		lines = append(lines, m.message(msg, msg.Sender == previous && msg.Kind == resource.Text, width)...)
+		lines = append(lines, m.message(ch, msg, msg.Sender == previous && msg.Kind == resource.Text, width)...)
 
 		previous = ""
 		if msg.Kind == resource.Text {
@@ -230,7 +242,7 @@ func (m Model) timeline(ch resource.Channel, width int) []string {
 	return lines
 }
 
-func (m Model) message(msg resource.Message, continued bool, width int) []string {
+func (m Model) message(ch resource.Channel, msg resource.Message, continued bool, width int) []string {
 	lead := " " + panel.Pad(msg.Time, timeWidth) + " "
 	if continued {
 		lead = strings.Repeat(" ", panel.Width(lead))
@@ -239,17 +251,17 @@ func (m Model) message(msg resource.Message, continued bool, width int) []string
 	switch msg.Kind {
 	case resource.Membership:
 		return m.wrap(m.theme.Faint.Render(lead),
-			m.theme.Faint, m.glyphs.Arrow+" "+localpart(msg.Sender)+" "+msg.Body, width)
+			m.theme.Faint, m.glyphs.Arrow+" "+m.displayName(ch, msg.Sender)+" "+msg.Body, width)
 
 	case resource.Emote:
 		return m.wrap(m.theme.Faint.Render(lead),
 			m.senderStyle(msg.Sender).Bold(false).Italic(true),
-			"* "+localpart(msg.Sender)+" "+msg.Body, width)
+			"* "+m.displayName(ch, msg.Sender)+" "+msg.Body, width)
 	}
 
 	name := ""
 	if !continued {
-		name = localpart(msg.Sender)
+		name = m.displayName(ch, msg.Sender)
 	}
 
 	prefix := m.theme.Faint.Render(lead) +
@@ -266,7 +278,12 @@ func (m Model) message(msg resource.Message, continued bool, width int) []string
 	}
 
 	lines := m.wrap(prefix, body, msg.Body, width)
-	if msg.Edited {
+	switch {
+	case msg.Failed:
+		lines = m.suffix(lines, " (not sent)", panel.Width(prefix), width)
+	case msg.Pending:
+		lines = m.suffix(lines, " (sending…)", panel.Width(prefix), width)
+	case msg.Edited:
 		lines = m.suffix(lines, " (edited)", panel.Width(prefix), width)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/HilthonTT/phantom/cli/internal/client"
 	"github.com/HilthonTT/phantom/cli/internal/tui/live"
 	"github.com/HilthonTT/phantom/cli/internal/tui/modal"
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
@@ -32,6 +33,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case live.LoggedOutMsg:
 		m.live = m.live.SignOut()
 		m.connection.SetServer(m.live.Server())
+		return m.stopSync(), nil
+
+	case live.SyncedMsg:
+		return m.synced(msg)
+
+	case live.SyncRetryMsg:
+		if msg.Gen != m.sync.gen {
+			return m, nil
+		}
+		return m, live.Sync(m.client, msg.Gen, msg.Since)
+
+	case live.SentMsg:
+		return m.sent(msg)
+
+	case live.JoinedMsg:
+		return m.joined(msg)
+
+	case live.LeftMsg:
+		return m.left(msg)
+
+	case live.ChatErrMsg:
+		if client.IsUnknownToken(msg.Err) {
+			return m.authed(live.AuthMsg{Resumed: true, Refused: true, Err: msg.Err})
+		}
 		return m, nil
 	}
 
@@ -47,6 +72,7 @@ func (m Model) authed(msg live.AuthMsg) (tea.Model, tea.Cmd) {
 	case msg.Refused && msg.Resumed:
 		_ = m.store.Forget(m.client.URL())
 		m.saved = nil
+		m = m.stopSync()
 		return m.openLogin("the saved session has ended; sign in again")
 
 	case msg.Refused:
@@ -65,7 +91,12 @@ func (m Model) authed(msg live.AuthMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, nil
+	// Any account can chat, admin or not.
+	if m.sync.rooms != nil && m.sync.rooms.Self() == msg.Session.UserID {
+		return m, nil
+	}
+
+	return m.startSync(msg.Session.UserID)
 }
 
 func (m Model) openLogin(reason string) (tea.Model, tea.Cmd) {
@@ -214,7 +245,7 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.focus {
 	case focusSidebar:
-		return m.handleSidebarKey(msg), nil
+		return m.handleSidebarKey(msg).markRead()
 	case focusWorkspace:
 		if m.chatOpen {
 			return m.handleChatKey(msg)
@@ -225,7 +256,7 @@ func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) handleSidebarKey(msg tea.KeyPressMsg) tea.Model {
+func (m Model) handleSidebarKey(msg tea.KeyPressMsg) Model {
 	switch {
 	case key.Matches(msg, m.keys.Up):
 		m.sidebar.MoveUp()
@@ -259,8 +290,10 @@ func (m Model) handleChatKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Up):
 		m.chat.MoveUp()
+		return m.markRead()
 	case key.Matches(msg, m.keys.Down):
 		m.chat.MoveDown()
+		return m.markRead()
 	case key.Matches(msg, m.keys.PageUp):
 		m.chat.ScrollUp()
 	case key.Matches(msg, m.keys.PageDown):
@@ -280,11 +313,10 @@ func (m Model) handleComposeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Cancel):
 		m.chat.StopComposing()
-		return m, nil
+		return m.stopTyping()
 
 	case key.Matches(msg, m.keys.Send):
-		m.chat.Send()
-		return m, nil
+		return m.sendChat()
 
 	case msg.Code == tea.KeyPgUp:
 		m.chat.ScrollUp()
@@ -295,7 +327,10 @@ func (m Model) handleComposeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, m.chat.UpdateComposer(msg)
+	update := m.chat.UpdateComposer(msg)
+	model, typing := m.typed()
+
+	return model, tea.Batch(update, typing)
 }
 
 func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -426,6 +461,22 @@ func (m Model) runCommand(line string) (tea.Model, tea.Cmd) {
 		_ = m.store.Forget(m.client.URL())
 		m.saved = nil
 		return m, live.Logout(m.client)
+
+	case "join":
+		target := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "join"))
+		if target == "" || !m.chat.Live() {
+			return m, nil
+		}
+		m.chat.SetStatus("joining " + target + "…")
+		return m, live.Join(m.client, target)
+
+	case "leave":
+		if !m.chat.Live() || m.chat.Channel().ID == "" {
+			return m, nil
+		}
+		ch := m.chat.Channel()
+		m.ask(leaveAction, "Leave "+ch.Name+"?", "You stop receiving its messages; rejoining may need an invite.")
+		return m, nil
 	}
 
 	return m, nil
@@ -441,8 +492,13 @@ func (m Model) answer() (tea.Model, tea.Cmd) {
 	accepted, pending := m.confirm.Accepted(), m.pending
 	m = m.closeModal()
 
-	if accepted && pending == quitAction {
+	switch {
+	case accepted && pending == quitAction:
 		return m.quit()
+
+	case accepted && pending == leaveAction:
+		ch := m.chat.Channel()
+		return m, live.Leave(m.client, ch.ID, ch.Name)
 	}
 
 	return m, nil

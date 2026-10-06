@@ -77,6 +77,4 @@ type Channel struct {
 
 	Members  []Member
 	Messages []Message
-
-	Draft string
 }

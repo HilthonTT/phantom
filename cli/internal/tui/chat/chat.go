@@ -26,6 +26,16 @@ type Model struct {
 	channels []resource.Channel
 	cursor   int
 
+	// drafts is what was being written in each room left mid-sentence, by
+	// room key.
+	drafts map[string]string
+
+	// live is set once the rooms come from the server rather than the sample.
+	live bool
+
+	// status is a note on the channel list, such as a failing sync.
+	status string
+
 	scroll int
 
 	composer  textinput.Model
@@ -41,6 +51,7 @@ func New(t theme.Theme, g theme.Glyphs) Model {
 		glyphs:   g,
 		self:     sample.Self,
 		channels: sample.Channels(),
+		drafts:   map[string]string{},
 		composer: t.Input(" "+g.Arrow+" ", "", t.Palette.Surface),
 	}
 	m.composer.Placeholder = m.placeholder()
@@ -56,7 +67,84 @@ func (m *Model) SetSize(width, height int) {
 
 func (m Model) Channels() []resource.Channel { return m.channels }
 
-func (m Model) Channel() resource.Channel { return m.channels[m.cursor] }
+// noRooms stands in for the open room when the user is in none.
+var noRooms = resource.Channel{
+	Name:  "no rooms",
+	Topic: "You are in no rooms yet. Join one with :join #room:server.",
+}
+
+func (m Model) Channel() resource.Channel {
+	if len(m.channels) == 0 {
+		return noRooms
+	}
+
+	return m.channels[m.cursor]
+}
+
+func (m Model) Live() bool { return m.live }
+
+func (m Model) Self() string { return m.self }
+
+// SetLive shows the server's rooms for self, keeping the open room open when
+// it is still there.
+func (m *Model) SetLive(self string, channels []resource.Channel) {
+	open := key(m.Channel())
+	if !m.live || self != m.self {
+		open = ""
+		m.drafts = map[string]string{}
+		m.composer.SetValue("")
+	}
+
+	m.live, m.self, m.channels = true, self, channels
+	m.cursor = 0
+	for i, ch := range channels {
+		if key(ch) == open {
+			m.cursor = i
+			break
+		}
+	}
+
+	m.composer.Placeholder = m.placeholder()
+	m.clampScroll()
+}
+
+// SetStatus puts a note under the channel list; empty clears it.
+func (m *Model) SetStatus(status string) { m.status = status }
+
+// Open opens the room with id, reporting whether it is listed.
+func (m *Model) Open(id string) bool {
+	for i, ch := range m.channels {
+		if ch.ID == id {
+			m.switchTo(i)
+			return true
+		}
+	}
+
+	return false
+}
+
+// SetSample goes back to the sample rooms, for when nobody is signed in.
+func (m *Model) SetSample() {
+	if !m.live {
+		return
+	}
+
+	m.live, m.self, m.channels, m.cursor = false, sample.Self, sample.Channels(), 0
+	m.drafts = map[string]string{}
+	m.composer.SetValue("")
+	m.composer.Placeholder = m.placeholder()
+	m.StopComposing()
+	m.scroll = 0
+}
+
+// key names a room across reloads: its ID, or its name for a sample room.
+func key(ch resource.Channel) string {
+	if ch.ID != "" {
+		return ch.ID
+	}
+
+	return ch.Name
+}
 
 func (m Model) Composing() bool { return m.composing }
 
@@ -67,23 +155,32 @@ func (m *Model) MoveDown() { m.switchTo(m.cursor + 1) }
 
 func (m *Model) switchTo(i int) {
 	i = min(max(i, 0), len(m.channels)-1)
-	if i == m.cursor {
+	if i == m.cursor || i < 0 {
 		return
 	}
 
-	m.channels[m.cursor].Draft = m.composer.Value()
+	m.drafts[key(m.Channel())] = m.composer.Value()
 	m.cursor = i
 	m.channels[i].Unread = 0
-	m.composer.SetValue(m.channels[i].Draft)
+	m.composer.SetValue(m.drafts[key(m.Channel())])
 	m.composer.Placeholder = m.placeholder()
 	m.scroll = 0
 }
 
 func (m Model) placeholder() string {
+	if len(m.channels) == 0 {
+		return "join a room first"
+	}
+
 	return "write to " + m.Channel().Name
 }
 
+// StartComposing focuses the composer, unless there is no room to write to.
 func (m *Model) StartComposing() tea.Cmd {
+	if len(m.channels) == 0 {
+		return nil
+	}
+
 	m.composing = true
 	m.channels[m.cursor].Unread = 0
 
@@ -102,10 +199,18 @@ func (m *Model) UpdateComposer(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-func (m *Model) Send() {
+// Outgoing is a message written in a live room, for the app to send.
+type Outgoing struct {
+	RoomID  string
+	Message resource.Message
+}
+
+// Send takes what was written. A sample room keeps it at once; a live room's
+// message is handed back to be sent, and appears once the app records it.
+func (m *Model) Send() (Outgoing, bool) {
 	body := strings.TrimSpace(m.composer.Value())
-	if body == "" {
-		return
+	if body == "" || len(m.channels) == 0 {
+		return Outgoing{}, false
 	}
 
 	message := resource.Message{
@@ -118,11 +223,18 @@ func (m *Model) Send() {
 	}
 
 	ch := &m.channels[m.cursor]
-	ch.Messages = append(ch.Messages, message)
-	ch.ReadBy = nil
-	ch.Draft = ""
+	delete(m.drafts, key(*ch))
 	m.composer.SetValue("")
 	m.scroll = 0
+
+	if m.live {
+		return Outgoing{RoomID: ch.ID, Message: message}, true
+	}
+
+	ch.Messages = append(ch.Messages, message)
+	ch.ReadBy = nil
+
+	return Outgoing{}, false
 }
 
 func (m *Model) ScrollUp()     { m.scrollTo(m.scroll + m.timelineHeight()) }

@@ -34,6 +34,7 @@ type action int
 const (
 	noAction action = iota
 	quitAction
+	leaveAction
 )
 
 type Model struct {
@@ -51,6 +52,8 @@ type Model struct {
 	// loginOffered is set once the login form has opened by itself, so a
 	// dismissed form is not forced open again on the next probe.
 	loginOffered bool
+
+	sync chatLive
 
 	sidebar    sidebar.Model
 	workspace  workspace.Model
