@@ -27,6 +27,9 @@ const (
 )
 
 type Message struct {
+	// EventID is empty for a sample message and one still being sent.
+	EventID string
+
 	Time   string
 	Sender string
 	Body   string
@@ -35,6 +38,11 @@ type Message struct {
 
 	Edited   bool
 	Redacted bool
+
+	// Pending is a message sent from here the server has not echoed yet, and
+	// Failed one it refused.
+	Pending bool
+	Failed  bool
 
 	Reactions []Reaction
 
@@ -51,6 +59,9 @@ type Reaction struct {
 }
 
 type Channel struct {
+	// ID is the Matrix room ID, empty for a sample room.
+	ID string
+
 	Name  string
 	Topic string
 
