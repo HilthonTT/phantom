@@ -58,7 +58,9 @@ func New(raw string) (*Client, error) {
 
 	base.Path = strings.TrimSuffix(base.Path, "/")
 
-	return &Client{base: base, http: &http.Client{Timeout: requestTimeout}}, nil
+	// Requests are bounded by their contexts instead of the client, since a
+	// sync long-poll waits far longer than any other request.
+	return &Client{base: base, http: &http.Client{}}, nil
 }
 
 func (c *Client) URL() string { return c.base.String() }

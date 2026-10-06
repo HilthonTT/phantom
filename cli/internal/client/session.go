@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // DeviceName is the device name the console logs in with, so it is easy to
@@ -103,7 +104,12 @@ func (c *Client) WhoAmI(ctx context.Context) (Admin, error) {
 // do sends a request signed with the session, if any, with in as its JSON
 // body unless nil, and decodes a 200's body into out unless nil.
 func (c *Client) do(ctx context.Context, method, path string, in, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	return c.doWithin(ctx, requestTimeout, method, path, in, out)
+}
+
+// doWithin is do with its own deadline, for a request the server may hold.
+func (c *Client) doWithin(ctx context.Context, timeout time.Duration, method, path string, in, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	var body io.Reader = http.NoBody
