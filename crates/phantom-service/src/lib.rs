@@ -1,6 +1,7 @@
 #![recursion_limit = "192"]
 
 pub mod accounts;
+pub mod admin;
 pub mod auth;
 pub mod media;
 pub mod net;
