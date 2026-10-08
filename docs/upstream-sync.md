@@ -55,6 +55,9 @@ startup, so ported code needs these adjustments every time:
 - `args.db["userid_password"]` becomes `args.db[table::USERID_PASSWORD]`, with
   `phantom_database::table` imported, because a `Database` is indexed only by
   the constants `schema.rs` declares. A new column is added there first.
+- A caller of `event_handler.handle_incoming_pdu` takes the lock with
+  `event_handler.lock_federation(room_id)` instead of locking
+  `mutex_federation` itself, and passes the guard as the first argument.
 
 ## The rule for divergences
 

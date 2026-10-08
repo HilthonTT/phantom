@@ -13,7 +13,7 @@ use ruma::{
 };
 
 use super::Service;
-use crate::rooms::state::RoomMutexGuard;
+use crate::rooms::{event_handler::FederationLock, state::RoomMutexGuard};
 
 #[derive(Debug)]
 pub struct Join<'a> {
@@ -126,7 +126,7 @@ async fn lock_join(
     &self,
     room_id: &RoomId,
     servers: &[OwnedServerName],
-) -> (Option<RoomMutexGuard>, RoomMutexGuard) {
+) -> (Option<FederationLock>, RoomMutexGuard) {
     if !self.is_local_join(room_id, servers).await {
         let (federation_lock, state_lock) = self.lock_join_remote(room_id).await;
 
@@ -157,13 +157,8 @@ async fn is_local_join(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> 
 }
 
 #[implement(Service)]
-async fn lock_join_remote(&self, room_id: &RoomId) -> (RoomMutexGuard, RoomMutexGuard) {
-    let federation_lock = self
-        .services
-        .event_handler
-        .mutex_federation
-        .lock(room_id)
-        .await;
+async fn lock_join_remote(&self, room_id: &RoomId) -> (FederationLock, RoomMutexGuard) {
+    let federation_lock = self.services.event_handler.lock_federation(room_id).await;
 
     let state_lock = self.services.state.mutex.lock(room_id).await;
 

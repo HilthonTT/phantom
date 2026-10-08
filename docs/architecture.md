@@ -271,6 +271,13 @@ happened, while one they reject only against the room's state *now* is recorded
 and built upon but never shown. The usual cause of the second is an event from
 someone who has since been banned, arriving late.
 
+Accepting an event happens under the room's federation lock, which is not
+reentrant, so callers take it and pass it in: `handle_incoming_pdu` takes a
+`FederationLock`, and `lock_federation` is the only way to make one. Holding
+the lock is therefore checked by the compiler, and a lock held for another room
+is refused. When the room's state lock is needed as well, the federation lock
+comes first.
+
 **`timeline`**'s write path is `append.rs`. Nothing there authorizes anything —
 by the time it runs the event is settled — and everything after the write is a
 fan-out to whatever has to be told: push rules, the search index, the relation

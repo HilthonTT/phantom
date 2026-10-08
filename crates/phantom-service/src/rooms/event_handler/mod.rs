@@ -14,7 +14,9 @@ use std::{
 
 use async_trait::async_trait;
 use phantom_core::{
-    Err, Result, debug, err, implement, matrix::pdu::RawPduId, sync::MutexMap,
+    Err, Result, debug, err, implement,
+    matrix::pdu::RawPduId,
+    sync::{MutexMap, MutexMapGuard},
     time::exponential_backoff::continue_exponential_backoff_secs,
 };
 use phantom_database::{Map, table};
@@ -29,7 +31,7 @@ use crate::{
 };
 
 pub struct Service {
-    pub mutex_federation: RoomMutexMap,
+    mutex_federation: RoomMutexMap,
 
     pub bad_events: RwLock<HashMap<OwnedEventId, (Instant, u32)>>,
 
@@ -59,6 +61,20 @@ struct Data {
 }
 
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+
+/// Proof that the caller holds a room's federation lock.
+///
+/// Only [`Service::lock_federation`] makes one, and
+/// [`Service::handle_incoming_pdu`] takes one, so the compiler rather than a
+/// doc comment enforces that the lock is held. The lock isn't reentrant, which
+/// is why it is passed down instead of taken where it is needed. It is its own
+/// type so the room state lock's guard cannot stand in for it. tuwunel leaves
+/// both to the caller's discipline.
+#[must_use]
+pub struct FederationLock {
+    room_id: OwnedRoomId,
+    _guard: MutexMapGuard<OwnedRoomId, ()>,
+}
 
 const MIN_BACKOFF: u64 = 60;
 
@@ -113,18 +129,37 @@ impl crate::Service for Service {
     }
 }
 
-/// The caller must hold `mutex_federation` for the room. The lock isn't
-/// reentrant, so it is not taken again here.
+/// Take the room's federation lock, held across accepting an incoming PDU.
+///
+/// When the room's state lock is needed too, take this one first.
+#[implement(Service)]
+pub async fn lock_federation(&self, room_id: &RoomId) -> FederationLock {
+    FederationLock {
+        room_id: room_id.to_owned(),
+        _guard: self.mutex_federation.lock(room_id).await,
+    }
+}
+
+/// Accept a PDU from `origin` into `room_id`, under that room's
+/// [`FederationLock`].
 #[implement(Service)]
 #[tracing::instrument(name = "handle", level = "info", skip_all, fields(%origin, %room_id, %event_id))]
 pub async fn handle_incoming_pdu(
     &self,
+    lock: &FederationLock,
     origin: &ServerName,
     room_id: &RoomId,
     event_id: &EventId,
     value: CanonicalJsonObject,
     is_timeline_event: bool,
 ) -> Result<Option<RawPduId>> {
+    if lock.room_id != room_id {
+        return Err!(
+            "Holding the federation lock of {} instead of {room_id}",
+            lock.room_id
+        );
+    }
+
     // An outlier copy (e.g. fetched earlier as an auth or prev event) still
     // needs upgrading, so only an accepted timeline copy short-circuits.
     if let Ok(pdu_id) = self.services.timeline.get_pdu_id(event_id).await {

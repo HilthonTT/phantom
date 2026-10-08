@@ -139,17 +139,12 @@ async fn remote_invite(
         .and_then(|origin| OwnedServerName::try_from(origin).ok())
         .unwrap_or_else(|| user_id.server_name().to_owned());
 
-    let federation_lock = self
-        .services
-        .event_handler
-        .mutex_federation
-        .lock(room_id)
-        .await;
+    let federation_lock = self.services.event_handler.lock_federation(room_id).await;
 
     let pdu_id = self
         .services
         .event_handler
-        .handle_incoming_pdu(&origin, room_id, &event_id, value, true)
+        .handle_incoming_pdu(&federation_lock, &origin, room_id, &event_id, value, true)
         .await?
         .ok_or_else(|| {
             err!(Request(InvalidParam(

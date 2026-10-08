@@ -19,7 +19,7 @@ use ruma::{
 use crate::{
     net::federation::{Candidates, WhenAllBackedOff},
     rooms::membership::{Service, outgoing_pdu},
-    rooms::state::RoomMutexGuard,
+    rooms::{event_handler::FederationLock, state::RoomMutexGuard},
 };
 
 #[implement(Service)]
@@ -31,7 +31,7 @@ pub(super) async fn join_remote(
     room_id: &RoomId,
     reason: Option<String>,
     servers: &[OwnedServerName],
-    _federation_lock: RoomMutexGuard,
+    _federation_lock: FederationLock,
     state_lock: RoomMutexGuard,
     extra_content: Option<CanonicalJsonObject>,
 ) -> Result {

@@ -114,17 +114,12 @@ pub(super) async fn accept_timeline_event(
     event_id: &EventId,
     value: CanonicalJsonObject,
 ) -> Result<RawPduId> {
-    let federation_lock = services
-        .rooms
-        .event_handler
-        .mutex_federation
-        .lock(room_id)
-        .await;
+    let federation_lock = services.rooms.event_handler.lock_federation(room_id).await;
 
     let pdu_id = services
         .rooms
         .event_handler
-        .handle_incoming_pdu(origin, room_id, event_id, value, true)
+        .handle_incoming_pdu(&federation_lock, origin, room_id, event_id, value, true)
         .await?
         .ok_or_else(|| err!(Request(Forbidden("Could not accept as timeline event."))))?;
 

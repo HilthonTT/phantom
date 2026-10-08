@@ -72,8 +72,7 @@ pub(crate) async fn create_invite_route(
     let federation_lock = services
         .rooms
         .event_handler
-        .mutex_federation
-        .lock(&*body.room_id)
+        .lock_federation(&body.room_id)
         .await;
 
     record_invite(&services, &body, &invited_user, &sender, invite_state, &pdu).await?;
