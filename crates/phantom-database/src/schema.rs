@@ -19,488 +19,518 @@ pub(crate) fn open_list(db: &Arc<Engine>, maps: &[Descriptor]) -> Result<Maps> {
         .collect()
 }
 
-pub(crate) static MAPS: &[Descriptor] = &[
-    Descriptor {
-        name: "alias_roomid",
+/// A table of the database, as named by a constant in [`table`].
+///
+/// The only way to index a [`Database`](crate::Database) outside this crate's
+/// tests, so a mistyped table name is a compile error. tuwunel indexes by
+/// string, where the same typo panics when the service using it is built.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Table(&'static str);
+
+impl Table {
+    #[inline]
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        self.0
+    }
+}
+
+/// Declares every table once, as both its constant in [`table`] and its
+/// entry in [`MAPS`], so neither can exist without the other.
+macro_rules! schema {
+    ($($table:ident = $name:literal { $($descriptor:tt)* })*) => {
+        /// One constant per table of the database.
+        pub mod table {
+            use super::Table;
+
+            $(pub const $table: Table = Table($name);)*
+        }
+
+        pub(crate) static MAPS: &[Descriptor] = &[$(Descriptor { name: $name, $($descriptor)* }),*];
+    };
+}
+
+schema! {
+    ALIAS_ROOMID = "alias_roomid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "alias_userid",
+    }
+
+    ALIAS_USERID = "alias_userid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "aliasid_alias",
+    }
+
+    ALIASID_ALIAS = "aliasid_alias" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "backupid_algorithm",
+    }
+
+    BACKUPID_ALGORITHM = "backupid_algorithm" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "backupid_etag",
+    }
+
+    BACKUPID_ETAG = "backupid_etag" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "backupkeyid_backup",
+    }
+
+    BACKUPKEYID_BACKUP = "backupkeyid_backup" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "bannedroomids",
+    }
+
+    BANNEDROOMIDS = "bannedroomids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "disabledroomids",
+    }
+
+    DISABLEDROOMIDS = "disabledroomids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "email_userid",
+    }
+
+    EMAIL_USERID = "email_userid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "eventid_originalpdu",
+    }
+
+    EVENTID_ORIGINALPDU = "eventid_originalpdu" {
         block_size: 2048,
         index_size: 512,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "eventid_outlierpdu",
+    }
+
+    EVENTID_OUTLIERPDU = "eventid_outlierpdu" {
         cache_disp: CacheDisp::SharedWith("pduid_pdu"),
         block_size: 1024,
         index_size: 512,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "eventid_pduid",
+    }
+
+    EVENTID_PDUID = "eventid_pduid" {
         cache_disp: CacheDisp::Unique,
         block_size: 512,
         index_size: 512,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "eventid_shorteventid",
+    }
+
+    EVENTID_SHORTEVENTID = "eventid_shorteventid" {
         cache_disp: CacheDisp::Unique,
         block_size: 512,
         index_size: 512,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "global",
+    }
+
+    GLOBAL = "global" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "id_appserviceregistrations",
+    }
+
+    ID_APPSERVICEREGISTRATIONS = "id_appserviceregistrations" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "keychangeid_userid",
+    }
+
+    KEYCHANGEID_USERID = "keychangeid_userid" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "keyid_key",
+    }
+
+    KEYID_KEY = "keyid_key" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "lazyloadedids",
+    }
+
+    LAZYLOADEDIDS = "lazyloadedids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "logintoken_expiresatuserid",
+    }
+
+    LOGINTOKEN_EXPIRESATUSERID = "logintoken_expiresatuserid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "mediaid_file",
+    }
+
+    MEDIAID_FILE = "mediaid_file" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "mediaid_lazy",
+    }
+
+    MEDIAID_LAZY = "mediaid_lazy" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "mediaid_lazycontent",
+    }
+
+    MEDIAID_LAZYCONTENT = "mediaid_lazycontent" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "mediaid_pending",
+    }
+
+    MEDIAID_PENDING = "mediaid_pending" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "mediaid_user",
+    }
+
+    MEDIAID_USER = "mediaid_user" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oauthid_session",
+    }
+
+    OAUTHID_SESSION = "oauthid_session" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oauthuniqid_oauthid",
+    }
+
+    OAUTHUNIQID_OAUTHID = "oauthuniqid_oauthid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidc_signingkey",
+    }
+
+    OIDC_SIGNINGKEY = "oidc_signingkey" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidcclientid_registration",
+    }
+
+    OIDCCLIENTID_REGISTRATION = "oidcclientid_registration" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidccode_authsession",
+    }
+
+    OIDCCODE_AUTHSESSION = "oidccode_authsession" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidcdevice_userdeviceid",
+    }
+
+    OIDCDEVICE_USERDEVICEID = "oidcdevice_userdeviceid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidcdevicecode_devicegrant",
+    }
+
+    OIDCDEVICECODE_DEVICEGRANT = "oidcdevicecode_devicegrant" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidcreqid_authrequest",
+    }
+
+    OIDCREQID_AUTHREQUEST = "oidcreqid_authrequest" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "oidcusercode_devicecode",
+    }
+
+    OIDCUSERCODE_DEVICECODE = "oidcusercode_devicecode" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "onetimekeyid_onetimekeys",
+    }
+
+    ONETIMEKEYID_ONETIMEKEYS = "onetimekeyid_onetimekeys" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "openidtoken_expiresatuserid",
+    }
+
+    OPENIDTOKEN_EXPIRESATUSERID = "openidtoken_expiresatuserid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "pduid_pdu",
+    }
+
+    PDUID_PDU = "pduid_pdu" {
         cache_disp: CacheDisp::SharedWith("eventid_outlierpdu"),
         block_size: 2048,
         index_size: 512,
         ..descriptor::SEQUENTIAL
-    },
-    Descriptor {
-        name: "presenceid_presence",
+    }
+
+    PRESENCEID_PRESENCE = "presenceid_presence" {
         ..descriptor::SEQUENTIAL_SMALL
-    },
-    Descriptor {
-        name: "publicroomids",
+    }
+
+    PUBLICROOMIDS = "publicroomids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "pushkey_deviceid",
+    }
+
+    PUSHKEY_DEVICEID = "pushkey_deviceid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "readreceiptid_readreceipt",
+    }
+
+    READRECEIPTID_READRECEIPT = "readreceiptid_readreceipt" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "referencedevents",
+    }
+
+    REFERENCEDEVENTS = "referencedevents" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "registrationtoken_info",
+    }
+
+    REGISTRATIONTOKEN_INFO = "registrationtoken_info" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomid_invitedcount",
+    }
+
+    ROOMID_INVITEDCOUNT = "roomid_invitedcount" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomid_inviteviaservers",
+    }
+
+    ROOMID_INVITEVIASERVERS = "roomid_inviteviaservers" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomid_joinedcount",
+    }
+
+    ROOMID_JOINEDCOUNT = "roomid_joinedcount" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomid_pduleaves",
+    }
+
+    ROOMID_PDULEAVES = "roomid_pduleaves" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomid_shortroomid",
+    }
+
+    ROOMID_SHORTROOMID = "roomid_shortroomid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomid_shortstatehash",
+    }
+
+    ROOMID_SHORTSTATEHASH = "roomid_shortstatehash" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomserverids",
+    }
+
+    ROOMSERVERIDS = "roomserverids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomsynctoken_shortstatehash",
+    }
+
+    ROOMSYNCTOKEN_SHORTSTATEHASH = "roomsynctoken_shortstatehash" {
         file_shape: 3,
         block_size: 512,
         compression_level: 3,
         bottommost_level: Some(6),
         ..descriptor::SEQUENTIAL
-    },
-    Descriptor {
-        name: "roomuserdataid_accountdata",
+    }
+
+    ROOMUSERDATAID_ACCOUNTDATA = "roomuserdataid_accountdata" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuserid_invitecount",
+    }
+
+    ROOMUSERID_INVITECOUNT = "roomuserid_invitecount" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuserid_joined",
+    }
+
+    ROOMUSERID_JOINED = "roomuserid_joined" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuserid_knockedcount",
+    }
+
+    ROOMUSERID_KNOCKEDCOUNT = "roomuserid_knockedcount" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuserid_lastnotificationread",
+    }
+
+    ROOMUSERID_LASTNOTIFICATIONREAD = "roomuserid_lastnotificationread" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuserid_lastprivatereadupdate",
+    }
+
+    ROOMUSERID_LASTPRIVATEREADUPDATE = "roomuserid_lastprivatereadupdate" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuserid_leftcount",
+    }
+
+    ROOMUSERID_LEFTCOUNT = "roomuserid_leftcount" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "roomuserid_privateread",
+    }
+
+    ROOMUSERID_PRIVATEREAD = "roomuserid_privateread" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "roomuseroncejoinedids",
+    }
+
+    ROOMUSERONCEJOINEDIDS = "roomuseroncejoinedids" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "roomusertype_roomuserdataid",
+    }
+
+    ROOMUSERTYPE_ROOMUSERDATAID = "roomusertype_roomuserdataid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "senderkey_pusher",
+    }
+
+    SENDERKEY_PUSHER = "senderkey_pusher" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "server_signingkeys",
+    }
+
+    SERVER_SIGNINGKEYS = "server_signingkeys" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "servercurrentevent_data",
+    }
+
+    SERVERCURRENTEVENT_DATA = "servercurrentevent_data" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "servername_destination",
+    }
+
+    SERVERNAME_DESTINATION = "servername_destination" {
         ..descriptor::RANDOM_SMALL_CACHE
-    },
-    Descriptor {
-        name: "servername_educount",
+    }
+
+    SERVERNAME_EDUCOUNT = "servername_educount" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "servername_override",
+    }
+
+    SERVERNAME_OVERRIDE = "servername_override" {
         ..descriptor::RANDOM_SMALL_CACHE
-    },
-    Descriptor {
-        name: "servername_status",
+    }
+
+    SERVERNAME_STATUS = "servername_status" {
         ..descriptor::RANDOM_SMALL_CACHE
-    },
-    Descriptor {
-        name: "servernameevent_data",
+    }
+
+    SERVERNAMEEVENT_DATA = "servernameevent_data" {
         cache_disp: CacheDisp::Unique,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "serverroomids",
+    }
+
+    SERVERROOMIDS = "serverroomids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "shorteventid_authchain",
+    }
+
+    SHORTEVENTID_AUTHCHAIN = "shorteventid_authchain" {
         cache_disp: CacheDisp::Unique,
         ..descriptor::SEQUENTIAL
-    },
-    Descriptor {
-        name: "shorteventid_eventid",
+    }
+
+    SHORTEVENTID_EVENTID = "shorteventid_eventid" {
         cache_disp: CacheDisp::Unique,
         ..descriptor::SEQUENTIAL_SMALL
-    },
-    Descriptor {
-        name: "shorteventid_shortstatehash",
+    }
+
+    SHORTEVENTID_SHORTSTATEHASH = "shorteventid_shortstatehash" {
         block_size: 512,
         index_size: 512,
         ..descriptor::SEQUENTIAL
-    },
-    Descriptor {
-        name: "shortstatehash_statediff",
+    }
+
+    SHORTSTATEHASH_STATEDIFF = "shortstatehash_statediff" {
         ..descriptor::SEQUENTIAL_SMALL
-    },
-    Descriptor {
-        name: "shortstatekey_statekey",
+    }
+
+    SHORTSTATEKEY_STATEKEY = "shortstatekey_statekey" {
         cache_disp: CacheDisp::Unique,
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "softfailedeventids",
+    }
+
+    SOFTFAILEDEVENTIDS = "softfailedeventids" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "spentrefresh_userdeviceid",
+    }
+
+    SPENTREFRESH_USERDEVICEID = "spentrefresh_userdeviceid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "statehash_shortstatehash",
+    }
+
+    STATEHASH_SHORTSTATEHASH = "statehash_shortstatehash" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "statekey_shortstatekey",
+    }
+
+    STATEKEY_SHORTSTATEKEY = "statekey_shortstatekey" {
         cache_disp: CacheDisp::Unique,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "threadid_userids",
+    }
+
+    THREADID_USERIDS = "threadid_userids" {
         ..descriptor::SEQUENTIAL_SMALL
-    },
-    Descriptor {
-        name: "threepidsid_pending",
+    }
+
+    THREEPIDSID_PENDING = "threepidsid_pending" {
         ttl: 60 * 60 * 24, // pending validation session; minutes to complete
         ..descriptor::RANDOM_SMALL_CACHE
-    },
-    Descriptor {
-        name: "timeredacted_eventid",
+    }
+
+    TIMEREDACTED_EVENTID = "timeredacted_eventid" {
         ..descriptor::SEQUENTIAL_SMALL
-    },
-    Descriptor {
-        name: "todeviceid_events",
+    }
+
+    TODEVICEID_EVENTS = "todeviceid_events" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "tofrom_relation",
+    }
+
+    TOFROM_RELATION = "tofrom_relation" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "token_userdeviceid",
+    }
+
+    TOKEN_USERDEVICEID = "token_userdeviceid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "tokenids",
+    }
+
+    TOKENIDS = "tokenids" {
         block_size: 512,
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "url_previews",
+    }
+
+    URL_PREVIEWS = "url_previews" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "userdeviceid_metadata",
+    }
+
+    USERDEVICEID_METADATA = "userdeviceid_metadata" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userdeviceid_refresh",
+    }
+
+    USERDEVICEID_REFRESH = "userdeviceid_refresh" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userdeviceid_spentrefresh",
+    }
+
+    USERDEVICEID_SPENTREFRESH = "userdeviceid_spentrefresh" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userdeviceid_token",
+    }
+
+    USERDEVICEID_TOKEN = "userdeviceid_token" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userdevicesessionid_threepid",
+    }
+
+    USERDEVICESESSIONID_THREEPID = "userdevicesessionid_threepid" {
         ttl: 60 * 60 * 24, // interactive-auth session; minutes to complete
         ..descriptor::RANDOM_SMALL_CACHE
-    },
-    Descriptor {
-        name: "userdevicesessionid_uiaainfo",
+    }
+
+    USERDEVICESESSIONID_UIAAINFO = "userdevicesessionid_uiaainfo" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userdevicetxnid_response",
+    }
+
+    USERDEVICETXNID_RESPONSE = "userdevicetxnid_response" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userfilterid_filter",
+    }
+
+    USERFILTERID_FILTER = "userfilterid_filter" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_avatarurl",
+    }
+
+    USERID_AVATARURL = "userid_avatarurl" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_blurhash",
+    }
+
+    USERID_BLURHASH = "userid_blurhash" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_devicelistversion",
+    }
+
+    USERID_DEVICELISTVERSION = "userid_devicelistversion" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_displayname",
+    }
+
+    USERID_DISPLAYNAME = "userid_displayname" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_email",
+    }
+
+    USERID_EMAIL = "userid_email" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_lastonetimekeyupdate",
+    }
+
+    USERID_LASTONETIMEKEYUPDATE = "userid_lastonetimekeyupdate" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_masterkeyid",
+    }
+
+    USERID_MASTERKEYID = "userid_masterkeyid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_oauthid",
+    }
+
+    USERID_OAUTHID = "userid_oauthid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_password",
+    }
+
+    USERID_PASSWORD = "userid_password" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "userid_presenceid",
+    }
+
+    USERID_PRESENCEID = "userid_presenceid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_selfsigningkeyid",
+    }
+
+    USERID_SELFSIGNINGKEYID = "userid_selfsigningkeyid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userid_usersigningkeyid",
+    }
+
+    USERID_USERSIGNINGKEYID = "userid_usersigningkeyid" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "useridprofilekey_value",
+    }
+
+    USERIDPROFILEKEY_VALUE = "useridprofilekey_value" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userroomid_highlightcount",
+    }
+
+    USERROOMID_HIGHLIGHTCOUNT = "userroomid_highlightcount" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "userroomid_invitestate",
+    }
+
+    USERROOMID_INVITESTATE = "userroomid_invitestate" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userroomid_joined",
+    }
+
+    USERROOMID_JOINED = "userroomid_joined" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "userroomid_knockedstate",
+    }
+
+    USERROOMID_KNOCKEDSTATE = "userroomid_knockedstate" {
         ..descriptor::RANDOM_SMALL
-    },
-    Descriptor {
-        name: "userroomid_leftstate",
+    }
+
+    USERROOMID_LEFTSTATE = "userroomid_leftstate" {
         ..descriptor::RANDOM
-    },
-    Descriptor {
-        name: "userroomid_notificationcount",
+    }
+
+    USERROOMID_NOTIFICATIONCOUNT = "userroomid_notificationcount" {
         ..descriptor::RANDOM
-    },
-];
+    }
+}
 
 #[cfg(test)]
 mod tests {

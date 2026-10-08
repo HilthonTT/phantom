@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use phantom_core::{Result, debug_info, err, error, rand};
-use phantom_database::Database;
+use phantom_database::{Database, table};
 use ruma::{api::federation::discovery::VerifyKey, serde::Base64, signatures::Ed25519KeyPair};
 
 use super::VerifyKeys;
@@ -21,7 +21,7 @@ pub(super) fn init(db: &Arc<Database>) -> Result<(Box<Ed25519KeyPair>, VerifyKey
 }
 
 fn load(db: &Arc<Database>) -> Result<Box<Ed25519KeyPair>> {
-    let (version, der) = match db["global"].get_blocking(b"keypair") {
+    let (version, der) = match db[table::GLOBAL].get_blocking(b"keypair") {
         Ok(handle) => {
             let (version, der): (&str, &[u8]) = handle.de()?;
             (version.to_owned(), der.to_vec())
@@ -43,13 +43,13 @@ fn create(db: &Arc<Database>) -> Result<(String, Vec<u8>)> {
     debug_info!("Generated new ED25519 keypair: {id:?}");
 
     let value: (String, Vec<u8>) = (id, keypair.to_vec());
-    db["global"].raw_put(b"keypair", &value)?;
+    db[table::GLOBAL].raw_put(b"keypair", &value)?;
 
     Ok(value)
 }
 
 #[inline]
 fn remove(db: &Arc<Database>) {
-    let global = &db["global"];
+    let global = &db[table::GLOBAL];
     global.remove(b"keypair").ok();
 }

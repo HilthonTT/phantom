@@ -7,7 +7,7 @@ use phantom_core::{
     result::{LogErr, NotFound},
     stream::TryReadyExt,
 };
-use phantom_database::{Deserialized, Engine, Json, KeyVal, Map};
+use phantom_database::{Deserialized, Engine, Json, KeyVal, Map, table};
 use ruma::{CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId, api::Direction};
 
 use super::{PduId, RawPduId};
@@ -33,11 +33,11 @@ impl Data {
     pub(super) fn new(args: &crate::Args<'_>) -> Self {
         let db = &args.db;
         Self {
-            eventid_outlierpdu: db["eventid_outlierpdu"].clone(),
-            eventid_pduid: db["eventid_pduid"].clone(),
-            pduid_pdu: db["pduid_pdu"].clone(),
-            userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
-            userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
+            eventid_outlierpdu: db[table::EVENTID_OUTLIERPDU].clone(),
+            eventid_pduid: db[table::EVENTID_PDUID].clone(),
+            pduid_pdu: db[table::PDUID_PDU].clone(),
+            userroomid_highlightcount: db[table::USERROOMID_HIGHLIGHTCOUNT].clone(),
+            userroomid_notificationcount: db[table::USERROOMID_NOTIFICATIONCOUNT].clone(),
             engine: args.db.engine.clone(),
             services: Services {
                 short: args.depend::<rooms::short::Service>(),

@@ -15,7 +15,7 @@ use phantom_core::{
     math::usize_from_f64,
     stream::IterStream,
 };
-use phantom_database::Map;
+use phantom_database::{Map, table};
 use ruma::{EventId, RoomId};
 
 use crate::{
@@ -78,7 +78,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             stateinfo_cache: LruCache::new(usize_from_f64(cache_capacity)?).into(),
             db: Data {
-                shortstatehash_statediff: args.db["shortstatehash_statediff"].clone(),
+                shortstatehash_statediff: args.db[table::SHORTSTATEHASH_STATEDIFF].clone(),
             },
             services: Services {
                 short: args.depend::<rooms::short::Service>(),

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use futures::{FutureExt, StreamExt, future::select_all, pin_mut, stream::FuturesUnordered};
 use phantom_core::{Result, implement, trace};
-use phantom_database::{Interfix, serialize_to_vec};
+use phantom_database::{Interfix, serialize_to_vec, table};
 use ruma::{DeviceId, RoomId, UserId};
 
 use super::Service;
@@ -16,41 +16,41 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
     let device_prefix = serialize_to_vec((user_id, device_id, Interfix))?;
 
     waiters.push(
-        self.db["todeviceid_events"]
+        self.db[table::TODEVICEID_EVENTS]
             .watch_prefix(&device_prefix)
             .boxed(),
     );
 
     for column in [
-        "userroomid_joined",
-        "userroomid_invitestate",
-        "userroomid_leftstate",
-        "userroomid_knockedstate",
-        "userroomid_notificationcount",
-        "userroomid_highlightcount",
+        table::USERROOMID_JOINED,
+        table::USERROOMID_INVITESTATE,
+        table::USERROOMID_LEFTSTATE,
+        table::USERROOMID_KNOCKEDSTATE,
+        table::USERROOMID_NOTIFICATIONCOUNT,
+        table::USERROOMID_HIGHLIGHTCOUNT,
     ] {
         waiters.push(self.db[column].watch_prefix(&user_prefix).boxed());
     }
 
     waiters.push(
-        self.db["userid_devicelistversion"]
+        self.db[table::USERID_DEVICELISTVERSION]
             .watch_prefix(user_id.as_bytes())
             .boxed(),
     );
     waiters.push(
-        self.db["userid_lastonetimekeyupdate"]
+        self.db[table::USERID_LASTONETIMEKEYUPDATE]
             .watch_prefix(user_id.as_bytes())
             .boxed(),
     );
 
     waiters.push(
-        self.db["keychangeid_userid"]
+        self.db[table::KEYCHANGEID_USERID]
             .watch_prefix(&user_prefix)
             .boxed(),
     );
 
     waiters.push(
-        self.db["userid_presenceid"]
+        self.db[table::USERID_PRESENCEID]
             .watch_prefix(user_id.as_bytes())
             .boxed(),
     );
@@ -64,7 +64,7 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
         .await;
 
     waiters.push(
-        self.db["roomusertype_roomuserdataid"]
+        self.db[table::ROOMUSERTYPE_ROOMUSERDATAID]
             .watch_prefix(&serialize_to_vec((None::<&RoomId>, user_id, Interfix))?)
             .boxed(),
     );
@@ -76,32 +76,32 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
         let room_prefix = serialize_to_vec((room_id, Interfix))?;
 
         waiters.push(
-            self.db["roomusertype_roomuserdataid"]
+            self.db[table::ROOMUSERTYPE_ROOMUSERDATAID]
                 .watch_prefix(&room_user_prefix)
                 .boxed(),
         );
 
         waiters.push(
-            self.db["roomuserid_lastprivatereadupdate"]
+            self.db[table::ROOMUSERID_LASTPRIVATEREADUPDATE]
                 .watch_prefix(&room_user_prefix)
                 .boxed(),
         );
 
         waiters.push(
-            self.db["readreceiptid_readreceipt"]
+            self.db[table::READRECEIPTID_READRECEIPT]
                 .watch_prefix(&room_prefix)
                 .boxed(),
         );
 
         waiters.push(
-            self.db["keychangeid_userid"]
+            self.db[table::KEYCHANGEID_USERID]
                 .watch_prefix(&room_prefix)
                 .boxed(),
         );
 
         if let Ok(shortroomid) = self.services.short.get_shortroomid(room_id).await {
             waiters.push(
-                self.db["pduid_pdu"]
+                self.db[table::PDUID_PDU]
                     .watch_prefix(&serialize_to_vec(shortroomid)?)
                     .boxed(),
             );

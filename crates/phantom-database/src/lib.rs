@@ -18,6 +18,7 @@ pub use self::{
     },
     engine::{Context, Engine, descriptor},
     map::{Map, Qry, compact},
+    schema::{Table, table},
     store::{
         cork::Cork,
         handle::{Deserialized, Handle},
@@ -84,6 +85,18 @@ impl Database {
     }
 }
 
+impl Index<Table> for Database {
+    type Output = Arc<Map>;
+
+    fn index(&self, table: Table) -> &Self::Output {
+        self.maps
+            .get(table.name())
+            .expect("every Table constant names a column in the schema")
+    }
+}
+
+/// Tests here open their own scratch columns, which have no [`Table`].
+#[cfg(test)]
 impl Index<&str> for Database {
     type Output = Arc<Map>;
 

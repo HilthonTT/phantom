@@ -17,7 +17,7 @@ use phantom_core::{
     set,
     stream::{IterStream, ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, serialize_key};
+use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, serialize_key, table};
 use ruma::{
     OwnedRoomId, OwnedServerName, RoomId, ServerName, UserId,
     events::{
@@ -88,20 +88,20 @@ impl crate::Service for Service {
                 users: args.depend::<users::Service>(),
             },
             db: Data {
-                roomid_invitedcount: args.db["roomid_invitedcount"].clone(),
-                roomid_inviteviaservers: args.db["roomid_inviteviaservers"].clone(),
-                roomid_joinedcount: args.db["roomid_joinedcount"].clone(),
-                roomserverids: args.db["roomserverids"].clone(),
-                roomuserid_invitecount: args.db["roomuserid_invitecount"].clone(),
-                roomuserid_joined: args.db["roomuserid_joined"].clone(),
-                roomuserid_knockedcount: args.db["roomuserid_knockedcount"].clone(),
-                roomuserid_leftcount: args.db["roomuserid_leftcount"].clone(),
-                roomuseroncejoinedids: args.db["roomuseroncejoinedids"].clone(),
-                serverroomids: args.db["serverroomids"].clone(),
-                userroomid_invitestate: args.db["userroomid_invitestate"].clone(),
-                userroomid_joined: args.db["userroomid_joined"].clone(),
-                userroomid_knockedstate: args.db["userroomid_knockedstate"].clone(),
-                userroomid_leftstate: args.db["userroomid_leftstate"].clone(),
+                roomid_invitedcount: args.db[table::ROOMID_INVITEDCOUNT].clone(),
+                roomid_inviteviaservers: args.db[table::ROOMID_INVITEVIASERVERS].clone(),
+                roomid_joinedcount: args.db[table::ROOMID_JOINEDCOUNT].clone(),
+                roomserverids: args.db[table::ROOMSERVERIDS].clone(),
+                roomuserid_invitecount: args.db[table::ROOMUSERID_INVITECOUNT].clone(),
+                roomuserid_joined: args.db[table::ROOMUSERID_JOINED].clone(),
+                roomuserid_knockedcount: args.db[table::ROOMUSERID_KNOCKEDCOUNT].clone(),
+                roomuserid_leftcount: args.db[table::ROOMUSERID_LEFTCOUNT].clone(),
+                roomuseroncejoinedids: args.db[table::ROOMUSERONCEJOINEDIDS].clone(),
+                serverroomids: args.db[table::SERVERROOMIDS].clone(),
+                userroomid_invitestate: args.db[table::USERROOMID_INVITESTATE].clone(),
+                userroomid_joined: args.db[table::USERROOMID_JOINED].clone(),
+                userroomid_knockedstate: args.db[table::USERROOMID_KNOCKEDSTATE].clone(),
+                userroomid_leftstate: args.db[table::USERROOMID_LEFTSTATE].clone(),
             },
         }))
     }

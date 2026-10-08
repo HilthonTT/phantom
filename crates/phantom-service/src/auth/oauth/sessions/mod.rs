@@ -8,7 +8,7 @@ use phantom_core::{
     stream::{IterStream, ReadyExt, TryIgnore},
     sync::{MutexMap, MutexMapGuard},
 };
-use phantom_database::{Cbor, Database, Deserialized, Ignore, Map, Txn, serialize_to_vec};
+use phantom_database::{Cbor, Database, Deserialized, Ignore, Map, Txn, serialize_to_vec, table};
 use ruma::{OwnedUserId, UserId};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -86,9 +86,9 @@ impl Sessions {
             user_locks: MutexMap::new(),
             providers,
             db: Data {
-                oauthid_session: args.db["oauthid_session"].clone(),
-                oauthuniqid_oauthid: args.db["oauthuniqid_oauthid"].clone(),
-                userid_oauthid: args.db["userid_oauthid"].clone(),
+                oauthid_session: args.db[table::OAUTHID_SESSION].clone(),
+                oauthuniqid_oauthid: args.db[table::OAUTHUNIQID_OAUTHID].clone(),
+                userid_oauthid: args.db[table::USERID_OAUTHID].clone(),
                 database: args.db.clone(),
             },
         }

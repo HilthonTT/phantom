@@ -8,7 +8,7 @@ mod user_can;
 use std::sync::Arc;
 
 use phantom_core::{Result, err};
-use phantom_database::Map;
+use phantom_database::{Map, table};
 use ruma::{
     EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, RoomId, UserId,
     events::{
@@ -59,7 +59,7 @@ impl crate::Service for Service {
                 timeline: args.depend::<rooms::timeline::Service>(),
             },
             db: Data {
-                shorteventid_shortstatehash: args.db["shorteventid_shortstatehash"].clone(),
+                shorteventid_shortstatehash: args.db[table::SHORTEVENTID_SHORTSTATEHASH].clone(),
             },
         }))
     }

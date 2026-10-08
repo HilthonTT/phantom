@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::{Stream, StreamExt, TryFutureExt};
 use phantom_core::{Result, stream::TryIgnore};
-use phantom_database::{Deserialized, Ignore, Interfix, Json, Map};
+use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, table};
 use ruma::{OwnedMxcUri, UserId, events::room::member::RoomMemberEventContent};
 
 pub struct Service {
@@ -20,10 +20,10 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             db: Data {
-                userid_avatarurl: args.db["userid_avatarurl"].clone(),
-                userid_blurhash: args.db["userid_blurhash"].clone(),
-                userid_displayname: args.db["userid_displayname"].clone(),
-                useridprofilekey_value: args.db["useridprofilekey_value"].clone(),
+                userid_avatarurl: args.db[table::USERID_AVATARURL].clone(),
+                userid_blurhash: args.db[table::USERID_BLURHASH].clone(),
+                userid_displayname: args.db[table::USERID_DISPLAYNAME].clone(),
+                useridprofilekey_value: args.db[table::USERIDPROFILEKEY_VALUE].clone(),
             },
         }))
     }

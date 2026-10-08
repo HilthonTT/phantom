@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use phantom_core::{
     Result, runtime::server::Server, time::exponential_backoff::exponential_backoff_streak_cap,
 };
-use phantom_database::Map;
+use phantom_database::{Map, table};
 
 pub use self::{
     format::outgoing_pdu,
@@ -66,7 +66,7 @@ impl crate::Service for Service {
                 state: args.depend::<rooms::state::Service>(),
                 state_cache: args.depend::<rooms::state_cache::Service>(),
             },
-            statuses: args.db["servername_status"].clone(),
+            statuses: args.db[table::SERVERNAME_STATUS].clone(),
             window_secs,
             n_max,
             grace: Duration::from_secs(config.sender_retry_grace),

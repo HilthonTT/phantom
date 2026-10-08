@@ -10,7 +10,7 @@ use std::{collections::BTreeMap, fmt::Write, sync::Arc};
 use async_trait::async_trait;
 use futures::StreamExt;
 use phantom_core::{Err, Result, err, implement, runtime::server::Server, stream::ReadyExt, warn};
-use phantom_database::{Json, Map};
+use phantom_database::{Json, Map, table};
 use ruma::{
     RoomAliasId, RoomId, ServerName, UserId,
     api::appservice::{Namespace, Namespaces, Registration},
@@ -47,7 +47,7 @@ impl crate::Service for Service {
                 client: args.depend::<client::Service>(),
             },
             db: Data {
-                id_appserviceregistrations: args.db["id_appserviceregistrations"].clone(),
+                id_appserviceregistrations: args.db[table::ID_APPSERVICEREGISTRATIONS].clone(),
             },
         }))
     }

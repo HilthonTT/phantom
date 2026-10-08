@@ -3,7 +3,7 @@ use std::{net::IpAddr, sync::Arc, time::SystemTime};
 use arrayvec::ArrayVec;
 use futures::{Stream, StreamExt, future::join};
 use phantom_core::{Result, at, err, implement, math::Expected, rand, stream::TryIgnore};
-use phantom_database::{Cbor, Deserialized, Map};
+use phantom_database::{Cbor, Deserialized, Map, table};
 use ruma::ServerName;
 use serde::{Deserialize, Serialize};
 
@@ -36,8 +36,8 @@ pub(crate) const MAX_IPS: usize = 3;
 impl Cache {
     pub(super) fn new(args: &crate::Args<'_>) -> Arc<Self> {
         Arc::new(Self {
-            destinations: args.db["servername_destination"].clone(),
-            overrides: args.db["servername_override"].clone(),
+            destinations: args.db[table::SERVERNAME_DESTINATION].clone(),
+            overrides: args.db[table::SERVERNAME_OVERRIDE].clone(),
         })
     }
 }

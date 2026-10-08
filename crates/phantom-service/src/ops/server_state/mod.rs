@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use phantom_core::{Result, bytes::pretty, runtime::server::Server, secret};
-use phantom_database::{Deserialized, Map};
+use phantom_database::{Deserialized, Map, table};
 use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedUserId, RoomAliasId, ServerName, UserId};
 
 use self::counter::Counter;
@@ -51,7 +51,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             counter: Counter::new(&args),
             server: args.server.clone(),
-            global: args.db["global"].clone(),
+            global: args.db[table::GLOBAL].clone(),
             bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
             admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", args.server.name))
                 .expect("#admins:server_name is valid alias name"),

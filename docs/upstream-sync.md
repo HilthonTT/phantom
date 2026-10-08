@@ -52,6 +52,9 @@ startup, so ported code needs these adjustments every time:
 
 - `args.depend::<users::Service>("users")` becomes
   `args.depend::<users::Service>()`, because a dependency is found by its type.
+- `args.db["userid_password"]` becomes `args.db[table::USERID_PASSWORD]`, with
+  `phantom_database::table` imported, because a `Database` is indexed only by
+  the constants `schema.rs` declares. A new column is added there first.
 
 ## The rule for divergences
 

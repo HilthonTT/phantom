@@ -5,7 +5,7 @@ pub use phantom_core::matrix::pdu::{ShortEventId, ShortId, ShortRoomId, ShortSta
 use phantom_core::{
     Result, bytes::u64_from_u8, err, implement, matrix::StateKey, stream::IterStream,
 };
-use phantom_database::{Deserialized, Map, Qry};
+use phantom_database::{Deserialized, Map, Qry, table};
 use ruma::{EventId, RoomId, events::StateEventType};
 use serde::Deserialize;
 
@@ -35,12 +35,12 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             db: Data {
-                eventid_shorteventid: args.db["eventid_shorteventid"].clone(),
-                shorteventid_eventid: args.db["shorteventid_eventid"].clone(),
-                statekey_shortstatekey: args.db["statekey_shortstatekey"].clone(),
-                shortstatekey_statekey: args.db["shortstatekey_statekey"].clone(),
-                roomid_shortroomid: args.db["roomid_shortroomid"].clone(),
-                statehash_shortstatehash: args.db["statehash_shortstatehash"].clone(),
+                eventid_shorteventid: args.db[table::EVENTID_SHORTEVENTID].clone(),
+                shorteventid_eventid: args.db[table::SHORTEVENTID_EVENTID].clone(),
+                statekey_shortstatekey: args.db[table::STATEKEY_SHORTSTATEKEY].clone(),
+                shortstatekey_statekey: args.db[table::SHORTSTATEKEY_STATEKEY].clone(),
+                roomid_shortroomid: args.db[table::ROOMID_SHORTROOMID].clone(),
+                statehash_shortstatehash: args.db[table::STATEHASH_SHORTSTATEHASH].clone(),
             },
             services: Services {
                 server_state: args.depend::<server_state::Service>(),

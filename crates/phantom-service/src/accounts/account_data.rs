@@ -6,7 +6,7 @@ use phantom_core::{
     result::LogErr,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Handle, Ignore, Interfix, Json, Map};
+use phantom_database::{Deserialized, Handle, Ignore, Interfix, Json, Map, table};
 use ruma::{
     RoomId, UserId,
     events::{
@@ -48,8 +48,8 @@ impl crate::Service for Service {
                 server_state: args.depend::<server_state::Service>(),
             },
             db: Data {
-                roomuserdataid_accountdata: args.db["roomuserdataid_accountdata"].clone(),
-                roomusertype_roomuserdataid: args.db["roomusertype_roomuserdataid"].clone(),
+                roomuserdataid_accountdata: args.db[table::ROOMUSERDATAID_ACCOUNTDATA].clone(),
+                roomusertype_roomuserdataid: args.db[table::ROOMUSERTYPE_ROOMUSERDATAID].clone(),
             },
         }))
     }

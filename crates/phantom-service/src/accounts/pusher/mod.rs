@@ -7,7 +7,7 @@ use phantom_core::{
     Err, Result, err, http, implement, matrix::pdu::PduEvent, runtime::server::Server,
     stream::TryIgnore, text::string_from_bytes, trace, warn,
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Json, Map};
+use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, table};
 use ruma::{
     DeviceId, OwnedDeviceId, RoomId, UInt, UserId,
     api::{
@@ -54,8 +54,8 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             db: Data {
-                senderkey_pusher: args.db["senderkey_pusher"].clone(),
-                pushkey_deviceid: args.db["pushkey_deviceid"].clone(),
+                senderkey_pusher: args.db[table::SENDERKEY_PUSHER].clone(),
+                pushkey_deviceid: args.db[table::PUSHKEY_DEVICEID].clone(),
             },
             services: Services {
                 server: args.server.clone(),

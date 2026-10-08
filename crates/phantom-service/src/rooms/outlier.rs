@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use phantom_core::{Result, implement, matrix::pdu::PduEvent};
-use phantom_database::{Deserialized, Json, Map};
+use phantom_database::{Deserialized, Json, Map, table};
 use ruma::{CanonicalJsonObject, EventId};
 
 pub struct Service {
@@ -19,7 +19,7 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                eventid_outlierpdu: args.db["eventid_outlierpdu"].clone(),
+                eventid_outlierpdu: args.db[table::EVENTID_OUTLIERPDU].clone(),
             },
         }))
     }

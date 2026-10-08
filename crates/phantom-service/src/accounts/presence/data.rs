@@ -9,7 +9,7 @@ use phantom_core::{
     text::str_from_bytes,
     time,
 };
-use phantom_database::{Deserialized, Json, Map};
+use phantom_database::{Deserialized, Json, Map, table};
 use ruma::{UInt, UserId, events::presence::PresenceEvent, presence::PresenceState};
 
 use super::Presence;
@@ -30,8 +30,8 @@ impl Data {
     pub(super) fn new(args: &crate::Args<'_>) -> Self {
         let db = &args.db;
         Self {
-            presenceid_presence: db["presenceid_presence"].clone(),
-            userid_presenceid: db["userid_presenceid"].clone(),
+            presenceid_presence: db[table::PRESENCEID_PRESENCE].clone(),
+            userid_presenceid: db[table::USERID_PRESENCEID].clone(),
             services: Services {
                 server_state: args.depend::<server_state::Service>(),
                 profile: args.depend::<profile::Service>(),

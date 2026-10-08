@@ -10,7 +10,7 @@ use phantom_core::{
     set,
     stream::{IterStream, ReadyExt, TryIgnore, WidebandExt},
 };
-use phantom_database::{Map, SEP, store::keyval::Val};
+use phantom_database::{Map, SEP, store::keyval::Val, table};
 use ruma::{RoomId, UserId, api::client::search::search_events::v3::Criteria};
 
 use crate::{
@@ -55,7 +55,7 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             db: Data {
-                tokenids: args.db["tokenids"].clone(),
+                tokenids: args.db[table::TOKENIDS].clone(),
             },
             services: Services {
                 short: args.depend::<rooms::short::Service>(),

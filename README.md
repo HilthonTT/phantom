@@ -27,7 +27,7 @@ ties them to a socket.
 | Crate | What it is | State |
 | :--- | :--- | :--- |
 | **`phantom-core`** | config, errors, logging, allocators, Matrix event types and state resolution | usable |
-| **`phantom-database`** | RocksDB engine, 89 typed columns, codecs, the read pool | usable |
+| **`phantom-database`** | RocksDB engine, 113 typed columns, codecs, the read pool | usable |
 | **`phantom-service`** | the service runtime and the 40 services on it | partial |
 | **`phantom-macros`** | proc macros, including the config-example generator | usable |
 | **`phantom-server`** | the binary | a stub |

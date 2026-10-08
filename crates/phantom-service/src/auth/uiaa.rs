@@ -4,7 +4,7 @@ use std::{
 };
 
 use phantom_core::{Err, Result, err, error, hash, implement, rand, text::EMPTY};
-use phantom_database::{Deserialized, Json, Map};
+use phantom_database::{Deserialized, Json, Map, table};
 use ruma::{
     CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedUserId, UserId,
     api::{
@@ -61,7 +61,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             userdevicesessionid_uiaarequest: RwLock::new(RequestMap::new()),
             db: Data {
-                userdevicesessionid_uiaainfo: args.db["userdevicesessionid_uiaainfo"].clone(),
+                userdevicesessionid_uiaainfo: args.db[table::USERDEVICESESSIONID_UIAAINFO].clone(),
             },
             services: Services {
                 server_state: args.depend::<server_state::Service>(),

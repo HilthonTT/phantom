@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::{Stream, StreamExt};
 use phantom_core::{Result, implement, stream::TryIgnore};
-use phantom_database::{Map, serialize_to_vec};
+use phantom_database::{Map, serialize_to_vec, table};
 use ruma::RoomId;
 
 use crate::{Dep, rooms};
@@ -30,10 +30,10 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                disabledroomids: args.db["disabledroomids"].clone(),
-                bannedroomids: args.db["bannedroomids"].clone(),
-                roomid_shortroomid: args.db["roomid_shortroomid"].clone(),
-                pduid_pdu: args.db["pduid_pdu"].clone(),
+                disabledroomids: args.db[table::DISABLEDROOMIDS].clone(),
+                bannedroomids: args.db[table::BANNEDROOMIDS].clone(),
+                roomid_shortroomid: args.db[table::ROOMID_SHORTROOMID].clone(),
+                pduid_pdu: args.db[table::PDUID_PDU].clone(),
             },
             services: Services {
                 short: args.depend::<rooms::short::Service>(),

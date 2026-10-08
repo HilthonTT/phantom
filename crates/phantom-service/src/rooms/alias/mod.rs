@@ -5,7 +5,7 @@ use phantom_core::{
     Err, Result, err, implement,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Map, serialize_to_vec};
+use phantom_database::{Deserialized, Ignore, Interfix, Map, serialize_to_vec, table};
 use ruma::{
     OwnedRoomId, OwnedServerName, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId, UserId,
     api::federation::query::get_room_information, events::StateEventType,
@@ -39,9 +39,9 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             db: Data {
-                alias_userid: args.db["alias_userid"].clone(),
-                alias_roomid: args.db["alias_roomid"].clone(),
-                aliasid_alias: args.db["aliasid_alias"].clone(),
+                alias_userid: args.db[table::ALIAS_USERID].clone(),
+                alias_roomid: args.db[table::ALIAS_ROOMID].clone(),
+                aliasid_alias: args.db[table::ALIASID_ALIAS].clone(),
             },
             services: Services {
                 admin: args.depend::<admin::Service>(),

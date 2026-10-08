@@ -12,7 +12,7 @@ use futures::StreamExt;
 use phantom_core::{
     Err, Result, implement, runtime::server::Server, stream::IterStream, time::timepoint_from_now,
 };
-use phantom_database::{Deserialized, Json, Map};
+use phantom_database::{Deserialized, Json, Map, table};
 use ruma::{
     CanonicalJsonObject, CanonicalJsonValue, MilliSecondsSinceUnixEpoch, OwnedServerName,
     OwnedServerSigningKeyId, RoomVersionId, ServerName, ServerSigningKeyId,
@@ -73,7 +73,7 @@ impl crate::Service for Service {
                 server: args.server.clone(),
             },
             db: Data {
-                server_signingkeys: args.db["server_signingkeys"].clone(),
+                server_signingkeys: args.db[table::SERVER_SIGNINGKEYS].clone(),
             },
         }))
     }

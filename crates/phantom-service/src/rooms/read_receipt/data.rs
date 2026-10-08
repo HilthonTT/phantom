@@ -5,7 +5,7 @@ use phantom_core::{
     Result, err,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Interfix, Json, Map};
+use phantom_database::{Deserialized, Interfix, Json, Map, table};
 use ruma::{
     CanonicalJsonObject, RoomId, UserId,
     events::{AnySyncEphemeralRoomEvent, receipt::ReceiptEvent},
@@ -32,9 +32,9 @@ impl Data {
         let db = &args.db;
 
         Self {
-            roomuserid_privateread: db["roomuserid_privateread"].clone(),
-            roomuserid_lastprivatereadupdate: db["roomuserid_lastprivatereadupdate"].clone(),
-            readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
+            roomuserid_privateread: db[table::ROOMUSERID_PRIVATEREAD].clone(),
+            roomuserid_lastprivatereadupdate: db[table::ROOMUSERID_LASTPRIVATEREADUPDATE].clone(),
+            readreceiptid_readreceipt: db[table::READRECEIPTID_READRECEIPT].clone(),
             services: Services {
                 server_state: args.depend::<server_state::Service>(),
             },

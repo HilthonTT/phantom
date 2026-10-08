@@ -8,7 +8,7 @@ mod token;
 use std::sync::Arc;
 
 use phantom_core::{Err, Result, debug_info, debug_warn, err, implement, sync::MutexMap, warn};
-use phantom_database::Map;
+use phantom_database::{Map, table};
 use ring::{rand::SystemRandom, signature::EcdsaKeyPair};
 use serde_json::Value as JsonValue;
 
@@ -68,12 +68,12 @@ impl Server {
         }
 
         let db = Data {
-            oidc_signingkey: args.db["oidc_signingkey"].clone(),
-            oidcclientid_registration: args.db["oidcclientid_registration"].clone(),
-            oidccode_authsession: args.db["oidccode_authsession"].clone(),
-            oidcdevicecode_devicegrant: args.db["oidcdevicecode_devicegrant"].clone(),
-            oidcusercode_devicecode: args.db["oidcusercode_devicecode"].clone(),
-            oidcreqid_authrequest: args.db["oidcreqid_authrequest"].clone(),
+            oidc_signingkey: args.db[table::OIDC_SIGNINGKEY].clone(),
+            oidcclientid_registration: args.db[table::OIDCCLIENTID_REGISTRATION].clone(),
+            oidccode_authsession: args.db[table::OIDCCODE_AUTHSESSION].clone(),
+            oidcdevicecode_devicegrant: args.db[table::OIDCDEVICECODE_DEVICEGRANT].clone(),
+            oidcusercode_devicecode: args.db[table::OIDCUSERCODE_DEVICECODE].clone(),
+            oidcreqid_authrequest: args.db[table::OIDCREQID_AUTHREQUEST].clone(),
         };
 
         let rng = SystemRandom::new();

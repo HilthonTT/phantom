@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use phantom_core::{Result, bytes};
-use phantom_database::{Engine, Map};
+use phantom_database::{Engine, Map, table};
 
 const COUNTER: &[u8] = b"c";
 
@@ -13,7 +13,7 @@ pub struct Counter {
 
 impl Counter {
     pub(super) fn new(args: &crate::Args<'_>) -> Self {
-        let global = args.db["global"].clone();
+        let global = args.db[table::GLOBAL].clone();
 
         Self {
             count: RwLock::new(Self::stored_count(&global).expect("initialized global counter")),

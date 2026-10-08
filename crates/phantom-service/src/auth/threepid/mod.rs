@@ -15,7 +15,7 @@ use ruma::{MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedUserId, thirdparty::M
 use serde::{Deserialize, Serialize};
 
 use phantom_core::{Result, sync::MutexMap};
-use phantom_database::{Database, Map};
+use phantom_database::{Database, Map, table};
 use smallstr::SmallString;
 
 use crate::ratelimit::Ratelimiter;
@@ -68,10 +68,10 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             db: Data {
                 database: args.db.clone(),
-                userid_email: args.db["userid_email"].clone(),
-                email_userid: args.db["email_userid"].clone(),
-                threepidsid_pending: args.db["threepidsid_pending"].clone(),
-                userdevicesessionid_threepid: args.db["userdevicesessionid_threepid"].clone(),
+                userid_email: args.db[table::USERID_EMAIL].clone(),
+                email_userid: args.db[table::EMAIL_USERID].clone(),
+                threepidsid_pending: args.db[table::THREEPIDSID_PENDING].clone(),
+                userdevicesessionid_threepid: args.db[table::USERDEVICESESSIONID_THREEPID].clone(),
             },
             pending_mutex: MutexMap::new(),
             claim_mutex: MutexMap::new(),

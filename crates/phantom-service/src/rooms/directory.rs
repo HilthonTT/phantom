@@ -2,7 +2,7 @@ use std::{cmp::Reverse, sync::Arc};
 
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, future::join, stream::FuturesUnordered};
 use phantom_core::{Err, Result, err, implement, stream::TryIgnore};
-use phantom_database::Map;
+use phantom_database::{Map, table};
 use ruma::{
     OwnedRoomId, RoomId, UInt,
     api::client::room::Visibility,
@@ -41,7 +41,7 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                publicroomids: args.db["publicroomids"].clone(),
+                publicroomids: args.db[table::PUBLICROOMIDS].clone(),
             },
             services: Services {
                 state_accessor: args.depend::<rooms::state_accessor::Service>(),

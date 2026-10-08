@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use futures::{Stream, StreamExt, pin_mut};
 use phantom_core::{Result, implement, stream::IterStream};
-use phantom_database::{Deserialized, Engine, Handle, Interfix, Map, Qry};
+use phantom_database::{Deserialized, Engine, Handle, Interfix, Map, Qry, table};
 use ruma::{DeviceId, OwnedUserId, RoomId, UserId, api::client::filter::LazyLoadOptions};
 
 pub struct Service {
@@ -44,7 +44,7 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                lazyloadedids: args.db["lazyloadedids"].clone(),
+                lazyloadedids: args.db[table::LAZYLOADEDIDS].clone(),
                 engine: args.db.engine.clone(),
             },
         }))

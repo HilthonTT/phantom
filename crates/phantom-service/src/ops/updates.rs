@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use phantom_core::{
     Result, debug, err, implement, info, result::LogErr, runtime::server::Server, warn,
 };
-use phantom_database::{Deserialized, Map};
+use phantom_database::{Deserialized, Map, table};
 use serde::Deserialize;
 
 use crate::{Dep, net::client};
@@ -45,7 +45,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             interval: Duration::from_secs(interval),
             db: Data {
-                global: args.db["global"].clone(),
+                global: args.db[table::GLOBAL].clone(),
             },
             services: Services {
                 server: args.server.clone(),

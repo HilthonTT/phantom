@@ -16,7 +16,7 @@ use phantom_core::{
     stream::{ReadyExt, TryReadyExt},
     warn,
 };
-use phantom_database::Deserialized;
+use phantom_database::{Deserialized, table};
 use tokio::time::sleep;
 
 use crate::Services;
@@ -111,7 +111,7 @@ async fn check_database_version(services: &Services) -> Result {
 async fn check_server_name(services: &Services) -> Result {
     let server_name = &services.server.name;
 
-    let existing = services.db["global"]
+    let existing = services.db[table::GLOBAL]
         .get(SERVER_NAME_KEY)
         .await
         .deserialized::<String>();
@@ -144,14 +144,14 @@ async fn backfill_server_name(services: &Services) -> Result {
         ));
     }
 
-    services.db["global"].insert(SERVER_NAME_KEY, server_name.as_str())?;
+    services.db[table::GLOBAL].insert(SERVER_NAME_KEY, server_name.as_str())?;
     info!(%server_name, "Stamped server_name marker on existing database");
 
     Ok(())
 }
 
 async fn fresh(services: &Services) -> Result {
-    let global = &services.db["global"];
+    let global = &services.db[table::GLOBAL];
 
     services
         .server_state
@@ -180,7 +180,7 @@ async fn migrate(services: &Services) -> Result {
 
     for step in STEPS {
         if pending(services, step.marker).await? && (step.run)(services).await? {
-            services.db["global"].insert(step.marker, [])?;
+            services.db[table::GLOBAL].insert(step.marker, [])?;
         }
     }
 
@@ -315,7 +315,7 @@ async fn pending(services: &Services, marker: &'static str) -> Result<bool> {
 /// Only a missing marker reads as absent. A read that fails propagates, so a
 /// step is never skipped on the strength of a failed read.
 async fn marker_present(services: &Services, marker: &str) -> Result<bool> {
-    match services.db["global"].get(marker).await {
+    match services.db[table::GLOBAL].get(marker).await {
         Ok(_) => Ok(true),
         Err(error) if error.is_not_found() => Ok(false),
         Err(error) => {

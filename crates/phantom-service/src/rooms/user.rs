@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use phantom_core::{Result, implement};
-use phantom_database::{Deserialized, Engine, Interfix, Map};
+use phantom_database::{Deserialized, Engine, Interfix, Map, table};
 use ruma::{OwnedUserId, RoomId, UserId};
 use serde::Serialize;
 
@@ -40,10 +40,11 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             db: Data {
                 engine: args.db.engine.clone(),
-                userroomid_notificationcount: args.db["userroomid_notificationcount"].clone(),
-                userroomid_highlightcount: args.db["userroomid_highlightcount"].clone(),
-                roomuserid_lastnotificationread: args.db["roomuserid_lastnotificationread"].clone(),
-                roomsynctoken_shortstatehash: args.db["roomsynctoken_shortstatehash"].clone(),
+                userroomid_notificationcount: args.db[table::USERROOMID_NOTIFICATIONCOUNT].clone(),
+                userroomid_highlightcount: args.db[table::USERROOMID_HIGHLIGHTCOUNT].clone(),
+                roomuserid_lastnotificationread: args.db[table::ROOMUSERID_LASTNOTIFICATIONREAD]
+                    .clone(),
+                roomsynctoken_shortstatehash: args.db[table::ROOMSYNCTOKEN_SHORTSTATEHASH].clone(),
             },
             services: Services {
                 server_state: args.depend::<server_state::Service>(),

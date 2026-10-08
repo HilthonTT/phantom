@@ -5,7 +5,7 @@ use phantom_core::{
     Err, Result, err, implement,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, serialize_to_vec};
+use phantom_database::{Deserialized, Ignore, Interfix, Json, Map, serialize_to_vec, table};
 use ruma::{
     OwnedRoomId, RoomId, UserId,
     api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
@@ -36,9 +36,9 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                backupid_algorithm: args.db["backupid_algorithm"].clone(),
-                backupid_etag: args.db["backupid_etag"].clone(),
-                backupkeyid_backup: args.db["backupkeyid_backup"].clone(),
+                backupid_algorithm: args.db[table::BACKUPID_ALGORITHM].clone(),
+                backupid_etag: args.db[table::BACKUPID_ETAG].clone(),
+                backupkeyid_backup: args.db[table::BACKUPKEYID_BACKUP].clone(),
             },
             services: Services {
                 server_state: args.depend::<server_state::Service>(),

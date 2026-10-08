@@ -14,7 +14,7 @@ use phantom_core::{
     stream::{BroadbandExt, IterStream, ReadyExt, TryIgnore},
     sync::{MutexMap, MutexMapGuard},
 };
-use phantom_database::{Deserialized, Ignore, Interfix, Map};
+use phantom_database::{Deserialized, Ignore, Interfix, Map, table};
 use ruma::{
     EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
     events::{
@@ -72,9 +72,9 @@ impl crate::Service for Service {
                 timeline: args.depend::<rooms::timeline::Service>(),
             },
             db: Data {
-                shorteventid_shortstatehash: args.db["shorteventid_shortstatehash"].clone(),
-                roomid_shortstatehash: args.db["roomid_shortstatehash"].clone(),
-                roomid_pduleaves: args.db["roomid_pduleaves"].clone(),
+                shorteventid_shortstatehash: args.db[table::SHORTEVENTID_SHORTSTATEHASH].clone(),
+                roomid_shortstatehash: args.db[table::ROOMID_SHORTSTATEHASH].clone(),
+                roomid_pduleaves: args.db[table::ROOMID_PDULEAVES].clone(),
             },
         }))
     }

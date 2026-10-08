@@ -17,7 +17,7 @@ use phantom_core::{
     Err, Result, debug, err, implement, matrix::pdu::RawPduId, sync::MutexMap,
     time::exponential_backoff::continue_exponential_backoff_secs,
 };
-use phantom_database::Map;
+use phantom_database::{Map, table};
 use ruma::{CanonicalJsonObject, EventId, OwnedEventId, OwnedRoomId, RoomId, ServerName};
 
 use crate::{
@@ -88,7 +88,7 @@ impl crate::Service for Service {
                 timeline: args.depend::<rooms::timeline::Service>(),
             },
             db: Data {
-                softfailedeventids: args.db["softfailedeventids"].clone(),
+                softfailedeventids: args.db[table::SOFTFAILEDEVENTIDS].clone(),
             },
         }))
     }

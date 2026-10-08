@@ -116,8 +116,11 @@ It is built in layers:
   key and value types, the `Handle` a read returns, and batched (`Cork`) and
   transactional (`Txn`) writes.
 - **`Database`** — the engine plus every column open on it, and what a server
-  hands around. `schema.rs` names all 109 columns; a test asserts the list stays
-  alphabetical and free of duplicates.
+  hands around. `schema.rs` declares all 113 columns once each, which yields
+  both the column's descriptor and its constant in `table`; a test asserts the
+  list stays alphabetical and free of duplicates. A `Database` is indexed only
+  by those constants (`db[table::USERID_PASSWORD]`), so a mistyped column is a
+  compile error rather than a panic at startup. tuwunel indexes by string.
 - **The codecs** — `serialize`/`deserialize` turn Rust values into keys and
   values. Iteration is in byte order, so how a key is written decides which
   ranges of it can be asked for; `Interfix` and `SEP` are the tools for

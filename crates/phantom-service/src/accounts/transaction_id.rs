@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use phantom_core::{Result, implement};
-use phantom_database::{Handle, Map};
+use phantom_database::{Handle, Map, table};
 use ruma::{DeviceId, TransactionId, UserId};
 
 pub struct Service {
@@ -16,7 +16,7 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             db: Data {
-                userdevicetxnid_response: args.db["userdevicetxnid_response"].clone(),
+                userdevicetxnid_response: args.db[table::USERDEVICETXNID_RESPONSE].clone(),
             },
         }))
     }

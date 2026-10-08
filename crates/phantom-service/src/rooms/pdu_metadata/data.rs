@@ -8,7 +8,7 @@ use phantom_core::{
     result::LogErr,
     stream::{ReadyExt, TryIgnore, WidebandExt},
 };
-use phantom_database::{Interfix, Map};
+use phantom_database::{Interfix, Map, table};
 use ruma::{EventId, RoomId, UserId, api::Direction};
 
 use crate::{
@@ -34,9 +34,9 @@ impl Data {
     pub(super) fn new(args: &crate::Args<'_>) -> Self {
         let db = &args.db;
         Self {
-            tofrom_relation: db["tofrom_relation"].clone(),
-            referencedevents: db["referencedevents"].clone(),
-            softfailedeventids: db["softfailedeventids"].clone(),
+            tofrom_relation: db[table::TOFROM_RELATION].clone(),
+            referencedevents: db[table::REFERENCEDEVENTS].clone(),
+            softfailedeventids: db[table::SOFTFAILEDEVENTIDS].clone(),
             services: Services {
                 timeline: args.depend::<rooms::timeline::Service>(),
             },

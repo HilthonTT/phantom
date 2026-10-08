@@ -6,7 +6,7 @@ use phantom_core::{
     Result, debug_info, expected, implement, matrix::pdu::PduEvent, runtime::server::Server,
     stream::TryReadyExt, time::now_secs,
 };
-use phantom_database::{Deserialized, Json, Map};
+use phantom_database::{Deserialized, Json, Map, table};
 use ruma::{CanonicalJsonObject, EventId};
 
 use crate::rooms::state::RoomMutexGuard;
@@ -35,8 +35,8 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                eventid_originalpdu: args.db["eventid_originalpdu"].clone(),
-                timeredacted_eventid: args.db["timeredacted_eventid"].clone(),
+                eventid_originalpdu: args.db[table::EVENTID_ORIGINALPDU].clone(),
+                timeredacted_eventid: args.db[table::TIMEREDACTED_EVENTID].clone(),
             },
             services: Services {
                 server: args.server.clone(),

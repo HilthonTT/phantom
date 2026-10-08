@@ -5,7 +5,7 @@ use std::{
 
 use lru_cache::LruCache;
 use phantom_core::{Err, Result, bytes::u64_from_u8, err, math::usize_from_f64};
-use phantom_database::Map;
+use phantom_database::{Map, table};
 
 use crate::rooms::short::ShortEventId;
 
@@ -22,7 +22,7 @@ impl Data {
         let cache_size = usize_from_f64(cache_size * config.database.cache_capacity_modifier)
             .expect("valid cache size");
         Self {
-            shorteventid_authchain: db["shorteventid_authchain"].clone(),
+            shorteventid_authchain: db[table::SHORTEVENTID_AUTHCHAIN].clone(),
             auth_chain_cache: Mutex::new(LruCache::new(cache_size)),
         }
     }

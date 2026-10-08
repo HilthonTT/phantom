@@ -6,7 +6,7 @@ use phantom_core::{
     matrix::pdu::{PduCount, PduEvent, PduId, RawPduId},
     stream::{ReadyExt, TryIgnore, WidebandExt},
 };
-use phantom_database::{Deserialized, Map};
+use phantom_database::{Deserialized, Map, table};
 use ruma::{
     CanonicalJsonValue, EventId, OwnedUserId, RoomId, UserId,
     api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint,
@@ -35,7 +35,7 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             db: Data {
-                threadid_userids: args.db["threadid_userids"].clone(),
+                threadid_userids: args.db[table::THREADID_USERIDS].clone(),
             },
             services: Services {
                 short: args.depend::<rooms::short::Service>(),

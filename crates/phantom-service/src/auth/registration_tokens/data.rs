@@ -7,7 +7,7 @@ use phantom_core::{
     sync::MutexMap,
     time,
 };
-use phantom_database::{Database, Deserialized, Json, Map};
+use phantom_database::{Database, Deserialized, Json, Map, table};
 use serde::{Deserialize, Serialize};
 
 pub(super) struct Data {
@@ -104,7 +104,7 @@ impl std::fmt::Display for DatabaseTokenInfo {
 impl Data {
     pub(super) fn new(db: &Arc<Database>) -> Self {
         Self {
-            registrationtoken_info: db["registrationtoken_info"].clone(),
+            registrationtoken_info: db[table::REGISTRATIONTOKEN_INFO].clone(),
             token_locks: MutexMap::new(),
         }
     }

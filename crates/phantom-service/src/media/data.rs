@@ -4,7 +4,7 @@ use phantom_core::{
     Result, at, debug, err,
     stream::{ReadyExt, TryIgnore},
 };
-use phantom_database::{Cbor, Database, Deserialized, Map};
+use phantom_database::{Cbor, Database, Deserialized, Map, table};
 #[cfg(feature = "url_preview")]
 use phantom_database::{Txn, serialize_to_vec};
 use ruma::{MxcUri, OwnedUserId, UserId};
@@ -68,14 +68,14 @@ impl Data {
         Self {
             #[cfg(feature = "url_preview")]
             db: db.clone(),
-            mediaid_file: db["mediaid_file"].clone(),
+            mediaid_file: db[table::MEDIAID_FILE].clone(),
             #[cfg(feature = "url_preview")]
-            mediaid_lazy: db["mediaid_lazy"].clone(),
+            mediaid_lazy: db[table::MEDIAID_LAZY].clone(),
             #[cfg(feature = "url_preview")]
-            mediaid_lazycontent: db["mediaid_lazycontent"].clone(),
-            mediaid_pending: db["mediaid_pending"].clone(),
-            mediaid_user: db["mediaid_user"].clone(),
-            url_previews: db["url_previews"].clone(),
+            mediaid_lazycontent: db[table::MEDIAID_LAZYCONTENT].clone(),
+            mediaid_pending: db[table::MEDIAID_PENDING].clone(),
+            mediaid_user: db[table::MEDIAID_USER].clone(),
+            url_previews: db[table::URL_PREVIEWS].clone(),
         }
     }
 

@@ -6,7 +6,7 @@ use phantom_core::{
     stream::{ReadyExt, TryIgnore},
     text,
 };
-use phantom_database::{Database, Deserialized, Map, Txn};
+use phantom_database::{Database, Deserialized, Map, Txn, table};
 use ruma::{ServerName, UserId};
 
 use super::{Destination, SendingEvent};
@@ -33,9 +33,9 @@ impl Data {
     pub(super) fn new(args: &crate::Args<'_>) -> Self {
         let db = &args.db;
         Self {
-            servercurrentevent_data: db["servercurrentevent_data"].clone(),
-            servernameevent_data: db["servernameevent_data"].clone(),
-            servername_educount: db["servername_educount"].clone(),
+            servercurrentevent_data: db[table::SERVERCURRENTEVENT_DATA].clone(),
+            servernameevent_data: db[table::SERVERNAMEEVENT_DATA].clone(),
+            servername_educount: db[table::SERVERNAME_EDUCOUNT].clone(),
             db: args.db.clone(),
             services: Services {
                 server_state: args.depend::<server_state::Service>(),
