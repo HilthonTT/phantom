@@ -47,6 +47,12 @@ upstream keeps at the top level lives one folder down here — see
 [architecture.md](architecture.md#phantom-service) and
 [architecture.md](architecture.md#phantom-api).
 
+phantom also moves some of tuwunel's runtime failures to compile time or
+startup, so ported code needs these adjustments every time:
+
+- `args.depend::<users::Service>("users")` becomes
+  `args.depend::<users::Service>()`, because a dependency is found by its type.
+
 ## The rule for divergences
 
 **Comment at the site.** Where phantom departs from upstream, there is a

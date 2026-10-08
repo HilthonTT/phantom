@@ -61,9 +61,9 @@ impl crate::Service for Service {
             services: Services {
                 server: args.server.clone(),
                 db: args.db.clone(),
-                profile: args.depend::<profile::Service>("accounts::profile"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                users: args.depend::<users::Service>("accounts::users"),
+                profile: args.depend::<profile::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                users: args.depend::<users::Service>(),
             },
         }))
     }

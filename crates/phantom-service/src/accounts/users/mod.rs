@@ -93,13 +93,12 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             services: Services {
                 server: args.server.clone(),
-                account_data: args.depend::<account_data::Service>("accounts::account_data"),
-                pusher: args.depend::<accounts::pusher::Service>("accounts::pusher"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+                account_data: args.depend::<account_data::Service>(),
+                pusher: args.depend::<accounts::pusher::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                alias: args.depend::<rooms::alias::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
             },
             db: Data {
                 database: args.db.clone(),

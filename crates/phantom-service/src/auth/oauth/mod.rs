@@ -71,8 +71,8 @@ impl crate::Service for Service {
 
         Ok(Arc::new(Self {
             services: Services {
-                client: args.depend::<client::Service>("net::client"),
-                config: args.depend::<config::Service>("ops::config"),
+                client: args.depend::<client::Service>(),
+                config: args.depend::<config::Service>(),
             },
             providers,
             sessions,

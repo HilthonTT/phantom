@@ -40,7 +40,7 @@ impl Data {
             userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
             engine: args.db.engine.clone(),
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
+                short: args.depend::<rooms::short::Service>(),
             },
         }
     }

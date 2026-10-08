@@ -33,8 +33,8 @@ impl Data {
             presenceid_presence: db["presenceid_presence"].clone(),
             userid_presenceid: db["userid_presenceid"].clone(),
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                profile: args.depend::<profile::Service>("accounts::profile"),
+                server_state: args.depend::<server_state::Service>(),
+                profile: args.depend::<profile::Service>(),
             },
         }
     }

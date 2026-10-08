@@ -213,9 +213,20 @@ The interesting parts of the runtime are the three problems it solves.
 
 **Services must be able to depend on each other in both directions.** A pair of
 `Arc`s pointing both ways is a cycle that never drops, so services reach each
-other by name through a registry holding only weak references. The strong
-references belong to `Services`; `Dep<T>` is the handle a service holds, and it
-resolves lazily on first use.
+other through a registry holding only weak references. The strong references
+belong to `Services`; `Dep<T>` is the handle a service holds, taken with
+`args.depend::<T>()` and resolved lazily on first use.
+
+Here phantom departs from tuwunel, where a dependency is looked up by a name
+string that can be wrong without failing to compile, and a missing service
+panics only when something first uses it. In phantom:
+
+- the registry finds a `Dep` by its type, so there is no name to get wrong;
+- `Services::build` resolves every `Dep` taken during the build before it
+  returns, and fails startup naming each service whose dependency was never
+  built;
+- a test (`every_service_is_built`) fails when a type implements `Service` but
+  is missing from `Services::build`, the one omission the compiler cannot see.
 
 **A service that panics must not take the server down.** `Manager` runs each
 service's worker as a task in a `JoinSet`. A worker that returns an error or

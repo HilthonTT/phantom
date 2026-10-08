@@ -74,7 +74,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             db: Data::new(args.db),
             services: Services {
-                config: args.depend::<config::Service>("ops::config"),
+                config: args.depend::<config::Service>(),
             },
         }))
     }

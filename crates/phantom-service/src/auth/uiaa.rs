@@ -64,11 +64,10 @@ impl crate::Service for Service {
                 userdevicesessionid_uiaainfo: args.db["userdevicesessionid_uiaainfo"].clone(),
             },
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                users: args.depend::<users::Service>("accounts::users"),
-                registration_tokens: args
-                    .depend::<registration_tokens::Service>("auth::registration_tokens"),
-                threepid: args.depend::<threepid::Service>("auth::threepid"),
+                server_state: args.depend::<server_state::Service>(),
+                users: args.depend::<users::Service>(),
+                registration_tokens: args.depend::<registration_tokens::Service>(),
+                threepid: args.depend::<threepid::Service>(),
             },
         }))
     }

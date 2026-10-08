@@ -38,7 +38,7 @@ impl Data {
             referencedevents: db["referencedevents"].clone(),
             softfailedeventids: db["softfailedeventids"].clone(),
             services: Services {
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
         }
     }

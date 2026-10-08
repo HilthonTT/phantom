@@ -52,12 +52,11 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                state_compressor: args
-                    .depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                short: args.depend::<rooms::short::Service>(),
+                state: args.depend::<rooms::state::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                state_compressor: args.depend::<rooms::state_compressor::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
             db: Data {
                 shorteventid_shortstatehash: args.db["shorteventid_shortstatehash"].clone(),

@@ -35,7 +35,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             providers: build_providers(&args)?,
             services: Services {
-                config: args.depend::<config::Service>("ops::config"),
+                config: args.depend::<config::Service>(),
             },
         }))
     }

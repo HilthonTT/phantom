@@ -88,7 +88,7 @@ impl Server {
 
         Ok(Some(Self {
             services: Services {
-                config: args.depend::<config::Service>("ops::config"),
+                config: args.depend::<config::Service>(),
             },
             db,
             jwk,

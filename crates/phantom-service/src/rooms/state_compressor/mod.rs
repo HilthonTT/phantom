@@ -81,8 +81,8 @@ impl crate::Service for Service {
                 shortstatehash_statediff: args.db["shortstatehash_statediff"].clone(),
             },
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
+                short: args.depend::<rooms::short::Service>(),
+                state: args.depend::<rooms::state::Service>(),
             },
         }))
     }

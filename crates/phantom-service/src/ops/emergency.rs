@@ -28,9 +28,9 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             services: Services {
                 server: args.server.clone(),
-                account_data: args.depend::<account_data::Service>("accounts::account_data"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                users: args.depend::<users::Service>("accounts::users"),
+                account_data: args.depend::<account_data::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                users: args.depend::<users::Service>(),
             },
         }))
     }

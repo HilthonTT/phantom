@@ -59,11 +59,10 @@ impl crate::Service for Service {
             },
             services: Services {
                 server: args.server.clone(),
-                client: args.depend::<client::Service>("net::client"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                profile: args.depend::<profile::Service>("accounts::profile"),
+                client: args.depend::<client::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                profile: args.depend::<profile::Service>(),
             },
         }))
     }

@@ -81,12 +81,11 @@ impl crate::Service for Service {
             appservice_in_room_cache: RwLock::new(HashMap::new()),
             services: Services {
                 server: args.server.clone(),
-                account_data: args.depend::<account_data::Service>("accounts::account_data"),
-                metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                users: args.depend::<users::Service>("accounts::users"),
+                account_data: args.depend::<account_data::Service>(),
+                metadata: args.depend::<rooms::metadata::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                users: args.depend::<users::Service>(),
             },
             db: Data {
                 roomid_invitedcount: args.db["roomid_invitedcount"].clone(),

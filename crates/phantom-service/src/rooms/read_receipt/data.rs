@@ -36,7 +36,7 @@ impl Data {
             roomuserid_lastprivatereadupdate: db["roomuserid_lastprivatereadupdate"].clone(),
             readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
         }
     }

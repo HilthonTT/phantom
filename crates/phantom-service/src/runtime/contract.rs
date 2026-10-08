@@ -1,4 +1,8 @@
-use std::{any::Any, fmt::Write, sync::Arc};
+use std::{
+    any::{Any, TypeId, type_name},
+    fmt::Write,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use phantom_core::{Result, runtime::server::Server};
@@ -35,16 +39,33 @@ pub struct Args<'a> {
     pub server: &'a Arc<Server>,
     pub db: &'a Arc<Database>,
     pub service: &'a Arc<Map>,
+
+    /// Every `Dep` taken during this build, checked once all services exist.
+    pub(super) requested: &'a Mutex<Vec<Requested>>,
+}
+
+/// A dependency one service took on another while being built.
+pub(super) struct Requested {
+    pub(super) type_id: TypeId,
+    pub(super) type_name: &'static str,
 }
 
 impl<'a> Args<'a> {
     #[inline]
-    pub fn depend<T: Service>(&'a self, name: &'static str) -> Dep<T> {
-        Dep::<T>::new(self.service, name)
+    pub fn depend<T: Service>(&'a self) -> Dep<T> {
+        self.requested
+            .lock()
+            .expect("locked for writing")
+            .push(Requested {
+                type_id: TypeId::of::<T>(),
+                type_name: type_name::<T>(),
+            });
+
+        Dep::<T>::new(self.service)
     }
 
     #[inline]
-    pub fn require<T: Service>(&'a self, name: &str) -> Arc<T> {
-        require::<T>(self.service, name)
+    pub fn require<T: Service>(&'a self) -> Arc<T> {
+        require::<T>(self.service)
     }
 }

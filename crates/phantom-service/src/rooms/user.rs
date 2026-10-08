@@ -46,8 +46,8 @@ impl crate::Service for Service {
                 roomsynctoken_shortstatehash: args.db["roomsynctoken_shortstatehash"].clone(),
             },
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                short: args.depend::<rooms::short::Service>("rooms::short"),
+                server_state: args.depend::<server_state::Service>(),
+                short: args.depend::<rooms::short::Service>(),
             },
         }))
     }

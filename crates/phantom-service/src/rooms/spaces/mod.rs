@@ -71,16 +71,15 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             cache: LruCache::new(usize_from_f64(capacity)?).into(),
             services: Services {
-                federation: args.depend::<crate::net::federation::Service>("net::federation"),
-                metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
-                moderation: args.depend::<moderation::Service>("ops::moderation"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                federation: args.depend::<crate::net::federation::Service>(),
+                metadata: args.depend::<rooms::metadata::Service>(),
+                moderation: args.depend::<moderation::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                short: args.depend::<rooms::short::Service>(),
+                state: args.depend::<rooms::state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
         }))
     }

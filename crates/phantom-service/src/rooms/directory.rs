@@ -44,9 +44,8 @@ impl crate::Service for Service {
                 publicroomids: args.db["publicroomids"].clone(),
             },
             services: Services {
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
             },
         }))
     }

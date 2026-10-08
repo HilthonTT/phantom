@@ -58,10 +58,9 @@ impl crate::Service for Service {
                 tokenids: args.db["tokenids"].clone(),
             },
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                short: args.depend::<rooms::short::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
         }))
     }

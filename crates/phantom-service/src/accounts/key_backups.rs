@@ -41,7 +41,7 @@ impl crate::Service for Service {
                 backupkeyid_backup: args.db["backupkeyid_backup"].clone(),
             },
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
         }))
     }

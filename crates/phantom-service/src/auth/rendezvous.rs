@@ -87,7 +87,7 @@ impl crate::Service for Service {
             sessions: RwLock::new(Sessions::new()),
             ratelimiter: Mutex::new(HashMap::new()),
             services: Services {
-                config: args.depend::<config::Service>("ops::config"),
+                config: args.depend::<config::Service>(),
             },
         }))
     }

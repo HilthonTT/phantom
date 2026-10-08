@@ -45,7 +45,7 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
             db: Data {
                 roomuserdataid_accountdata: args.db["roomuserdataid_accountdata"].clone(),

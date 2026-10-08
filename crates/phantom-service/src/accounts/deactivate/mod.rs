@@ -29,14 +29,13 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             services: Services {
-                account_data: args.depend::<account_data::Service>("accounts::account_data"),
-                profile: args.depend::<profile::Service>("accounts::profile"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
-                users: args.depend::<users::Service>("accounts::users"),
+                account_data: args.depend::<account_data::Service>(),
+                profile: args.depend::<profile::Service>(),
+                state: args.depend::<rooms::state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
+                users: args.depend::<users::Service>(),
             },
         }))
     }

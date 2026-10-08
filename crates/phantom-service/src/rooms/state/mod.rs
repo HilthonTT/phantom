@@ -64,14 +64,12 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             mutex: RoomMutexMap::new(),
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                state_compressor: args
-                    .depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                server_state: args.depend::<server_state::Service>(),
+                short: args.depend::<rooms::short::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                state_compressor: args.depend::<rooms::state_compressor::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
             db: Data {
                 shorteventid_shortstatehash: args.db["shorteventid_shortstatehash"].clone(),

@@ -29,7 +29,7 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             services: Services {
                 server: args.server.clone(),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
         }))
     }

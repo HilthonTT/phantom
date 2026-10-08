@@ -45,7 +45,7 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         let config = &args.server.config;
 
-        let resolver = args.require::<resolver::Service>("net::resolver");
+        let resolver = args.require::<resolver::Service>();
 
         let url_preview_bind_addr = config
             .media

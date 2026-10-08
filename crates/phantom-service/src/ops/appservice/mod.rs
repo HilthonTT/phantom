@@ -44,7 +44,7 @@ impl crate::Service for Service {
             registration_info: RwLock::new(BTreeMap::new()),
             server: args.server.clone(),
             services: Services {
-                client: args.depend::<client::Service>("net::client"),
+                client: args.depend::<client::Service>(),
             },
             db: Data {
                 id_appserviceregistrations: args.db["id_appserviceregistrations"].clone(),

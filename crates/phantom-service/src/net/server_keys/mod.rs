@@ -68,8 +68,8 @@ impl crate::Service for Service {
             verify_keys,
             minimum_valid,
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                federation: args.depend::<federation::Service>("net::federation"),
+                server_state: args.depend::<server_state::Service>(),
+                federation: args.depend::<federation::Service>(),
                 server: args.server.clone(),
             },
             db: Data {

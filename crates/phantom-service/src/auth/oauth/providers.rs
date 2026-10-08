@@ -24,8 +24,8 @@ impl Providers {
     pub(super) fn build(args: &crate::Args<'_>) -> Self {
         Self {
             services: Services {
-                client: args.depend::<client::Service>("net::client"),
-                config: args.depend::<config::Service>("ops::config"),
+                client: args.depend::<client::Service>(),
+                config: args.depend::<config::Service>(),
             },
             providers: RwLock::new(BTreeMap::new()),
         }

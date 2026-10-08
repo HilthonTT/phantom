@@ -46,9 +46,9 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             server: args.server.clone(),
             services: Services {
-                account_data: args.depend::<account_data::Service>("accounts::account_data"),
-                sending: args.depend::<sending::Service>("net::sending"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                account_data: args.depend::<account_data::Service>(),
+                sending: args.depend::<sending::Service>(),
+                server_state: args.depend::<server_state::Service>(),
             },
             typing: RwLock::new(BTreeMap::new()),
             typing_update_sender: broadcast::channel(UPDATE_CHANNEL_CAP).0,

@@ -77,12 +77,12 @@ struct Msg {
 impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         let services = Arc::new(Services {
-            config: args.depend::<config::Service>("ops::config"),
-            federation: args.depend::<federation::Service>("net::federation"),
-            moderation: args.depend::<moderation::Service>("ops::moderation"),
-            server_keys: args.depend::<server_keys::Service>("net::server_keys"),
-            server_state: args.depend::<server_state::Service>("ops::server_state"),
-            state_cache: args.depend::<state_cache::Service>("rooms::state_cache"),
+            config: args.depend::<config::Service>(),
+            federation: args.depend::<federation::Service>(),
+            moderation: args.depend::<moderation::Service>(),
+            server_keys: args.depend::<server_keys::Service>(),
+            server_state: args.depend::<server_state::Service>(),
+            state_cache: args.depend::<state_cache::Service>(),
         });
 
         let transport: Arc<dyn Transport> = Arc::new(FederationTransport {

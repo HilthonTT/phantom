@@ -43,7 +43,7 @@ impl crate::Service for Service {
                 statehash_shortstatehash: args.db["statehash_shortstatehash"].clone(),
             },
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
         }))
     }

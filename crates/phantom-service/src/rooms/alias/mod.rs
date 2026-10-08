@@ -44,12 +44,11 @@ impl crate::Service for Service {
                 aliasid_alias: args.db["aliasid_alias"].clone(),
             },
             services: Services {
-                admin: args.depend::<admin::Service>("ops::admin"),
-                appservice: args.depend::<appservice::Service>("ops::appservice"),
-                federation: args.depend::<federation::Service>("net::federation"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+                admin: args.depend::<admin::Service>(),
+                appservice: args.depend::<appservice::Service>(),
+                federation: args.depend::<federation::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
             },
         }))
     }

@@ -37,10 +37,10 @@ impl crate::Service for Service {
             connections: Mutex::new(BTreeMap::new()),
             services: Services {
                 server: args.server.clone(),
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                typing: args.depend::<rooms::typing::Service>("rooms::typing"),
-                users: args.depend::<users::Service>("accounts::users"),
+                short: args.depend::<rooms::short::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                typing: args.depend::<rooms::typing::Service>(),
+                users: args.depend::<users::Service>(),
             },
             db: args.db.clone(),
         }))

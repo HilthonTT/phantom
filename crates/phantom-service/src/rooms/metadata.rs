@@ -36,7 +36,7 @@ impl crate::Service for Service {
                 pduid_pdu: args.db["pduid_pdu"].clone(),
             },
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
+                short: args.depend::<rooms::short::Service>(),
             },
         }))
     }

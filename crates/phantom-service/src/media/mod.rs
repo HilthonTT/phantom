@@ -116,12 +116,12 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             path: args.server.config.media_path(),
             services: Services {
-                client: args.depend::<client::Service>("net::client"),
-                config: args.depend::<config::Service>("ops::config"),
-                federation: args.depend::<crate::net::federation::Service>("net::federation"),
-                moderation: args.depend::<moderation::Service>("ops::moderation"),
+                client: args.depend::<client::Service>(),
+                config: args.depend::<config::Service>(),
+                federation: args.depend::<crate::net::federation::Service>(),
+                moderation: args.depend::<moderation::Service>(),
                 server: args.server.clone(),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
             url_preview_mutex: MutexMap::new(),
             federation_mutex: MutexMap::new(),

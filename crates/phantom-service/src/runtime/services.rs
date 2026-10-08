@@ -4,12 +4,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use phantom_core::{Result, debug, debug_info, info, runtime::server::Server, trace};
+use phantom_core::{Err, Result, debug, debug_info, info, runtime::server::Server, trace};
 use phantom_database::Database;
 use tokio::sync::Mutex;
 
 use super::{
-    contract::{Args, Service},
+    contract::{Args, Requested, Service},
     manager::Manager,
     registry::{self, Map},
 };
@@ -66,6 +66,8 @@ impl Services {
     pub fn build(server: Arc<Server>) -> Result<Arc<Self>> {
         let db = Database::open(&server)?;
         let service: Arc<Map> = Arc::new(RwLock::new(BTreeMap::new()));
+        let requested = std::sync::Mutex::new(Vec::new());
+        let mut dependencies = Vec::new();
 
         macro_rules! build {
             ($tyname:ty) => {{
@@ -73,14 +75,23 @@ impl Services {
                     db: &db,
                     server: &server,
                     service: &service,
+                    requested: &requested,
                 })?;
 
                 registry::add(&service, built.clone(), built.clone());
+                dependencies.extend(
+                    requested
+                        .lock()
+                        .expect("locked for writing")
+                        .drain(..)
+                        .map(|dep| (std::any::type_name::<$tyname>(), dep)),
+                );
+
                 built
             }};
         }
 
-        Ok(Arc::new(Self {
+        let services = Arc::new(Self {
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
@@ -142,7 +153,11 @@ impl Services {
             service,
             server,
             db,
-        }))
+        });
+
+        check_dependencies(&services.service, &dependencies)?;
+
+        Ok(services)
     }
 
     pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
@@ -220,4 +235,25 @@ impl Services {
             .filter_map(|(service, ..)| service.upgrade())
             .collect()
     }
+}
+
+/// Fail the build when a service took a `Dep` on a service that was never
+/// built, naming every such pair, rather than panicking at the `Dep`'s first
+/// use. tuwunel finds these only at runtime.
+pub(super) fn check_dependencies(map: &Map, dependencies: &[(&'static str, Requested)]) -> Result {
+    let missing = dependencies
+        .iter()
+        .filter(|(_, dep)| !registry::contains(map, dep.type_id))
+        .fold(String::new(), |mut out, (dependent, dep)| {
+            let dependent = registry::service_name(dependent);
+            let dependency = registry::service_name(dep.type_name);
+            write!(out, "\n  {dependent} -> {dependency}").ok();
+            out
+        });
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    Err!("Services depend on services that were never built:{missing}")
 }

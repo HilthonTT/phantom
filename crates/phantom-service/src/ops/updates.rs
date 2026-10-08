@@ -49,7 +49,7 @@ impl crate::Service for Service {
             },
             services: Services {
                 server: args.server.clone(),
-                client: args.depend::<client::Service>("net::client"),
+                client: args.depend::<client::Service>(),
             },
         }))
     }

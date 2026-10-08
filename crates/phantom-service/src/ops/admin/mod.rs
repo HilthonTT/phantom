@@ -75,14 +75,13 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             services: Services {
                 server: args.server.clone(),
-                account_data: args.depend::<account_data::Service>("accounts::account_data"),
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
-                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                account_data: args.depend::<account_data::Service>(),
+                server_state: args.depend::<server_state::Service>(),
+                alias: args.depend::<rooms::alias::Service>(),
+                state: args.depend::<rooms::state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
                 services: RwLock::new(None),
             },
             sender,

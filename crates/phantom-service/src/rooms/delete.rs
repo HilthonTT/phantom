@@ -49,19 +49,18 @@ impl crate::Service for Service {
     {
         Ok(Arc::new(Self {
             services: Services {
-                alias: args.depend::<rooms::alias::Service>("rooms::alias"),
-                directory: args.depend::<rooms::directory::Service>("rooms::directory"),
-                pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
-                read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
-                search: args.depend::<rooms::search::Service>("rooms::search"),
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                state: args.depend::<rooms::state::Service>("rooms::state"),
-                state_accessor: args
-                    .depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-                state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-                threads: args.depend::<rooms::threads::Service>("rooms::threads"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
-                user: args.depend::<rooms::user::Service>("rooms::user"),
+                alias: args.depend::<rooms::alias::Service>(),
+                directory: args.depend::<rooms::directory::Service>(),
+                pdu_metadata: args.depend::<rooms::pdu_metadata::Service>(),
+                read_receipt: args.depend::<rooms::read_receipt::Service>(),
+                search: args.depend::<rooms::search::Service>(),
+                short: args.depend::<rooms::short::Service>(),
+                state: args.depend::<rooms::state::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
+                threads: args.depend::<rooms::threads::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
+                user: args.depend::<rooms::user::Service>(),
             },
         }))
     }

@@ -35,8 +35,8 @@ impl crate::Service for Service {
     fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                short: args.depend::<rooms::short::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
             db: Data::new(&args),
         }))

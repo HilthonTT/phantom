@@ -38,7 +38,7 @@ impl Data {
             servername_educount: db["servername_educount"].clone(),
             db: args.db.clone(),
             services: Services {
-                server_state: args.depend::<server_state::Service>("ops::server_state"),
+                server_state: args.depend::<server_state::Service>(),
             },
         }
     }

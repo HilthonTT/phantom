@@ -38,8 +38,8 @@ impl crate::Service for Service {
                 threadid_userids: args.db["threadid_userids"].clone(),
             },
             services: Services {
-                short: args.depend::<rooms::short::Service>("rooms::short"),
-                timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+                short: args.depend::<rooms::short::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
         }))
     }

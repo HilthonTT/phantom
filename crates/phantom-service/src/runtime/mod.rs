@@ -3,6 +3,9 @@ pub mod manager;
 pub mod registry;
 pub mod services;
 
+#[cfg(test)]
+mod tests;
+
 pub use self::{
     contract::{Args, Service},
     manager::Manager,
