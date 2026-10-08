@@ -42,9 +42,10 @@ rather than ruma's, which is why the `ruma` dependency deliberately omits the
 `state-res` feature; and the module layout was restructured, in particular by
 removing the `utils` catch-all — see
 [development.md](development.md#conventions) — and by grouping
-`phantom-service` into domain folders, so a service upstream keeps at the top
-level lives one folder down here — see
-[architecture.md](architecture.md#phantom-service).
+`phantom-service` and `phantom-api` into domain folders, so a service or handler
+upstream keeps at the top level lives one folder down here — see
+[architecture.md](architecture.md#phantom-service) and
+[architecture.md](architecture.md#phantom-api).
 
 ## The rule for divergences
 

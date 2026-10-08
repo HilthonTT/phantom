@@ -268,6 +268,26 @@ next request re-walks from the root and starts emitting when it reaches that
 path again. A room is visited once per walk however many parents name it, which
 is what stops a cyclic space from being walked forever.
 
+### `phantom-api`
+
+The HTTP handlers, one tree per audience: `client/` for the client-server API,
+`server/` for federation, `oidc/` for next-gen auth and `admin/` for the admin
+API. Each tree has a `register` function listing its routes, and `router/` holds
+the request extraction and authentication they share.
+
+`client/` uses the same domain folders as `phantom-service`, so a handler sits
+beside the service behind it: `auth/` (login, registration, OpenID), `accounts/`
+(account data, devices, keys and backups, profiles, presence, push rules),
+`rooms/`, `media/` and `ops/` (server discovery, appservices, third-party
+protocols, TURN). `sync/` stays at the top because it reads from every domain.
+`server/` groups federation by what it serves: `membership/` for the
+make/send join, knock and leave handshakes and invites, `events/` for fetching
+events and the state around them, `directory/` for public rooms, hierarchies and
+user and profile queries, and `transaction/` for incoming transactions.
+
+tuwunel keeps each tree flat, so a handler ported from `src/api/client/<name>`
+lands in `client/<domain>/<name>` here.
+
 ### `phantom-server`
 
 The binary. Today it is four lines and a `todo!()`; wiring the service graph to

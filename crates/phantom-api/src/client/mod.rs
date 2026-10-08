@@ -1,54 +1,29 @@
-mod account;
-mod account_data;
-mod alias;
-mod appservice;
-mod backup;
-mod capabilities;
-mod context;
-mod device;
-mod directory;
-mod events;
-mod filter;
-mod keys;
+mod accounts;
+mod auth;
 mod media;
-mod media_legacy;
-mod membership;
-mod message;
-mod openid;
-mod phantom;
-mod presence;
-mod profile;
-mod push;
-mod read_marker;
-mod redact;
-mod register;
-mod relations;
-mod report;
-mod room;
-mod search;
-mod send;
-mod session;
-mod space;
-mod state;
+mod ops;
+mod rooms;
 mod sync;
-mod tag;
-mod thirdparty;
-mod threads;
-mod to_device;
-mod typing;
-mod unstable;
-mod user_directory;
 mod utils;
-mod versions;
-mod voip;
-mod well_known;
 
 use axum::{Router, routing::get};
 use phantom_core::{Config, matrix::Event};
 use phantom_service::{Services, rooms::timeline::PdusIterItem};
 use ruma::UserId;
 
-pub(crate) use self::message::{annotate_membership, is_ignored_pdu, with_membership};
+pub(crate) use self::rooms::message::{annotate_membership, is_ignored_pdu, with_membership};
+use self::{
+    accounts::{
+        account, account_data, backup, device, filter, keys, presence, profile, push, tag,
+        to_device, user_directory,
+    },
+    auth::{openid, register, session},
+    ops::{appservice, capabilities, phantom, thirdparty, versions, voip, well_known},
+    rooms::{
+        alias, context, directory, events, membership, message, read_marker, redact, relations,
+        report, room, search, send, space, state, threads, typing, unstable,
+    },
+};
 use crate::router::{RouterExt, State};
 
 /// generated device ID length
@@ -232,11 +207,11 @@ pub fn register(router: Router<State>, config: &Config) -> Router<State> {
         .ruma_route(&media::get_content_thumbnail_route)
         .ruma_route(&media::get_content_route)
         .ruma_route(&media::get_content_as_filename_route)
-        .ruma_route(&media_legacy::get_media_config_legacy_route)
-        .ruma_route(&media_legacy::get_media_preview_legacy_route)
-        .ruma_route(&media_legacy::get_content_legacy_route)
-        .ruma_route(&media_legacy::get_content_as_filename_legacy_route)
-        .ruma_route(&media_legacy::get_content_thumbnail_legacy_route)
+        .ruma_route(&media::legacy::get_media_config_legacy_route)
+        .ruma_route(&media::legacy::get_media_preview_legacy_route)
+        .ruma_route(&media::legacy::get_content_legacy_route)
+        .ruma_route(&media::legacy::get_content_as_filename_legacy_route)
+        .ruma_route(&media::legacy::get_content_thumbnail_legacy_route)
         .route(
             "/_phantom/server_version",
             get(phantom::phantom_server_version),

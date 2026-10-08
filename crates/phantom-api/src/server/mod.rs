@@ -1,29 +1,11 @@
 mod access;
-mod backfill;
-mod event;
-mod event_auth;
-mod federation_pdus;
-mod get_missing_events;
-mod hierarchy;
-mod invite;
+mod directory;
+mod events;
 mod key;
-mod make_join;
-mod make_knock;
-mod make_leave;
 mod media;
 mod membership;
 mod openid;
-mod publicrooms;
-mod query;
-mod restricted_join;
-mod send_join;
-mod send_knock;
-mod send_leave;
-mod state;
-mod state_ids;
-mod timestamp;
 mod transaction;
-mod user;
 mod version;
 mod well_known;
 
@@ -34,7 +16,12 @@ use axum::{
 };
 use phantom_core::{Config, err};
 
-use self::access::AccessCheck;
+use self::{
+    access::AccessCheck,
+    directory::{hierarchy, publicrooms, query, user},
+    events::{backfill, event, event_auth, get_missing_events, state, state_ids, timestamp},
+    membership::{invite, make_join, make_knock, make_leave, send_join, send_knock, send_leave},
+};
 use crate::router::{RouterExt, State};
 
 pub fn register(router: Router<State>, config: &Config) -> Router<State> {
