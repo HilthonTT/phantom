@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/HilthonTT/phantom/cli/internal/client"
+	"github.com/HilthonTT/phantom/cli/internal/tui/listings"
 	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 	"github.com/HilthonTT/phantom/cli/internal/tui/sample"
 )
@@ -37,6 +38,7 @@ type State struct {
 	Checked time.Time
 
 	Account Account
+	Admin   Admin
 }
 
 func New(c *client.Client) State { return State{Host: c.Host()} }
@@ -134,6 +136,13 @@ func (s State) Server() resource.Server {
 // Listing is the sample listing for section with what the server reported
 // written over it.
 func (s State) Listing(section resource.Section) resource.Listing {
+	if l, ok := s.Admin.listings[section]; ok {
+		if err := s.AdminErr(section); err != nil {
+			l.Note = "refresh failed: " + err.Error()
+		}
+		return l
+	}
+
 	l := sample.Listing(section)
 
 	switch section {
@@ -141,9 +150,25 @@ func (s State) Listing(section resource.Section) resource.Listing {
 		s.overview(&l)
 	case resource.API:
 		s.api(&l)
+	default:
+		l.Note = s.sampleNote(section)
 	}
 
 	return l
+}
+
+// sampleNote says why a section shows sample rows.
+func (s State) sampleNote(section resource.Section) string {
+	switch {
+	case !Served(section):
+		return "sample data"
+	case !s.Account.Admin:
+		return "sample · sign in as an admin"
+	case s.AdminErr(section) != nil:
+		return "fetch failed: " + s.AdminErr(section).Error()
+	default:
+		return "loading…"
+	}
 }
 
 // value is one live overview cell and how it is coloured.
@@ -195,6 +220,7 @@ func (s State) overview(l *resource.Listing) {
 	if connected && !st.Federation {
 		live["Federation"] = value{"off", resource.Held}
 	}
+	s.adminOverview(live)
 
 	// The client API row is the only one the sample has no stand-in for.
 	rows := make([]resource.Row, 0, len(l.Rows)+1)
@@ -212,6 +238,9 @@ func (s State) overview(l *resource.Listing) {
 		source := "sample data"
 		if ok {
 			source = "phantom-server at " + s.Host
+			if adminKeys[key] && s.Admin.Stats != nil {
+				source = "phantom-server admin API"
+			}
 			rows[i] = resource.Row{
 				Cells:  []string{key, v.text},
 				State:  v.state,
@@ -227,6 +256,48 @@ func (s State) overview(l *resource.Listing) {
 	}
 
 	l.Rows = rows
+}
+
+// adminKeys are the overview rows the admin API's stats fill.
+var adminKeys = map[string]bool{
+	"Uptime": true, "Local users": true, "Rooms": true, "Database size": true,
+	"Appservices": true, "Registration": true, "Read-only mode": true, "Devices": true,
+}
+
+// adminOverview fills the overview rows the admin API knows, over the ones
+// the unauthenticated probe could.
+func (s State) adminOverview(live map[string]value) {
+	if d := s.Admin.Devices; d != nil {
+		live["Devices"] = value{fmt.Sprint(*d), resource.NoState}
+	}
+
+	st := s.Admin.Stats
+	if st == nil {
+		return
+	}
+
+	registration, regState := "closed", resource.NoState
+	switch {
+	case st.Registration && st.RegistrationToken:
+		registration, regState = "open, with a registration token", resource.Held
+	case st.Registration:
+		registration, regState = "open to anyone", resource.Failed
+	}
+
+	readOnly, roState := "off", resource.NoState
+	if st.ReadOnly {
+		readOnly, roState = "on", resource.Held
+	}
+
+	live["Uptime"] = value{listings.Uptime(st.UptimeSecs), resource.NoState}
+	live["Local users"] = value{
+		fmt.Sprintf("%d, %d of them can sign in", st.LocalUsers, st.ActiveLocalUsers), resource.NoState,
+	}
+	live["Rooms"] = value{fmt.Sprint(st.Rooms), resource.NoState}
+	live["Database size"] = value{listings.Bytes(st.DatabaseBytes), resource.NoState}
+	live["Appservices"] = value{fmt.Sprintf("%d registered", st.Appservices), resource.NoState}
+	live["Registration"] = value{registration, regState}
+	live["Read-only mode"] = value{readOnly, roState}
 }
 
 func (s State) listener() value {

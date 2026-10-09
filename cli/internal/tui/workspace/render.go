@@ -69,6 +69,9 @@ func (m Model) footnote(tab Tab) string {
 	if marked := marks(tab); marked > 0 {
 		return fmt.Sprintf("%d marked", marked)
 	}
+	if tab.listing.Note != "" {
+		return tab.listing.Note
+	}
 
 	return tab.listing.Sort
 }

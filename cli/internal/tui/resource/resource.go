@@ -129,6 +129,10 @@ type Listing struct {
 	Rows    []Row
 
 	Sort string
+
+	// Note, when set, stands in the footer for the sort order: why the rows
+	// are not live, or that the last refresh failed.
+	Note string
 }
 
 type State int

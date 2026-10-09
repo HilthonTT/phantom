@@ -33,7 +33,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case live.LoggedOutMsg:
 		m.live = m.live.SignOut()
 		m.connection.SetServer(m.live.Server())
-		return m.stopSync(), nil
+		m, _ = m.stopSync().resetAdmin()
+		return m, nil
+
+	case live.AdminMsg:
+		return m.adminAnswered(msg)
 
 	case live.SyncedMsg:
 		return m.synced(msg)
@@ -72,7 +76,7 @@ func (m Model) authed(msg live.AuthMsg) (tea.Model, tea.Cmd) {
 	case msg.Refused && msg.Resumed:
 		_ = m.store.Forget(m.client.URL())
 		m.saved = nil
-		m = m.stopSync()
+		m, _ = m.stopSync().resetAdmin()
 		return m.openLogin("the saved session has ended; sign in again")
 
 	case msg.Refused:
@@ -91,12 +95,16 @@ func (m Model) authed(msg live.AuthMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	m, fetch := m.resetAdmin()
+
 	// Any account can chat, admin or not.
 	if m.sync.rooms != nil && m.sync.rooms.Self() == msg.Session.UserID {
-		return m, nil
+		return m, fetch
 	}
 
-	return m.startSync(msg.Session.UserID)
+	m, sync := m.startSync(msg.Session.UserID)
+
+	return m, tea.Batch(fetch, sync)
 }
 
 func (m Model) openLogin(reason string) (tea.Model, tea.Cmd) {
@@ -119,7 +127,7 @@ func (m Model) probed(msg live.ProbedMsg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 	if msg.Scheduled {
-		cmds = append(cmds, live.Tick())
+		cmds = append(cmds, live.Tick(), m.refreshAdmin())
 	}
 
 	// A reachable server with no session asks for one, once; :login opens the
@@ -245,7 +253,9 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.focus {
 	case focusSidebar:
-		return m.handleSidebarKey(msg).markRead()
+		m = m.handleSidebarKey(msg)
+		m, read := m.markRead()
+		return m, tea.Batch(read, m.refreshAdmin())
 	case focusWorkspace:
 		if m.chatOpen {
 			return m.handleChatKey(msg)
@@ -365,7 +375,7 @@ func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.workspace.ClearMarks()
 	case key.Matches(msg, m.keys.Refresh):
 		m.workspace.Reload()
-		return m, live.Probe(m.client, false)
+		return m, tea.Batch(live.Probe(m.client, false), m.refreshAdmin())
 	}
 
 	return m, nil
