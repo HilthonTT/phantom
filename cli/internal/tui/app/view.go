@@ -89,6 +89,12 @@ func (m Model) renderModal() string {
 		return m.confirm.Render(m.width, m.height)
 	case modal.Login:
 		return m.login.Render(m.width, m.height)
+	case modal.Menu:
+		return m.menu.Render(m.width, m.height)
+	case modal.Input:
+		return m.input.Render(m.width, m.height)
+	case modal.Notice:
+		return m.notice.Render(m.width, m.height)
 	default:
 		return ""
 	}

@@ -13,6 +13,7 @@ func (m Model) resetAdmin() (Model, tea.Cmd) {
 	var gen int
 	m.live, gen = m.live.StartAdmin()
 	m.workspace.SetSource(m.live.Listing)
+	m.taskbar.SetTasks(nil)
 
 	if !m.live.Account.Admin {
 		return m, nil
@@ -28,7 +29,17 @@ func (m Model) refreshAdmin() tea.Cmd {
 }
 
 func (m Model) fetchAdmin(section resource.Section) tea.Cmd {
-	if !m.live.Account.Admin || !live.Served(section) || m.chatOpen {
+	if m.chatOpen {
+		return nil
+	}
+
+	return m.fetchSection(section)
+}
+
+// fetchSection fetches a section whether or not it is on screen, as after an
+// action changes it.
+func (m Model) fetchSection(section resource.Section) tea.Cmd {
+	if !m.live.Account.Admin || !live.Served(section) {
 		return nil
 	}
 
@@ -39,6 +50,9 @@ func (m Model) adminAnswered(msg live.AdminMsg) (tea.Model, tea.Cmd) {
 	var ok bool
 	if m.live, ok = m.live.TakeAdmin(msg); ok {
 		m.workspace.SetSource(m.live.Listing)
+		if msg.Section == resource.Tasks && msg.Err == nil {
+			m.taskbar.SetTasks(m.live.Admin.Tasks)
+		}
 	}
 
 	return m, nil

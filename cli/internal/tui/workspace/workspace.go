@@ -127,6 +127,21 @@ func (m Model) Selected() (resource.Row, bool) {
 	return rows[min(m.tabs[m.active].cursor, len(rows)-1)], true
 }
 
+// Select moves the cursor to the first row match accepts, clearing any
+// filter, and reports whether there was one.
+func (m *Model) Select(match func(resource.Row) bool) bool {
+	m.clearFilter()
+
+	for i, r := range m.tabs[m.active].listing.Rows {
+		if match(r) {
+			m.moveTo(i)
+			return true
+		}
+	}
+
+	return false
+}
+
 func (m *Model) Open(s resource.Section) {
 	m.tabs[m.active] = m.newTab(s)
 	m.clearFilter()

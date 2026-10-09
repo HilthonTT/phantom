@@ -39,6 +39,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case live.AdminMsg:
 		return m.adminAnswered(msg)
 
+	case live.ActedMsg:
+		return m.acted(msg)
+
 	case live.SyncedMsg:
 		return m.synced(msg)
 
@@ -127,7 +130,7 @@ func (m Model) probed(msg live.ProbedMsg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 	if msg.Scheduled {
-		cmds = append(cmds, live.Tick(), m.refreshAdmin())
+		cmds = append(cmds, live.Tick(), m.refreshAdmin(), m.fetchSection(resource.Tasks))
 	}
 
 	// A reachable server with no session asks for one, once; :login opens the
@@ -345,6 +348,8 @@ func (m Model) handleComposeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
+	case key.Matches(msg, m.keys.Open):
+		return m.openActions()
 	case key.Matches(msg, m.keys.Up):
 		m.workspace.MoveUp()
 	case key.Matches(msg, m.keys.Down):
@@ -390,9 +395,9 @@ func (m Model) handleTaskbarKey(msg tea.KeyPressMsg) tea.Model {
 		m.taskbar.MoveDown()
 
 	case key.Matches(msg, m.keys.Cancel):
-		if task, ok := m.taskbar.Selected(); ok {
-			m.ask(noAction, "Cancel "+task.Name+"?",
-				"Cancelling is not wired up yet — this is where it will ask.")
+		if task, ok := m.taskbar.Selected(); ok && task.State == resource.Running {
+			m.notify("Cannot cancel "+task.Name,
+				"phantom has no way to stop a task once it has started; it runs to the end.", true)
 		}
 	}
 
@@ -413,6 +418,31 @@ func (m Model) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.runCommand(m.prompt.Value())
 		}
 		return m, m.prompt.Update(msg)
+
+	case modal.Menu:
+		switch {
+		case key.Matches(msg, m.keys.Up):
+			m.menu.MoveUp()
+		case key.Matches(msg, m.keys.Down):
+			m.menu.MoveDown()
+		case key.Matches(msg, m.keys.Open):
+			if i := m.menu.Chosen(); i < len(m.actions) {
+				return m.begin(m.actions[i])
+			}
+		}
+		return m, nil
+
+	case modal.Input:
+		if key.Matches(msg, m.keys.Open) {
+			return m.inputGiven()
+		}
+		return m, m.input.Update(msg)
+
+	case modal.Notice:
+		if key.Matches(msg, m.keys.Open) {
+			return m.closeModal(), nil
+		}
+		return m, nil
 
 	case modal.Login:
 		switch {
@@ -489,7 +519,7 @@ func (m Model) runCommand(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, nil
+	return m.adminCommand(word, strings.Fields(line)[1:])
 }
 
 func (m *Model) ask(a action, title, body string) {
@@ -505,6 +535,9 @@ func (m Model) answer() (tea.Model, tea.Cmd) {
 	switch {
 	case accepted && pending == quitAction:
 		return m.quit()
+
+	case accepted && pending == actAction:
+		return m.act(m.acting)
 
 	case accepted && pending == leaveAction:
 		ch := m.chat.Channel()
@@ -523,6 +556,7 @@ func (m Model) closeModal() Model {
 	m.help.Blur()
 	m.prompt.Blur()
 	m.login.Blur()
+	m.input.Blur()
 	m.modal = modal.None
 	m.pending = noAction
 

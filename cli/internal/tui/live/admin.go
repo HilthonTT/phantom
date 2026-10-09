@@ -21,6 +21,7 @@ var AdminSections = []resource.Section{
 	resource.Rooms,
 	resource.Appservices,
 	resource.Settings,
+	resource.Tasks,
 }
 
 func Served(s resource.Section) bool {
@@ -44,6 +45,10 @@ type Admin struct {
 	// overview.
 	Devices *int
 
+	// Tasks are the server's long operations, for the taskbar; nil until
+	// they are known.
+	Tasks []resource.Task
+
 	listings map[resource.Section]resource.Listing
 	errs     map[resource.Section]error
 }
@@ -56,6 +61,7 @@ type AdminMsg struct {
 	Listing resource.Listing
 	Stats   *client.Stats
 	Devices *int
+	Tasks   []resource.Task
 
 	Err error
 }
@@ -96,6 +102,10 @@ func FetchAdmin(c *client.Client, gen int, section resource.Section) tea.Cmd {
 		case resource.Settings:
 			settings, err := c.Settings(ctx)
 			msg.Listing, msg.Err = listings.Settings(settings), err
+
+		case resource.Tasks:
+			tasks, err := c.Tasks(ctx)
+			msg.Listing, msg.Tasks, msg.Err = listings.Tasks(tasks, now), listings.Taskbar(tasks), err
 
 		default:
 			return nil
@@ -147,6 +157,9 @@ func (s State) TakeAdmin(msg AdminMsg) (State, bool) {
 		if msg.Devices != nil {
 			a.Devices = msg.Devices
 		}
+		if msg.Section == resource.Tasks {
+			a.Tasks = msg.Tasks
+		}
 	}
 
 	s.Admin = a
@@ -163,4 +176,67 @@ func clone[K comparable, V any](m map[K]V) map[K]V {
 	}
 
 	return out
+}
+
+// RowActions are what an admin can do to the record a row shows, and the
+// section-wide actions; none for a sample row.
+func (s State) RowActions(section resource.Section, row resource.Row, ok bool) []Action {
+	if !s.Account.Admin {
+		return nil
+	}
+
+	ref := func(i int) string {
+		if !ok || len(row.Ref) <= i {
+			return ""
+		}
+		return row.Ref[i]
+	}
+
+	switch section {
+	case resource.Users:
+		user, state := ref(0), ref(1)
+		if user == "" || state != "active" {
+			return nil
+		}
+		admin := Action{Kind: GrantAdmin, Target: user}
+		if len(row.Cells) > 1 && row.Cells[1] == "yes" {
+			admin.Kind = RevokeAdmin
+		}
+		return []Action{
+			{Kind: SetPassword, Target: user},
+			admin,
+			{Kind: DeactivateUser, Target: user},
+			{Kind: EraseUser, Target: user},
+		}
+
+	case resource.Devices:
+		if ref(1) == "" {
+			return nil
+		}
+		return []Action{{Kind: SignOutDevice, Target: ref(0), Device: ref(1)}}
+
+	case resource.Tokens:
+		actions := []Action{{Kind: CreateToken}}
+		if ref(1) == "database" {
+			actions = append(actions, Action{Kind: RevokeToken, Target: ref(0)})
+		}
+		return actions
+
+	case resource.Rooms:
+		room := ref(0)
+		if room == "" {
+			return nil
+		}
+		ban := Action{Kind: BanRoom, Target: room}
+		if ref(1) == "yes" {
+			ban.Kind = UnbanRoom
+		}
+		return []Action{ban, {Kind: ShutdownRoom, Target: room}, {Kind: DeleteRoom, Target: room}}
+
+	case resource.Overview, resource.Settings:
+		return []Action{{Kind: ReloadConfig}, {Kind: Backup}}
+
+	default:
+		return nil
+	}
 }

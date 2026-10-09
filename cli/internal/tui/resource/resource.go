@@ -110,6 +110,10 @@ type Column struct {
 type Row struct {
 	Cells []string
 
+	// Ref identifies the record a live row shows, for acting on it: a user
+	// ID, a user and device ID, and so on. Sample rows have none.
+	Ref []string
+
 	Detail []Field
 
 	State State

@@ -35,6 +35,7 @@ const (
 	noAction action = iota
 	quitAction
 	leaveAction
+	actAction
 )
 
 type Model struct {
@@ -69,6 +70,14 @@ type Model struct {
 	prompt  modal.PromptModel
 	confirm modal.ConfirmModel
 	login   modal.LoginModel
+	menu    modal.MenuModel
+	input   modal.InputModel
+	notice  modal.NoticeModel
+
+	// actions are the menu's choices, and acting the action being asked
+	// about or confirmed.
+	actions []live.Action
+	acting  live.Action
 	modal   modal.Kind
 	pending action
 
@@ -118,6 +127,9 @@ func New(c *client.Client, store session.Store) Model {
 		prompt:  modal.NewPrompt(t),
 		confirm: modal.NewConfirm(t),
 		login:   modal.NewLogin(t),
+		menu:    modal.NewMenu(t, g),
+		input:   modal.NewInput(t),
+		notice:  modal.NewNotice(t),
 
 		focus: focusWorkspace,
 	}

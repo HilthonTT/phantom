@@ -12,7 +12,7 @@ import (
 
 const (
 	promptWidth  = 66
-	promptHeight = 8
+	promptHeight = 12
 )
 
 type Command struct {
@@ -22,18 +22,24 @@ type Command struct {
 
 func Commands() []Command {
 	return []Command{
-		{Name: "room", Usage: "room <alias>          open a room's record"},
-		{Name: "user", Usage: "user <id>             open a user's record"},
-		{Name: "purge", Usage: "purge <room> <days>   purge history older than"},
-		{Name: "block", Usage: "block <server>        stop federating with a server"},
-		{Name: "deactivate", Usage: "deactivate <user>     deactivate an account"},
-		{Name: "quarantine", Usage: "quarantine <media>    quarantine a media item"},
-		{Name: "reload", Usage: "reload                re-read the config file"},
-		{Name: "backup", Usage: "backup                start a database backup"},
-		{Name: "join", Usage: "join <#alias|!id>     join a room and open it"},
-		{Name: "leave", Usage: "leave                 leave the open room"},
-		{Name: "login", Usage: "login                 sign in to the server"},
-		{Name: "logout", Usage: "logout                sign out and forget the session"},
+		{Name: "user", Usage: "user <id>                  open a user's record"},
+		{Name: "room", Usage: "room <id|#alias>           open a room's record"},
+		{Name: "passwd", Usage: "passwd <user>              set a user's password"},
+		{Name: "admin", Usage: "admin <user>               make a user an admin"},
+		{Name: "unadmin", Usage: "unadmin <user>             revoke a user's admin"},
+		{Name: "deactivate", Usage: "deactivate <user> [erase]  deactivate an account"},
+		{Name: "token", Usage: "token [uses] [days] [tok]  create a registration token"},
+		{Name: "revoke", Usage: "revoke <token>             revoke a registration token"},
+		{Name: "ban", Usage: "ban <room>                 stop local users joining"},
+		{Name: "unban", Usage: "unban <room>               lift a room's ban"},
+		{Name: "shutdown", Usage: "shutdown <room>            evict a room's local members"},
+		{Name: "purge", Usage: "purge <room>               delete a room and its data"},
+		{Name: "reload", Usage: "reload                     re-read the config"},
+		{Name: "backup", Usage: "backup                     back the database up"},
+		{Name: "join", Usage: "join <#alias|!id>          join a room and open it"},
+		{Name: "leave", Usage: "leave                      leave the open room"},
+		{Name: "login", Usage: "login                      sign in to the server"},
+		{Name: "logout", Usage: "logout                     sign out and forget the session"},
 	}
 }
 

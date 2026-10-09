@@ -12,6 +12,9 @@ const (
 	Prompt
 	Confirm
 	Login
+	Menu
+	Input
+	Notice
 )
 
 func Overlay(layout, box string, width, height int) string {

@@ -35,6 +35,7 @@ func Users(users []client.AdminUser, now time.Time) resource.Listing {
 
 		rows = append(rows, resource.Row{
 			Cells: []string{u.UserID, yesNo(u.Admin), state, seen},
+			Ref:   []string{u.UserID, state},
 			State: emphasis,
 			Detail: []resource.Field{
 				{Label: "User ID", Value: u.UserID},
@@ -70,6 +71,7 @@ func Devices(devices []client.AdminDevice, now time.Time) resource.Listing {
 	for _, d := range devices {
 		rows = append(rows, resource.Row{
 			Cells: []string{d.DeviceID, localpart(d.UserID), or(d.DisplayName, "—"), or(d.LastSeenIP, "—"), ago(d.LastSeenMs, now)},
+			Ref:   []string{d.UserID, d.DeviceID},
 			Detail: []resource.Field{
 				{Label: "Device ID", Value: d.DeviceID},
 				{Label: "User", Value: d.UserID},
@@ -135,6 +137,7 @@ func Tokens(tokens []client.RegistrationToken, now time.Time) resource.Listing {
 
 		rows = append(rows, resource.Row{
 			Cells: []string{tok.Token, uses, limit, expires},
+			Ref:   []string{tok.Token, tok.Source},
 			State: state,
 			Detail: []resource.Field{
 				{Label: "Token", Value: tok.Token},
@@ -188,6 +191,7 @@ func Rooms(rooms []client.AdminRoom) resource.Listing {
 
 		rows = append(rows, resource.Row{
 			Cells: []string{title, fmt.Sprint(r.JoinedMembers), or(r.Version, "—"), visibility},
+			Ref:   []string{r.RoomID, yesNo(r.Banned)},
 			State: state,
 			Detail: []resource.Field{
 				{Label: "Name", Value: or(r.Name, "—")},
@@ -275,6 +279,86 @@ func Settings(settings []client.Setting) resource.Listing {
 			{Title: "Value", Flex: true},
 		},
 		Rows: rows,
+	}
+}
+
+// Tasks lists the server's long operations, newest first, as the server
+// sends them.
+func Tasks(tasks []client.AdminTask, now time.Time) resource.Listing {
+	rows := make([]resource.Row, 0, len(tasks))
+	for _, t := range tasks {
+		state := taskState(t.Status)
+		at := t.UpdatedAtMs
+		name := taskName(t)
+
+		rows = append(rows, resource.Row{
+			Cells: []string{name, t.Status, ago(&at, now)},
+			Ref:   []string{t.ID},
+			State: state,
+			Detail: []resource.Field{
+				{Label: "Task", Value: name},
+				{Label: "ID", Value: t.ID},
+				{Label: "State", Value: t.Status, Emphasis: state},
+				{Label: "Updated", Value: when(&at, now)},
+				{Label: "Error", Value: or(t.Error, "—"), Emphasis: flag(t.Error != nil, resource.Failed)},
+				{Label: "Cancellable", Value: "no; phantom cannot stop a task once started"},
+				{Label: "Source", Value: Source},
+			},
+		})
+	}
+
+	return resource.Listing{
+		Sort: "newest first",
+		Columns: []resource.Column{
+			{Title: "Task", Flex: true},
+			{Title: "State", Width: 10},
+			{Title: "Updated", Width: 12, Right: true},
+		},
+		Rows: rows,
+	}
+}
+
+// Taskbar is the tasks as the footer's task box shows them.
+func Taskbar(tasks []client.AdminTask) []resource.Task {
+	out := make([]resource.Task, 0, len(tasks))
+	for _, t := range tasks {
+		state := taskState(t.Status)
+
+		// The server reports no progress, so the bar is either empty or full.
+		progress := 0.0
+		if state == resource.Done {
+			progress = 1
+		}
+
+		out = append(out, resource.Task{
+			Name:     taskName(t),
+			State:    state,
+			Progress: progress,
+			Note:     or(t.Error, t.Status),
+		})
+	}
+
+	return out
+}
+
+func taskName(t client.AdminTask) string {
+	if t.Resource == "" {
+		return t.Action
+	}
+
+	return t.Action + " " + t.Resource
+}
+
+func taskState(status string) resource.State {
+	switch status {
+	case "active":
+		return resource.Running
+	case "complete":
+		return resource.Done
+	case "failed":
+		return resource.Failed
+	default:
+		return resource.Held
 	}
 }
 

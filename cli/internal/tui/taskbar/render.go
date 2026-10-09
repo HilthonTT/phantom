@@ -11,10 +11,13 @@ import (
 func (m Model) Render(focused bool) string {
 	p := panel.New(m.theme.PanelConfig(m.width, m.height, focused))
 	p.SetTitle("Tasks")
+	if m.sample {
+		p.SetTitle("Tasks " + m.glyphs.Bullet + " sample")
+	}
 
 	if len(m.tasks) == 0 {
 		p.AddLine("")
-		p.AddLine(m.theme.Faint.Render("  nothing running"))
+		p.AddLine(m.theme.Faint.Render("  nothing this week"))
 		return p.Render()
 	}
 

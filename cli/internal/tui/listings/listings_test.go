@@ -114,3 +114,21 @@ func TestSettingsDropTheQuotesOfPlainStrings(t *testing.T) {
 		t.Errorf("values = %v", got)
 	}
 }
+
+func TestTasksBecomeRowsAndTaskbarEntries(t *testing.T) {
+	failed := "no backup path"
+	tasks := []client.AdminTask{
+		{ID: "T1", Action: "delete room", Resource: "!r:test", Status: "active", UpdatedAtMs: now.UnixMilli()},
+		{ID: "T2", Action: "database backup", Status: "failed", Error: &failed, UpdatedAtMs: now.UnixMilli()},
+	}
+
+	l := Tasks(tasks, now)
+	if l.Rows[0].Cells[0] != "delete room !r:test" || l.Rows[0].State != resource.Running {
+		t.Errorf("row 0 = %+v", l.Rows[0])
+	}
+
+	bar := Taskbar(tasks)
+	if bar[1].Name != "database backup" || bar[1].State != resource.Failed || bar[1].Note != failed {
+		t.Errorf("taskbar 1 = %+v", bar[1])
+	}
+}

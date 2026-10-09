@@ -20,6 +20,9 @@ type Model struct {
 	cursor int
 	top    int
 
+	// sample is set while the tasks shown are the sample ones.
+	sample bool
+
 	width  int
 	height int
 
@@ -31,6 +34,7 @@ func New(t theme.Theme, g theme.Glyphs) Model {
 		theme:  t,
 		glyphs: g,
 		tasks:  sample.Tasks(),
+		sample: true,
 		bars:   make(map[resource.State]progress.Model, 4),
 	}
 
@@ -48,6 +52,17 @@ func New(t theme.Theme, g theme.Glyphs) Model {
 	}
 
 	return m
+}
+
+// SetTasks shows the server's tasks; nil puts the sample ones back.
+func (m *Model) SetTasks(tasks []resource.Task) {
+	m.tasks, m.sample = tasks, tasks == nil
+	if m.sample {
+		m.tasks = sample.Tasks()
+	}
+
+	m.cursor = min(m.cursor, max(len(m.tasks)-1, 0))
+	m.clampScroll()
 }
 
 func (m *Model) SetSize(width, height int) {
