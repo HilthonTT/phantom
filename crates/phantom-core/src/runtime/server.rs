@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, SystemTime},
@@ -34,7 +34,14 @@ pub struct Server {
     pub log: Log,
 
     pub metrics: Metrics,
+
+    /// Builds the config again the way startup built it, files and
+    /// command-line overrides included, for a reload. Unset, a reload reads
+    /// only `$PHANTOM_CONFIG` and the environment.
+    pub config_source: OnceLock<ConfigSource>,
 }
+
+pub type ConfigSource = Box<dyn Fn() -> Result<Config> + Send + Sync>;
 
 impl Server {
     #[must_use]
@@ -53,6 +60,7 @@ impl Server {
             signal: broadcast::channel::<&'static str>(1).0,
             log,
             metrics: Metrics::new(runtime),
+            config_source: OnceLock::new(),
         }
     }
 

@@ -54,7 +54,7 @@ fn handle_reload(&self) -> Result {
         sd_notify::notify(&[sd_notify::NotifyState::Reloading])
             .expect("failed to notify systemd of reloading state");
 
-        self.reload(iter::empty())?;
+        self.reload_running()?;
 
         #[cfg(all(feature = "systemd", target_os = "linux"))]
         sd_notify::notify(&[sd_notify::NotifyState::Ready])
@@ -64,13 +64,29 @@ fn handle_reload(&self) -> Result {
     Ok(())
 }
 
+/// Reloads the config from where the running server got it: the files and
+/// overrides it started with, when the binary recorded them.
+#[implement(Service)]
+pub fn reload_running(&self) -> Result<Arc<Config>> {
+    let new = match self.server.config_source.get() {
+        Some(source) => source()?,
+        None => Config::load(iter::empty()).and_then(|raw| Config::new(&raw))?,
+    };
+
+    self.apply(new)
+}
+
 #[implement(Service)]
 pub fn reload<'a, I>(&self, paths: I) -> Result<Arc<Config>>
 where
     I: Iterator<Item = &'a Path>,
 {
+    self.apply(Config::load(paths).and_then(|raw| Config::new(&raw))?)
+}
+
+#[implement(Service)]
+fn apply(&self, new: Config) -> Result<Arc<Config>> {
     let old = self.server.config.clone();
-    let new = Config::load(paths).and_then(|raw| Config::new(&raw))?;
 
     validate::validate_reload(&old, &new)?;
     self.server.config.update(new)

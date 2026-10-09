@@ -41,8 +41,16 @@ pub(crate) fn new(args: &Args, runtime: &Runtime) -> Result<Arc<Self>> {
         version(),
     );
 
+    let server = Arc::new(CoreServer::new(config, Some(handle.clone()), log));
+
+    // A reload has to see the same files and overrides startup did.
+    let source_args = args.clone();
+    _ = server
+        .config_source
+        .set(Box::new(move || load_config(&source_args)));
+
     Ok(Arc::new(Self {
-        server: Arc::new(CoreServer::new(config, Some(handle.clone()), log)),
+        server,
         services: None.into(),
         _tracing_flame_guard: tracing_flame_guard,
     }))
