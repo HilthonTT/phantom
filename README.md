@@ -71,10 +71,14 @@ opens the command prompt, `q` quits.
 - **Chat** works with any account: rooms and messages over `/sync`, sending,
   typing notices, read receipts, `:join` and `:leave`. Encrypted rooms show
   their messages as undecryptable.
-- **Overview, Users, Devices, Tokens, Rooms, Appservices and Settings** come
-  from the admin API (`/_phantom/admin/v1`) when you sign in as an admin.
-- **Services, Federation, Media, Tasks, Reports and Logs** still show sample
-  data, and every table that isn't live says so in its footer.
+- **Overview, Users, Devices, Tokens, Rooms, Appservices, Settings and Tasks**
+  come from the admin API (`/_phantom/admin/v1`) when you sign in as an admin.
+- **Actions:** `enter` on a row offers what can be done to it (set a password,
+  grant or revoke admin, deactivate, sign out a device, create or revoke a
+  token, ban, shut down or purge a room, reload the config, back up), and the
+  `:` prompt has the same as commands. `s` sorts by column.
+- **Services, Federation, Media, Reports and Logs** still show sample data, and
+  every table that isn't live says so in its footer.
 
 Sessions are kept per server in `phantom/sessions.json` under your config
 directory (`~/.config` on Linux), readable only by you. [docs/cli.md](docs/cli.md) has more on the layout and keys.

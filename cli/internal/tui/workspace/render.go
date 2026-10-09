@@ -73,7 +73,7 @@ func (m Model) footnote(tab Tab) string {
 		return tab.listing.Note
 	}
 
-	return tab.listing.Sort
+	return tab.sortLabel()
 }
 
 func (m Model) renderRow(r resource.Row, cols []resource.Column, w []int, underCursor bool) string {

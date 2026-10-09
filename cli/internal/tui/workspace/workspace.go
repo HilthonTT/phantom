@@ -22,6 +22,12 @@ type Tab struct {
 	cursor  int
 
 	top int
+
+	// sorted is set once the user picked a column to sort by, sortCol; the
+	// rows otherwise keep the order the listing gave them.
+	sorted  bool
+	sortCol int
+	desc    bool
 }
 
 // Source builds a section's listing.
@@ -67,6 +73,8 @@ func (m *Model) SetSource(src Source) {
 	for i, t := range m.tabs {
 		fresh := m.newTab(t.Section)
 		fresh.cursor, fresh.top = t.cursor, t.top
+		fresh.sorted, fresh.sortCol, fresh.desc = t.sorted, t.sortCol, t.desc
+		fresh.sort()
 
 		for j := range fresh.listing.Rows {
 			for _, old := range t.listing.Rows {
@@ -232,9 +240,13 @@ func marks(t Tab) int {
 }
 
 func (m *Model) Reload() {
-	cursor := m.tabs[m.active].cursor
-	m.tabs[m.active] = m.newTab(m.tabs[m.active].Section)
-	m.moveTo(cursor)
+	old := m.tabs[m.active]
+	fresh := m.newTab(old.Section)
+	fresh.sorted, fresh.sortCol, fresh.desc = old.sorted, old.sortCol, old.desc
+	fresh.sort()
+
+	m.tabs[m.active] = fresh
+	m.moveTo(old.cursor)
 }
 
 func (m *Model) StartFiltering() tea.Cmd {

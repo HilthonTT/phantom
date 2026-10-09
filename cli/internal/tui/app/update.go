@@ -196,8 +196,9 @@ func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, model, cmd
 
 	case key.Matches(msg, m.keys.Sort):
-		m.ask(noAction, "Change the sort order",
-			"Sorting is not wired up yet — this is where it will ask.")
+		if !m.chatOpen {
+			m.workspace.CycleSort()
+		}
 		return true, m, nil
 	}
 

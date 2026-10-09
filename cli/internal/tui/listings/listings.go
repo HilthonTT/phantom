@@ -5,6 +5,7 @@ package listings
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -34,9 +35,10 @@ func Users(users []client.AdminUser, now time.Time) resource.Listing {
 		seen := ago(u.LastSeenMs, now)
 
 		rows = append(rows, resource.Row{
-			Cells: []string{u.UserID, yesNo(u.Admin), state, seen},
-			Ref:   []string{u.UserID, state},
-			State: emphasis,
+			Cells:    []string{u.UserID, yesNo(u.Admin), state, seen},
+			Ref:      []string{u.UserID, state},
+			SortKeys: map[int]string{3: fmt.Sprint(ms(u.LastSeenMs))},
+			State:    emphasis,
 			Detail: []resource.Field{
 				{Label: "User ID", Value: u.UserID},
 				{Label: "Display name", Value: or(u.DisplayName, "—")},
@@ -70,8 +72,9 @@ func Devices(devices []client.AdminDevice, now time.Time) resource.Listing {
 	rows := make([]resource.Row, 0, len(devices))
 	for _, d := range devices {
 		rows = append(rows, resource.Row{
-			Cells: []string{d.DeviceID, localpart(d.UserID), or(d.DisplayName, "—"), or(d.LastSeenIP, "—"), ago(d.LastSeenMs, now)},
-			Ref:   []string{d.UserID, d.DeviceID},
+			Cells:    []string{d.DeviceID, localpart(d.UserID), or(d.DisplayName, "—"), or(d.LastSeenIP, "—"), ago(d.LastSeenMs, now)},
+			Ref:      []string{d.UserID, d.DeviceID},
+			SortKeys: map[int]string{4: fmt.Sprint(ms(d.LastSeenMs))},
 			Detail: []resource.Field{
 				{Label: "Device ID", Value: d.DeviceID},
 				{Label: "User", Value: d.UserID},
@@ -136,9 +139,10 @@ func Tokens(tokens []client.RegistrationToken, now time.Time) resource.Listing {
 		}
 
 		rows = append(rows, resource.Row{
-			Cells: []string{tok.Token, uses, limit, expires},
-			Ref:   []string{tok.Token, tok.Source},
-			State: state,
+			Cells:    []string{tok.Token, uses, limit, expires},
+			Ref:      []string{tok.Token, tok.Source},
+			SortKeys: map[int]string{3: expiryKey(tok.ExpiresAtMs)},
+			State:    state,
 			Detail: []resource.Field{
 				{Label: "Token", Value: tok.Token},
 				{Label: "Uses", Value: uses},
@@ -292,9 +296,10 @@ func Tasks(tasks []client.AdminTask, now time.Time) resource.Listing {
 		name := taskName(t)
 
 		rows = append(rows, resource.Row{
-			Cells: []string{name, t.Status, ago(&at, now)},
-			Ref:   []string{t.ID},
-			State: state,
+			Cells:    []string{name, t.Status, ago(&at, now)},
+			Ref:      []string{t.ID},
+			SortKeys: map[int]string{2: fmt.Sprint(t.UpdatedAtMs)},
+			State:    state,
 			Detail: []resource.Field{
 				{Label: "Task", Value: name},
 				{Label: "ID", Value: t.ID},
@@ -339,6 +344,15 @@ func Taskbar(tasks []client.AdminTask) []resource.Task {
 	}
 
 	return out
+}
+
+// expiryKey sorts a token that never expires after every one that does.
+func expiryKey(at *int64) string {
+	if at == nil {
+		return fmt.Sprint(int64(math.MaxInt64))
+	}
+
+	return fmt.Sprint(*at)
 }
 
 func taskName(t client.AdminTask) string {

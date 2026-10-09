@@ -114,6 +114,10 @@ type Row struct {
 	// ID, a user and device ID, and so on. Sample rows have none.
 	Ref []string
 
+	// SortKeys stand in for a column's cell when sorting, by column, where
+	// the cell reads well but sorts badly, as "2 min ago" does.
+	SortKeys map[int]string
+
 	Detail []Field
 
 	State State
