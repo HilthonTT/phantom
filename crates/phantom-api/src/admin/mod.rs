@@ -2,6 +2,13 @@
 //! console. Every route takes an admin's access token, checked by
 //! [`AdminAuth`].
 
+mod appservices;
+mod rooms;
+mod settings;
+mod stats;
+mod tokens;
+mod users;
+
 use axum::{Json, Router, extract::State, response::IntoResponse, routing::get};
 use phantom_core::Result;
 use serde_json::json;
@@ -9,7 +16,21 @@ use serde_json::json;
 use crate::router::{AdminAuth, State as RouterState};
 
 pub fn register(router: Router<RouterState>) -> Router<RouterState> {
-    router.route("/_phantom/admin/v1/whoami", get(whoami))
+    router
+        .route("/_phantom/admin/v1/whoami", get(whoami))
+        .route("/_phantom/admin/v1/stats", get(stats::stats))
+        .route("/_phantom/admin/v1/users", get(users::users))
+        .route("/_phantom/admin/v1/devices", get(users::devices))
+        .route(
+            "/_phantom/admin/v1/registration_tokens",
+            get(tokens::tokens),
+        )
+        .route("/_phantom/admin/v1/rooms", get(rooms::rooms))
+        .route(
+            "/_phantom/admin/v1/appservices",
+            get(appservices::appservices),
+        )
+        .route("/_phantom/admin/v1/settings", get(settings::settings))
 }
 
 /// # `GET /_phantom/admin/v1/whoami`

@@ -41,8 +41,9 @@ serde_json = "1.0.151"
 sha1 = "0.11.0"
 smallstr = { version = "0.3.1", features = ["serde"] }
 smallvec = { version = "1.16.1", features = ["serde"] }
-# Bounds federation key lookups and long-polling sync with timers.
-tokio = { version = "1.49.0", features = ["time"] }
+# Bounds federation key lookups and long-polling sync with timers, and sizes
+# the database directory for the admin stats.
+tokio = { version = "1.49.0", features = ["fs", "time"] }
 # The `#[instrument]` attribute; it expands to `::tracing` paths, so the
 # phantom-core re-export is not enough.
 tracing = "0.1.44"
