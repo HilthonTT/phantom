@@ -163,6 +163,58 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
     Ok(())
 }
 
+/// Takes admin away: the server user removes the user from the admin room,
+/// or withdraws a pending invite, and drops their power level there.
+#[implement(super::Service)]
+pub async fn revoke_admin(&self, user_id: &UserId) -> Result {
+    let server_user = &self.services.server_state.server_user;
+    if user_id == server_user {
+        return Err!(Request(Forbidden(
+            "The server user's admin cannot be revoked."
+        )));
+    }
+
+    let room_id = self.get_admin_room().await?;
+    let state_lock = self.services.state.mutex.lock(&*room_id).await;
+
+    let state_cache = &self.services.state_cache;
+    if !state_cache.is_joined(user_id, &room_id).await
+        && !state_cache.is_invited(user_id, &room_id).await
+    {
+        return Err!(Request(InvalidParam("{user_id} is not an admin.")));
+    }
+
+    self.services
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder::state(
+                user_id.to_string(),
+                &RoomMemberEventContent::new(MembershipState::Leave),
+            ),
+            server_user,
+            &room_id,
+            &state_lock,
+        )
+        .await?;
+
+    let mut power_levels: RoomPowerLevelsEventContent = self
+        .services
+        .state_accessor
+        .room_state_get_content(&room_id, &StateEventType::RoomPowerLevels, "")
+        .await
+        .map_err(|e| err!(Database("Admin room has no power levels: {e}")))?;
+
+    if power_levels.users.remove(user_id).is_some() {
+        self.services
+            .timeline
+            .build_and_append_pdu(state(&power_levels), server_user, &room_id, &state_lock)
+            .await?;
+    }
+
+    debug_info!(%user_id, %room_id, "Revoked admin");
+    Ok(())
+}
+
 #[implement(super::Service)]
 async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result {
     let mut event: TagEvent = self
