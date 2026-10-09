@@ -1,6 +1,9 @@
 #![recursion_limit = "192"]
 
 pub mod accounts;
+// Unfinished admin command processor: it needs clap and a `console` feature
+// before it builds. Remove this cfg when picking it back up.
+#[cfg(disable)]
 pub mod admin;
 pub mod auth;
 pub mod media;
