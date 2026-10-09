@@ -6,6 +6,8 @@ pub struct Network {
     #[serde(default = "default_ip_range_denylist")]
     pub ip_range_denylist: Vec<String>,
 
+    // A proxy URL can carry its credentials (`socks5://user:pass@host`).
+    #[doc = "display: sensitive"]
     #[serde(default)]
     pub proxy: ProxyConfig,
 

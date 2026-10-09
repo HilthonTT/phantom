@@ -50,6 +50,7 @@ fn display_masks_sensitive_and_lists_fields() {
         database_path = "/var/lib/phantom"
         registration_token = "hunter2"
         turn_secret = "swordfish"
+        proxy = { global = { url = "socks5h://phantom:opensesame@proxy.example" } }
         "#,
     )
     .expect("config is valid");
@@ -58,6 +59,11 @@ fn display_masks_sensitive_and_lists_fields() {
     assert!(rendered.contains("| server_name | \"phantom.chat\" |"));
     assert!(rendered.contains("| registration_token | *********** |"));
     assert!(rendered.contains("| turn_secret | *********** |"));
+    assert!(rendered.contains("| proxy | *********** |"));
+    assert!(
+        !rendered.contains("opensesame"),
+        "a proxy URL's credentials must not be rendered"
+    );
     assert!(!rendered.contains("hunter2"), "secret must not be rendered");
     assert!(
         !rendered.contains("swordfish"),
