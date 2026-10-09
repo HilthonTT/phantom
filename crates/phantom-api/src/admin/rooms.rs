@@ -1,8 +1,14 @@
-use axum::{Json, extract::State, response::IntoResponse};
+use axum::{
+    Json,
+    body::Bytes,
+    extract::{Path, State},
+    response::IntoResponse,
+};
 use futures::{StreamExt, future::join_all};
-use phantom_core::Result;
+use phantom_core::{Err, Result};
 use ruma::{OwnedRoomAliasId, OwnedRoomId, RoomId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::router::{AdminAuth, State as RouterState};
 
@@ -80,4 +86,114 @@ async fn room(services: &RouterState, room_id: &RoomId) -> Room {
         banned: rooms.metadata.is_banned(room_id).await,
         disabled: rooms.metadata.is_disabled(room_id).await,
     }
+}
+
+/// # `PUT /_phantom/admin/v1/rooms/{room_id}/ban`
+///
+/// Bans a room: local users can no longer join it, and the server stops
+/// taking part in it over federation.
+pub(super) async fn ban(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    Path(room_id): Path<OwnedRoomId>,
+) -> Result<impl IntoResponse> {
+    not_the_admin_room(&services, &room_id).await?;
+    services.rooms.metadata.ban_room(&room_id, true);
+
+    Ok(Json(json!({})))
+}
+
+/// # `DELETE /_phantom/admin/v1/rooms/{room_id}/ban`
+pub(super) async fn unban(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    Path(room_id): Path<OwnedRoomId>,
+) -> Result<impl IntoResponse> {
+    services.rooms.metadata.ban_room(&room_id, false);
+
+    Ok(Json(json!({})))
+}
+
+/// # `POST /_phantom/admin/v1/rooms/{room_id}/shutdown`
+///
+/// Evicts every local member, frees the room's local aliases and takes it
+/// out of the directory, as a tracked task; answers with the task's ID.
+pub(super) async fn shutdown(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    Path(room_id): Path<OwnedRoomId>,
+) -> Result<impl IntoResponse> {
+    not_the_admin_room(&services, &room_id).await?;
+    known(&services, &room_id).await?;
+
+    let task_services = services.clone();
+    let task_room = room_id.clone();
+    let task_id = services
+        .tasks
+        .spawn("shutdown room", room_id.to_string(), async move {
+            let rooms = &task_services.rooms;
+            let state_lock = rooms.state.mutex.lock(&*task_room).await;
+            let summary = rooms.delete.shutdown_room(&task_room, &state_lock).await;
+
+            Ok(serde_json::to_value(summary)?)
+        });
+
+    Ok(Json(json!({ "task_id": task_id.as_str() })))
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default)]
+pub(super) struct Delete {
+    /// Purge even what the room's state cannot account for.
+    force: bool,
+}
+
+/// # `DELETE /_phantom/admin/v1/rooms/{room_id}`
+///
+/// Shuts the room down, then purges everything the server holds of it, as a
+/// tracked task; answers with the task's ID.
+pub(super) async fn delete(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    Path(room_id): Path<OwnedRoomId>,
+    body: Bytes,
+) -> Result<impl IntoResponse> {
+    let body: Delete = super::body(&body)?;
+    not_the_admin_room(&services, &room_id).await?;
+    known(&services, &room_id).await?;
+
+    let task_services = services.clone();
+    let task_room = room_id.clone();
+    let task_id = services
+        .tasks
+        .spawn("delete room", room_id.to_string(), async move {
+            let rooms = &task_services.rooms;
+            let state_lock = rooms.state.mutex.lock(&*task_room).await;
+            let summary = rooms
+                .delete
+                .delete_room(&task_room, body.force, &state_lock)
+                .await?;
+
+            Ok(serde_json::to_value(summary)?)
+        });
+
+    Ok(Json(json!({ "task_id": task_id.as_str() })))
+}
+
+async fn not_the_admin_room(services: &RouterState, room_id: &RoomId) -> Result {
+    if services.admin.is_admin_room(room_id).await {
+        return Err!(Request(Forbidden(
+            "The admin room cannot be banned, shut down or deleted."
+        )));
+    }
+
+    Ok(())
+}
+
+async fn known(services: &RouterState, room_id: &RoomId) -> Result {
+    if !services.rooms.metadata.exists(room_id).await {
+        return Err!(Request(NotFound("The server does not know {room_id}.")));
+    }
+
+    Ok(())
 }
