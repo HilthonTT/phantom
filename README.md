@@ -1,7 +1,6 @@
 # phantom
 
-A [Matrix](https://matrix.org) homeserver written in Rust, with a terminal admin
-console written in Go.
+A [Matrix](https://matrix.org) homeserver in Rust, with a terminal admin console in Go.
 
 [![rust](https://github.com/HilthonTT/phantom/actions/workflows/rust.yml/badge.svg)](https://github.com/HilthonTT/phantom/actions/workflows/rust.yml)
 [![go](https://github.com/HilthonTT/phantom/actions/workflows/go.yml/badge.svg)](https://github.com/HilthonTT/phantom/actions/workflows/go.yml)
@@ -9,42 +8,35 @@ console written in Go.
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 > [!WARNING]
-> **Early and not production-ready.** phantom serves the client-server API over
-> plain HTTP, so local accounts can register, chat, sync and be managed from the
-> console. Federation with other servers is mounted but untested, there is no
-> TLS (put it behind a reverse proxy), room version 12 is unsupported, and the
-> `!admin` room commands do nothing yet. **Do not deploy this.**
+> **Early; do not deploy.** The client-server API works over plain HTTP: local
+> accounts can register, chat, sync and be managed from the console. Federation
+> is untested, there is no TLS, room version 12 is unsupported, and `!admin`
+> room commands do nothing yet.
 
-## Status
-
-| Part | What it is | State |
-| :--- | :--- | :--- |
-| **`phantom-core`** | config, errors, logging, Matrix event types, state resolution | usable |
-| **`phantom-database`** | RocksDB engine, 113 typed columns, codecs, read pool | usable |
-| **`phantom-service`** | the service runtime and its ~55 services | usable, partly untested |
-| **`phantom-api`** | client-server, federation, OIDC and admin HTTP routes | client API works |
-| **`phantom-macros`** | proc macros, including the config-example generator | usable |
-| **`phantom-server`** | the `phantom-server` binary | serves plain TCP |
-| **`cli/`** | the `phantom` admin console | every section live against a running server |
-
-About 94,000 lines of Rust and 8,000 of Go.
-[docs/architecture.md](docs/architecture.md) shows how the crates layer.
+| Part | What it is |
+| :--- | :--- |
+| `phantom-core` | config, errors, logging, Matrix event types, state resolution |
+| `phantom-database` | RocksDB engine, typed columns, codecs, read pool |
+| `phantom-service` | the service runtime and its ~55 services |
+| `phantom-api` | client-server, federation, OIDC and admin HTTP routes |
+| `phantom-macros` | proc macros, including the config-example generator |
+| `phantom-server` | the server binary |
+| `cli/` | the `phantom` admin console |
 
 ## Quick start
 
-You need **Rust 1.97.1** (pinned by `rust-toolchain.toml`), **Go 1.27+**, a
-**C/C++ compiler with `libclang`** for the bundled RocksDB, which makes the
-first build slow, and optionally [`just`](https://github.com/casey/just).
-[docs/installation.md](docs/installation.md) has the packages per platform.
+Needs **Rust 1.97.1** (pinned), **Go 1.27+**, a **C/C++ compiler with
+`libclang`** for the bundled RocksDB. Recipes run with
+[`just`](https://github.com/casey/just) or `make`. Per-platform packages are in
+[docs/installation.md](docs/installation.md).
 
 ```sh
 git clone https://github.com/HilthonTT/phantom.git && cd phantom
-just build      # release server, plus the console at target/phantom
+just build    # release server, plus the console at target/phantom
 ```
 
-A minimal `phantom.toml`:
-
 ```toml
+# phantom.toml
 [global]
 server_name = "phantom.test"
 database_path = "/var/lib/phantom"
@@ -54,82 +46,42 @@ registration_token = "change-me"
 
 ```sh
 ./target/release/phantom-server -c phantom.toml   # listens on localhost:8008
-./target/phantom                                  # the console; --server URL to point elsewhere
+./target/phantom                                  # --server URL to point elsewhere
 ```
 
-A fresh database creates the `#admins` room. **The first account to register
-becomes the server's admin.** Register it with any Matrix client and the token
-above, then sign in to the console with it.
+**The first account to register becomes admin.** Register it with any Matrix
+client and the token, then sign in to the console with it.
 
 ## The admin console
 
-A terminal interface modelled on [superfile](https://github.com/yorukot/superfile):
-sections on the left, a table in the middle, details on the right, and tasks,
-the selection and the connection along the bottom. `?` lists the keys, `:`
-opens the command prompt, `q` quits.
+Sections on the left, a table in the middle, details on the right; `?` lists
+the keys, `:` opens the command prompt, `q` quits.
 
-- **Chat** works with any account: rooms and messages over `/sync`, sending,
-  typing notices, read receipts, `:join` and `:leave`. Encrypted rooms show
-  their messages as undecryptable.
-- **Every other section** comes from the admin API (`/_phantom/admin/v1`) when
-  you sign in as an admin: the overview, users, devices, tokens, rooms,
-  appservices, settings, tasks, services and their workers, the servers
-  federated with, the media store, the recent log, and the abuse reports users
-  file (also posted into the admin room). Signed out, or as a regular user,
-  they show sample data, and say so in their footer.
-- **Actions:** `enter` on a row offers what can be done to it (set a password,
-  grant or revoke admin, deactivate, sign out a device, create or revoke a
-  token, ban, shut down or purge a room, delete a file, purge a server's media,
-  dismiss a report, reload the config, back up), and the `:` prompt has the
-  same as commands. `s` sorts by column.
+- **Chat** works for any account: rooms, sending, typing, receipts, `:join`.
+- **Every other section** is live for an admin: overview, users, devices,
+  tokens, rooms, appservices, settings, tasks, services, federation, media,
+  logs and abuse reports. Otherwise they show sample data, labelled as such.
+- **Actions:** `enter` on a row, or a `:` command, to manage users, devices,
+  tokens, rooms, media and reports, reload the config or back up. `s` sorts.
 
-Sessions are kept per server in `phantom/sessions.json` under your config
-directory (`~/.config` on Linux), readable only by you. [docs/cli.md](docs/cli.md) has more on the layout and keys.
+See [docs/cli.md](docs/cli.md).
 
-## Configuration
+## Configuration and development
 
-phantom reads TOML, with every option under `[global]`. Sources are layered,
-later winning: the file in `$PHANTOM_CONFIG`, then `-c` paths, then `PHANTOM_`
-environment variables (`__` separates nested keys). Unknown keys are logged as a
-warning, not rejected.
+phantom reads TOML under `[global]`, layered from `$PHANTOM_CONFIG`, then `-c`
+files, then `PHANTOM_` environment variables (`__` nests). `phantom-example.toml`
+documents every option and is **generated by `cargo build`; don't edit it**.
+See [docs/configuration.md](docs/configuration.md).
 
-`phantom-example.toml` documents every option. **It is generated, so don't edit
-it:** each `cargo build` rewrites it from the doc comments on the `Config`
-structs in `crates/phantom-core/src/runtime/config/`. See
-[docs/configuration.md](docs/configuration.md).
+`just check` (or `make check`) runs what CI does: fmt, clippy with
+`-D warnings`, the Rust tests, `go vet` and `go test -race`. See
+[docs/development.md](docs/development.md);
+[docs/architecture.md](docs/architecture.md) covers the internals.
 
-## Development
+## Upstream and license
 
-```sh
-just check      # what CI runs: fmt, clippy -D warnings and tests (with and
-                # without all features), go vet and go test -race
-```
-
-The workspace is warning-free and should stay that way. See
-[docs/development.md](docs/development.md) for tests, CI and conventions.
-
-## Documentation
-
-| Page | What it covers |
-| :--- | :--- |
-| [installation.md](docs/installation.md) | toolchains per platform, build features, troubleshooting |
-| [architecture.md](docs/architecture.md) | the crates and the service runtime |
-| [configuration.md](docs/configuration.md) | settings sources and adding an option |
-| [cli.md](docs/cli.md) | the admin console |
-| [development.md](docs/development.md) | checks, CI, tests, conventions |
-| [deployment.md](docs/deployment.md) | what deployment will need |
-| [upstream-sync.md](docs/upstream-sync.md) | tracking conduwuit |
-
-## Upstream, contributing, security, license
-
-phantom began as, and still tracks, a port of
-[conduwuit](https://github.com/girlbossceo/conduwuit); large parts are derived
-from it, which is why phantom is also Apache-2.0. Divergences are commented
-where they occur. Attribution is in [NOTICE](NOTICE).
-
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
-Report vulnerabilities privately through
-[GitHub's form](https://github.com/HilthonTT/phantom/security/advisories/new),
-not a public issue ([SECURITY.md](SECURITY.md)).
-
-Licensed under the [Apache License 2.0](LICENSE).
+phantom is a port of [conduwuit](https://github.com/girlbossceo/conduwuit) and
+still tracks it ([docs/upstream-sync.md](docs/upstream-sync.md)); attribution is
+in [NOTICE](NOTICE). Licensed under [Apache-2.0](LICENSE). Contributions are
+welcome ([CONTRIBUTING.md](CONTRIBUTING.md)); report vulnerabilities privately
+([SECURITY.md](SECURITY.md)).
