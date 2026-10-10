@@ -1,6 +1,9 @@
-use std::fmt::Write;
+use std::{
+    fmt::Write,
+    sync::{Mutex, TryLockError},
+};
 
-use phantom_core::{Result, error, implement, info, time::rfc2822_from_seconds};
+use phantom_core::{Err, Result, error, implement, info, time::rfc2822_from_seconds};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions};
 
 use crate::{
@@ -15,6 +18,17 @@ pub fn backup(&self) -> Result {
     let config = &server.config;
     let Some(path) = backup_path(self) else {
         return Ok(());
+    };
+
+    // Two backup engines writing one directory at once can trash it: each
+    // collects the files the other has not recorded yet as garbage.
+    static RUNNING: Mutex<()> = Mutex::new(());
+    let _running = match RUNNING.try_lock() {
+        Ok(guard) => guard,
+        Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+        Err(TryLockError::WouldBlock) => {
+            return Err!(Conflict("A database backup is already running."));
+        }
     };
 
     let options = BackupEngineOptions::new(path).map_err(map_err)?;
@@ -74,7 +88,9 @@ pub fn backup_list(&self) -> Result<String> {
 /// none when backups are off or none was made yet.
 #[implement(Engine)]
 pub fn last_backup(&self) -> Result<Option<(i64, u64)>> {
-    let Some(path) = backup_path(self) else {
+    // Opening a backup engine creates its directories; only reading, leave
+    // a directory no backup made yet alone.
+    let Some(path) = backup_path(self).filter(|path| path.is_dir()) else {
         return Ok(None);
     };
 

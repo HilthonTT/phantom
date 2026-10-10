@@ -78,18 +78,30 @@ func ServiceCounts(services []client.AdminService) (total, running, failed int) 
 // PeerCounts tallies the servers this one shares rooms with, for the
 // overview: all of them, those that answered since startup, and those held
 // back after failures.
-func PeerCounts(peers []client.Peer) (known, reachable, failing int) {
+func PeerCounts(peers []client.Peer, now time.Time) (known, reachable, failing int) {
 	for _, p := range peers {
 		known++
 		switch {
-		case p.Backoff != nil:
+		case held(p, now):
 			failing++
-		case p.LastContactMs != nil:
+		case p.Backoff == nil && p.LastContactMs != nil:
 			reachable++
 		}
 	}
 
 	return known, reachable, failing
+}
+
+// retryAt is when the server next tries a failing peer: its backoff counts
+// from the last failure, not from now.
+func retryAt(p client.Peer) time.Time {
+	return time.UnixMilli(p.Backoff.SinceMs).Add(time.Duration(p.Backoff.DelaySecs) * time.Second)
+}
+
+// held says whether requests to the peer are being held back now. Once its
+// backoff has run out the server tries it again, just after other peers.
+func held(p client.Peer, now time.Time) bool {
+	return p.Backoff != nil && (p.Backoff.Permanent || retryAt(p).After(now))
 }
 
 // Federation lists the servers this one shares rooms with, those held back
@@ -111,16 +123,25 @@ func Federation(peers []client.Peer, now time.Time) resource.Listing {
 		switch {
 		case p.Backoff != nil && p.Backoff.Permanent:
 			status, state = "unreachable", resource.Failed
-		case p.Backoff != nil:
+		case held(p, now):
 			status, state = "backing off", resource.Held
+		case p.Backoff != nil:
+			status, state = "retrying", resource.Held
 		case p.LastContactMs != nil:
 			status, state = "reachable", resource.Done
 		}
 
 		backoff := "—"
 		if p.Backoff != nil {
-			backoff = fmt.Sprintf("retry in %ds; failing since %s", p.Backoff.DelaySecs,
-				time.UnixMilli(p.Backoff.SinceMs).In(now.Location()).Format("2006-01-02 15:04"))
+			last := time.UnixMilli(p.Backoff.SinceMs).In(now.Location()).Format("2006-01-02 15:04")
+			switch {
+			case p.Backoff.Permanent:
+				backoff = "given up; last failure " + last
+			case held(p, now):
+				backoff = fmt.Sprintf("retry in %s; last failure %s", retryAt(p).Sub(now).Round(time.Second), last)
+			default:
+				backoff = "retrying, after other servers; last failure " + last
+			}
 		}
 
 		rows = append(rows, resource.Row{

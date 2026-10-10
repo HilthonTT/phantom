@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -61,14 +62,27 @@ func New(t theme.Theme, g theme.Glyphs, s resource.Section) Model {
 	}
 }
 
+// newTab takes its own copy of the source's rows, since a tab sorts and
+// marks them in place and the source hands the same rows to every tab.
 func (m Model) newTab(s resource.Section) Tab {
-	return Tab{Section: s, listing: m.source(s)}
+	listing := m.source(s)
+	listing.Rows = slices.Clone(listing.Rows)
+
+	return Tab{Section: s, listing: listing}
 }
 
 // SetSource switches where listings come from and rebuilds every open tab,
 // keeping each one's cursor and the rows it had marked.
 func (m *Model) SetSource(src Source) {
 	m.source = src
+
+	// Each tab's cursor stays on its record, which a refresh can move.
+	selected := make([]string, len(m.tabs))
+	for i, t := range m.tabs {
+		if rows := m.rowsOf(i); len(rows) > 0 {
+			selected[i] = recordOf(rows[min(t.cursor, len(rows)-1)])
+		}
+	}
 
 	for i, t := range m.tabs {
 		fresh := m.newTab(t.Section)
@@ -88,7 +102,17 @@ func (m *Model) SetSource(src Source) {
 	}
 
 	for i := range m.tabs {
-		m.tabs[i].cursor = min(m.tabs[i].cursor, max(len(m.rowsOf(i))-1, 0))
+		rows := m.rowsOf(i)
+		m.tabs[i].cursor = min(m.tabs[i].cursor, max(len(rows)-1, 0))
+		if selected[i] == "" {
+			continue
+		}
+		for j, r := range rows {
+			if recordOf(r) == selected[i] {
+				m.tabs[i].cursor = j
+				break
+			}
+		}
 	}
 	m.clampScrollAll()
 }
@@ -294,6 +318,18 @@ func (m *Model) clampScrollAt(i int) {
 	}
 
 	t.top = min(max(t.top, 0), max(len(m.rowsOf(i))-perTab, 0))
+}
+
+// recordOf names what a row stands for, which stays the same when a refresh
+// changes its other cells: its reference, or else its first cell.
+func recordOf(r resource.Row) string {
+	if len(r.Ref) > 0 {
+		return strings.Join(r.Ref, "\x00")
+	}
+	if len(r.Cells) > 0 {
+		return r.Cells[0]
+	}
+	return ""
 }
 
 func sameRow(a, b resource.Row) bool {

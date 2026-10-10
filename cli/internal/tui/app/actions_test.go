@@ -78,6 +78,22 @@ func TestPromptCommandsExpandBareNames(t *testing.T) {
 	}
 }
 
+func TestPromptRunsAnEmptyOrCapitalisedLine(t *testing.T) {
+	m := withUsers(t)
+
+	for _, line := range []string{"", "   "} {
+		next, _ := m.runCommand(line)
+		if next.(Model).modal != modal.None {
+			t.Errorf("runCommand(%q) opened modal %d, want none", line, next.(Model).modal)
+		}
+	}
+
+	next, _ := m.runCommand("Deactivate bob")
+	if got := next.(Model); got.modal != modal.Confirm || got.acting.Target != "@bob:test" {
+		t.Errorf("modal = %d target %q, want the confirm for @bob:test", got.modal, got.acting.Target)
+	}
+}
+
 func TestPromptAdminCommandsNeedAnAdmin(t *testing.T) {
 	m := signedInAs(t, false)
 

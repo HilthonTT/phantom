@@ -1,6 +1,7 @@
 package listings
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestFederationPutsFailingServersFirst(t *testing.T) {
 			Permanent bool  `json:"permanent"`
 			SinceMs   int64 `json:"since_ms"`
 			DelaySecs int64 `json:"delay_secs"`
-		}{DelaySecs: 60}},
+		}{SinceMs: now.Add(-time.Minute).UnixMilli(), DelaySecs: 600}},
 		{Server: "quiet.example"},
 	}, now)
 
@@ -57,6 +58,36 @@ func TestFederationPutsFailingServersFirst(t *testing.T) {
 	}
 	if l.Rows[0].Cells[1] != "backing off" || l.Rows[3].Cells[1] != "not contacted" {
 		t.Errorf("statuses = %q, %q", l.Rows[0].Cells[1], l.Rows[3].Cells[1])
+	}
+}
+
+func TestFederationBackoffCountsFromTheLastFailure(t *testing.T) {
+	backoff := func(ago time.Duration, delay int64) client.Peer {
+		p := client.Peer{Server: "down.example"}
+		p.Backoff = &struct {
+			Permanent bool  `json:"permanent"`
+			SinceMs   int64 `json:"since_ms"`
+			DelaySecs int64 `json:"delay_secs"`
+		}{SinceMs: now.Add(-ago).UnixMilli(), DelaySecs: delay}
+		return p
+	}
+
+	// Failed 50 minutes ago with an hour's backoff: ten minutes to go.
+	l := Federation([]client.Peer{backoff(50*time.Minute, 3600)}, now)
+	if got := l.Rows[0].Detail[4].Value; !strings.HasPrefix(got, "retry in 10m0s;") {
+		t.Errorf("backoff = %q, want retry in 10m0s", got)
+	}
+
+	// Failed two hours ago with an hour's backoff: the server tries it again.
+	expired := backoff(2*time.Hour, 3600)
+	l = Federation([]client.Peer{expired}, now)
+	if got := l.Rows[0].Cells[1]; got != "retrying" {
+		t.Errorf("status = %q, want retrying", got)
+	}
+
+	known, reachable, failing := PeerCounts([]client.Peer{backoff(time.Minute, 600), expired}, now)
+	if known != 2 || reachable != 0 || failing != 1 {
+		t.Errorf("counts = %d %d %d, want 2 0 1", known, reachable, failing)
 	}
 }
 

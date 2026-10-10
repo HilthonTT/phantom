@@ -92,3 +92,69 @@ func TestSortCyclesThroughColumnsAndBack(t *testing.T) {
 		}
 	}
 }
+
+func TestSortLeavesTheSourceAndOtherTabsAlone(t *testing.T) {
+	// One listing handed to every tab, as the live state does.
+	shared := resource.Listing{
+		Columns: []resource.Column{{Title: "Name"}},
+		Rows: []resource.Row{
+			{Cells: []string{"b"}}, {Cells: []string{"c"}}, {Cells: []string{"a"}},
+		},
+	}
+
+	m := New(theme.Default(), theme.Glyphs{}, resource.Users)
+	m.SetSize(120, 20)
+	m.SetSource(func(resource.Section) resource.Listing { return shared })
+	m.OpenTab(resource.Users)
+
+	m.CycleSort()
+	m.ToggleMark()
+
+	order := func(rows []resource.Row) string {
+		s := ""
+		for _, r := range rows {
+			s += r.Cells[0]
+			if r.Marked {
+				s += "*"
+			}
+		}
+		return s
+	}
+
+	if got := order(shared.Rows); got != "bca" {
+		t.Errorf("source rows = %s after sorting a tab, want bca", got)
+	}
+	if got := order(m.rowsOf(0)); got != "bca" {
+		t.Errorf("the other tab's rows = %s, want bca", got)
+	}
+	if got := order(m.Rows()); got != "ab*c" {
+		t.Errorf("the sorted tab's rows = %s, want ab*c", got)
+	}
+}
+
+func TestRefreshKeepsTheCursorOnItsRecord(t *testing.T) {
+	rows := func(names ...string) resource.Listing {
+		l := resource.Listing{Columns: []resource.Column{{Title: "Name"}, {Title: "Seen"}}}
+		for _, n := range names {
+			l.Rows = append(l.Rows, resource.Row{Cells: []string{n, "now"}, Ref: []string{"@" + n}})
+		}
+		return l
+	}
+
+	m := New(theme.Default(), theme.Glyphs{}, resource.Users)
+	m.SetSize(120, 20)
+	m.SetSource(func(resource.Section) resource.Listing { return rows("alice", "bob", "carol") })
+	m.Select(func(r resource.Row) bool { return r.Cells[0] == "bob" })
+
+	// A refresh reorders the users, as sorting by last seen does.
+	m.SetSource(func(resource.Section) resource.Listing { return rows("carol", "dave", "alice", "bob") })
+	if got, _ := m.Selected(); got.Cells[0] != "bob" {
+		t.Errorf("selected %q after the refresh, want bob", got.Cells[0])
+	}
+
+	// A record that went away leaves the cursor where it was, in range.
+	m.SetSource(func(resource.Section) resource.Listing { return rows("alice") })
+	if got, ok := m.Selected(); !ok || got.Cells[0] != "alice" {
+		t.Errorf("selected %q after bob went, want alice", got.Cells[0])
+	}
+}

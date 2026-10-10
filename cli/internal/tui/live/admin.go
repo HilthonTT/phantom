@@ -143,7 +143,7 @@ func FetchAdmin(c *client.Client, gen int, section resource.Section) tea.Cmd {
 		case resource.Federation:
 			peers, err := c.Federation(ctx)
 			var counts PeerCounts
-			counts.Known, counts.Reachable, counts.Failing = listings.PeerCounts(peers)
+			counts.Known, counts.Reachable, counts.Failing = listings.PeerCounts(peers, now)
 			msg.Listing, msg.Peers, msg.Err = listings.Federation(peers, now), &counts, err
 
 		case resource.Media:

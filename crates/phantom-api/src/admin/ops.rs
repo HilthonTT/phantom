@@ -34,6 +34,12 @@ pub(super) async fn backup(
         )));
     }
 
+    // The engine refuses a second backup at once as well; this answers the
+    // request with why instead of starting a task bound to fail.
+    if services.tasks.has_nonterminal("database backup", "") {
+        return Err!(Conflict("A database backup is already running."));
+    }
+
     let db = services.db.clone();
     let task_id = services
         .tasks

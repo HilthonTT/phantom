@@ -46,17 +46,23 @@ registration_token = %q
 
 	path := filepath.Join(dir, "phantom.toml")
 	if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+		_ = os.RemoveAll(dir)
 		return nil, err
 	}
 
 	log, err := os.Create(filepath.Join(dir, "server.log"))
 	if err != nil {
+		_ = os.RemoveAll(dir)
 		return nil, err
 	}
 
 	cmd := exec.Command(bin, "-c", path)
 	cmd.Stdout, cmd.Stderr = log, log
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	// The server holds its own handle on the log once started.
+	_ = log.Close()
+	if err != nil {
+		_ = os.RemoveAll(dir)
 		return nil, err
 	}
 
@@ -69,11 +75,18 @@ registration_token = %q
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	s.Stop()
+	// The directory is kept, so the log the error points to is still there.
+	s.halt()
 	return nil, fmt.Errorf("phantom-server did not start; see %s", log.Name())
 }
 
 func (s *Server) Stop() {
+	s.halt()
+	_ = os.RemoveAll(s.dir)
+}
+
+// halt stops the server process, killing it if it does not exit in time.
+func (s *Server) halt() {
 	if s.cmd.Process != nil {
 		_ = s.cmd.Process.Signal(os.Interrupt)
 		done := make(chan struct{})
@@ -84,7 +97,6 @@ func (s *Server) Stop() {
 			_ = s.cmd.Process.Kill()
 		}
 	}
-	_ = os.RemoveAll(s.dir)
 }
 
 // account is a signed-in user of the scratch server.

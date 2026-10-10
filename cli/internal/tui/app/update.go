@@ -490,7 +490,13 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) runCommand(line string) (tea.Model, tea.Cmd) {
 	m = m.closeModal()
 
-	word, _, _ := strings.Cut(strings.TrimSpace(line), " ")
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return m, nil
+	}
+
+	// The prompt matches commands whatever their case, so run them so too.
+	word := strings.ToLower(fields[0])
 	switch word {
 	case "login":
 		return m.openLogin("")
@@ -504,7 +510,7 @@ func (m Model) runCommand(line string) (tea.Model, tea.Cmd) {
 		return m, live.Logout(m.client)
 
 	case "join":
-		target := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "join"))
+		target := strings.TrimSpace(strings.TrimSpace(line)[len(fields[0]):])
 		if target == "" || !m.chat.Live() {
 			return m, nil
 		}
@@ -520,7 +526,7 @@ func (m Model) runCommand(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m.adminCommand(word, strings.Fields(line)[1:])
+	return m.adminCommand(word, fields[1:])
 }
 
 func (m *Model) ask(a action, title, body string) {

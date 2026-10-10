@@ -55,6 +55,9 @@ struct Task {
     action: &'static str,
     resource_id: String,
     status: Status,
+
+    /// When the status last changed, so a finished task is kept for the
+    /// retention window from when it finished, not from when it started.
     timestamp_ms: u64,
     result: Option<JsonValue>,
     error: Option<String>,
@@ -180,6 +183,7 @@ pub fn list(&self) -> Vec<TaskInfo> {
 fn set_active(&self, id: &str) {
     if let Some(task) = self.tasks.lock().expect("locked").get_mut(id) {
         task.status = Status::Active;
+        task.timestamp_ms = now_millis();
     }
 }
 
@@ -200,6 +204,7 @@ fn finish(&self, id: &str, outcome: Result<JsonValue>) {
             task.error = Some(error.to_string());
         }
     }
+    task.timestamp_ms = now_millis();
 }
 
 #[implement(Service)]

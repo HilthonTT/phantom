@@ -7,7 +7,7 @@ use axum::{
     response::IntoResponse,
 };
 use futures::StreamExt;
-use phantom_core::{Err, Result};
+use phantom_core::{Err, Result, err};
 use phantom_service::auth::registration_tokens::{TokenExpires, TokenInfo, ValidToken};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -102,7 +102,12 @@ pub(super) async fn create(
 
     let max_age = body
         .expires_in_secs
-        .map(|secs| SystemTime::now() + Duration::from_secs(secs));
+        .map(|secs| {
+            SystemTime::now()
+                .checked_add(Duration::from_secs(secs))
+                .ok_or_else(|| err!(Request(InvalidParam("expires_in_secs is too far ahead."))))
+        })
+        .transpose()?;
 
     let (token, info) = services
         .registration_tokens

@@ -2,8 +2,9 @@ use std::{path::Path, time::UNIX_EPOCH};
 
 use axum::{Json, extract::State, response::IntoResponse};
 use futures::StreamExt;
-use phantom_core::{Result, diagnostics::info, stream::ReadyExt};
+use phantom_core::{Result, diagnostics::info, stream::ReadyExt, warn};
 use serde::Serialize;
+use tokio::task::spawn_blocking;
 
 use crate::router::{AdminAuth, State as RouterState};
 
@@ -91,7 +92,15 @@ pub(super) async fn stats(
 
     let media = services.media.list().await;
 
-    let last_backup = services.db.engine.last_backup()?;
+    // An unreadable backup directory leaves the backup out, not the page.
+    let db = services.db.clone();
+    let last_backup = spawn_blocking(move || db.engine.last_backup())
+        .await
+        .map_err(Into::into)
+        .and_then(|result| result)
+        .inspect_err(|e| warn!("Reading the last database backup failed: {e}"))
+        .ok()
+        .flatten();
 
     let mut login = Vec::new();
     if config.client.login_with_password {
