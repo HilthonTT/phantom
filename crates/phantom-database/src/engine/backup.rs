@@ -70,6 +70,24 @@ pub fn backup_list(&self) -> Result<String> {
     Ok(res)
 }
 
+/// The newest backup's time, in seconds since the epoch, and size in bytes;
+/// none when backups are off or none was made yet.
+#[implement(Engine)]
+pub fn last_backup(&self) -> Result<Option<(i64, u64)>> {
+    let Some(path) = backup_path(self) else {
+        return Ok(None);
+    };
+
+    let options = BackupEngineOptions::new(path).or_else(or_else)?;
+    let engine = BackupEngine::open(&options, &*self.ctx.env.lock()?).or_else(or_else)?;
+
+    Ok(engine
+        .get_backup_info()
+        .into_iter()
+        .max_by_key(|info| info.timestamp)
+        .map(|info| (info.timestamp, info.size)))
+}
+
 fn backup_path(engine: &Engine) -> Option<&std::path::Path> {
     engine
         .ctx

@@ -3,6 +3,7 @@
 //! [`AdminAuth`].
 
 mod appservices;
+mod insight;
 mod ops;
 mod rooms;
 mod settings;
@@ -75,6 +76,23 @@ pub fn register(router: Router<RouterState>) -> Router<RouterState> {
         .route("/_phantom/admin/v1/rooms/{room_id}", delete(rooms::delete))
         .route("/_phantom/admin/v1/config/reload", post(ops::reload))
         .route("/_phantom/admin/v1/backup", post(ops::backup))
+        .route("/_phantom/admin/v1/services", get(insight::services))
+        .route("/_phantom/admin/v1/federation", get(insight::federation))
+        .route(
+            "/_phantom/admin/v1/federation/{server_name}/media",
+            delete(insight::purge_remote_media),
+        )
+        .route("/_phantom/admin/v1/media", get(insight::media))
+        .route(
+            "/_phantom/admin/v1/media/{server_name}/{media_id}",
+            delete(insight::delete_media),
+        )
+        .route("/_phantom/admin/v1/logs", get(insight::logs))
+        .route("/_phantom/admin/v1/reports", get(insight::reports))
+        .route(
+            "/_phantom/admin/v1/reports/{id}",
+            delete(insight::dismiss_report),
+        )
 }
 
 /// Reads an action's JSON body; an empty body reads as `{}`, so optional
