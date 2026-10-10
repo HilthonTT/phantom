@@ -52,11 +52,7 @@ async fn handle_room(
     pdus: Vec<IndexedPdu>,
 ) -> Result<ResolvedMap> {
     let pdus = sort_pdus(pdus).await;
-    let federation_lock = services
-        .rooms
-        .event_handler
-        .lock_federation(&room_id)
-        .await;
+    let federation_lock = services.rooms.event_handler.lock_federation(&room_id).await;
 
     let mut results = ResolvedMap::new();
 
