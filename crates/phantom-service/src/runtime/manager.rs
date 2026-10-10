@@ -1,8 +1,14 @@
-use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    panic::AssertUnwindSafe,
+    sync::{Arc, Mutex as StdMutex},
+    time::Duration,
+};
 
 use futures::{FutureExt, TryFutureExt};
 use phantom_core::{
-    Err, Error, Result, debug, debug_warn, error, runtime::server::Server, time, trace, warn,
+    Err, Error, Result, debug, debug_warn, error, runtime::server::Server, time, time::now_millis,
+    trace, warn,
 };
 use tokio::{
     sync::{Mutex, MutexGuard},
@@ -17,6 +23,53 @@ pub struct Manager {
     workers: Mutex<Workers>,
     server: Arc<Server>,
     service: Arc<Map>,
+
+    /// What became of each service's worker, by service name, for the admin
+    /// API; the manager otherwise only logs it. Shared with `Services`, which
+    /// reads it without the manager's lock, held by `poll` for the server's
+    /// whole run.
+    states: WorkerStates,
+}
+
+pub(crate) type WorkerStates = Arc<StdMutex<BTreeMap<String, WorkerState>>>;
+
+/// A service worker's lifecycle as the manager has seen it.
+#[derive(Clone, Debug)]
+pub struct WorkerState {
+    pub status: WorkerStatus,
+
+    /// When the worker last started, and when it last stopped, in
+    /// milliseconds since the epoch.
+    pub started_ms: u64,
+    pub stopped_ms: Option<u64>,
+
+    /// How often it was restarted after a panic.
+    pub restarts: u32,
+
+    pub error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkerStatus {
+    Running,
+
+    /// Returned without error; a service with no background work returns at
+    /// once.
+    Finished,
+
+    /// Returned an error, or panicked and is waiting to restart.
+    Failed,
+}
+
+impl WorkerStatus {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Running => "running",
+            Self::Finished => "finished",
+            Self::Failed => "failed",
+        }
+    }
 }
 
 type Workers = JoinSet<WorkerResult>;
@@ -32,7 +85,14 @@ impl Manager {
             workers: Mutex::new(JoinSet::new()),
             server: services.server.clone(),
             service: services.service.clone(),
+            states: services.worker_states.clone(),
         })
+    }
+
+    fn set_state(&self, name: &str, update: impl FnOnce(Option<&WorkerState>) -> WorkerState) {
+        let mut states = self.states.lock().expect("locked");
+        let next = update(states.get(name));
+        states.insert(name.to_owned(), next);
     }
 
     pub(super) async fn poll(&self) -> Result<()> {
@@ -119,6 +179,11 @@ impl Manager {
         service: &Arc<dyn Service>,
     ) -> Result<()> {
         debug!("service {:?} worker finished", service.name());
+        self.set_state(service.name(), |prev| WorkerState {
+            status: WorkerStatus::Finished,
+            stopped_ms: Some(now_millis()),
+            ..prev.cloned().unwrap_or_else(fresh)
+        });
         Ok(())
     }
 
@@ -130,6 +195,12 @@ impl Manager {
     ) -> Result<()> {
         let name = service.name();
         error!("service {name:?} aborted: {error}");
+        self.set_state(name, |prev| WorkerState {
+            status: WorkerStatus::Failed,
+            stopped_ms: Some(now_millis()),
+            error: Some(error.to_string()),
+            ..prev.cloned().unwrap_or_else(fresh)
+        });
 
         if !self.server.running() {
             debug_warn!("service {name:?} error ignored on shutdown.");
@@ -163,6 +234,13 @@ impl Manager {
         }
 
         debug!("Service {:?} worker starting...", service.name());
+        self.set_state(service.name(), |prev| WorkerState {
+            status: WorkerStatus::Running,
+            started_ms: now_millis(),
+            stopped_ms: None,
+            restarts: prev.map_or(0, |prev| prev.restarts.saturating_add(1)),
+            error: prev.and_then(|prev| prev.error.clone()),
+        });
         workers.spawn_on(worker(service.clone()), self.server.runtime());
 
         Ok(())
@@ -188,4 +266,14 @@ async fn worker(service: Arc<dyn Service>) -> WorkerResult {
     };
 
     (service, result.unwrap_or_else(Err))
+}
+
+fn fresh() -> WorkerState {
+    WorkerState {
+        status: WorkerStatus::Running,
+        started_ms: now_millis(),
+        stopped_ms: None,
+        restarts: 0,
+        error: None,
+    }
 }

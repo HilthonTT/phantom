@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 
 use super::{
     contract::{Args, Requested, Service},
-    manager::Manager,
+    manager::{Manager, WorkerState, WorkerStates},
     registry::{self, Map},
 };
 use crate::{
@@ -57,6 +57,7 @@ pub struct Services {
     pub oauth: Arc<oauth::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
+    pub(super) worker_states: WorkerStates,
     pub(crate) service: Arc<Map>,
     pub server: Arc<Server>,
     pub db: Arc<Database>,
@@ -150,6 +151,7 @@ impl Services {
             oauth: build!(oauth::Service),
 
             manager: Mutex::new(None),
+            worker_states: WorkerStates::default(),
             service,
             server,
             db,
@@ -196,6 +198,19 @@ impl Services {
         self.admin.set_services(None);
 
         debug_info!("Services shutdown complete.");
+    }
+
+    /// Every registered service by name, with its worker's state once the
+    /// manager has started it.
+    pub fn workers(&self) -> Vec<(String, Option<WorkerState>)> {
+        let states = self.worker_states.lock().expect("locked").clone();
+
+        self.service
+            .read()
+            .expect("locked for reading")
+            .keys()
+            .map(|name| (name.clone(), states.get(name).cloned()))
+            .collect()
     }
 
     pub async fn clear_cache(&self) {
