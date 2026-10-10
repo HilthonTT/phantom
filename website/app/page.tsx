@@ -22,7 +22,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { site } from "@/lib/site";
 
-const haze = ["#f5c2e7", "#cba6f7", "#b4befe", "#89b4fa", "#74c7ec"];
+const haze = ["#ff4d67", "#f0193d", "#c4142f", "#8a1024", "#620e1c"];
 
 /** Soft drifting bands behind the hero, like a ghost's trail. */
 function Haze() {
@@ -63,7 +63,7 @@ function Section({
 }) {
   return (
     <section id={id} className="mx-auto max-w-7xl scroll-mt-24 px-5 py-24">
-      <p className="font-mono text-xs uppercase tracking-[0.25em] text-layer-pink">{eyebrow}</p>
+      <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">{eyebrow}</p>
       <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">{title}</h2>
       {intro && <p className="mt-4 max-w-2xl text-lg leading-relaxed text-mist-300">{intro}</p>}
       <div className="mt-12">{children}</div>
@@ -87,7 +87,7 @@ function Showcase({
   return (
     <div className="group flex flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-ink-850">
       <div className="p-7 pb-0">
-        <span className="inline-flex rounded-xl bg-white/5 p-2.5 text-layer-sky ring-1 ring-white/10">
+        <span className="inline-flex rounded-xl bg-white/5 p-2.5 text-signal-soft ring-1 ring-white/10">
           <Icon className="size-5" />
         </span>
         <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
@@ -156,12 +156,12 @@ export default function Home() {
             href="/docs/status/"
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-mist-300 transition hover:border-white/25 hover:text-white"
           >
-            <span className="size-1.5 rounded-full bg-layer-peach" />
+            <span className="size-1.5 rounded-full bg-warning" />
             Early and evolving · read the status before you deploy
             <ArrowRight className="size-3" />
           </Link>
           <h1 className="mx-auto mt-8 max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-7xl">
-            Your Matrix server, <span className="text-layers">from the terminal.</span>
+            Your Matrix server, <span className="text-crimson">from the terminal.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-mist-300 sm:text-xl">
             phantom is a Matrix homeserver written in Rust, with an admin console written in Go. Chat, manage
@@ -189,7 +189,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-6xl px-5">
           <div
             aria-hidden
-            className="absolute inset-x-16 top-10 -z-10 h-[80%] rounded-full bg-gradient-to-r from-layer-pink/25 via-layer-violet/20 to-layer-sky/25 blur-3xl"
+            className="absolute inset-x-16 top-10 -z-10 h-[80%] rounded-full bg-gradient-to-r from-signal/25 via-signal/20 to-signal-soft/25 blur-3xl"
           />
           <Media
             src="overview.gif"
@@ -204,7 +204,7 @@ export default function Home() {
           eyebrow="Features"
           title={
             <>
-              A homeserver and its console, <span className="text-layers">built together</span>.
+              A homeserver and its console, <span className="text-crimson">built together</span>.
             </>
           }
           intro="The server speaks the Matrix client-server API and an admin API of its own. The console uses both: any account can chat, and an admin sees and runs the whole server."
@@ -243,7 +243,7 @@ export default function Home() {
           <div className="mt-5 grid gap-px overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.07] sm:grid-cols-2 lg:grid-cols-4">
             {capabilities.map(({ icon: Icon, title, text }) => (
               <div key={title} className="bg-ink-850 p-7">
-                <Icon className="size-5 text-layer-pink" />
+                <Icon className="size-5 text-signal" />
                 <h3 className="mt-4 font-semibold text-white">{title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-mist-300">{text}</p>
               </div>
@@ -272,14 +272,14 @@ export default function Home() {
               <code>
                 <span className="text-mist-400"># what the overview shows</span>
                 {"\n"}
-                <span className="text-layer-pink">curl</span> -H{" "}
-                <span className="text-layer-teal">&quot;Authorization: Bearer $TOKEN&quot;</span> \{"\n"}
+                <span className="text-signal">curl</span> -H{" "}
+                <span className="text-success">&quot;Authorization: Bearer $TOKEN&quot;</span> \{"\n"}
                 {"  "}localhost:8008/_phantom/admin/v1/stats{"\n\n"}
                 <span className="text-mist-400"># create a registration token</span>
                 {"\n"}
-                <span className="text-layer-pink">curl</span> -X POST -H{" "}
-                <span className="text-layer-teal">&quot;Authorization: Bearer $TOKEN&quot;</span> \{"\n"}
-                {"  "}-d <span className="text-layer-teal">&apos;{"{"}&quot;uses_allowed&quot;: 10{"}"}&apos;</span> \{"\n"}
+                <span className="text-signal">curl</span> -X POST -H{" "}
+                <span className="text-success">&quot;Authorization: Bearer $TOKEN&quot;</span> \{"\n"}
+                {"  "}-d <span className="text-success">&apos;{"{"}&quot;uses_allowed&quot;: 10{"}"}&apos;</span> \{"\n"}
                 {"  "}localhost:8008/_phantom/admin/v1/registration_tokens
               </code>
             </pre>
@@ -290,14 +290,14 @@ export default function Home() {
                 ["Secrets stay secret", "Settings are masked, and appservice and config-file tokens are never returned."],
               ].map(([title, text]) => (
                 <li key={title} className="flex gap-4">
-                  <span className="mt-1.5 size-2 shrink-0 rounded-full bg-gradient-to-br from-layer-pink to-layer-sky" />
+                  <span className="mt-1.5 size-2 shrink-0 rounded-full bg-gradient-to-br from-signal to-signal-soft" />
                   <span>
                     <span className="font-semibold text-white">{title}.</span> {text}
                   </span>
                 </li>
               ))}
               <li>
-                <Link href="/docs/admin-api/" className="inline-flex items-center gap-2 font-semibold text-layer-sky hover:underline">
+                <Link href="/docs/admin-api/" className="inline-flex items-center gap-2 font-semibold text-signal-soft hover:underline">
                   Read the admin API <ArrowRight className="size-4" />
                 </Link>
               </li>
@@ -310,7 +310,7 @@ export default function Home() {
           <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-ink-850 px-8 py-16 text-center">
             <div
               aria-hidden
-              className="absolute inset-0 -z-0 bg-gradient-to-br from-layer-pink/10 via-transparent to-layer-sky/10"
+              className="absolute inset-0 -z-0 bg-gradient-to-br from-signal/10 via-transparent to-signal-soft/10"
             />
             <h2 className="relative text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Build it, start it, sign in.

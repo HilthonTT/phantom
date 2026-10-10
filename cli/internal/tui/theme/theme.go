@@ -65,28 +65,30 @@ type Theme struct {
 	PromptFailed lipgloss.Style
 }
 
-func Mocha() Palette {
+// Crimson matches the website and hilthon.vercel.app: crimson on
+// near-black, with warm greys.
+func Crimson() Palette {
 	return Palette{
-		Canvas:  lipgloss.Color("#11111b"),
-		Surface: lipgloss.Color("#1e1e2e"),
-		Raised:  lipgloss.Color("#181825"),
-		Sunken:  lipgloss.Color("#313244"),
+		Canvas:  lipgloss.Color("#0a0a0a"),
+		Surface: lipgloss.Color("#0f0d0e"),
+		Raised:  lipgloss.Color("#171314"),
+		Sunken:  lipgloss.Color("#2a1a1d"),
 
-		Text:   lipgloss.Color("#cdd6f4"),
-		Muted:  lipgloss.Color("#a6adc8"),
-		Faint:  lipgloss.Color("#585b70"),
-		Accent: lipgloss.Color("#f5c2e7"),
+		Text:   lipgloss.Color("#cccccc"),
+		Muted:  lipgloss.Color("#858585"),
+		Faint:  lipgloss.Color("#4a4344"),
+		Accent: lipgloss.Color("#f0193d"),
 
-		Border:       lipgloss.Color("#45475a"),
-		BorderActive: lipgloss.Color("#89b4fa"),
+		Border:       lipgloss.Color("#2c2627"),
+		BorderActive: lipgloss.Color("#f0193d"),
 
-		Success: lipgloss.Color("#a6e3a1"),
-		Warning: lipgloss.Color("#f9e2af"),
-		Danger:  lipgloss.Color("#f38ba8"),
-		Info:    lipgloss.Color("#89dceb"),
+		Success: lipgloss.Color("#2ecc70"),
+		Warning: lipgloss.Color("#f9b81f"),
+		Danger:  lipgloss.Color("#ff6b6b"),
+		Info:    lipgloss.Color("#6b9bf7"),
 
-		Heading: lipgloss.Color("#cba6f7"),
-		Hotkey:  lipgloss.Color("#fab387"),
+		Heading: lipgloss.Color("#f7f7f7"),
+		Hotkey:  lipgloss.Color("#ff4d67"),
 	}
 }
 
@@ -131,4 +133,4 @@ func New(p Palette) Theme {
 	}
 }
 
-func Default() Theme { return New(Mocha()) }
+func Default() Theme { return New(Crimson()) }

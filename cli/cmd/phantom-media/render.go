@@ -25,7 +25,7 @@ const (
 
 // page is the colour around the window, the website's background, so a GIF
 // without transparency still blends into the page.
-var page = color.RGBA{0x0b, 0x0c, 0x12, 0xff}
+var page = color.RGBA{0x05, 0x05, 0x05, 0xff}
 
 type face struct {
 	sfnt *sfnt.Font
@@ -115,15 +115,15 @@ func (r *Renderer) Render(grid Grid, title string) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(img, img.Bounds(), image.NewUniform(page), image.Point{}, draw.Src)
 
-	window := color.RGBA{0x11, 0x11, 0x1b, 0xff}
-	bar := color.RGBA{0x18, 0x18, 0x25, 0xff}
+	window := color.RGBA{0x0a, 0x0a, 0x0a, 0xff}
+	bar := color.RGBA{0x17, 0x13, 0x14, 0xff}
 	roundedRect(img, img.Bounds(), radius, window)
 	roundedTop(img, image.Rect(0, 0, w, titlebar), radius, bar)
 
-	for i, c := range []color.RGBA{{0xf3, 0x8b, 0xa8, 0xff}, {0xf9, 0xe2, 0xaf, 0xff}, {0xa6, 0xe3, 0xa1, 0xff}} {
+	for i, c := range []color.RGBA{{0xf0, 0x19, 0x3d, 0xff}, {0xf9, 0xb8, 0x1f, 0xff}, {0x2e, 0xcc, 0x70, 0xff}} {
 		disc(img, 22+i*20, titlebar/2, 6, c)
 	}
-	r.text(img, title, (w-len([]rune(title))*r.cellW)/2, (titlebar-r.cellH)/2+r.ascent, color.RGBA{0xa6, 0xad, 0xc8, 0xff})
+	r.text(img, title, (w-len([]rune(title))*r.cellW)/2, (titlebar-r.cellH)/2+r.ascent, color.RGBA{0x85, 0x85, 0x85, 0xff})
 
 	ox, oy := padding, titlebar+padding
 	for y, row := range grid {

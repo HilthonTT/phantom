@@ -5,21 +5,21 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 
-  --color-ink-950: #07080c;
-  --color-ink-900: #0b0c12;
-  --color-ink-850: #10121a;
-  --color-ink-800: #151824;
-  --color-ink-700: #1e2232;
-  --color-ink-600: #2a2f44;
-  --color-mist-400: #8b91a8;
-  --color-mist-300: #b4b9cc;
-  --color-mist-100: #e6e8f0;
-  --color-layer-violet: #cba6f7;
-  --color-layer-sky: #89b4fa;
-  --color-layer-teal: #94e2d5;
-  --color-layer-peach: #fab387;
-  --color-layer-rose: #f38ba8;
-  --color-layer-pink: #f5c2e7;
+  /* Matches hilthon.vercel.app: crimson on near-black. */
+  --color-ink-950: #020202;
+  --color-ink-900: #050505;
+  --color-ink-850: #0a0a0a;
+  --color-ink-800: #0d0d0d;
+  --color-ink-700: #1c1819;
+  --color-ink-600: #2c2627;
+  --color-mist-400: #858585;
+  --color-mist-300: #cccccc;
+  --color-mist-100: #f7f7f7;
+  --color-signal: #f0193d;
+  --color-signal-soft: #ff4d67;
+  --color-signal-deep: #620e1c;
+  --color-warning: #f9b81f;
+  --color-success: #2ecc70;
 }
 
 :root {
@@ -36,16 +36,17 @@ body {
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-layer-violet) 40%, transparent);
+  background: var(--color-signal);
+  color: var(--color-ink-900);
 }
 
 /* Gradient text for headings. */
-.text-layers {
+.text-crimson {
   background: linear-gradient(
     100deg,
-    var(--color-layer-pink),
-    var(--color-layer-violet) 45%,
-    var(--color-layer-sky)
+    var(--color-signal-soft),
+    var(--color-signal) 55%,
+    #c4142f
   );
   -webkit-background-clip: text;
   background-clip: text;

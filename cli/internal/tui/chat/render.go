@@ -355,14 +355,12 @@ func (m Model) senderStyle(id string) lipgloss.Style {
 		return m.theme.Title
 	}
 
+	// Not the reds: those are your own name (Title) and danger.
 	palette := []color.Color{
-		m.theme.Palette.Accent,
 		m.theme.Palette.Info,
 		m.theme.Palette.Success,
 		m.theme.Palette.Warning,
 		m.theme.Palette.Heading,
-		m.theme.Palette.Hotkey,
-		m.theme.Palette.Danger,
 	}
 
 	h := fnv.New32a()

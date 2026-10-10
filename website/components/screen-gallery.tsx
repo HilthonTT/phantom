@@ -30,7 +30,7 @@ export function ScreenGallery() {
             onClick={() => setActive(s)}
             className={`flex shrink-0 flex-col rounded-xl border px-4 py-2.5 text-left text-sm transition ${
               active.id === s.id
-                ? "border-layer-pink/50 bg-white/[0.06] text-white"
+                ? "border-signal/50 bg-white/[0.06] text-white"
                 : "border-white/5 text-mist-300 hover:border-white/15 hover:text-white"
             }`}
           >
