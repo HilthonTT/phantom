@@ -1,0 +1,45 @@
+export const metadata = { title: "Actions & commands" };
+
+# Actions & commands
+
+<Media src="actions.gif" alt="Making a user an admin and creating a token" caption="Making a user an admin from the menu, then creating a token with a command." />
+
+## From a row
+
+<Kbd>enter</Kbd> on a row offers what can be done to the record it shows:
+
+| Section | Actions |
+| --- | --- |
+| Users | set password…, make admin / revoke admin, deactivate, deactivate and erase |
+| Devices | sign out |
+| Tokens | new token…, revoke |
+| Rooms | ban / unban, shut down, delete and purge |
+| Media | delete |
+| Federation | purge its media |
+| Reports | dismiss |
+| Overview, Settings | reload config, back up database |
+
+Destructive actions ask first. The outcome, done or failed with the server's reason, shows in a notice, and the sections it changed are fetched again. Shutting down or purging a room and backing up run as [tasks](/docs/sections/).
+
+## From the prompt
+
+<Kbd>:</Kbd> opens the command prompt. A bare name like `bob` means `@bob` on your server; a room can be named by its alias.
+
+| Command | Does |
+| --- | --- |
+| `user <id>` / `room <id or #alias>` | open a record |
+| `passwd <user>` | set a password |
+| `admin <user>` / `unadmin <user>` | grant or revoke admin |
+| `deactivate <user> [erase]` | deactivate an account |
+| `token [uses] [days] [token]` | create a registration token |
+| `revoke <token>` | revoke a token |
+| `ban`, `unban`, `shutdown`, `purge <room>` | act on a room |
+| `rmmedia <mxc://…>` | delete a file |
+| `purgemedia <server>` | delete a server's cached media |
+| `dismiss <report id>` | close a report |
+| `reload`, `backup` | reload the config, back up |
+| `join`, `leave`, `login`, `logout` | chat and session |
+
+## Guard rails
+
+The server refuses what would lock an admin out or make no sense: acting on the server user, deactivating yourself, revoking your own admin, signing out the device you're using, banning or deleting the admin room, or revoking the config file's token. phantom cannot stop a task once it has started.

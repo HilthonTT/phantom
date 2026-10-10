@@ -1,0 +1,59 @@
+export const metadata = { title: "Configuration" };
+
+# Configuration
+
+phantom reads TOML, with every option under one `[global]` section. Two must be set:
+
+```toml
+[global]
+server_name = "phantom.chat"
+database_path = "/var/lib/phantom"
+```
+
+## The one rule
+
+**`phantom-example.toml` is generated — don't edit it.** Every `cargo build` rewrites it from the doc comments on the `Config` structs in `crates/phantom-core/src/runtime/config/`. To configure a server, copy it and edit the copy:
+
+```sh
+cp phantom-example.toml phantom.toml
+```
+
+## Where settings come from
+
+Sources are layered, later ones winning:
+
+1. the file named by `$PHANTOM_CONFIG`
+2. files passed with `-c`
+3. environment variables prefixed `PHANTOM_`, with `__` separating nested keys
+4. `-O key=value` overrides on the command line
+
+```sh
+PHANTOM_CONFIG=/etc/phantom/phantom.toml PHANTOM_PORT=8008 ./phantom-server
+```
+
+An unknown key is logged as a warning, not rejected, so a typo shows up rather than vanishing.
+
+## Validation
+
+Some values are refused at startup: an empty or invalid `server_name`, no bind address, a malformed `log` filter, a `default_room_version` phantom can't run (it supports 1 to 11). Risky but legal ones — insecure TLS, deprecated keys — are logged as warnings.
+
+## Reloading
+
+With `config_reload_signal` on (the default), `SIGUSR1` re-reads the config from the same files and overrides the server started with; so does the console's **reload config** action. Only `server_name` is fixed: a reload that changes it is refused.
+
+## Useful options
+
+| Option | Covers |
+| --- | --- |
+| `address`, `port` | where it listens (default `localhost:8008`) |
+| `allow_registration`, `registration_token` | who may sign up |
+| `allow_federation`, `trusted_servers` | talking to other servers |
+| `database_backup_path`, `database_backups_to_keep` | backups, which the console can start |
+| `create_admin_room`, `admin_room_tag`, `admin_room_notices` | the admin room on a fresh database |
+| `log` | the log filter, such as `info` or `phantom=debug` |
+
+The generated file documents the hundred or so others.
+
+## Adding an option
+
+Add a field to the config struct, with its documentation as the doc comment and a `/// default: <value>` line, then run a real `cargo build` and commit the regenerated `phantom-example.toml`. Mark secrets `display: sensitive`, so the console's settings and the startup summary mask them.

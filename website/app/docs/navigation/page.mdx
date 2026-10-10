@@ -1,0 +1,28 @@
+export const metadata = { title: "Finding your way" };
+
+# Finding your way
+
+<Media src="overview.png" alt="The phantom console's layout" />
+
+## The layout
+
+- **Sections** on the left: Chat, then the server (Overview, Services, API, Rooms, Users, Devices, Tokens, Federation, Appservices, Media), then operations (Tasks, Reports, Logs, Settings).
+- **The table** in the middle, for the open section. The footer shows your position, and how the rows are sorted — or why they aren't live.
+- **The inspector** on the right, with every detail of the row under the cursor.
+- **The footer**: running tasks, a summary of the selection, and the connection.
+
+## Moving around
+
+Focus moves between the sections, the table and the task box with <Kbd>L</Kbd> and <Kbd>H</Kbd> (or <Kbd>ctrl+→</Kbd> and <Kbd>ctrl+←</Kbd>). Within a list, <Kbd>j</Kbd> / <Kbd>k</Kbd> or the arrows move, <Kbd>g</Kbd> and <Kbd>G</Kbd> jump to the ends, <Kbd>enter</Kbd> opens.
+
+## Tabs
+
+<Kbd>n</Kbd> opens the section as another tab beside the current one, <Kbd>tab</Kbd> and <Kbd>shift+tab</Kbd> move between tabs, <Kbd>w</Kbd> closes one. Up to three fit, if the terminal is wide enough.
+
+## Filter, sort, refresh
+
+- <Kbd>/</Kbd> filters the rows as you type; <Kbd>esc</Kbd> clears it.
+- <Kbd>s</Kbd> sorts by the next column, ascending then descending, then back to the server's order.
+- <Kbd>r</Kbd> fetches the section again. The open section also refreshes with every probe.
+
+<Kbd>?</Kbd> shows every key.

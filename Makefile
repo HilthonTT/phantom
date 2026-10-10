@@ -1,6 +1,6 @@
 # The Justfile's recipes, for machines without just. Keep the two in step.
 
-.PHONY: check check-rust check-go build fmt clean help
+.PHONY: check check-rust check-go build fmt clean fonts media website help
 
 ## check: everything CI runs, for both languages (the default)
 check: check-rust check-go
@@ -32,6 +32,24 @@ fmt:
 clean:
 	cargo clean
 	cd cli && go clean ./...
+
+FONT_DIR := target/fonts
+NERD_FONT := https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz
+
+## fonts: download the font the docs media is recorded with
+fonts:
+	mkdir -p $(FONT_DIR)
+	curl -sL $(NERD_FONT) | tar -xJ -C $(FONT_DIR) JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf JetBrainsMonoNerdFontMono-Italic.ttf
+
+## media: record the docs GIFs and screenshots against a scratch server
+media:
+	@test -f $(FONT_DIR)/JetBrainsMonoNerdFontMono-Regular.ttf || $(MAKE) fonts
+	cargo build -p phantom-server
+	cd cli && go run ./cmd/phantom-media -server-bin ../target/debug/phantom-server -fonts ../$(FONT_DIR) -out ../website/public/media
+
+## website: build the documentation site into website/out
+website:
+	cd website && npm ci && npm run build
 
 ## help: list the targets
 help:

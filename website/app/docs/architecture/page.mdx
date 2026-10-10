@@ -1,0 +1,42 @@
+export const metadata = { title: "Architecture" };
+
+# Architecture
+
+phantom is two programs in one repository: a homeserver in Rust and a console in Go, talking over HTTP.
+
+```
+phantom (Go console) ──HTTP──▶ phantom-server
+                                  │
+                              phantom-api      client-server, federation, OIDC, admin routes
+                                  │
+                              phantom-service  ~55 services on a supervised runtime
+                                  │
+                   ┌──────────────┴──────────────┐
+            phantom-database              phantom-core
+            RocksDB, typed tables         config, errors, logging,
+            codecs, read pool             Matrix types, state resolution
+                                                  │
+                                           phantom-macros
+```
+
+Dependencies point downward and never back up.
+
+## Services
+
+A service is a long-lived singleton owning one area: `accounts::users`, `rooms::timeline`, `net::sending`. They are grouped into domain folders — `accounts`, `auth`, `media`, `net`, `ops`, `rooms` — and built once at startup. A service that runs in the background has a **worker**, which the runtime supervises: a worker that panics is restarted. The console's Services section shows every one.
+
+<Callout>
+A service exists only if `Services::build` lists it. Its dependencies are looked up by type and checked at startup, so a missing one fails fast instead of panicking later.
+</Callout>
+
+## The database
+
+`phantom-database` wraps RocksDB: one column family per table, each table declared once in `schema.rs` and indexed by a constant, so a mistyped name is a compile error. Reads go through a pool of threads.
+
+## The admin room
+
+A fresh database creates the server user and `#admins`. Being an admin *is* being a member of that room: the first account to register is joined to it, and granting or revoking admin joins or removes a member. Abuse reports and admin notices are posted there.
+
+## The console
+
+The console is a [Bubble Tea](https://github.com/charmbracelet/bubbletea) program. A `client` package speaks the Matrix and admin APIs; `live` holds what the server answered and lays it over sample data where nothing is live; `rooms` folds `/sync` into chat rooms; `listings` draws the admin API's answers as tables.

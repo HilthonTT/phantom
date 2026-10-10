@@ -1,0 +1,27 @@
+export const metadata = { title: "Signing in" };
+
+# Signing in
+
+The console talks to one server, named by `--server` or `$PHANTOM_SERVER`, and `http://localhost:8008` otherwise. A bare `host:port` is taken as plain HTTP.
+
+## Connecting
+
+The console asks the server who it is every ten seconds, without signing in: its name, version, the Matrix versions it speaks and whether it federates. The **Connection** box in the footer shows the result — connected with latency, or unreachable with the error.
+
+## The sign-in form
+
+The first time a server answers and no session is saved, a sign-in form opens. Give a user (`ada` or `@ada:phantom.test`) and a password; <Kbd>tab</Kbd> moves between them. A refused sign-in shows the server's reason. Dismiss the form with <Kbd>esc</Kbd> and open it again with `:login`.
+
+The console signs in as a device named **phantom console**, so you can find and sign it out from another client.
+
+## Admins and everyone else
+
+Any account can use the console to chat. To see the server's sections, the account must be an admin — a member of the `#admins` room. The footer says who you are: `@ada:phantom.test · admin`, or `· not an admin`.
+
+A regular user sees the server sections with sample data, labelled as such in each table's footer.
+
+## Sessions
+
+The session is saved per server in `phantom/sessions.json` under your config directory (`~/.config` on Linux), readable only by you. Next time the console checks it and carries on; a session the server no longer accepts is forgotten and the form reopens.
+
+`:logout` signs out on the server and forgets the session.

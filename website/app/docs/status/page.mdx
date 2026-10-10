@@ -1,0 +1,28 @@
+export const metadata = { title: "Status & limits" };
+
+# Status & limits
+
+phantom is early. This page says plainly what works and what doesn't, so you can decide.
+
+## Works
+
+- Registration (token-gated), login, logout, devices.
+- Rooms: create, join, leave, invite, send, edit, react, redact, state, aliases, the directory.
+- Sync, typing, receipts, presence, account data, push rules.
+- Media upload and download.
+- The admin room, and the first account becoming admin.
+- The admin API and every console section.
+
+## Doesn't, yet
+
+| Gap | What it means |
+| --- | --- |
+| **Federation untested** | the routes are mounted, but phantom hasn't been tried against another server |
+| **No TLS** | it serves plain HTTP; put a reverse proxy in front |
+| **Room version 12** | unsupported; the default is 11 |
+| **`!admin` commands** | messages in the admin room do nothing |
+| **No E2EE in the console** | encrypted rooms can't be read there; other clients are fine |
+| **No task cancelling** | a purge or backup runs to the end |
+| **No runtime server blocklist, no media quarantine** | moderation is in the config file |
+
+**Don't deploy phantom where it matters yet.**

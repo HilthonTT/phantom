@@ -1,0 +1,20 @@
+export const metadata = { title: "Recording media" };
+
+# Recording media
+
+Every GIF and screenshot on this site is recorded from the real console, against a real server.
+
+```sh
+make fonts    # once: JetBrains Mono into target/fonts
+make media    # build the server, then record into website/public/media
+```
+
+`cli/cmd/phantom-media` does the work:
+
+1. starts a scratch `phantom-server` in a temporary directory,
+2. fills it with a small community through the Matrix and admin APIs — five people on named devices, rooms with a conversation, an edit and reactions, uploads, two abuse reports, registration tokens and a backup,
+3. runs the console headless against it, pressing keys and typing as a person would,
+4. renders each frame — the console's own ANSI output — with JetBrains Mono, drawing borders as shapes so they join cleanly,
+5. writes the GIFs with one shared palette, storing only what changed between frames.
+
+The scenes are in `cli/cmd/phantom-media/scenes.go`. Change one, run `make media`, and commit what changed under `website/public/media`.

@@ -1,0 +1,40 @@
+export const metadata = { title: "Development" };
+
+# Development
+
+## The checks
+
+One command runs what CI runs:
+
+```sh
+make check        # or: just check
+```
+
+That is `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test`, each with and without all features, then `go vet` and `go test -race` for the console. CI also runs `golangci-lint` over `cli/`. **Clippy runs with `-D warnings`**: the workspace is warning-free and stays that way.
+
+```sh
+cargo test -p phantom-database        # one crate
+cargo test -p phantom-core state_res  # one area
+cd cli && go test ./internal/tui/...  # the console
+```
+
+## CI
+
+| Workflow | Runs |
+| --- | --- |
+| `rust.yml` | fmt, clippy and tests, with `--locked` |
+| `go.yml` | vet, golangci-lint, race tests |
+| `audit.yml` | `cargo-deny` licences and advisories, `govulncheck` |
+| `website.yml` | builds this site and deploys it to GitHub Pages |
+
+## Conventions
+
+- **No catch-all modules.** There is no `utils`; a module is named for its subject.
+- **Comment the reasoning, not the mechanics.** Change the comment when you change the decision.
+- **Divergences from conduwuit get a comment where they occur.**
+- **Config documentation lives on the struct field**, never in the generated example.
+
+## Things that surprise you once
+
+- `phantom-example.toml` changes when you `cargo build` and the config changed — commit it. `cargo check` doesn't regenerate it.
+- `alloc::je` and `alloc::hardened` are never both compiled; rust-analyzer shows one as "not included in any crates".

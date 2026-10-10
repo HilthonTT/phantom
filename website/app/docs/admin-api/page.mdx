@@ -1,0 +1,57 @@
+export const metadata = { title: "Admin API" };
+
+# Admin API
+
+`/_phantom/admin/v1` is JSON over HTTP. Every route takes an access token in `Authorization: Bearer …`, and its owner must be an admin — a member of `#admins`. A missing or unknown token answers `M_MISSING_TOKEN` or `M_UNKNOWN_TOKEN`; anyone else gets `M_FORBIDDEN`.
+
+```sh
+TOKEN=$(curl -s -X POST localhost:8008/_matrix/client/v3/login \
+  -d '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"ada"},"password":"…"}' \
+  | jq -r .access_token)
+
+curl -H "Authorization: Bearer $TOKEN" localhost:8008/_phantom/admin/v1/whoami
+```
+
+## Reading
+
+| Route | Returns |
+| --- | --- |
+| `GET /whoami` | the admin and server name |
+| `GET /stats` | uptime, user, room, media and database figures, registration, login methods, the last backup |
+| `GET /users` | local accounts, deactivated ones included |
+| `GET /devices` | every local device |
+| `GET /registration_tokens` | tokens; the config file's is masked |
+| `GET /rooms` | every room the server knows |
+| `GET /appservices` | registrations, never their tokens |
+| `GET /settings` | the running config, secrets masked |
+| `GET /tasks` | the week's long jobs, newest first |
+| `GET /services` | services and their workers |
+| `GET /federation` | servers sharing a room, backoff, last contact |
+| `GET /media` | the media store |
+| `GET /logs?limit=` | recent log lines, newest first |
+| `GET /reports` | open abuse reports |
+
+## Changing
+
+| Route | Does |
+| --- | --- |
+| `POST /users/{user}/deactivate` | deactivate; body `{"erase": true}` also wipes its data |
+| `PUT /users/{user}/password` | `{"password": "…", "logout_devices": true}` |
+| `PUT` / `DELETE /users/{user}/admin` | grant / revoke admin |
+| `DELETE /devices/{user}/{device}` | sign a device out |
+| `POST /registration_tokens` | `{"token"?, "uses_allowed"?, "expires_in_secs"?}`, answers the token |
+| `DELETE /registration_tokens/{token}` | revoke a database token |
+| `PUT` / `DELETE /rooms/{room}/ban` | ban / unban |
+| `POST /rooms/{room}/shutdown` | evict local members; answers `{"task_id"}` |
+| `DELETE /rooms/{room}` | shut down and purge; answers `{"task_id"}` |
+| `DELETE /media/{server}/{media_id}` | delete a file |
+| `DELETE /federation/{server}/media` | delete a remote server's cached media |
+| `DELETE /reports/{id}` | dismiss a report |
+| `POST /config/reload` | reload the config |
+| `POST /backup` | back up into `database_backup_path`; answers `{"task_id"}` |
+
+An empty body counts as `{}`. Path segments are URL-encoded, so a room ID's `!` is `%21`.
+
+## Unauthenticated
+
+`GET /_phantom/server_version` names the software and version, and `GET /_phantom/local_user_count` counts local users when federation is on.

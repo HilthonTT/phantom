@@ -1,17 +1,28 @@
-# phantom
+<p align="center">
+  <img src="website/public/logo.svg" alt="" width="96" height="96">
+</p>
 
-A [Matrix](https://matrix.org) homeserver in Rust, with a terminal admin console in Go.
+<h1 align="center">phantom</h1>
 
-[![rust](https://github.com/HilthonTT/phantom/actions/workflows/rust.yml/badge.svg)](https://github.com/HilthonTT/phantom/actions/workflows/rust.yml)
-[![go](https://github.com/HilthonTT/phantom/actions/workflows/go.yml/badge.svg)](https://github.com/HilthonTT/phantom/actions/workflows/go.yml)
-[![audit](https://github.com/HilthonTT/phantom/actions/workflows/audit.yml/badge.svg)](https://github.com/HilthonTT/phantom/actions/workflows/audit.yml)
-[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+<p align="center">
+  A <a href="https://matrix.org">Matrix</a> homeserver in Rust, with a terminal admin console in Go.<br>
+  <a href="https://hilthontt.github.io/phantom/"><strong>Documentation</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/HilthonTT/phantom/actions/workflows/rust.yml"><img src="https://github.com/HilthonTT/phantom/actions/workflows/rust.yml/badge.svg" alt="rust"></a>
+  <a href="https://github.com/HilthonTT/phantom/actions/workflows/go.yml"><img src="https://github.com/HilthonTT/phantom/actions/workflows/go.yml/badge.svg" alt="go"></a>
+  <a href="https://github.com/HilthonTT/phantom/actions/workflows/audit.yml"><img src="https://github.com/HilthonTT/phantom/actions/workflows/audit.yml/badge.svg" alt="audit"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="license"></a>
+</p>
 
 > [!WARNING]
 > **Early; do not deploy.** The client-server API works over plain HTTP: local
 > accounts can register, chat, sync and be managed from the console. Federation
 > is untested, there is no TLS, room version 12 is unsupported, and `!admin`
 > room commands do nothing yet.
+
+![Signing in to the phantom console, then walking its sections](website/public/media/overview.gif)
 
 | Part | What it is |
 | :--- | :--- |
@@ -64,7 +75,7 @@ the keys, `:` opens the command prompt, `q` quits.
 - **Actions:** `enter` on a row, or a `:` command, to manage users, devices,
   tokens, rooms, media and reports, reload the config or back up. `s` sorts.
 
-See [docs/cli.md](docs/cli.md).
+See the [documentation](https://hilthontt.github.io/phantom/docs/navigation/).
 
 ## Configuration and development
 

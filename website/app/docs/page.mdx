@@ -1,0 +1,34 @@
+export const metadata = { title: "Introduction" };
+
+# Introduction
+
+phantom is a [Matrix](https://matrix.org) homeserver written in Rust, with a terminal admin console written in Go. The server speaks the Matrix client-server API and an admin API of its own; the console uses both, so any account can chat from it and an admin can see and run the whole server.
+
+<Media src="overview.gif" alt="Signing in to the phantom console and walking its sections" caption="Signing in, then the overview, users, rooms, services and logs." />
+
+<Callout type="warn">
+phantom is early. Local accounts can register, chat, sync and be managed from the console, but federation with other servers is untested and there is no TLS. Read [status & limits](/docs/status/) before running it anywhere that matters.
+</Callout>
+
+## What you get
+
+- **A homeserver** — registration, login, rooms, messages, sync, media, push and the rest of the client-server API, on a RocksDB database.
+- **An admin console** — fifteen sections, from chat to abuse reports, all live against the server once you sign in as an admin.
+- **An admin API** — `/_phantom/admin/v1`, JSON behind an admin's access token. The console is just one client of it.
+- **Actions** — set passwords, grant and revoke admin, deactivate accounts, sign devices out, create and revoke registration tokens, ban, shut down and purge rooms, delete media, dismiss reports, reload the config and back up.
+
+## How it is built
+
+| Part | What it does |
+| --- | --- |
+| `phantom-core` | configuration, errors, logging, Matrix event types and state resolution |
+| `phantom-database` | the RocksDB engine, typed tables, codecs and a read pool |
+| `phantom-service` | the service runtime and the ~55 services on it |
+| `phantom-api` | the client-server, federation, OIDC and admin HTTP routes |
+| `phantom-macros` | proc macros, including the config-example generator |
+| `phantom-server` | the server binary |
+| `cli/` | the `phantom` console, built on [Bubble Tea](https://github.com/charmbracelet/bubbletea) |
+
+phantom began as a port of [conduwuit](https://github.com/girlbossceo/conduwuit) and still tracks it.
+
+Ready? Head to [installation](/docs/installation/).

@@ -1,0 +1,72 @@
+export const metadata = { title: "Installation" };
+
+# Installation
+
+phantom builds from source. One build gives you both halves: `phantom-server` and the `phantom` console.
+
+## What you need
+
+| Dependency | Version | Needed for |
+| --- | --- | --- |
+| [Rust](https://rustup.rs) | 1.97.1, pinned | the server |
+| A C/C++ compiler and `libclang` | any recent gcc or clang | the bundled RocksDB |
+| [Go](https://go.dev/dl/) | 1.27 or newer | the console |
+| `make` or [`just`](https://github.com/casey/just) | any | the build recipes (optional) |
+
+<Callout>
+You don't pick the Rust version: `rust-toolchain.toml` names 1.97.1, and `rustup` installs it the first time you run `cargo` in the repository. RocksDB is compiled from source as part of the build, which is why the first build takes several minutes and a few gigabytes of `target/`.
+</Callout>
+
+## System packages
+
+```sh
+# Debian / Ubuntu
+sudo apt install -y build-essential clang libclang-dev pkg-config git curl
+
+# Fedora / RHEL
+sudo dnf install -y gcc gcc-c++ make clang clang-devel pkgconf-pkg-config git curl
+
+# Arch
+sudo pacman -S --needed base-devel clang git curl
+
+# macOS
+xcode-select --install
+```
+
+On Windows, build inside [WSL2](https://learn.microsoft.com/windows/wsl/install) with the Debian steps, and clone into the Linux filesystem rather than `/mnt/c`.
+
+Then Rust and Go:
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# Go 1.27+ from https://go.dev/dl/ — distribution packages are often older
+```
+
+## Build
+
+```sh
+git clone https://github.com/HilthonTT/phantom.git && cd phantom
+make build        # or: just build
+```
+
+That runs `cargo build --release` and builds the console into `target/phantom`. You end up with:
+
+| Path | What it is |
+| --- | --- |
+| `target/release/phantom-server` | the homeserver |
+| `target/phantom` | the console |
+| `phantom-example.toml` | every config option, documented |
+
+## Optional features
+
+| Feature | Effect |
+| --- | --- |
+| `phantom-core/jemalloc` | use jemalloc (also `jemalloc_conf`, `jemalloc_prof`, `jemalloc_stats`) |
+| `phantom-core/hardened_malloc` | use hardened_malloc; ignored alongside jemalloc |
+| `phantom-service/systemd` | notify systemd on reload and when ready |
+
+```sh
+cargo build --release --features phantom-service/systemd
+```
+
+Next: the [quick start](/docs/quick-start/).
