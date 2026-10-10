@@ -18,8 +18,9 @@ use crate::{
     accounts::profile, accounts::pusher, accounts::sync, accounts::transaction_id, accounts::users,
     auth::oauth, auth::registration_tokens, auth::rendezvous, auth::threepid, auth::uiaa, media,
     net::client, net::federation, net::fetcher, net::resolver, net::sending, net::sendmail,
-    net::server_keys, ops::admin, ops::appservice, ops::config, ops::emergency, ops::moderation,
-    ops::server_state, ops::storage, ops::tasks, ops::updates, rooms,
+    net::server_keys, ops::admin, ops::appservice, ops::config, ops::emergency, ops::logs,
+    ops::moderation, ops::reports, ops::server_state, ops::storage, ops::tasks, ops::updates,
+    rooms,
 };
 
 pub struct Services {
@@ -45,6 +46,8 @@ pub struct Services {
     pub users: Arc<users::Service>,
     pub deactivate: Arc<deactivate::Service>,
     pub emergency: Arc<emergency::Service>,
+    pub logs: Arc<logs::Service>,
+    pub reports: Arc<reports::Service>,
     pub presence: Arc<presence::Service>,
     pub profile: Arc<profile::Service>,
     pub pusher: Arc<pusher::Service>,
@@ -93,6 +96,8 @@ impl Services {
         }
 
         let services = Arc::new(Self {
+            // First, so it keeps what the other services log as they build.
+            logs: build!(logs::Service),
             resolver: build!(resolver::Service),
             client: build!(client::Service),
             config: build!(config::Service),
@@ -139,6 +144,7 @@ impl Services {
             users: build!(users::Service),
             deactivate: build!(deactivate::Service),
             emergency: build!(emergency::Service),
+            reports: build!(reports::Service),
             presence: build!(presence::Service),
             profile: build!(profile::Service),
             pusher: build!(pusher::Service),

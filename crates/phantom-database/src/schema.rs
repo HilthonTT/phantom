@@ -233,6 +233,10 @@ schema! {
         ..descriptor::RANDOM_SMALL
     }
 
+    REPORTID_REPORT = "reportid_report" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     ROOMID_INVITEDCOUNT = "roomid_invitedcount" {
         ..descriptor::RANDOM_SMALL
     }

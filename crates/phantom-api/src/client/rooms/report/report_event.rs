@@ -3,8 +3,7 @@ use phantom_core::{Err, Result, debug_info, info, matrix::pdu::PduEvent, stream:
 use phantom_service::Services;
 use ruma::{EventId, RoomId, UserId, api::client::room::report_content};
 
-use super::REASON_MAX_LEN;
-use super::send_report;
+use super::{REASON_MAX_LEN, Reported, send_report};
 use crate::router::{ClientIp, Ruma};
 
 /// # `POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`
@@ -42,11 +41,21 @@ pub(crate) async fn report_event_route(
     )
     .await?;
 
-    send_report(&format!(
-        "@room Event report received from {}\nReport Reason: {}\n\nEvent ID: {}\nRoom ID: \
+    send_report(
+        &services,
+        sender_user,
+        Reported {
+            room_id: Some(&pdu.room_id),
+            event_id: Some(&pdu.event_id),
+            user_id: Some(&pdu.sender),
+        },
+        reason,
+        &format!(
+            "@room Event report received from {}\nReport Reason: {}\n\nEvent ID: {}\nRoom ID: \
              {}\nSent By: {}",
-        sender_user, reason, pdu.event_id, pdu.room_id, pdu.sender,
-    ))
+            sender_user, reason, pdu.event_id, pdu.room_id, pdu.sender,
+        ),
+    )
     .await;
 
     Ok(report_content::v3::Response::new())

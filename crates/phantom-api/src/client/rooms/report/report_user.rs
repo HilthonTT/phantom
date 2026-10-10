@@ -2,8 +2,7 @@ use axum::extract::State;
 use phantom_core::{Err, Result, info};
 use ruma::api::client::reporting::report_user;
 
-use super::REASON_MAX_LEN;
-use super::send_report;
+use super::{REASON_MAX_LEN, Reported, send_report};
 use crate::router::{ClientIp, Ruma};
 
 /// # `POST /_matrix/client/v3/users/{userId}/report`
@@ -29,10 +28,20 @@ pub(crate) async fn report_user_route(
 
     // Succeed regardless of user existence to deter enumeration (MSC4277).
     if services.users.is_active_local(target_user).await {
-        send_report(&format!(
-            "@room User report received from {sender_user}\nReport Reason: \
+        send_report(
+            &services,
+            sender_user,
+            Reported {
+                room_id: None,
+                event_id: None,
+                user_id: Some(target_user),
+            },
+            reason,
+            &format!(
+                "@room User report received from {sender_user}\nReport Reason: \
                  {reason}\n\nReported User ID: {target_user}",
-        ))
+            ),
+        )
         .await;
     }
 

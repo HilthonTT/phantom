@@ -2,8 +2,7 @@ use axum::extract::State;
 use phantom_core::{Err, Result, info};
 use ruma::api::client::room::report_room;
 
-use super::REASON_MAX_LEN;
-use super::send_report;
+use super::{REASON_MAX_LEN, Reported, send_report};
 use crate::router::{ClientIp, Ruma};
 
 /// # `POST /_matrix/client/v3/rooms/{roomId}/report`
@@ -39,10 +38,20 @@ pub(crate) async fn report_room_route(
         )));
     }
 
-    send_report(&format!(
-        "@room Room report received from {}\nReport Reason: {}\n\nRoom ID: {}",
-        sender_user, body.reason, body.room_id,
-    ))
+    send_report(
+        &services,
+        sender_user,
+        Reported {
+            room_id: Some(&body.room_id),
+            event_id: None,
+            user_id: None,
+        },
+        &body.reason,
+        &format!(
+            "@room Room report received from {}\nReport Reason: {}\n\nRoom ID: {}",
+            sender_user, body.reason, body.room_id,
+        ),
+    )
     .await;
 
     Ok(report_room::v3::Response::new())
