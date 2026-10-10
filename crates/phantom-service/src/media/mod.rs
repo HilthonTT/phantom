@@ -17,8 +17,14 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use data::Data;
 use futures::StreamExt;
 use phantom_core::{
-    Err, Error, Result, debug, err, http::StatusCode, implement, info, runtime::server::Server,
-    stream::TryIgnore, sync::MutexMap, time::now_millis, warn,
+    Err, Error, Result, debug, err,
+    http::StatusCode,
+    implement, info,
+    runtime::server::Server,
+    stream::{ReadyExt, TryIgnore},
+    sync::MutexMap,
+    time::now_millis,
+    warn,
 };
 use phantom_database::{Cbor, Deserialized, Interfix, serialize_to_vec};
 use ruma::{
@@ -480,6 +486,71 @@ pub async fn media_of(&self, server_name: &ServerName) -> Vec<OwnedMxcUri> {
     media
 }
 
+/// A stored file as the admin API lists it: an original upload or remote
+/// copy, with how many thumbnails were made of it.
+#[derive(Clone, Debug)]
+pub struct StoredMedia {
+    pub mxc: OwnedMxcUri,
+    pub meta: FileMeta,
+    pub thumbnails: usize,
+    pub uploader: Option<OwnedUserId>,
+}
+
+/// How a key spells [`Dimensions::ORIGINAL`] after the media ID: two zero
+/// u32s, big-endian, around the separator.
+const ORIGINAL_DIMENSIONS: &[u8] = &[0, 0, 0, 0, phantom_database::SEP, 0, 0, 0, 0];
+
+/// Every file the media store holds, local and remote, from its records;
+/// thumbnails count toward their original rather than being listed.
+#[implement(Service)]
+pub async fn list(&self) -> Vec<StoredMedia> {
+    let mut originals: Vec<StoredMedia> = Vec::new();
+    let mut thumbnails: HashMap<String, usize> = HashMap::new();
+
+    // The key's dimensions are u32s, which the key decoder cannot read, so
+    // keys are split by hand: server, media ID, then the dimensions.
+    self.db
+        .mediaid_file
+        .raw_stream()
+        .ignore_err()
+        .ready_for_each(|(key, val)| {
+            let mut parts = key.splitn(3, |byte| *byte == phantom_database::SEP);
+            let (Some(server), Some(media_id), Some(dimensions)) =
+                (parts.next(), parts.next(), parts.next())
+            else {
+                return;
+            };
+            let (Ok(server), Ok(media_id)) =
+                (std::str::from_utf8(server), std::str::from_utf8(media_id))
+            else {
+                return;
+            };
+
+            let mxc = format!("mxc://{server}/{media_id}");
+            if dimensions != ORIGINAL_DIMENSIONS {
+                *thumbnails.entry(mxc).or_default() += 1;
+                return;
+            }
+
+            if let Ok(Cbor(meta)) = phantom_database::deserialize::<Cbor<FileMeta>>(val) {
+                originals.push(StoredMedia {
+                    mxc: OwnedMxcUri::from(mxc),
+                    meta,
+                    thumbnails: 0,
+                    uploader: None,
+                });
+            }
+        })
+        .await;
+
+    for media in &mut originals {
+        media.thumbnails = thumbnails.get(media.mxc.as_str()).copied().unwrap_or(0);
+        media.uploader = self.uploader(&media.mxc).await.ok();
+    }
+
+    originals
+}
+
 #[implement(Service)]
 pub async fn uploader(&self, mxc: &MxcUri) -> Result<OwnedUserId> {
     let (server_name, media_id) = parts(mxc)?;
@@ -556,4 +627,24 @@ fn now() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|since| since.as_secs())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod key_tests {
+    use phantom_database::serialize_to_vec;
+
+    use super::ORIGINAL_DIMENSIONS;
+
+    /// The media listing tells originals by these bytes, so they must be what
+    /// the key serializer writes for zero dimensions.
+    #[test]
+    fn original_dimensions_match_the_key_encoding() {
+        let key = serialize_to_vec(("example.org", "abc", 0_u32, 0_u32)).expect("serializes");
+
+        assert!(key.ends_with(ORIGINAL_DIMENSIONS));
+        assert_eq!(
+            key.len(),
+            "example.org".len() + 1 + "abc".len() + 1 + ORIGINAL_DIMENSIONS.len()
+        );
+    }
 }

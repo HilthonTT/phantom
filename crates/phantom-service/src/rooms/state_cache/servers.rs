@@ -20,6 +20,30 @@ impl Service {
         self.db.serverroomids.qry(&key).await.is_ok()
     }
 
+    /// Every server that shares a room with this one, with how many rooms it
+    /// shares; this server included.
+    pub async fn known_servers(&self) -> Vec<(OwnedServerName, usize)> {
+        let mut servers: Vec<(OwnedServerName, usize)> = Vec::new();
+
+        self.db
+            .serverroomids
+            .keys()
+            .ignore_err()
+            .ready_for_each(|(server, _): (&str, Ignore)| match servers.last_mut() {
+                Some((last, rooms)) if last.as_str() == server => {
+                    *rooms = rooms.saturating_add(1);
+                }
+                _ => {
+                    if let Ok(server) = OwnedServerName::try_from(server) {
+                        servers.push((server, 1));
+                    }
+                }
+            })
+            .await;
+
+        servers
+    }
+
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn server_rooms<'a>(
         &'a self,

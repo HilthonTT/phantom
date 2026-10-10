@@ -88,7 +88,19 @@ pub struct PeerBackoff {
 
 #[implement(Service)]
 pub async fn record_success(&self, server: &ServerName) {
+    self.last_contact
+        .lock()
+        .expect("locked")
+        .insert(server.to_owned(), now_secs());
+
     self.statuses.del_prefix(&(server, Interfix)).await;
+}
+
+/// When each server last answered a request since startup, in seconds since
+/// the epoch.
+#[implement(Service)]
+pub fn last_contacts(&self) -> BTreeMap<OwnedServerName, u64> {
+    self.last_contact.lock().expect("locked").clone()
 }
 
 #[implement(Service)]

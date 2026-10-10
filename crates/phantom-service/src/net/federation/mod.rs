@@ -4,13 +4,14 @@ mod format;
 mod peer;
 mod rank;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use phantom_core::{
     Result, runtime::server::Server, time::exponential_backoff::exponential_backoff_streak_cap,
 };
 use phantom_database::{Map, table};
+use ruma::OwnedServerName;
 
 pub use self::{
     format::outgoing_pdu,
@@ -33,6 +34,10 @@ pub struct Service {
     grace: Duration,
 
     max_backoff: Duration,
+
+    /// When each server last answered a request, in seconds since the epoch;
+    /// kept in memory, so it covers only the time since startup.
+    last_contact: std::sync::Mutex<BTreeMap<OwnedServerName, u64>>,
 }
 
 struct Services {
@@ -71,6 +76,7 @@ impl crate::Service for Service {
             n_max,
             grace: Duration::from_secs(config.sender_retry_grace),
             max_backoff,
+            last_contact: std::sync::Mutex::new(BTreeMap::new()),
         }))
     }
 
