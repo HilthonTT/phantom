@@ -123,3 +123,49 @@ func TestLatencyAloneIsNoChange(t *testing.T) {
 		t.Error("going down is not a change")
 	}
 }
+
+func TestTheAdminStatsFillTheRestOfTheOverview(t *testing.T) {
+	s := state(t).Apply(ProbedMsg{Status: up})
+	s, gen := s.StartAdmin()
+	backupAt := time.Now().Add(-time.Hour).UnixMilli()
+
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Overview, Stats: &client.Stats{
+		KeyBackupUsers: 2, MediaFiles: 3, MediaBytes: 2048, OpenReports: 1,
+		LastBackupMs: &backupAt, Login: []string{"password", "OIDC"},
+	}})
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Services, Services: &ServiceCounts{Total: 57, Running: 14}})
+
+	l := s.Listing(resource.Overview)
+	for key, want := range map[string]string{
+		"Key backups":  "2 users",
+		"Media store":  "2.0 KiB in 3 files",
+		"Open reports": "1",
+		"Login":        "password, OIDC",
+		"Services":     "57, 14 with workers running, 0 failed",
+	} {
+		if got := cell(t, l, key).Cells[1]; got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+
+	for _, r := range l.Rows {
+		if r.Cells[0] == "Events today" {
+			t.Error("an overview row the server cannot answer is still shown")
+		}
+	}
+}
+
+func TestTheOverviewCountsTheServersFederatedWith(t *testing.T) {
+	s := state(t).Apply(ProbedMsg{Status: up})
+	s, gen := s.StartAdmin()
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Overview, Stats: &client.Stats{Federation: true, MediaFiles: 1}})
+
+	if got := cell(t, s.Listing(resource.Overview), "Media store").Cells[1]; got != "0 B in 1 file" {
+		t.Errorf("media store = %q", got)
+	}
+
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Federation, Peers: &PeerCounts{Known: 3, Reachable: 2, Failing: 1}})
+	if got := cell(t, s.Listing(resource.Overview), "Federation").Cells[1]; got != "3 servers, 2 reachable, 1 backing off" {
+		t.Errorf("federation = %q", got)
+	}
+}

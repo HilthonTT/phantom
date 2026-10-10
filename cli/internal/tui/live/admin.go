@@ -22,6 +22,11 @@ var AdminSections = []resource.Section{
 	resource.Appservices,
 	resource.Settings,
 	resource.Tasks,
+	resource.Services,
+	resource.Federation,
+	resource.Media,
+	resource.Logs,
+	resource.Reports,
 }
 
 func Served(s resource.Section) bool {
@@ -49,19 +54,41 @@ type Admin struct {
 	// they are known.
 	Tasks []resource.Task
 
+	// Services tallies the server's services, for the overview, once known.
+	Services *ServiceCounts
+
+	// Peers tallies the servers this one shares rooms with, once known.
+	Peers *PeerCounts
+
 	listings map[resource.Section]resource.Listing
 	errs     map[resource.Section]error
 }
+
+// PeerCounts tallies the servers this one shares rooms with.
+type PeerCounts struct {
+	Known, Reachable, Failing int
+}
+
+// ServiceCounts tallies the server's services.
+type ServiceCounts struct {
+	Total, Running, Failed int
+}
+
+// LogLines is how many of the server's recent log lines the Logs section
+// asks for.
+const LogLines = 500
 
 // AdminMsg is one section's answer arriving.
 type AdminMsg struct {
 	Gen     int
 	Section resource.Section
 
-	Listing resource.Listing
-	Stats   *client.Stats
-	Devices *int
-	Tasks   []resource.Task
+	Listing  resource.Listing
+	Stats    *client.Stats
+	Devices  *int
+	Tasks    []resource.Task
+	Services *ServiceCounts
+	Peers    *PeerCounts
 
 	Err error
 }
@@ -106,6 +133,30 @@ func FetchAdmin(c *client.Client, gen int, section resource.Section) tea.Cmd {
 		case resource.Tasks:
 			tasks, err := c.Tasks(ctx)
 			msg.Listing, msg.Tasks, msg.Err = listings.Tasks(tasks, now), listings.Taskbar(tasks), err
+
+		case resource.Services:
+			services, err := c.Services(ctx)
+			var counts ServiceCounts
+			counts.Total, counts.Running, counts.Failed = listings.ServiceCounts(services)
+			msg.Listing, msg.Services, msg.Err = listings.Services(services, now), &counts, err
+
+		case resource.Federation:
+			peers, err := c.Federation(ctx)
+			var counts PeerCounts
+			counts.Known, counts.Reachable, counts.Failing = listings.PeerCounts(peers)
+			msg.Listing, msg.Peers, msg.Err = listings.Federation(peers, now), &counts, err
+
+		case resource.Media:
+			media, err := c.Media(ctx)
+			msg.Listing, msg.Err = listings.Media(media, now), err
+
+		case resource.Logs:
+			lines, err := c.Logs(ctx, LogLines)
+			msg.Listing, msg.Err = listings.Logs(lines, now), err
+
+		case resource.Reports:
+			reports, err := c.Reports(ctx)
+			msg.Listing, msg.Err = listings.Reports(reports, now), err
 
 		default:
 			return nil
@@ -159,6 +210,12 @@ func (s State) TakeAdmin(msg AdminMsg) (State, bool) {
 		}
 		if msg.Section == resource.Tasks {
 			a.Tasks = msg.Tasks
+		}
+		if msg.Services != nil {
+			a.Services = msg.Services
+		}
+		if msg.Peers != nil {
+			a.Peers = msg.Peers
 		}
 	}
 
@@ -235,6 +292,24 @@ func (s State) RowActions(section resource.Section, row resource.Row, ok bool) [
 
 	case resource.Overview, resource.Settings:
 		return []Action{{Kind: ReloadConfig}, {Kind: Backup}}
+
+	case resource.Media:
+		if ref(0) == "" {
+			return nil
+		}
+		return []Action{{Kind: DeleteMedia, Target: ref(0)}}
+
+	case resource.Federation:
+		if ref(0) == "" {
+			return nil
+		}
+		return []Action{{Kind: PurgeRemoteMedia, Target: ref(0)}}
+
+	case resource.Reports:
+		if ref(0) == "" {
+			return nil
+		}
+		return []Action{{Kind: DismissReport, Target: ref(0)}}
 
 	default:
 		return nil

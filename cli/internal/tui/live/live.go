@@ -225,6 +225,9 @@ func (s State) overview(l *resource.Listing) {
 	// The client API row is the only one the sample has no stand-in for.
 	rows := make([]resource.Row, 0, len(l.Rows)+1)
 	for _, r := range l.Rows {
+		if unsourced[r.Cells[0]] && s.Admin.Stats != nil {
+			continue
+		}
 		rows = append(rows, r)
 		if r.Cells[0] == "Version" {
 			rows = append(rows, resource.Row{Cells: []string{"Client API", ""}})
@@ -262,7 +265,13 @@ func (s State) overview(l *resource.Listing) {
 var adminKeys = map[string]bool{
 	"Uptime": true, "Local users": true, "Rooms": true, "Database size": true,
 	"Appservices": true, "Registration": true, "Read-only mode": true, "Devices": true,
+	"Key backups": true, "Media store": true, "Open reports": true, "Backup": true,
+	"Login": true, "Services": true, "Federation": true,
 }
+
+// unsourced are overview rows the server keeps nothing to answer, dropped
+// once the admin API's figures replace the sample.
+var unsourced = map[string]bool{"Events today": true}
 
 // adminOverview fills the overview rows the admin API knows, over the ones
 // the unauthenticated probe could.
@@ -298,6 +307,62 @@ func (s State) adminOverview(live map[string]value) {
 	live["Appservices"] = value{fmt.Sprintf("%d registered", st.Appservices), resource.NoState}
 	live["Registration"] = value{registration, regState}
 	live["Read-only mode"] = value{readOnly, roState}
+
+	live["Key backups"] = value{fmt.Sprintf("%d users", st.KeyBackupUsers), resource.NoState}
+	files := "files"
+	if st.MediaFiles == 1 {
+		files = "file"
+	}
+	live["Media store"] = value{
+		fmt.Sprintf("%s in %d %s", listings.Bytes(st.MediaBytes), st.MediaFiles, files), resource.NoState,
+	}
+
+	switch p := s.Admin.Peers; {
+	case !st.Federation:
+		live["Federation"] = value{"off", resource.Held}
+	case p == nil:
+	case p.Known == 0:
+		live["Federation"] = value{"on; no other server shares a room yet", resource.NoState}
+	default:
+		state := resource.Done
+		if p.Failing > 0 {
+			state = resource.Held
+		}
+		live["Federation"] = value{
+			fmt.Sprintf("%d servers, %d reachable, %d backing off", p.Known, p.Reachable, p.Failing), state,
+		}
+	}
+
+	reports := value{"none", resource.NoState}
+	if st.OpenReports > 0 {
+		reports = value{fmt.Sprint(st.OpenReports), resource.Held}
+	}
+	live["Open reports"] = reports
+
+	backup := value{"never; set database_backup_path to turn backups on", resource.Held}
+	if st.LastBackupMs != nil {
+		at := time.UnixMilli(*st.LastBackupMs)
+		backup = value{at.Local().Format("2006-01-02 15:04"), resource.NoState}
+		if st.LastBackupBytes != nil {
+			backup.text += ", " + listings.Bytes(*st.LastBackupBytes)
+		}
+		if time.Since(at) > 7*24*time.Hour {
+			backup.state = resource.Held
+		}
+	}
+	live["Backup"] = backup
+
+	live["Login"] = value{strings.Join(st.Login, ", "), resource.NoState}
+
+	if c := s.Admin.Services; c != nil {
+		state := resource.Done
+		if c.Failed > 0 {
+			state = resource.Failed
+		}
+		live["Services"] = value{
+			fmt.Sprintf("%d, %d with workers running, %d failed", c.Total, c.Running, c.Failed), state,
+		}
+	}
 }
 
 func (s State) listener() value {

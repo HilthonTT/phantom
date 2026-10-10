@@ -25,7 +25,7 @@ console written in Go.
 | **`phantom-api`** | client-server, federation, OIDC and admin HTTP routes | client API works |
 | **`phantom-macros`** | proc macros, including the config-example generator | usable |
 | **`phantom-server`** | the `phantom-server` binary | serves plain TCP |
-| **`cli/`** | the `phantom` admin console | live for chat and most admin sections |
+| **`cli/`** | the `phantom` admin console | every section live against a running server |
 
 About 94,000 lines of Rust and 8,000 of Go.
 [docs/architecture.md](docs/architecture.md) shows how the crates layer.
@@ -71,14 +71,17 @@ opens the command prompt, `q` quits.
 - **Chat** works with any account: rooms and messages over `/sync`, sending,
   typing notices, read receipts, `:join` and `:leave`. Encrypted rooms show
   their messages as undecryptable.
-- **Overview, Users, Devices, Tokens, Rooms, Appservices, Settings and Tasks**
-  come from the admin API (`/_phantom/admin/v1`) when you sign in as an admin.
+- **Every other section** comes from the admin API (`/_phantom/admin/v1`) when
+  you sign in as an admin: the overview, users, devices, tokens, rooms,
+  appservices, settings, tasks, services and their workers, the servers
+  federated with, the media store, the recent log, and the abuse reports users
+  file (also posted into the admin room). Signed out, or as a regular user,
+  they show sample data, and say so in their footer.
 - **Actions:** `enter` on a row offers what can be done to it (set a password,
   grant or revoke admin, deactivate, sign out a device, create or revoke a
-  token, ban, shut down or purge a room, reload the config, back up), and the
-  `:` prompt has the same as commands. `s` sorts by column.
-- **Services, Federation, Media, Reports and Logs** still show sample data, and
-  every table that isn't live says so in its footer.
+  token, ban, shut down or purge a room, delete a file, purge a server's media,
+  dismiss a report, reload the config, back up), and the `:` prompt has the
+  same as commands. `s` sorts by column.
 
 Sessions are kept per server in `phantom/sessions.json` under your config
 directory (`~/.config` on Linux), readable only by you. [docs/cli.md](docs/cli.md) has more on the layout and keys.

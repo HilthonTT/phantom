@@ -205,6 +205,12 @@ func (m Model) adminCommand(word string, args []string) (tea.Model, tea.Cmd) {
 		a = live.Action{Kind: live.ShutdownRoom, Target: arg(0)}
 	case "purge":
 		a = live.Action{Kind: live.DeleteRoom, Target: arg(0)}
+	case "rmmedia":
+		a = live.Action{Kind: live.DeleteMedia, Target: arg(0)}
+	case "purgemedia":
+		a = live.Action{Kind: live.PurgeRemoteMedia, Target: arg(0)}
+	case "dismiss":
+		a = live.Action{Kind: live.DismissReport, Target: arg(0)}
 	case "reload":
 		a = live.Action{Kind: live.ReloadConfig}
 	case "backup":

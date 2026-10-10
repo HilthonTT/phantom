@@ -144,6 +144,8 @@ var registry = []service{
 	{name: "media", worker: true, purpose: "uploads, thumbnails, remote fetches"},
 	{name: "rooms::membership", worker: true, purpose: "join, leave, invite, kick, ban, knock"},
 	{name: "ops::moderation", purpose: "which servers this one refuses"},
+	{name: "ops::logs", purpose: "the recent log, kept for the console"},
+	{name: "ops::reports", purpose: "abuse reports, stored and sent to the admins"},
 	{name: "auth::rendezvous", purpose: "QR-code login (MSC4108)"},
 	{name: "net::federation", purpose: "one signed request to another server"},
 
@@ -196,6 +198,18 @@ var registry = []service{
 	{name: "auth::threepid", purpose: "email and phone bindings"},
 
 	{name: "ops::migrations", purpose: "schema and data migrations, run at startup"},
+}
+
+// Purpose says what a service is for, from the hand-kept registry; empty
+// for a service it does not list.
+func Purpose(name string) string {
+	for _, svc := range registry {
+		if svc.name == name {
+			return svc.purpose
+		}
+	}
+
+	return ""
 }
 
 func (s service) state() (resource.State, string) {

@@ -83,3 +83,19 @@ func TestDestructiveActionsAsk(t *testing.T) {
 		}
 	}
 }
+
+func TestInsightRowsOfferTheirActions(t *testing.T) {
+	s := admin(t)
+	cases := map[resource.Section]ActionKind{
+		resource.Media:      DeleteMedia,
+		resource.Federation: PurgeRemoteMedia,
+		resource.Reports:    DismissReport,
+	}
+
+	for section, want := range cases {
+		got := kinds(s.RowActions(section, resource.Row{Ref: []string{"x"}}, true))
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%s: actions = %v, want [%v]", section, got, want)
+		}
+	}
+}

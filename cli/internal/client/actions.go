@@ -2,8 +2,10 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // The admin API's actions. Each refuses what would lock an admin out: acting
@@ -120,4 +122,29 @@ func (c *Client) adminTask(ctx context.Context, method, path string, in any) (st
 	err := c.adminDo(ctx, method, path, in, &resp)
 
 	return resp.TaskID, err
+}
+
+// DeleteMedia deletes a stored file, by its mxc URI, and its thumbnails.
+func (c *Client) DeleteMedia(ctx context.Context, mxc string) error {
+	server, id, ok := strings.Cut(strings.TrimPrefix(mxc, "mxc://"), "/")
+	if !ok || !strings.HasPrefix(mxc, "mxc://") {
+		return fmt.Errorf("%q is not an mxc:// URI", mxc)
+	}
+
+	return c.adminDo(ctx, http.MethodDelete, "/media/"+url.PathEscape(server)+"/"+url.PathEscape(id), nil, nil)
+}
+
+// PurgeRemoteMedia deletes every copy of another server's media held here,
+// answering with how many files went.
+func (c *Client) PurgeRemoteMedia(ctx context.Context, server string) (int, error) {
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	err := c.adminDo(ctx, http.MethodDelete, "/federation/"+url.PathEscape(server)+"/media", nil, &resp)
+
+	return resp.Removed, err
+}
+
+func (c *Client) DismissReport(ctx context.Context, id string) error {
+	return c.adminDo(ctx, http.MethodDelete, "/reports/"+url.PathEscape(id), nil, nil)
 }

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -27,6 +28,16 @@ type Stats struct {
 	Registration      bool `json:"registration"`
 	RegistrationToken bool `json:"registration_token"`
 	ReadOnly          bool `json:"read_only"`
+
+	KeyBackupUsers int   `json:"key_backup_users"`
+	MediaFiles     int   `json:"media_files"`
+	MediaBytes     int64 `json:"media_bytes"`
+	OpenReports    int   `json:"open_reports"`
+
+	LastBackupMs    *int64 `json:"last_backup_ms"`
+	LastBackupBytes *int64 `json:"last_backup_bytes"`
+
+	Login []string `json:"login"`
 }
 
 type AdminUser struct {
@@ -93,6 +104,58 @@ type Setting struct {
 	Value string `json:"value"`
 }
 
+type AdminService struct {
+	Name        string  `json:"name"`
+	Status      string  `json:"status"`
+	StartedAtMs *int64  `json:"started_at_ms"`
+	StoppedAtMs *int64  `json:"stopped_at_ms"`
+	Restarts    int     `json:"restarts"`
+	Error       *string `json:"error"`
+}
+
+type Peer struct {
+	Server        string  `json:"server"`
+	Rooms         int     `json:"rooms"`
+	LastContactMs *int64  `json:"last_contact_ms"`
+	Resolved      *string `json:"resolved"`
+	Sending       int     `json:"sending"`
+
+	Backoff *struct {
+		Permanent bool  `json:"permanent"`
+		SinceMs   int64 `json:"since_ms"`
+		DelaySecs int64 `json:"delay_secs"`
+	} `json:"backoff"`
+}
+
+type StoredMedia struct {
+	MXC         string  `json:"mxc"`
+	Size        int64   `json:"size"`
+	ContentType *string `json:"content_type"`
+	CreatedAtMs int64   `json:"created_at_ms"`
+	Thumbnails  int     `json:"thumbnails"`
+	Uploader    *string `json:"uploader"`
+	Local       bool    `json:"local"`
+}
+
+type LogLine struct {
+	AtMs    int64  `json:"at_ms"`
+	Level   string `json:"level"`
+	Target  string `json:"target"`
+	Span    string `json:"span"`
+	Message string `json:"message"`
+}
+
+type Report struct {
+	ID       string  `json:"id"`
+	AtMs     int64   `json:"at_ms"`
+	Kind     string  `json:"kind"`
+	Reporter string  `json:"reporter"`
+	RoomID   *string `json:"room_id"`
+	EventID  *string `json:"event_id"`
+	UserID   *string `json:"user_id"`
+	Reason   string  `json:"reason"`
+}
+
 const adminAPI = "/_phantom/admin/v1"
 
 // adminTimeout bounds an admin listing, which walks a whole table and so can
@@ -132,4 +195,25 @@ func (c *Client) Appservices(ctx context.Context) ([]Appservice, error) {
 
 func (c *Client) Settings(ctx context.Context) ([]Setting, error) {
 	return adminGet[[]Setting](ctx, c, "/settings")
+}
+
+func (c *Client) Services(ctx context.Context) ([]AdminService, error) {
+	return adminGet[[]AdminService](ctx, c, "/services")
+}
+
+func (c *Client) Federation(ctx context.Context) ([]Peer, error) {
+	return adminGet[[]Peer](ctx, c, "/federation")
+}
+
+func (c *Client) Media(ctx context.Context) ([]StoredMedia, error) {
+	return adminGet[[]StoredMedia](ctx, c, "/media")
+}
+
+// Logs are the server's recent lines, newest first.
+func (c *Client) Logs(ctx context.Context, limit int) ([]LogLine, error) {
+	return adminGet[[]LogLine](ctx, c, "/logs?limit="+strconv.Itoa(limit))
+}
+
+func (c *Client) Reports(ctx context.Context) ([]Report, error) {
+	return adminGet[[]Report](ctx, c, "/reports")
 }

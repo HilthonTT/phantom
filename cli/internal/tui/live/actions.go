@@ -28,6 +28,9 @@ const (
 	DeleteRoom
 	ReloadConfig
 	Backup
+	DeleteMedia
+	PurgeRemoteMedia
+	DismissReport
 )
 
 // Action is one thing an admin asked the server to do.
@@ -79,6 +82,12 @@ func (a Action) Label() string {
 		return "Reload config"
 	case Backup:
 		return "Back up database"
+	case DeleteMedia:
+		return "Delete"
+	case PurgeRemoteMedia:
+		return "Purge its media"
+	case DismissReport:
+		return "Dismiss"
 	default:
 		return "Unknown"
 	}
@@ -113,6 +122,13 @@ func (a Action) Confirm() (title, body string) {
 	case DeleteRoom:
 		return "Delete " + a.Target + "?",
 			"Shuts it down, then purges all the server holds of it. This cannot be undone."
+	case DeleteMedia:
+		return "Delete " + a.Target + "?", "Removes the file and its thumbnails. This cannot be undone."
+	case PurgeRemoteMedia:
+		return "Purge " + a.Target + "'s media?",
+			"Deletes every copy of its files held here; they are fetched again if asked for."
+	case DismissReport:
+		return "Dismiss this report?", "It is closed and leaves the list."
 	default:
 		return "", ""
 	}
@@ -132,7 +148,11 @@ func (a Action) Refreshes() []resource.Section {
 	case ReloadConfig:
 		return []resource.Section{resource.Settings, resource.Overview}
 	case Backup:
-		return []resource.Section{resource.Tasks}
+		return []resource.Section{resource.Tasks, resource.Overview}
+	case DeleteMedia, PurgeRemoteMedia:
+		return []resource.Section{resource.Media, resource.Overview}
+	case DismissReport:
+		return []resource.Section{resource.Reports, resource.Overview}
 	default:
 		return nil
 	}
@@ -220,6 +240,16 @@ func act(ctx context.Context, c *client.Client, a Action) (string, error) {
 	case Backup:
 		id, err := c.Backup(ctx)
 		return "Backing up the database as task " + id + ".", err
+
+	case DeleteMedia:
+		return "Deleted " + target + ".", c.DeleteMedia(ctx, target)
+
+	case PurgeRemoteMedia:
+		n, err := c.PurgeRemoteMedia(ctx, target)
+		return fmt.Sprintf("Deleted %d files of %s.", n, target), err
+
+	case DismissReport:
+		return "Dismissed the report.", c.DismissReport(ctx, target)
 
 	default:
 		return "", fmt.Errorf("unknown action %d", a.Kind)

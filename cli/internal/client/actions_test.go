@@ -52,3 +52,27 @@ func TestActionsUseTheirMethodsAndPaths(t *testing.T) {
 		t.Errorf("task %q token %q", id, tok.Token)
 	}
 }
+
+func TestMediaActionsSplitTheMXC(t *testing.T) {
+	var paths []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/_phantom/admin/v1/", func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.Method+" "+r.URL.EscapedPath())
+		_, _ = w.Write([]byte(`{"removed":4}`))
+	})
+	c := serve(t, mux)
+	ctx := context.Background()
+
+	if err := c.DeleteMedia(ctx, "mxc://test/abc"); err != nil {
+		t.Fatal(err)
+	}
+	n, _ := c.PurgeRemoteMedia(ctx, "remote.example")
+	if err := c.DeleteMedia(ctx, "https://not-mxc"); err == nil {
+		t.Error("a non-mxc URI was accepted")
+	}
+
+	if len(paths) != 2 || paths[0] != "DELETE /_phantom/admin/v1/media/test/abc" ||
+		paths[1] != "DELETE /_phantom/admin/v1/federation/remote.example/media" || n != 4 {
+		t.Errorf("paths = %v removed %d", paths, n)
+	}
+}
