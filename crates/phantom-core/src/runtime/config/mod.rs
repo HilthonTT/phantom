@@ -38,6 +38,7 @@ pub use self::{
     proxy::ProxyConfig,
     smtp::SmtpConfig,
     storage::{StorageProvider, StorageProviderLocal, StorageProviderS3},
+    tls::TlsConfig,
     validate::validate,
 };
 use crate::{Result, diagnostics::log::fmt_span, err};
@@ -60,7 +61,7 @@ use crate::{Result, diagnostics::log::fmt_span, err};
 ### Any values pre-populated are the default values for said config option.
 "#,
     flattened = "auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates",
-    ignore = "catchall smtp identity_provider storage_provider auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
+    ignore = "catchall smtp tls identity_provider storage_provider auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
 )]
 pub struct Config {
     pub server_name: String,
@@ -82,6 +83,9 @@ pub struct Config {
 
     #[serde(default)]
     pub smtp: SmtpConfig,
+
+    #[serde(default)]
+    pub tls: TlsConfig,
 
     #[serde(flatten)]
     pub catchall: figment::value::Dict,
@@ -158,6 +162,7 @@ pub mod updates;
 pub mod identity;
 pub mod smtp;
 pub mod storage;
+pub mod tls;
 
 impl Config {
     pub fn load<'a, I>(paths: I) -> Result<Figment>

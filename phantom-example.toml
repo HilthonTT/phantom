@@ -1250,3 +1250,19 @@
 # This item is undocumented. Please contribute documentation for it.
 #
 #startup_check = true
+
+[global.tls]
+
+# Path to a PEM file with the certificate chain, leaf certificate first,
+# such as Let's Encrypt's `fullchain.pem`.
+#
+# example: "/etc/letsencrypt/live/example.com/fullchain.pem"
+#
+#certs =
+
+# Path to the PEM private key for `certs`, such as Let's Encrypt's
+# `privkey.pem`. PKCS#1, PKCS#8 and SEC1 keys are accepted.
+#
+# example: "/etc/letsencrypt/live/example.com/privkey.pem"
+#
+#key =

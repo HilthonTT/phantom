@@ -35,17 +35,20 @@ An unknown key is logged as a warning, not rejected, so a typo shows up rather t
 
 ## Validation
 
-Some values are refused at startup: an empty or invalid `server_name`, no bind address, a malformed `log` filter, a `default_room_version` phantom can't run (it supports 1 to 11). Risky but legal ones — insecure TLS, deprecated keys — are logged as warnings.
+Some values are refused at startup: an empty or invalid `server_name`, no bind address, a malformed `log` filter, a `default_room_version` phantom can't run (it supports 1 to 11), `tls.certs` set without `tls.key` or the other way round. Risky but legal ones — insecure TLS, deprecated keys — are logged as warnings.
 
 ## Reloading
 
 With `config_reload_signal` on (the default), `SIGUSR1` re-reads the config from the same files and overrides the server started with; so does the console's **reload config** action. Only `server_name` is fixed: a reload that changes it is refused.
+
+`SIGUSR1` also makes the listeners re-read the TLS certificate and key, even with `config_reload_signal` off, so a renewed certificate takes effect without a restart. They re-read the paths they started with, so moving the files takes a restart, and a certificate that fails to load leaves the old one in use.
 
 ## Useful options
 
 | Option | Covers |
 | --- | --- |
 | `address`, `port` | where it listens (default `localhost:8008`) |
+| `tls.certs`, `tls.key` | serve HTTPS directly instead of behind a TLS-terminating proxy |
 | `allow_registration`, `registration_token` | who may sign up |
 | `allow_federation`, `trusted_servers` | talking to other servers |
 | `database_backup_path`, `database_backups_to_keep` | backups, which the console can start |

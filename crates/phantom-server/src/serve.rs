@@ -1,5 +1,5 @@
 //! Start, serve and stop: what tuwunel keeps in its router crate, cut down to
-//! plain TCP listeners without the tower layer stack.
+//! TCP listeners, with TLS when configured, without the tower layer stack.
 
 use std::{
     net::SocketAddr,
@@ -12,6 +12,7 @@ use axum::{
     extract::DefaultBodyLimit,
     http::StatusCode,
     response::{IntoResponse, Response},
+    serve::ListenerExt,
 };
 use phantom_api::router::{ConfiguredIpSource, State};
 use phantom_core::{
@@ -21,6 +22,8 @@ use phantom_core::{
 use phantom_service::Services;
 use serde_json::json;
 use tokio::{net::TcpListener, task::JoinSet, time::timeout};
+
+use crate::tls::{Certs, TlsListener};
 
 /// How long in-flight requests get to finish once shutdown begins; a sync
 /// long-poll left running past this is cut off.
@@ -99,6 +102,7 @@ async fn serve(services: Arc<Services>) -> Result {
     let config = &server.config;
 
     let app = router(&services).into_make_service_with_connect_info::<SocketAddr>();
+    let certs = Certs::load(&server)?;
 
     let mut listeners = JoinSet::new();
     for addr in config.get_bind_addrs() {
@@ -110,12 +114,25 @@ async fn serve(services: Arc<Services>) -> Result {
             }
         };
 
-        info!(%addr, "Listening");
         let server = server.clone();
-        let serving = axum::serve(listener, app.clone())
-            .with_graceful_shutdown(async move { server.until_shutdown().await });
+        let shutdown = async move { server.until_shutdown().await };
+        match &certs {
+            None => {
+                info!(%addr, "Listening");
+                let serving = axum::serve(listener, app.clone()).with_graceful_shutdown(shutdown);
+                listeners.spawn(async move { serving.await.map_err(Error::from) });
+            }
+            Some(certs) => {
+                // `tap_io` does nothing to the stream; it is there because axum
+                // only derives a `SocketAddr` connect info for a plain
+                // `TcpListener` or a tapped listener.
+                let listener = TlsListener::new(listener, certs.clone())?.tap_io(|_| ());
 
-        listeners.spawn(async move { serving.await.map_err(Error::from) });
+                info!(%addr, "Listening with TLS");
+                let serving = axum::serve(listener, app.clone()).with_graceful_shutdown(shutdown);
+                listeners.spawn(async move { serving.await.map_err(Error::from) });
+            }
+        }
     }
 
     if listeners.is_empty() {

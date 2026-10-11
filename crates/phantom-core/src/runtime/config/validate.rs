@@ -46,6 +46,7 @@ pub fn validate(config: &Config) -> Result {
 
     check_database(config)?;
     check_registration(config)?;
+    check_tls(config)?;
 
     warn_url_previews(config);
     warn_insecure(config);
@@ -114,6 +115,17 @@ fn check_registration(config: &Config) -> Result {
 
     if token.trim().is_empty() {
         return Err(err!(Config("registration_token_file", "{path:?} is empty")));
+    }
+
+    Ok(())
+}
+
+fn check_tls(config: &Config) -> Result {
+    let tls = &config.tls;
+    if tls.certs.is_some() != tls.key.is_some() {
+        return Err(err!(
+            "`tls.certs` and `tls.key` must be set together, or both left unset"
+        ));
     }
 
     Ok(())

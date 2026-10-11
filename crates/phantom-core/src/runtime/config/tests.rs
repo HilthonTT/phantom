@@ -146,3 +146,37 @@ fn an_unreadable_registration_token_file_is_an_error() {
 fn missing_required_option_is_an_error() {
     assert!(config("[global]\nserver_name = \"phantom.chat\"\n").is_err());
 }
+
+#[test]
+fn tls_certs_and_key_go_together() {
+    let both = config(
+        r#"
+        [global]
+        server_name = "phantom.chat"
+        database_path = "/var/lib/phantom"
+        tls = { certs = "/etc/phantom/fullchain.pem", key = "/etc/phantom/privkey.pem" }
+        "#,
+    )
+    .expect("config is valid");
+    assert!(both.tls.paths().is_some());
+
+    let neither = config(
+        r#"
+        [global]
+        server_name = "phantom.chat"
+        database_path = "/var/lib/phantom"
+        "#,
+    )
+    .expect("config is valid");
+    assert!(neither.tls.paths().is_none());
+
+    let half = config(
+        r#"
+        [global]
+        server_name = "phantom.chat"
+        database_path = "/var/lib/phantom"
+        tls = { certs = "/etc/phantom/fullchain.pem" }
+        "#,
+    );
+    assert!(half.is_err(), "a certificate without its key is rejected");
+}

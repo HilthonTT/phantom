@@ -1,13 +1,13 @@
 # Deployment
 
-**You cannot deploy phantom.** `crates/phantom-server`'s `main` is a `todo!()`:
-the binary builds, starts, and panics. There is no HTTP surface, no federation,
-and no way for a Matrix client to connect to it. Nothing on this page is a
-recommendation to run one.
+phantom runs: `phantom-server` binds its listeners and serves the client-server
+and federation APIs. What it lacks is packaging — there is no container image,
+release binary or service unit yet (see [What does not exist](#what-does-not-exist)),
+so today a deployment means building from source. See
+[installation.md](installation.md).
 
-What follows is what the codebase already decides about how a deployed phantom
-would work, so that the shape is on record and the eventual guide has somewhere
-to grow from.
+This page records what the codebase already decides about running phantom in
+production, so the eventual guide has somewhere to grow from.
 
 ## What already exists
 
@@ -17,9 +17,35 @@ environment variables — which is the arrangement container deployments want:
 ship one file, override the handful of values that differ. See
 [configuration.md](configuration.md).
 
-**Config reload without a restart.** `config_reload_signal` (default on) makes
-the server re-read its config on `SIGUSR1`. Only `server_name` is fixed for the
-life of the process; a reload that changes it is refused.
+**TLS, directly or behind a proxy.** By default the listeners speak plain HTTP,
+for a reverse proxy that terminates TLS in front of them. Setting both
+`certs` and `key` under `[global.tls]` makes every listener serve HTTPS
+instead, HTTP/2 included:
+
+```toml
+[global]
+tls = { certs = "/etc/letsencrypt/live/example.com/fullchain.pem", key = "/etc/letsencrypt/live/example.com/privkey.pem" }
+```
+
+It is all or nothing: there is no mixing plain and TLS listeners, and no
+serving both on one port.
+
+**Config and certificate reload without a restart.** `config_reload_signal`
+(default on) makes the server re-read its config on `SIGUSR1`. Only
+`server_name` is fixed for the life of the process; a reload that changes it is
+refused. The same signal makes the listeners re-read the TLS certificate and
+key from the paths they started with, whatever `config_reload_signal` says, so a
+renewal hook only has to send `SIGUSR1`. A certificate that fails to load is
+logged and the old one stays in use.
+
+**Health checks.** `phantom-server --health-check`, given the same config as the
+running server, probes its listeners over loopback and exits zero when one
+answers — over TLS when `[global.tls]` is set. It checks liveness only, so it
+does not verify the certificate.
+
+**`.well-known` delegation.** `well_known_client` and `well_known_server` fill
+`/.well-known/matrix/client` and `/.well-known/matrix/server`, and the
+`well_known_support_*` options fill `/.well-known/matrix/support`.
 
 **systemd integration.** Building `phantom-service` with its `systemd` feature
 makes the manager notify systemd that it is reloading and, afterwards, that it
@@ -50,17 +76,16 @@ scheduler metrics, which need `--cfg tokio_unstable` at build time.
 
 ## What does not exist
 
-- Any HTTP listener, and therefore any client or federation API
 - A container image — `release.yml` has a placeholder job for
   `ghcr.io/hilthontt/phantom` and nothing behind it
 - Release binaries — the CLI job is a placeholder waiting on a
   `.goreleaser.yaml`
-- Reverse-proxy, TLS or `.well-known` guidance
+- A worked reverse-proxy or delegation guide — the options above exist, but no
+  example nginx, Caddy or DNS setup does
 - A `systemd` unit file
-- Any migration path, since there is nothing yet to migrate from
+- An import path from another homeserver
 
 ## Following along
 
-The gap between this page and a real deployment guide is the gap between the
-service layer and a running server. [architecture.md](architecture.md)
-describes what is built and what the binary would have to wire together.
+[configuration.md](configuration.md) covers every option named here, and
+[architecture.md](architecture.md) describes how the server is put together.

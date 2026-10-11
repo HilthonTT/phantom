@@ -79,6 +79,7 @@ in two.
   `rocksdb_max_log_files = 0`, checked here where the option can be named
   instead of deep inside the engine where the reference implementation panics
   or quietly substitutes something else
+- `tls.certs` without `tls.key`, or the other way round
 
 **Warned about**, because they are legal but probably not what you meant: risky
 URL-preview allowlists, insecure settings such as
@@ -93,6 +94,12 @@ file again, validates the new config against the running one, and swaps it in.
 Only `server_name` is fixed for the life of the process — a reload that changes
 it is refused. Every other option is re-read. On platforms with no `SIGUSR1`
 the option has no effect.
+
+`SIGUSR1` also makes the listeners re-read the TLS certificate and key, whatever
+`config_reload_signal` says, so a renewed certificate is picked up without a
+restart. They re-read the paths they started with: moving `tls.certs` or
+`tls.key` takes a restart. A file that fails to load is logged and the old
+certificate stays in use.
 
 Build `phantom-service` with its `systemd` feature and the manager will also
 notify systemd that it is reloading and, afterwards, that it is ready again, so
@@ -138,7 +145,7 @@ is a map of the territory so you know what to look for.
 
 | Group | Covers |
 | :--- | :--- |
-| Identity and listeners | `server_name`, `address`, `port` |
+| Identity and listeners | `server_name`, `address`, `port`, and `[global.tls]` (`certs`, `key`) to serve HTTPS directly instead of behind a TLS-terminating proxy |
 | Database | `database_path`, backups (`database_backup_path`, `database_backups_to_keep`), cache sizes, the read pool (`db_pool_*`) |
 | RocksDB | compression, compaction, direct I/O, checksums, logging, recovery and repair, read-only and secondary modes — everything prefixed `rocksdb_` |
 | Streams | `stream_width_scale`, `stream_amplification` |

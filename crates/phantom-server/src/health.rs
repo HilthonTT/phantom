@@ -3,10 +3,17 @@
 use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
+    sync::Arc,
     time::Duration,
 };
 
-use phantom_core::{Err, Result};
+use phantom_core::{Err, Result, err};
+use rustls::{
+    ClientConfig, ClientConnection, DigitallySignedStruct, SignatureScheme, StreamOwned,
+    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+    crypto::ring,
+    pki_types::{CertificateDer, ServerName, UnixTime},
+};
 
 use crate::{args::Args, server::load_config};
 
@@ -24,9 +31,10 @@ pub(crate) fn check(args: &Args) -> Result {
 
     // The server keeps serving when one listener fails to bind, so healthy means
     // any listener answering.
+    let tls = config.tls.paths().is_some();
     let mut last = Err!("No listeners are configured.");
     for addr in config.get_bind_addrs().into_iter().map(loopback) {
-        last = probe_tcp(addr);
+        last = probe_tcp(addr, tls);
         if last.is_ok() {
             break;
         }
@@ -62,13 +70,70 @@ fn loopback(addr: SocketAddr) -> SocketAddr {
     }
 }
 
-fn probe_tcp(addr: SocketAddr) -> Result {
+fn probe_tcp(addr: SocketAddr, tls: bool) -> Result {
     let stream = TcpStream::connect_timeout(&addr, TIMEOUT)?;
 
     stream.set_read_timeout(Some(TIMEOUT))?;
     stream.set_write_timeout(Some(TIMEOUT))?;
 
-    probe(stream)
+    if !tls {
+        return probe(stream);
+    }
+
+    let config = ClientConfig::builder_with_provider(Arc::new(ring::default_provider()))
+        .with_safe_default_protocol_versions()
+        .map_err(|e| err!("{e}"))?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(AnyCert))
+        .with_no_client_auth();
+
+    let name = ServerName::from(addr.ip());
+    let conn = ClientConnection::new(Arc::new(config), name).map_err(|e| err!("{e}"))?;
+
+    probe(StreamOwned::new(conn, stream))
+}
+
+/// Accepts whatever certificate the listener presents. The probe dials
+/// loopback, which the certificate is not issued for, and it asks only
+/// whether the server answers, not whether it is who it claims to be.
+#[derive(Debug)]
+struct AnyCert;
+
+impl ServerCertVerifier for AnyCert {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
 }
 
 #[cfg(test)]
