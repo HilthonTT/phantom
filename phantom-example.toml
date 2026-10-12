@@ -1146,6 +1146,23 @@
 #
 #userinfo_url =
 
+[global.sms]
+
+# The gateway's URL.
+#
+# example: "https://sms-relay.example.com/send"
+#
+#gateway_url =
+
+# Sent to the gateway as `Authorization: Bearer <gateway_token>`.
+#
+#gateway_token =
+
+# The text message; `{code}` becomes the verification code and
+# `{server_name}` this server's name.
+#
+#message = "Your {server_name} verification code is {code}"
+
 [global.smtp]
 
 # This item is undocumented. Please contribute documentation for it.

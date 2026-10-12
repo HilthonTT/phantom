@@ -16,6 +16,10 @@ use super::{Association, UiaaKey, claim_lock_key};
 
 const TOKEN_LENGTH: usize = 48;
 
+/// Digits in a texted code; the attempt limit below keeps guessing one to a
+/// five-in-a-million chance.
+const SMS_CODE_LENGTH: usize = 6;
+
 const MAX_VERIFY_ATTEMPTS: u32 = 5;
 
 const UIAA_SESSION_TTL: Duration = Duration::from_hours(24);
@@ -91,7 +95,11 @@ pub async fn create_or_reuse_pending(
         }
     }
 
-    let token = rand::string(TOKEN_LENGTH);
+    // A link carries a long token; a code is read off a text and typed in.
+    let token = match medium {
+        Medium::Msisdn => rand::string_from(b"0123456789", SMS_CODE_LENGTH),
+        _ => rand::string(TOKEN_LENGTH),
+    };
     let expires_at = Some(timepoint_from_now(ttl)?);
     let pending = Pending {
         client_secret: client_secret.to_owned(),

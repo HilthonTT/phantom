@@ -5,7 +5,7 @@ use ruma::{
     OwnedUserId,
     api::client::{
         account::change_password,
-        uiaa::{AuthData, EmailIdentity, ThirdpartyIdCredentials},
+        uiaa::{AuthData, EmailIdentity, Msisdn, ThirdpartyIdCredentials},
     },
     thirdparty::Medium,
 };
@@ -19,7 +19,7 @@ use crate::router::{ClientIp, Ruma, authenticate_uiaa as auth_uiaa};
 /// Changes the password of this account.
 ///
 /// - Authenticated changes require UIAA to verify the current user
-/// - Logged-out resets consume a validated email proof and derive the target
+/// - Logged-out resets consume a validated email or phone proof and derive the target
 ///   from its reverse binding
 /// - Changes the password of the authenticated or proof-bound user
 /// - The password hash is calculated using argon2 with 32 character salt, the
@@ -47,7 +47,14 @@ pub(crate) async fn change_password_route(
                 thirdparty_id_creds,
                 ..
             })),
-        ) => redeem_password_reset(&services, thirdparty_id_creds).await?,
+        ) => redeem_password_reset(&services, thirdparty_id_creds, Medium::Email).await?,
+        (
+            None,
+            Some(AuthData::Msisdn(Msisdn {
+                thirdparty_id_creds,
+                ..
+            })),
+        ) => redeem_password_reset(&services, thirdparty_id_creds, Medium::Msisdn).await?,
         (None, _) => return Err!(Request(MissingToken("Missing access token."))),
         (Some(_), _) => auth_uiaa(&services, &body).await?,
     };
@@ -75,6 +82,7 @@ pub(crate) async fn change_password_route(
 async fn redeem_password_reset(
     services: &Services,
     creds: &ThirdpartyIdCredentials,
+    medium: Medium,
 ) -> Result<OwnedUserId> {
     let association = match services
         .threepid
@@ -83,13 +91,13 @@ async fn redeem_password_reset(
     {
         Ok(association) => association,
         Err(error) if error.is_not_found() || matches!(&error, Error::Request(..)) => {
-            return Err!(Request(Forbidden("Invalid email identity proof.")));
+            return Err!(Request(Forbidden("Invalid third-party identity proof.")));
         }
         Err(error) => return Err(error),
     };
 
-    if association.medium != Medium::Email {
-        return Err!(Request(Forbidden("Invalid email identity proof.")));
+    if association.medium != medium {
+        return Err!(Request(Forbidden("Invalid third-party identity proof.")));
     }
 
     let Some(user_id) = services
@@ -97,7 +105,7 @@ async fn redeem_password_reset(
         .user_id_for_email(&association.address)
         .await?
     else {
-        return Err!(Request(Forbidden("Invalid email identity proof.")));
+        return Err!(Request(Forbidden("Invalid third-party identity proof.")));
     };
 
     Ok(user_id)

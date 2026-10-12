@@ -18,9 +18,9 @@ use crate::{
     accounts::profile, accounts::pusher, accounts::sync, accounts::transaction_id, accounts::users,
     auth::oauth, auth::registration_tokens, auth::rendezvous, auth::threepid, auth::uiaa, media,
     net::client, net::federation, net::fetcher, net::resolver, net::sending, net::sendmail,
-    net::server_keys, ops::admin, ops::appservice, ops::config, ops::emergency, ops::logs,
-    ops::moderation, ops::reports, ops::server_state, ops::storage, ops::tasks, ops::updates,
-    rooms,
+    net::server_keys, net::sms, ops::admin, ops::appservice, ops::config, ops::emergency,
+    ops::logs, ops::moderation, ops::reports, ops::server_state, ops::storage, ops::tasks,
+    ops::updates, rooms,
 };
 
 pub struct Services {
@@ -55,6 +55,7 @@ pub struct Services {
     pub admin: Arc<admin::Service>,
     pub updates: Arc<updates::Service>,
     pub sendmail: Arc<sendmail::Service>,
+    pub sms: Arc<sms::Service>,
     pub fetcher: Arc<fetcher::Service>,
     pub threepid: Arc<threepid::Service>,
     pub oauth: Arc<oauth::Service>,
@@ -152,6 +153,7 @@ impl Services {
             admin: build!(admin::Service),
             updates: build!(updates::Service),
             sendmail: build!(sendmail::Service),
+            sms: build!(sms::Service),
             fetcher: build!(fetcher::Service),
             threepid: build!(threepid::Service),
             oauth: build!(oauth::Service),

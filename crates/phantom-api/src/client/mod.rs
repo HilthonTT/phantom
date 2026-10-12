@@ -6,7 +6,10 @@ mod rooms;
 mod sync;
 mod utils;
 
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use phantom_core::{Config, matrix::Event};
 use phantom_service::{Services, rooms::timeline::PdusIterItem};
 use ruma::UserId;
@@ -59,9 +62,14 @@ pub fn register(router: Router<State>, config: &Config) -> Router<State> {
         .ruma_route(&account::request_3pid_management_token_via_msisdn_route)
         .ruma_route(&account::request_registration_token_via_email_route)
         .ruma_route(&account::request_password_change_token_via_email_route)
+        .ruma_route(&account::request_password_change_token_via_msisdn_route)
         .route(
             "/_phantom/3pid/email/validate",
             get(account::get_email_validate_route).post(account::post_email_validate_route),
+        )
+        .route(
+            "/_phantom/3pid/msisdn/submitToken",
+            post(account::submit_msisdn_token_route),
         )
         .ruma_route(&well_known::well_known_client)
         .ruma_route(&well_known::well_known_support)

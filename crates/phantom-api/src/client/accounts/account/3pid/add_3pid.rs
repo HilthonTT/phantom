@@ -12,19 +12,19 @@ use crate::{
 
 /// # `POST /_matrix/client/v3/account/3pid/add`
 ///
-/// Bind a verified email address to this account.
+/// Bind a verified email address or phone number to this account.
 ///
 /// - Requires UIAA to confirm account ownership
-/// - Consumes a previously validated email verification session
+/// - Consumes a previously validated verification session
 #[tracing::instrument(skip_all, fields(%client), name = "add_3pid")]
 pub(crate) async fn add_3pid_route(
     State(services): State<crate::router::State>,
     ClientIp(client): ClientIp,
     body: Ruma<add_3pid::v3::Request>,
 ) -> Result<Response> {
-    if !services.sendmail.is_enabled() {
+    if !services.sendmail.is_enabled() && !services.sms.is_enabled() {
         return Err!(Request(ThreepidDenied(
-            "Email verification is not configured"
+            "Neither email nor phone verification is configured"
         )));
     }
 
@@ -41,9 +41,7 @@ pub(crate) async fn add_3pid_route(
         .await?
         .is_some_and(|bound| bound != *sender_user)
     {
-        return Err!(Request(ThreepidInUse(
-            "That email address is already in use"
-        )));
+        return Err!(Request(ThreepidInUse("That address is already in use")));
     }
 
     let now = MilliSecondsSinceUnixEpoch::now();

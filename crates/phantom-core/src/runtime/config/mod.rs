@@ -36,6 +36,7 @@ pub use self::{
     listen::IpLookupStrategy,
     manager::Manager,
     proxy::ProxyConfig,
+    sms::SmsConfig,
     smtp::SmtpConfig,
     storage::{StorageProvider, StorageProviderLocal, StorageProviderS3},
     tls::TlsConfig,
@@ -61,7 +62,7 @@ use crate::{Result, diagnostics::log::fmt_span, err};
 ### Any values pre-populated are the default values for said config option.
 "#,
     flattened = "auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates",
-    ignore = "catchall smtp tls identity_provider storage_provider auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
+    ignore = "catchall smtp sms tls identity_provider storage_provider auth client rooms membership media database logging federation network dns presence turn admin oidc rendezvous updates"
 )]
 pub struct Config {
     pub server_name: String,
@@ -83,6 +84,9 @@ pub struct Config {
 
     #[serde(default)]
     pub smtp: SmtpConfig,
+
+    #[serde(default)]
+    pub sms: SmsConfig,
 
     #[serde(default)]
     pub tls: TlsConfig,
@@ -160,6 +164,7 @@ pub mod turn;
 pub mod updates;
 
 pub mod identity;
+pub mod sms;
 pub mod smtp;
 pub mod storage;
 pub mod tls;

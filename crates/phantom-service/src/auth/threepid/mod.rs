@@ -1,9 +1,13 @@
 mod binding;
 mod canonical;
+mod msisdn;
 mod pending;
 mod ratelimit;
 
-pub use self::canonical::canonicalize_email;
+pub use self::{
+    canonical::canonicalize_email,
+    msisdn::{calling_code, canonicalize_msisdn},
+};
 
 use std::{
     collections::HashMap,

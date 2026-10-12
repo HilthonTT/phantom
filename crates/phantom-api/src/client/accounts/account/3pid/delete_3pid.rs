@@ -1,9 +1,12 @@
 use axum::extract::State;
 use phantom_core::Result;
 use phantom_service::auth::threepid::canonicalize_email;
-use ruma::api::client::account::{
-    ThirdPartyIdRemovalStatus,
-    delete_3pid::{self, v3::Response},
+use ruma::{
+    api::client::account::{
+        ThirdPartyIdRemovalStatus,
+        delete_3pid::{self, v3::Response},
+    },
+    thirdparty::Medium,
 };
 
 use crate::router::Ruma;
@@ -22,11 +25,14 @@ pub(crate) async fn delete_3pid_route(
 ) -> Result<Response> {
     let sender_user = body.sender_user();
 
-    if let Ok(email_canon) = canonicalize_email(&body.address) {
-        services
-            .threepid
-            .del_binding(sender_user, &email_canon)
-            .await?;
+    // Phone numbers are stored, and listed to clients, as bare msisdn digits.
+    let address = match body.medium {
+        Medium::Msisdn => Some(body.address.trim_start_matches('+').to_owned()),
+        _ => canonicalize_email(&body.address).ok(),
+    };
+
+    if let Some(address) = address {
+        services.threepid.del_binding(sender_user, &address).await?;
     }
 
     Ok(Response::new(ThirdPartyIdRemovalStatus::NoSupport))

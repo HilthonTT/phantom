@@ -191,6 +191,7 @@ var registry = []service{
 	{name: "ops::admin", worker: true, purpose: "the admin room and its commands"},
 	{name: "ops::updates", worker: true, purpose: "the announcement feed"},
 	{name: "net::sendmail", purpose: "outbound SMTP, when one is configured"},
+	{name: "net::sms", purpose: "texted verification codes, through the configured gateway"},
 	{name: "auth::oauth", purpose: "OIDC login and OAuth2 (MSC3861)"},
 
 	{name: "net::fetcher", worker: true, purpose: "coalesced federation fetches"},

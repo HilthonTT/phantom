@@ -35,7 +35,7 @@ var endpoints = []endpoint{
 	{group: "client", module: "register", routes: 3, covers: "registration, username and token checks"},
 	{group: "client", module: "session", routes: 6, covers: "login types, password/token/appservice login, refresh, logout"},
 	{group: "client", module: "account", routes: 3, covers: "whoami, password change, deactivation"},
-	{group: "client", module: "account::3pid", routes: 8, covers: "email bindings, validation tokens and the validate page"},
+	{group: "client", module: "account::3pid", routes: 10, covers: "email and phone bindings, validation tokens, the validate page and SMS codes"},
 	{group: "client", module: "account_data", routes: 4, covers: "global and per-room account data"},
 	{group: "client", module: "tag", routes: 3, covers: "room tags such as favourites"},
 	{group: "client", module: "filter", routes: 2, covers: "stored sync filters"},
