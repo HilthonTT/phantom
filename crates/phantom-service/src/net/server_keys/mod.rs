@@ -155,6 +155,12 @@ pub async fn required_keys_exist(
 pub async fn verify_key_exists(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> bool {
     type KeysMap<'a> = BTreeMap<OwnedServerSigningKeyId, &'a RawJsonValue>;
 
+    // Our own keys live in memory, as verify_keys_for knows; asking the
+    // network for them only ends in a refused request to ourselves.
+    if self.services.server_state.server_is_ours(origin) && self.verify_keys.contains_key(key_id) {
+        return true;
+    }
+
     let Ok(keys) = self
         .db
         .server_signingkeys
