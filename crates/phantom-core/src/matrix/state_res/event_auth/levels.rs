@@ -1,16 +1,20 @@
 use super::*;
 
-pub(super) fn can_send_event(event: impl Event, ple: Option<impl Event>, user_level: Int) -> bool {
+pub(super) fn can_send_event(
+    event: impl Event,
+    ple: Option<impl Event>,
+    user_level: UserPower,
+) -> bool {
     let event_type_power_level = get_send_level(event.event_type(), event.state_key(), ple);
 
     debug!(
         required_level = i64::from(event_type_power_level),
-        user_level = i64::from(user_level),
+        %user_level,
         state_key = ?event.state_key(),
         "permissions factors",
     );
 
-    if user_level < event_type_power_level {
+    if user_level < UserPower::Level(event_type_power_level) {
         return false;
     }
 
@@ -27,7 +31,8 @@ pub(super) fn check_power_levels(
     room_version: &RoomVersion,
     power_event: impl Event,
     previous_power_event: Option<impl Event>,
-    user_level: Int,
+    user_level: UserPower,
+    creators: &[OwnedUserId],
 ) -> Option<bool> {
     match power_event.state_key() {
         Some("") => {}
@@ -48,6 +53,15 @@ pub(super) fn check_power_levels(
         deserialize_power_levels(power_event.content().get(), room_version)?;
 
     debug!("validation of power event finished");
+
+    // Creators' power is fixed at infinite; the event may not list them.
+    if creators
+        .iter()
+        .any(|creator| user_content.users.contains_key(creator))
+    {
+        warn!("m.room.power_levels may not list a room creator in users");
+        return Some(false);
+    }
 
     #[allow(clippy::manual_let_else)]
     let current_state = match previous_power_event {
@@ -80,6 +94,9 @@ pub(super) fn check_power_levels(
     let old_state = &current_content;
     let new_state = &user_content;
 
+    let user_level = Some(user_level);
+    let level = |level: Option<&Int>| level.copied().map(UserPower::Level);
+
     for user in user_levels_to_check {
         let old_level = old_state.users.get(user);
         let new_level = new_state.users.get(user);
@@ -87,13 +104,13 @@ pub(super) fn check_power_levels(
             continue;
         }
 
-        if user != power_event.sender() && old_level == Some(&user_level) {
+        if user != power_event.sender() && level(old_level) == user_level {
             warn!("m.room.power_level cannot remove ops == to own");
             return Some(false);
         }
 
-        let old_level_too_big = old_level > Some(&user_level);
-        let new_level_too_big = new_level > Some(&user_level);
+        let old_level_too_big = level(old_level) > user_level;
+        let new_level_too_big = level(new_level) > user_level;
         if old_level_too_big || new_level_too_big {
             warn!("m.room.power_level failed to add ops > than own");
             return Some(false);
@@ -107,8 +124,8 @@ pub(super) fn check_power_levels(
             continue;
         }
 
-        let old_level_too_big = old_level > Some(&user_level);
-        let new_level_too_big = new_level > Some(&user_level);
+        let old_level_too_big = level(old_level) > user_level;
+        let new_level_too_big = level(new_level) > user_level;
         if old_level_too_big || new_level_too_big {
             warn!("m.room.power_level failed to add ops > than own");
             return Some(false);
@@ -119,8 +136,8 @@ pub(super) fn check_power_levels(
         let old_level = old_state.notifications.room;
         let new_level = new_state.notifications.room;
         if old_level != new_level {
-            let old_level_too_big = old_level > user_level;
-            let new_level_too_big = new_level > user_level;
+            let old_level_too_big = level(Some(&old_level)) > user_level;
+            let new_level_too_big = level(Some(&new_level)) > user_level;
             if old_level_too_big || new_level_too_big {
                 warn!("m.room.power_level failed to add ops > than own");
                 return Some(false);
@@ -141,8 +158,8 @@ pub(super) fn check_power_levels(
             continue;
         }
 
-        let old_level_too_big = old_lvl > user_level;
-        let new_level_too_big = new_lvl > user_level;
+        let old_level_too_big = level(Some(&old_lvl)) > user_level;
+        let new_level_too_big = level(Some(&new_lvl)) > user_level;
 
         if old_level_too_big || new_level_too_big {
             warn!("cannot add ops > than own");
@@ -156,10 +173,10 @@ pub(super) fn check_power_levels(
 pub(super) fn check_redaction(
     _room_version: &RoomVersion,
     redaction_event: impl Event,
-    user_level: Int,
+    user_level: UserPower,
     redact_level: Int,
 ) -> Result<bool> {
-    if user_level >= redact_level {
+    if user_level >= UserPower::Level(redact_level) {
         debug!("redaction allowed via power levels");
         return Ok(true);
     }

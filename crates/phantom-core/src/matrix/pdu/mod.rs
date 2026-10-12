@@ -66,6 +66,8 @@ pub struct EventHash {
 
 impl Pdu {
     pub fn from_id_val(event_id: &EventId, mut json: CanonicalJsonObject) -> Result<Self> {
+        insert_derived_room_id(&mut json, event_id);
+
         let event_id = CanonicalJsonValue::String(event_id.into());
         json.insert("event_id".into(), event_id);
         serde_json::to_value(json)

@@ -278,3 +278,53 @@ pub(crate) fn deserialize_power_levels_content_redact(
         from_json_str(content)
     }
 }
+
+/// A user's power in a room. Since room version 12 the room's creators hold
+/// [`UserPower::Infinite`], which outranks every integer level.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum UserPower {
+    Level(Int),
+    Infinite,
+}
+
+impl From<Int> for UserPower {
+    fn from(level: Int) -> Self {
+        Self::Level(level)
+    }
+}
+
+impl std::fmt::Display for UserPower {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Level(level) => write!(f, "{level}"),
+            Self::Infinite => f.write_str("infinite"),
+        }
+    }
+}
+
+/// The users a room's create event names as creators: its sender, plus
+/// `additional_creators` where the room version honours it. Empty when the room
+/// version does not privilege creators.
+pub(crate) fn privileged_creators(
+    room_version: &RoomVersion,
+    create_event: &impl crate::matrix::Event,
+) -> Vec<OwnedUserId> {
+    if !room_version.explicitly_privilege_room_creators {
+        return Vec::new();
+    }
+
+    let mut creators = vec![create_event.sender().to_owned()];
+    if room_version.additional_room_creators {
+        #[derive(Deserialize)]
+        struct AdditionalCreators {
+            #[serde(default)]
+            additional_creators: Vec<OwnedUserId>,
+        }
+
+        if let Ok(content) = from_json_str::<AdditionalCreators>(create_event.content().get()) {
+            creators.extend(content.additional_creators);
+        }
+    }
+
+    creators
+}

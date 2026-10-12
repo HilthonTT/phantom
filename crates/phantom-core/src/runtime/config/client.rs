@@ -45,8 +45,9 @@ pub struct Client {
     pub login_via_token: bool,
 
     /// Room version newly created rooms use when the client does not ask for
-    /// one. It must be a version the server supports, 1 through 11; version 12
-    /// needs state resolution v2.1, which phantom does not have yet.
+    /// one. It must be a version the server supports, 1 through 12. Version 12
+    /// derives room IDs from the create event and gives room creators
+    /// unlimited power; servers that do not know it cannot join such rooms.
     ///
     /// default: "11"
     #[serde(default = "default_default_room_version")]

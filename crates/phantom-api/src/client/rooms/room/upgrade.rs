@@ -127,7 +127,7 @@ pub(crate) async fn upgrade_room_route(
         sender_user
     };
 
-    let (replacement_room, state_lock) = upgrade_room_create_legacy(
+    let (replacement_room, state_lock) = upgrade_room_create(
         &services,
         creator,
         old_room_id,
@@ -174,7 +174,7 @@ pub(crate) async fn upgrade_room_route(
 }
 
 #[tracing::instrument(level = "info", skip_all)]
-async fn upgrade_room_create_legacy(
+async fn upgrade_room_create(
     services: &Services,
     sender_user: &UserId,
     old_room_id: &RoomId,
@@ -182,15 +182,6 @@ async fn upgrade_room_create_legacy(
     version_rules: &RoomVersionRules,
     predecessor: PreviousRoom,
 ) -> Result<(OwnedRoomId, RoomMutexGuard)> {
-    // Create a replacement room
-    let new_room_id = new_room_id(services).await?;
-    let state_lock = services.rooms.state.mutex.lock(&*new_room_id).await;
-    let _short_id = services
-        .rooms
-        .short
-        .get_or_create_shortroomid(&new_room_id)
-        .await;
-
     // Get the old room creation event
     let mut content: CanonicalJsonObject = services
         .rooms
@@ -216,20 +207,35 @@ async fn upgrade_room_create_legacy(
         return Err!(Request(BadJson("Error forming creation event: {e}")));
     }
 
+    let create_pdu = PduBuilder {
+        event_type: TimelineEventType::RoomCreate,
+        content: to_raw_value(&content)?,
+        state_key: Some(StateKey::new()),
+        ..Default::default()
+    };
+
+    // Since room version 12 the create event's hash names the replacement room.
+    if version_rules.authorization.room_create_event_id_as_room_id {
+        return services
+            .rooms
+            .timeline
+            .build_and_append_create_pdu(create_pdu, sender_user)
+            .await;
+    }
+
+    // Create a replacement room
+    let new_room_id = new_room_id(services).await?;
+    let state_lock = services.rooms.state.mutex.lock(&*new_room_id).await;
+    let _short_id = services
+        .rooms
+        .short
+        .get_or_create_shortroomid(&new_room_id)
+        .await;
+
     services
         .rooms
         .timeline
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: TimelineEventType::RoomCreate,
-                content: to_raw_value(&content)?,
-                state_key: Some(StateKey::new()),
-                ..Default::default()
-            },
-            sender_user,
-            &new_room_id,
-            &state_lock,
-        )
+        .build_and_append_pdu(create_pdu, sender_user, &new_room_id, &state_lock)
         .await?;
 
     Ok((new_room_id, state_lock))
@@ -465,6 +471,29 @@ async fn rebuild_state_event(&self, event: &PduEvent) -> Result<PduBuilder> {
                     "via".to_owned(),
                     json!([self.sender_user.server_name().as_str()]),
                 );
+            }
+
+            to_raw_value(&content)?
+        }
+        // Since room version 12 the creators outrank every level and may not be
+        // listed; the replacement room's creators come from its create event.
+        TimelineEventType::RoomPowerLevels => {
+            let (rules, creators) = self
+                .services
+                .rooms
+                .state_accessor
+                .power_level_context(self.new_room_id)
+                .await;
+
+            let mut content = event.get_content_as_value();
+            if rules.explicitly_privilege_room_creators
+                && let Some(users) = content
+                    .get_mut("users")
+                    .and_then(serde_json::Value::as_object_mut)
+            {
+                for creator in &creators {
+                    users.remove(creator.as_str());
+                }
             }
 
             to_raw_value(&content)?

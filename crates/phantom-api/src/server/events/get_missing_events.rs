@@ -173,7 +173,7 @@ where
             continue;
         };
 
-        if event.get("room_id").and_then(CanonicalJsonValue::as_str) != Some(body.room_id.as_str())
+        if phantom_core::matrix::pdu::room_id_of_pdu_json(&event).as_deref() != Some(&*body.room_id)
         {
             continue;
         }

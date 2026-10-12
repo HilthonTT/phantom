@@ -55,6 +55,21 @@ pub struct RoomVersion {
     pub integer_power_levels: bool,
 
     pub use_room_create_sender: bool,
+
+    /// Room creators hold an infinite power level (MSC4289).
+    pub explicitly_privilege_room_creators: bool,
+
+    /// `additional_creators` in the create event's content names more creators.
+    pub additional_room_creators: bool,
+
+    /// The room ID is the create event's ID with a `!` sigil, the create event
+    /// carries no `room_id`, and no event lists it in its `auth_events` (MSC4291).
+    pub room_create_event_id_as_room_id: bool,
+
+    /// State resolution v2.1: start the iterative auth checks from an empty
+    /// state map and add the conflicted state subgraph to the full conflicted
+    /// set (MSC4297).
+    pub state_res_v2_1: bool,
 }
 
 impl RoomVersion {
@@ -72,6 +87,10 @@ impl RoomVersion {
         knock_restricted_join_rule: false,
         integer_power_levels: false,
         use_room_create_sender: false,
+        explicitly_privilege_room_creators: false,
+        additional_room_creators: false,
+        room_create_event_id_as_room_id: false,
+        state_res_v2_1: false,
     };
     pub const V10: Self = Self {
         knock_restricted_join_rule: true,
@@ -81,6 +100,13 @@ impl RoomVersion {
     pub const V11: Self = Self {
         use_room_create_sender: true,
         ..Self::V10
+    };
+    pub const V12: Self = Self {
+        explicitly_privilege_room_creators: true,
+        additional_room_creators: true,
+        room_create_event_id_as_room_id: true,
+        state_res_v2_1: true,
+        ..Self::V11
     };
     pub const V2: Self = Self {
         state_res: StateResolutionVersion::V2,
@@ -128,6 +154,7 @@ impl RoomVersion {
             RoomVersionId::V9 => Self::V9,
             RoomVersionId::V10 => Self::V10,
             RoomVersionId::V11 => Self::V11,
+            RoomVersionId::V12 => Self::V12,
             ver => return Err(Error::Unsupported(format!("found version `{ver}`"))),
         })
     }
@@ -145,6 +172,7 @@ impl RoomVersion {
             RoomVersionId::V9,
             RoomVersionId::V10,
             RoomVersionId::V11,
+            RoomVersionId::V12,
         ]
         .into_iter()
     }
@@ -167,8 +195,34 @@ mod tests {
     }
 
     #[test]
+    fn version_12_is_supported() {
+        assert!(RoomVersion::is_supported(&RoomVersionId::V12));
+        assert!(RoomVersion::supported().any(|version| version == RoomVersionId::V12));
+    }
+
+    #[test]
     fn an_unlisted_version_is_not_supported() {
-        assert!(!RoomVersion::is_supported(&RoomVersionId::V12));
-        assert!(!RoomVersion::supported().any(|version| version == RoomVersionId::V12));
+        let unstable = RoomVersionId::try_from("org.example.unstable").unwrap();
+        assert!(!RoomVersion::is_supported(&unstable));
+    }
+
+    #[test]
+    fn version_12_flags_match_ruma_rules() {
+        let ours = RoomVersion::V12;
+        let rules = RoomVersionId::V12.rules().unwrap();
+        assert_eq!(
+            ours.explicitly_privilege_room_creators,
+            rules.authorization.explicitly_privilege_room_creators
+        );
+        assert_eq!(
+            ours.additional_room_creators,
+            rules.authorization.additional_room_creators
+        );
+        assert_eq!(
+            ours.room_create_event_id_as_room_id,
+            rules.authorization.room_create_event_id_as_room_id
+        );
+        assert!(ours.state_res_v2_1);
+        assert!(!RoomVersion::V11.state_res_v2_1);
     }
 }

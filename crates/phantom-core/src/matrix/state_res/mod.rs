@@ -25,7 +25,7 @@ use std::{
 
 use futures::{Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt, future, stream};
 use ruma::{
-    EventId, Int, MilliSecondsSinceUnixEpoch, RoomVersionId,
+    EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, RoomVersionId,
     events::{
         StateEventType, TimelineEventType,
         room::member::{MembershipState, RoomMemberEventContent},
@@ -75,10 +75,12 @@ where
     SetIter: Iterator<Item = &'a StateMap<E::Id>> + Clone + Send,
     Hasher: BuildHasher + Send + Sync,
     E: Event + Clone + Send + Sync,
-    E::Id: Borrow<EventId> + Send + Sync,
+    E::Id: Borrow<EventId> + From<OwnedEventId> + Send + Sync,
     for<'b> &'b E: Send,
 {
     debug!("State resolution starting");
+
+    let room_version = RoomVersion::new(room_version)?;
 
     let (clean, conflicting) = separate(state_sets.into_iter());
 
@@ -93,8 +95,21 @@ where
     debug!(count = conflicting.len(), "conflicting events");
     trace!(map = ?conflicting, "conflicting events");
 
-    let auth_chain_diff =
-        get_auth_chain_diff(auth_chain_sets).chain(conflicting.into_values().flatten());
+    let conflicted_set: HashSet<E::Id> = conflicting.into_values().flatten().collect();
+
+    // State resolution v2.1 also counts every event on an auth path between
+    // two conflicted events.
+    let subgraph = if room_version.state_res_v2_1 {
+        conflicted_state_subgraph(&conflicted_set, event_fetch).await
+    } else {
+        HashSet::new()
+    };
+
+    debug!(count = subgraph.len(), "conflicted state subgraph");
+
+    let auth_chain_diff = get_auth_chain_diff(auth_chain_sets)
+        .chain(conflicted_set)
+        .chain(subgraph);
 
     let all_conflicted: HashSet<_> = stream::iter(auth_chain_diff)
         .map(|id| event_exists(id.clone()).map(move |exists| (id, exists)))
@@ -115,7 +130,6 @@ where
         .boxed()
         .await;
 
-    let room_version = RoomVersion::new(room_version)?;
     let sorted_control_levels = reverse_topological_power_sort(
         &room_version,
         control_events,
@@ -128,10 +142,18 @@ where
     debug!(count = sorted_control_levels.len(), "power events");
     trace!(list = ?sorted_control_levels, "sorted power events");
 
+    // Version 2.1 starts the checks from an empty state map; the unconflicted
+    // state still wins at the end.
+    let initial_state = if room_version.state_res_v2_1 {
+        StateMap::new()
+    } else {
+        clean.clone()
+    };
+
     let resolved_control = iterative_auth_check(
         &room_version,
         sorted_control_levels.iter(),
-        clean.clone(),
+        initial_state,
         &event_fetch,
         parallel_fetches,
     )
@@ -179,6 +201,63 @@ where
     debug!("state resolution finished");
 
     Ok(resolved_state)
+}
+
+/// The events on any `auth_events` path between two events of the conflicted
+/// state set, endpoints included: the ancestors of conflicted events that are
+/// themselves conflicted or reach a conflicted event.
+async fn conflicted_state_subgraph<E, Fetch, FetchFut>(
+    conflicted: &HashSet<E::Id>,
+    event_fetch: &Fetch,
+) -> HashSet<E::Id>
+where
+    Fetch: Fn(E::Id) -> FetchFut + Sync,
+    FetchFut: Future<Output = Option<E>> + Send,
+    E: Event + Send + Sync,
+    E::Id: Borrow<EventId> + Send + Sync,
+{
+    let mut reaches: HashMap<E::Id, bool> = HashMap::new();
+    let mut auth_of: HashMap<E::Id, Vec<E::Id>> = HashMap::new();
+    let mut stack: Vec<(E::Id, bool)> = conflicted.iter().map(|id| (id.clone(), false)).collect();
+
+    // Iterative post-order walk: an event's verdict needs its auth events'.
+    while let Some((id, expanded)) = stack.pop() {
+        if expanded {
+            let key: &EventId = id.borrow();
+            let reaches_conflicted = conflicted.contains(key)
+                || auth_of.get(key).into_iter().flatten().any(|auth| {
+                    let auth: &EventId = auth.borrow();
+                    reaches.get(auth).copied().unwrap_or(false)
+                });
+
+            reaches.insert(id, reaches_conflicted);
+            continue;
+        }
+
+        if auth_of.contains_key::<EventId>(id.borrow()) {
+            continue;
+        }
+
+        let auth_events: Vec<E::Id> = event_fetch(id.clone())
+            .await
+            .map(|event| event.auth_events().cloned().collect())
+            .unwrap_or_default();
+
+        stack.push((id.clone(), true));
+        stack.extend(
+            auth_events
+                .iter()
+                .filter(|auth| !auth_of.contains_key::<EventId>((*auth).borrow()))
+                .map(|auth| (auth.clone(), false)),
+        );
+
+        auth_of.insert(id, auth_events);
+    }
+
+    reaches
+        .into_iter()
+        .filter_map(|(id, reaches_conflicted)| reaches_conflicted.then_some(id))
+        .collect()
 }
 
 fn separate<'a, Id>(
@@ -237,6 +316,25 @@ where
     id_counts
         .into_iter()
         .filter_map(move |(id, count)| (count < num_sets).then_some(id))
+}
+
+/// The ID of the create event a room-version-12 room's ID is derived from:
+/// the room ID's opaque part under a `$` sigil. `None` for a room ID that
+/// carries a server name, which every older room version uses.
+#[must_use]
+pub fn create_event_id_of(room_id: &RoomId) -> Option<OwnedEventId> {
+    if room_id.server_name().is_some() {
+        return None;
+    }
+
+    let opaque = room_id.as_str().strip_prefix('!')?;
+    EventId::parse(format!("${opaque}")).ok()
+}
+
+/// Whether `create_event` is the create event `room_id` was derived from.
+fn room_id_derives_from(room_id: &RoomId, create_event: &impl Event) -> bool {
+    create_event_id_of(room_id)
+        .is_some_and(|id| id.as_str() == create_event.event_id().borrow().as_str())
 }
 
 fn is_type_and_key(ev: impl Event, ev_type: &TimelineEventType, state_key: &str) -> bool {

@@ -5,7 +5,7 @@ use phantom_core::{
     Err, Result, debug, debug_warn, err, implement,
     matrix::{
         Event,
-        pdu::PduEvent,
+        pdu::{PduEvent, insert_derived_room_id},
         state_res::{self, RoomVersion},
     },
     trace, warn,
@@ -89,6 +89,20 @@ async fn verified(
         .rules()
         .ok_or_else(|| err!(Request(UnsupportedRoomVersion("{room_version_id}"))))?;
 
+    // Since room version 12 the create event's ID names the room; one carrying
+    // a room_id is malformed.
+    if !rules.event_format.require_room_create_room_id
+        && value.get("type").and_then(CanonicalJsonValue::as_str) == Some("m.room.create")
+        && value.contains_key("room_id")
+    {
+        self.mark_bad(event_id);
+
+        return Err!(Request(InvalidParam(
+            "Create event {event_id} carries a room_id, which room version {room_version_id} \
+             forbids."
+        )));
+    }
+
     let verified = self
         .services
         .server_keys
@@ -116,6 +130,8 @@ async fn verified(
         "event_id".to_owned(),
         CanonicalJsonValue::String(event_id.as_str().into()),
     );
+
+    insert_derived_room_id(&mut value, event_id);
 
     Ok(value)
 }
@@ -305,12 +321,10 @@ async fn fetch_event(
         return None;
     }
 
-    let claimed_room = value
-        .get("room_id")
-        .and_then(CanonicalJsonValue::as_str)
-        .unwrap_or_default();
+    let claimed_room = phantom_core::matrix::pdu::room_id_of_pdu_json(&value);
 
-    if claimed_room != room_id.as_str() {
+    if claimed_room.as_deref() != Some(room_id) {
+        let claimed_room = claimed_room.as_ref().map_or("", |id| id.as_str());
         warn!("{origin} sent {event_id} claiming to be in {claimed_room}, not {room_id}");
         return None;
     }

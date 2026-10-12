@@ -16,12 +16,8 @@ pub(crate) async fn get_event_route(
         .await
         .map_err(|_| err!(Request(NotFound("Event not found."))))?;
 
-    let room_id: OwnedRoomId = event
-        .get("room_id")
-        .and_then(|val| val.as_str())
-        .ok_or_else(|| err!(Database("Invalid event in database.")))?
-        .try_into()
-        .map_err(|_| err!(Database("Invalid room_id in event in database.")))?;
+    let room_id: OwnedRoomId = phantom_core::matrix::pdu::room_id_of_pdu_json(&event)
+        .ok_or_else(|| err!(Database("Invalid room_id in event in database.")))?;
 
     let access_check = AccessCheck {
         services: &services,

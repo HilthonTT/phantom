@@ -115,9 +115,13 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
         .await
         .map_err(|e| err!(Database("Admin room has no power levels: {e}")))?;
 
-    power_levels
-        .users
-        .insert(server_user.clone(), SERVER_USER_POWER.into());
+    // Since room version 12 the server user created the room and so outranks
+    // any level; power levels may not list it.
+    if !self.creators_are_privileged(&room_id).await {
+        power_levels
+            .users
+            .insert(server_user.clone(), SERVER_USER_POWER.into());
+    }
     power_levels
         .users
         .insert(user_id.to_owned(), ADMIN_POWER.into());
@@ -240,6 +244,19 @@ async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> R
         .await
 }
 
+/// Whether the room's version gives its creators infinite power, so that
+/// power levels must not list them.
+#[implement(super::Service)]
+async fn creators_are_privileged(&self, room_id: &RoomId) -> bool {
+    self.services
+        .state
+        .get_room_version(room_id)
+        .await
+        .ok()
+        .and_then(|version| version.rules())
+        .is_some_and(|rules| rules.authorization.explicitly_privilege_room_creators)
+}
+
 /// Creates the server user and the admin room it alone sits in, reached by
 /// `#admins:<server_name>`. Run once, on a fresh database.
 pub(crate) async fn create_admin_room(services: &Services) -> Result {
@@ -255,16 +272,38 @@ pub(crate) async fn create_admin_room(services: &Services) -> Result {
         ))
     })?;
 
-    let room_id = OwnedRoomId::try_from(format!("!{}:{server_name}", rand::string(18)))?;
-    services
-        .rooms
-        .short
-        .get_or_create_shortroomid(&room_id)
-        .await;
-
-    let state_lock = services.rooms.state.mutex.lock(&*room_id).await;
-
     services.users.create(server_user, None)?;
+
+    let mut create = if rules.authorization.use_room_create_sender {
+        RoomCreateEventContent::new_v11()
+    } else {
+        RoomCreateEventContent::new_v1(server_user.clone())
+    };
+    create.room_version = room_version.clone();
+
+    let (room_id, state_lock) = if rules.authorization.room_create_event_id_as_room_id {
+        services
+            .rooms
+            .timeline
+            .build_and_append_create_pdu(state(&create), server_user)
+            .await?
+    } else {
+        let room_id = OwnedRoomId::try_from(format!("!{}:{server_name}", rand::string(18)))?;
+        services
+            .rooms
+            .short
+            .get_or_create_shortroomid(&room_id)
+            .await;
+
+        let state_lock = services.rooms.state.mutex.lock(&*room_id).await;
+        services
+            .rooms
+            .timeline
+            .build_and_append_pdu(state(&create), server_user, &room_id, &state_lock)
+            .await?;
+
+        (room_id, state_lock)
+    };
 
     let append = async |builder: PduBuilder, sender: &UserId| {
         services
@@ -274,14 +313,6 @@ pub(crate) async fn create_admin_room(services: &Services) -> Result {
             .await
             .map(|_| ())
     };
-
-    let mut create = if rules.authorization.use_room_create_sender {
-        RoomCreateEventContent::new_v11()
-    } else {
-        RoomCreateEventContent::new_v1(server_user.clone())
-    };
-    create.room_version = room_version.clone();
-    append(state(&create), server_user).await?;
 
     append(
         PduBuilder::state(
@@ -293,9 +324,11 @@ pub(crate) async fn create_admin_room(services: &Services) -> Result {
     .await?;
 
     let mut power_levels = RoomPowerLevelsEventContent::new(&rules.authorization);
-    power_levels
-        .users
-        .insert(server_user.clone(), SERVER_USER_POWER.into());
+    if !rules.authorization.explicitly_privilege_room_creators {
+        power_levels
+            .users
+            .insert(server_user.clone(), SERVER_USER_POWER.into());
+    }
     append(state(&power_levels), server_user).await?;
 
     append(

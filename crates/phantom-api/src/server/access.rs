@@ -3,7 +3,7 @@ use std::pin::pin;
 use futures::{FutureExt, StreamExt, future::OptionFuture, join};
 use phantom_core::{Err, Result, err};
 use phantom_service::Services;
-use ruma::{CanonicalJsonValue, EventId, RoomId, ServerName};
+use ruma::{EventId, RoomId, ServerName};
 
 pub(super) struct AccessCheck<'a> {
     pub(super) services: &'a Services,
@@ -112,7 +112,7 @@ async fn require_event_in_room(
         .await
         .ok()
         .filter(|pdu| {
-            pdu.get("room_id").and_then(CanonicalJsonValue::as_str) == Some(room_id.as_str())
+            phantom_core::matrix::pdu::room_id_of_pdu_json(pdu).as_deref() == Some(room_id)
         })
         .map(drop)
         .ok_or_else(|| err!(Request(NotFound("Event not found."))))

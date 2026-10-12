@@ -10,7 +10,7 @@ pub(super) async fn iterative_auth_check<'a, E, F, Fut, I>(
 where
     F: Fn(E::Id) -> Fut + Sync,
     Fut: Future<Output = Option<E>> + Send,
-    E::Id: Borrow<EventId> + Clone + Eq + Ord + Send + Sync + 'a,
+    E::Id: Borrow<EventId> + From<OwnedEventId> + Clone + Eq + Ord + Send + Sync + 'a,
     I: Iterator<Item = &'a E::Id> + Debug + Send + 'a,
     E: Event + Clone + Send + Sync,
 {
@@ -55,6 +55,7 @@ where
             .ok_or_else(|| Error::InvalidPdu("State event had no state key".to_owned()))?;
 
         let auth_types = auth_types_for_event(
+            room_version,
             event.event_type(),
             event.sender(),
             Some(state_key),
@@ -93,6 +94,19 @@ where
             future::ready(())
         })
         .await;
+
+        // Since room version 12 no event lists the create event; the room ID
+        // names it.
+        if room_version.room_create_event_id_as_room_id
+            && let Some(create_id) = create_event_id_of(event.room_id())
+        {
+            let key = (StateEventType::RoomCreate, StateKey::new());
+            if !auth_state.contains_key(&key)
+                && let Some(create) = fetch_event(create_id.into()).await
+            {
+                auth_state.insert(key, create);
+            }
+        }
 
         debug!("event to check {:?}", event.event_id());
 

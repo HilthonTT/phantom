@@ -33,8 +33,9 @@ use self::{
 use super::{
     Error, Event, Result, StateEventType, StateKey, TimelineEventType,
     power_levels::{
-        deserialize_power_levels, deserialize_power_levels_content_fields,
+        UserPower, deserialize_power_levels, deserialize_power_levels_content_fields,
         deserialize_power_levels_content_invite, deserialize_power_levels_content_redact,
+        privileged_creators,
     },
     room_version::RoomVersion,
 };
@@ -54,6 +55,7 @@ struct RoomMemberContentFields {
 }
 
 pub fn auth_types_for_event(
+    room_version: &RoomVersion,
     kind: &TimelineEventType,
     sender: &UserId,
     state_key: Option<&str>,
@@ -66,8 +68,13 @@ pub fn auth_types_for_event(
     let mut auth_types = vec![
         (StateEventType::RoomPowerLevels, StateKey::new()),
         (StateEventType::RoomMember, sender.as_str().into()),
-        (StateEventType::RoomCreate, StateKey::new()),
     ];
+
+    // Since room version 12 the create event is implied by the room ID and
+    // must not be selected.
+    if !room_version.room_create_event_id_as_room_id {
+        auth_types.push((StateEventType::RoomCreate, StateKey::new()));
+    }
 
     if kind == &TimelineEventType::RoomMember {
         #[derive(Deserialize)]
@@ -157,6 +164,7 @@ where
         struct RoomCreateContentFields {
             room_version: Option<Raw<RoomVersionId>>,
             creator: Option<Raw<IgnoredAny>>,
+            additional_creators: Option<Raw<Vec<OwnedUserId>>>,
         }
 
         debug!("start m.room.create check");
@@ -166,14 +174,24 @@ where
             return Ok(false);
         }
 
-        let Some(room_id_server_name) = incoming_event.room_id().server_name() else {
-            warn!("room ID has no servername");
-            return Ok(false);
-        };
+        // Since room version 12 the room ID is derived from this event and has no
+        // server name; the event's own JSON must carry no room_id, which is
+        // checked where the JSON is parsed.
+        if room_version.room_create_event_id_as_room_id {
+            if !super::room_id_derives_from(incoming_event.room_id(), incoming_event) {
+                warn!("room ID is not derived from the room creation event");
+                return Ok(false);
+            }
+        } else {
+            let Some(room_id_server_name) = incoming_event.room_id().server_name() else {
+                warn!("room ID has no servername");
+                return Ok(false);
+            };
 
-        if room_id_server_name != sender.server_name() {
-            warn!("servername of room ID does not match servername of sender");
-            return Ok(false);
+            if room_id_server_name != sender.server_name() {
+                warn!("servername of room ID does not match servername of sender");
+                return Ok(false);
+            }
         }
 
         let content: RoomCreateContentFields = from_json_str(incoming_event.content().get())?;
@@ -182,6 +200,15 @@ where
             .is_some_and(|v| v.deserialize().is_err())
         {
             warn!("invalid room version found in m.room.create event");
+            return Ok(false);
+        }
+
+        if room_version.additional_room_creators
+            && content
+                .additional_creators
+                .is_some_and(|creators| creators.deserialize().is_err())
+        {
+            warn!("additional_creators is not an array of valid user IDs");
             return Ok(false);
         }
 
@@ -209,13 +236,26 @@ where
         Some(e) => e,
     };
 
-    if !incoming_event
+    let create_in_auth_events = incoming_event
         .auth_events()
-        .any(|id| id.borrow() == room_create_event.event_id().borrow())
-    {
+        .any(|id| id.borrow() == room_create_event.event_id().borrow());
+
+    if room_version.room_create_event_id_as_room_id {
+        if !super::room_id_derives_from(incoming_event.room_id(), &room_create_event) {
+            warn!("room ID is not derived from the room's m.room.create event");
+            return Ok(false);
+        }
+
+        if create_in_auth_events {
+            warn!("m.room.create event must not be in auth events");
+            return Ok(false);
+        }
+    } else if !create_in_auth_events {
         warn!("no m.room.create event in auth events");
         return Ok(false);
     }
+
+    let creators = privileged_creators(room_version, &room_create_event);
 
     #[derive(Deserialize)]
     #[allow(clippy::items_after_statements)]
@@ -312,6 +352,7 @@ where
             user_for_join_auth.as_deref(),
             &user_for_join_auth_membership,
             &room_create_event,
+            &creators,
         )? {
             return Ok(false);
         }
@@ -342,12 +383,13 @@ where
     }
 
     let sender_power_level = match &power_levels_event {
+        _ if creators.iter().any(|creator| creator == sender) => UserPower::Infinite,
         Some(pl) => {
             let content =
                 deserialize_power_levels_content_fields(pl.content().get(), room_version)?;
             match content.get_user_power(sender) {
-                Some(level) => *level,
-                _ => content.users_default,
+                Some(level) => UserPower::Level(*level),
+                _ => UserPower::Level(content.users_default),
             }
         }
         _ => {
@@ -356,10 +398,10 @@ where
             } else {
                 #[allow(deprecated)]
                 from_json_str::<RoomCreateEventContent>(room_create_event.content().get())
-                    .is_ok_and(|create| create.creator.unwrap() == *sender)
+                    .is_ok_and(|create| create.creator.is_some_and(|creator| creator == *sender))
             };
 
-            if is_creator { int!(100) } else { int!(0) }
+            UserPower::Level(if is_creator { int!(100) } else { int!(0) })
         }
     };
 
@@ -372,7 +414,7 @@ where
             None => int!(0),
         };
 
-        if sender_power_level < invite_level {
+        if sender_power_level < UserPower::Level(invite_level) {
             warn!("sender's cannot send invites in this room");
             return Ok(false);
         }
@@ -398,6 +440,7 @@ where
             incoming_event,
             power_levels_event.as_ref(),
             sender_power_level,
+            &creators,
         ) {
             Some(required_pwr_lvl) => {
                 if !required_pwr_lvl {
@@ -439,3 +482,6 @@ where
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod v12_tests;

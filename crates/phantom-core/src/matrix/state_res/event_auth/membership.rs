@@ -15,6 +15,7 @@ pub(super) fn valid_membership_change(
     user_for_join_auth: Option<&UserId>,
     user_for_join_auth_membership: &MembershipState,
     create_room: &impl Event,
+    creators: &[OwnedUserId],
 ) -> Result<bool> {
     #[derive(Deserialize)]
     struct GetThirdPartyInvite {
@@ -42,14 +43,31 @@ pub(super) fn valid_membership_change(
         None => from_json_str("{}")?,
     };
 
-    let sender_power = power_levels
-        .users
-        .get(sender)
-        .or_else(|| sender_is_joined.then_some(&power_levels.users_default));
+    let is_creator = |user: &UserId| creators.iter().any(|creator| creator == user);
 
-    let target_power = power_levels.users.get(target_user).or_else(|| {
-        (target_membership == MembershipState::Join).then_some(&power_levels.users_default)
-    });
+    let sender_power = if is_creator(sender) {
+        Some(UserPower::Infinite)
+    } else {
+        power_levels
+            .users
+            .get(sender)
+            .or_else(|| sender_is_joined.then_some(&power_levels.users_default))
+            .copied()
+            .map(UserPower::Level)
+    };
+
+    let target_power = if is_creator(target_user) {
+        Some(UserPower::Infinite)
+    } else {
+        power_levels
+            .users
+            .get(target_user)
+            .or_else(|| {
+                (target_membership == MembershipState::Join).then_some(&power_levels.users_default)
+            })
+            .copied()
+            .map(UserPower::Level)
+    };
 
     let mut join_rules = JoinRule::Invite;
     if let Some(jr) = &join_rules_event {
@@ -69,13 +87,16 @@ pub(super) fn valid_membership_change(
             let content =
                 deserialize_power_levels_content_fields(pl.content().get(), room_version)?;
             let user_pl = match content.get_user_power(user_for_join_auth) {
-                Some(level) => *level,
-                _ => content.users_default,
+                _ if is_creator(user_for_join_auth) => UserPower::Infinite,
+                Some(level) => UserPower::Level(*level),
+                _ => UserPower::Level(content.users_default),
             };
 
-            (user_pl, invite)
+            (user_pl, UserPower::Level(invite))
+        } else if is_creator(user_for_join_auth) {
+            (UserPower::Infinite, UserPower::Level(int!(0)))
         } else {
-            (int!(0), int!(0))
+            (UserPower::Level(int!(0)), UserPower::Level(int!(0)))
         };
         (user_for_join_auth_membership == &MembershipState::Join) && (auth_user_pl >= invite_level)
     } else {
@@ -172,7 +193,7 @@ pub(super) fn valid_membership_change(
                     false
                 } else {
                     let allow = sender_power
-                        .filter(|&p| p >= &power_levels.invite)
+                        .filter(|&p| p >= UserPower::Level(power_levels.invite))
                         .is_some();
                     if !allow {
                         warn!(
@@ -200,7 +221,9 @@ pub(super) fn valid_membership_change(
                 allow
             } else if !sender_is_joined
                 || target_user_current_membership == MembershipState::Ban
-                    && sender_power.filter(|&p| p < &power_levels.ban).is_some()
+                    && sender_power
+                        .filter(|&p| p < UserPower::Level(power_levels.ban))
+                        .is_some()
             {
                 warn!(
                     ?target_user_membership_event_id,
@@ -209,7 +232,9 @@ pub(super) fn valid_membership_change(
                 );
                 false
             } else {
-                let allow = sender_power.filter(|&p| p >= &power_levels.kick).is_some()
+                let allow = sender_power
+                    .filter(|&p| p >= UserPower::Level(power_levels.kick))
+                    .is_some()
                     && target_power < sender_power;
                 if !allow {
                     warn!(
@@ -229,7 +254,9 @@ pub(super) fn valid_membership_change(
                 );
                 false
             } else {
-                let allow = sender_power.filter(|&p| p >= &power_levels.ban).is_some()
+                let allow = sender_power
+                    .filter(|&p| p >= UserPower::Level(power_levels.ban))
+                    .is_some()
                     && target_power < sender_power;
                 if !allow {
                     warn!(

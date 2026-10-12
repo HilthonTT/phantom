@@ -420,10 +420,11 @@ impl Service {
         self.db.roomid_shortstatehash.remove(room_id)
     }
 
-    #[tracing::instrument(skip(self, content), level = "debug")]
+    #[tracing::instrument(skip(self, room_version, content), level = "debug")]
     pub async fn get_auth_events(
         &self,
         room_id: &RoomId,
+        room_version: &state_res::RoomVersion,
         kind: &TimelineEventType,
         sender: &UserId,
         state_key: Option<&str>,
@@ -433,7 +434,8 @@ impl Service {
             return Ok(HashMap::new());
         };
 
-        let auth_types = state_res::auth_types_for_event(kind, sender, state_key, content)?;
+        let auth_types =
+            state_res::auth_types_for_event(room_version, kind, sender, state_key, content)?;
 
         let sauthevents: HashMap<_, _> = auth_types
             .iter()

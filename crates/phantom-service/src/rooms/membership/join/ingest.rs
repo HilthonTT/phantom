@@ -7,6 +7,7 @@ use phantom_core::{
     Err, Result, debug, debug_error, debug_warn, err, implement, info,
     matrix::{
         PduEvent,
+        pdu::insert_derived_room_id,
         state_res::{self, RoomVersion},
     },
 };
@@ -39,7 +40,7 @@ pub(super) async fn ingest_send_join_state(
     let mut state = StateIds::new();
 
     for pdu in state_pdus {
-        let (event_id, value) = match self
+        let (event_id, mut value) = match self
             .services
             .server_keys
             .validate_and_add_event_id_no_fetch(pdu, room_version_id)
@@ -51,6 +52,10 @@ pub(super) async fn ingest_send_join_state(
                 continue;
             }
         };
+
+        // Since room version 12 the create event carries no room_id; it is
+        // stored with the one its ID implies, as every other PDU.
+        insert_derived_room_id(&mut value, &event_id);
 
         let parsed = match parse_federation_pdu(room_id, &event_id, value.clone()) {
             Ok(parsed) => parsed,

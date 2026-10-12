@@ -61,6 +61,7 @@ fn test_ban_pass() {
             None,
             &MembershipState::Leave,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );
@@ -109,6 +110,7 @@ fn test_join_non_creator() {
             None,
             &MembershipState::Leave,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );
@@ -157,6 +159,7 @@ fn test_join_creator() {
             None,
             &MembershipState::Leave,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );
@@ -205,6 +208,7 @@ fn test_ban_fail() {
             None,
             &MembershipState::Leave,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );
@@ -268,6 +272,7 @@ fn test_restricted_join_rule() {
             Some(alice()),
             &MembershipState::Join,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );
@@ -286,6 +291,7 @@ fn test_restricted_join_rule() {
             Some(ella()),
             &MembershipState::Leave,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );
@@ -343,6 +349,7 @@ fn test_knock() {
             None,
             &MembershipState::Leave,
             &fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+            &[],
         )
         .unwrap()
     );

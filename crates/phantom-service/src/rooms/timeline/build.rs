@@ -1,20 +1,23 @@
 use std::{borrow::Borrow, cmp, collections::HashSet, iter::once};
 
-use futures::{FutureExt, StreamExt, future::ready};
+use futures::{Future, FutureExt, StreamExt, future::ready};
 use phantom_core::{
     Err, Error, Result, err, implement,
     json::to_canonical_object,
     matrix::{
         Event,
-        pdu::{EventHash, PduBuilder, PduEvent, gen_event_id},
+        pdu::{
+            EventHash, PduBuilder, PduEvent, create_omits_room_id, gen_event_id,
+            insert_derived_room_id, room_id_of_create_event_id,
+        },
         state_res::{self, RoomVersion},
     },
     stream::{IterStream, ReadyExt},
     time::now_millis,
 };
 use ruma::{
-    CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedServerName, RoomId, RoomVersionId,
-    UserId,
+    CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName, RoomId,
+    RoomVersionId, UserId,
     canonical_json::to_canonical_value,
     events::{
         StateEventType, TimelineEventType,
@@ -91,8 +94,29 @@ async fn build_hash_and_sign_event(
     let auth_events = self
         .services
         .state
-        .get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)
+        .get_auth_events(
+            room_id,
+            &room_version,
+            &event_type,
+            sender,
+            state_key.as_deref(),
+            &content,
+        )
         .await?;
+
+    // Since room version 12 the create event is not an auth event, yet the auth
+    // check still reads it.
+    let create_event = if room_version.room_create_event_id_as_room_id
+        && event_type != TimelineEventType::RoomCreate
+    {
+        self.services
+            .state_accessor
+            .room_state_get(room_id, &StateEventType::RoomCreate, "")
+            .await
+            .ok()
+    } else {
+        None
+    };
 
     let mut depth = uint!(0);
     for event_id in &prev_events {
@@ -155,15 +179,19 @@ async fn build_hash_and_sign_event(
 
     let auth_fetch = |k: &StateEventType, s: &str| {
         let key = (k.clone(), s.into());
-        ready(auth_events.get(&key))
+        ready(match create_event.as_ref() {
+            Some(create) if *k == StateEventType::RoomCreate => Some(create),
+            _ => auth_events.get(&key),
+        })
     };
 
-    let auth_check = state_res::auth_check(&room_version, &pdu, None, auth_fetch)
-        .await
-        .map_err(|e| err!(Request(Forbidden(warn!("Auth check failed: {e:?}")))))?;
+    // Since room version 12 the create event names its room: its ID, and so the
+    // room ID its auth check verifies, exist only once it is hashed.
+    let derives_room_id =
+        pdu.kind == TimelineEventType::RoomCreate && create_omits_room_id(&room_version_id);
 
-    if !auth_check {
-        return Err!(Request(Forbidden("Event is not authorized.")));
+    if !derives_room_id {
+        check_auth(&room_version, &pdu, auth_fetch).await?;
     }
 
     let mut pdu_json = to_canonical_object(&pdu).map_err(|e| {
@@ -171,6 +199,10 @@ async fn build_hash_and_sign_event(
             "Failed to convert PDU to canonical JSON: {e}"
         ))))
     })?;
+
+    if derives_room_id {
+        pdu_json.remove("room_id");
+    }
 
     match room_version_id {
         RoomVersionId::V1 | RoomVersionId::V2 => {}
@@ -202,6 +234,24 @@ async fn build_hash_and_sign_event(
 
     pdu.event_id = gen_event_id(&pdu_json, &room_version_id)?;
 
+    if derives_room_id {
+        pdu.room_id = room_id_of_create_event_id(&pdu.event_id).ok_or_else(|| {
+            err!(Request(Unknown(error!(
+                "Create event {} names no room ID",
+                pdu.event_id
+            ))))
+        })?;
+
+        check_auth(&room_version, &pdu, |_: &StateEventType, _: &str| {
+            ready(None::<&PduEvent>)
+        })
+        .await?;
+
+        // Stored with the derived room_id like every other PDU; it is stripped
+        // again on its way to other servers.
+        insert_derived_room_id(&mut pdu_json, &pdu.event_id);
+    }
+
     pdu_json.insert(
         "event_id".into(),
         CanonicalJsonValue::String(pdu.event_id.clone().into()),
@@ -214,6 +264,65 @@ async fn build_hash_and_sign_event(
         .await;
 
     Ok((pdu, pdu_json))
+}
+
+async fn check_auth<F, Fut, Fetched>(room_version: &RoomVersion, pdu: &PduEvent, fetch: F) -> Result
+where
+    F: Fn(&StateEventType, &str) -> Fut + Send,
+    Fut: Future<Output = Option<Fetched>> + Send,
+    Fetched: Event + Send,
+{
+    let allowed = state_res::auth_check(room_version, pdu, None, fetch)
+        .await
+        .map_err(|e| err!(Request(Forbidden(warn!("Auth check failed: {e:?}")))))?;
+
+    if !allowed {
+        return Err!(Request(Forbidden("Event is not authorized.")));
+    }
+
+    Ok(())
+}
+
+/// Creates a room whose ID derives from its create event (room version 12
+/// onwards): builds the create event, then takes the new room's state lock and
+/// appends the event under it.
+#[implement(Service)]
+#[tracing::instrument(skip_all, level = "debug")]
+pub async fn build_and_append_create_pdu(
+    &self,
+    pdu_builder: PduBuilder,
+    sender: &UserId,
+) -> Result<(OwnedRoomId, RoomMutexGuard)> {
+    // Nothing exists under the placeholder; it only fills the PDU's room_id
+    // field until the event ID names the room.
+    let placeholder = RoomId::parse(format!(
+        "!{}:{}",
+        phantom_core::rand::string(18),
+        self.services.server_state.server_name()
+    ))?;
+    let placeholder_lock = self.services.state.mutex.lock(&*placeholder).await;
+
+    let (pdu, pdu_json) = self
+        .create_hash_and_sign_event(pdu_builder, sender, &placeholder, &placeholder_lock)
+        .await?;
+
+    drop(placeholder_lock);
+
+    let room_id = pdu.room_id.clone();
+    if self.services.short.get_shortroomid(&room_id).await.is_ok() {
+        return Err!(Request(RoomInUse("Room {room_id} already exists.")));
+    }
+
+    let state_lock = self.services.state.mutex.lock(&*room_id).await;
+    self.services
+        .short
+        .get_or_create_shortroomid(&room_id)
+        .await;
+
+    self.append_built_pdu(pdu, pdu_json, sender, &state_lock)
+        .await?;
+
+    Ok((room_id, state_lock))
 }
 
 #[implement(Service)]
@@ -229,6 +338,18 @@ pub async fn build_and_append_pdu(
         .create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)
         .await?;
 
+    self.append_built_pdu(pdu, pdu_json, sender, state_lock)
+        .await
+}
+
+#[implement(Service)]
+async fn append_built_pdu(
+    &self,
+    pdu: PduEvent,
+    pdu_json: CanonicalJsonObject,
+    sender: &UserId,
+    state_lock: &RoomMutexGuard,
+) -> Result<OwnedEventId> {
     if self.services.admin.is_admin_room(&pdu.room_id).await {
         self.check_pdu_for_admin_room(&pdu, sender).boxed().await?;
     }

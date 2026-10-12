@@ -1,4 +1,6 @@
 use ruma::{OwnedUserId, UserId};
+
+use super::power_levels::{UserPower, privileged_creators};
 use serde::Deserialize;
 
 use super::*;
@@ -15,7 +17,7 @@ where
     F: Fn(E::Id) -> Fut + Sync,
     Fut: Future<Output = Option<E>> + Send,
     E: Event + Send + Sync,
-    E::Id: Borrow<EventId> + Send + Sync,
+    E::Id: Borrow<EventId> + From<OwnedEventId> + Send + Sync,
 {
     debug!("reverse topological sort of power events");
 
@@ -38,7 +40,7 @@ where
         .try_fold(HashMap::new(), |mut event_to_pl, (event_id, pl)| {
             debug!(
                 event_id = event_id.borrow().as_str(),
-                power_level = i64::from(pl),
+                power_level = %pl,
                 "found the power level of an event's sender",
             );
 
@@ -63,26 +65,28 @@ where
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
-pub async fn lexicographical_topological_sort<Id, F, Fut, Hasher>(
+pub async fn lexicographical_topological_sort<Id, F, Fut, Hasher, Power>(
     graph: &HashMap<Id, HashSet<Id, Hasher>>,
     key_fn: &F,
 ) -> Result<Vec<Id>>
 where
     F: Fn(Id) -> Fut + Sync,
-    Fut: Future<Output = Result<(Int, MilliSecondsSinceUnixEpoch)>> + Send,
+    Fut: Future<Output = Result<(Power, MilliSecondsSinceUnixEpoch)>> + Send,
+    Power: Ord,
     Id: Borrow<EventId> + Clone + Eq + Hash + Ord + Send + Sync,
     Hasher: BuildHasher + Default + Clone + Send + Sync,
 {
     #[derive(PartialEq, Eq)]
-    struct TieBreaker<'a, Id> {
-        power_level: Int,
+    struct TieBreaker<'a, Id, Power> {
+        power_level: Power,
         origin_server_ts: MilliSecondsSinceUnixEpoch,
         event_id: &'a Id,
     }
 
-    impl<Id> Ord for TieBreaker<'_, Id>
+    impl<Id, Power> Ord for TieBreaker<'_, Id, Power>
     where
         Id: Ord,
+        Power: Ord,
     {
         fn cmp(&self, other: &Self) -> Ordering {
             other
@@ -93,9 +97,10 @@ where
         }
     }
 
-    impl<Id> PartialOrd for TieBreaker<'_, Id>
+    impl<Id, Power> PartialOrd for TieBreaker<'_, Id, Power>
     where
         Id: Ord,
+        Power: Ord,
     {
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
             Some(self.cmp(other))
@@ -162,12 +167,12 @@ async fn get_power_level_for_sender<E, F, Fut>(
     event_id: E::Id,
     fetch_event: &F,
     parallel_fetches: usize,
-) -> serde_json::Result<Int>
+) -> serde_json::Result<UserPower>
 where
     F: Fn(E::Id) -> Fut + Sync,
     Fut: Future<Output = Option<E>> + Send,
     E: Event + Send,
-    E::Id: Borrow<EventId> + Send,
+    E::Id: Borrow<EventId> + From<OwnedEventId> + Send,
 {
     debug!("fetch event ({event_id}) senders power level");
 
@@ -182,6 +187,25 @@ where
         .collect::<Vec<_>>()
         .boxed()
         .await;
+
+    if room_version.explicitly_privilege_room_creators
+        && let Some(event) = &event
+    {
+        // The create event is no longer among the auth events; the room ID
+        // names it.
+        let create = match super::create_event_id_of(event.room_id()) {
+            Some(create_id) => fetch_event(create_id.into()).await,
+            None => None,
+        };
+
+        if create.as_ref().is_some_and(|create| {
+            privileged_creators(room_version, create)
+                .iter()
+                .any(|creator| creator == event.sender())
+        }) {
+            return Ok(UserPower::Infinite);
+        }
+    }
 
     let pl = auth_events
         .iter()
@@ -198,7 +222,11 @@ where
                         .is_some_and(|event| is_room_creator(room_version, create, event.sender()))
                 });
 
-            return Ok(if is_creator { int!(100) } else { int!(0) });
+            return Ok(UserPower::Level(if is_creator {
+                int!(100)
+            } else {
+                int!(0)
+            }));
         }
         Some(ev) => from_json_str(ev.content().get())?,
     };
@@ -207,10 +235,10 @@ where
         && let Some(&user_level) = content.get_user_power(ev.sender())
     {
         debug!("found {} at power_level {user_level}", ev.sender());
-        return Ok(user_level);
+        return Ok(UserPower::Level(user_level));
     }
 
-    Ok(content.users_default)
+    Ok(UserPower::Level(content.users_default))
 }
 
 fn is_room_creator(room_version: &RoomVersion, create: &impl Event, sender: &UserId) -> bool {

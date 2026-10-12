@@ -818,3 +818,42 @@ fn separate_mixed() {
         ],
     );
 }
+
+#[tokio::test]
+async fn the_conflicted_subgraph_holds_the_auth_paths_between_conflicted_events() {
+    use futures::future::ready;
+
+    let content = || to_raw_json_value(&json!({})).unwrap();
+    let ev = |id: &str, auth: &[&str]| {
+        to_pdu_event(
+            id,
+            alice(),
+            TimelineEventType::RoomTopic,
+            Some(""),
+            content(),
+            auth,
+            &[],
+        )
+    };
+
+    // top -> middle -> bottom -> root, and a side branch off root.
+    let events: HashMap<OwnedEventId, Arc<PduEvent>> = [
+        ev("root", &[]),
+        ev("bottom", &["root"]),
+        ev("middle", &["bottom"]),
+        ev("top", &["middle"]),
+        ev("side", &["root"]),
+    ]
+    .into_iter()
+    .map(|ev| (ev.event_id.clone(), ev))
+    .collect();
+
+    let conflicted: HashSet<OwnedEventId> = [event_id("top"), event_id("bottom")].into();
+    let fetch = |id: OwnedEventId| ready(events.get(&id).cloned());
+
+    let subgraph = super::conflicted_state_subgraph(&conflicted, &fetch).await;
+
+    let expected: HashSet<OwnedEventId> =
+        [event_id("top"), event_id("middle"), event_id("bottom")].into();
+    assert_eq!(subgraph, expected);
+}

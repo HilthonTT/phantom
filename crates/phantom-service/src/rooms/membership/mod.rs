@@ -253,6 +253,6 @@ mod tests {
         let versions = supported_room_versions();
 
         assert!(versions.contains(&RoomVersionId::V11));
-        assert!(!versions.contains(&RoomVersionId::V12));
+        assert!(versions.contains(&RoomVersionId::V12));
     }
 }

@@ -150,6 +150,7 @@ pub(crate) async fn do_check(
         state_after.insert(ty.with_state_key(key), event_id.to_owned());
 
         let auth_types = auth_types_for_event(
+            &super::RoomVersion::V6,
             fake_event.event_type(),
             fake_event.sender(),
             fake_event.state_key(),

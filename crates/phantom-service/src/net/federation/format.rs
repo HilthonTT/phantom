@@ -1,5 +1,8 @@
-use phantom_core::implement;
-use ruma::{CanonicalJsonObject, CanonicalJsonValue, RoomId, RoomVersionId};
+use phantom_core::{
+    implement,
+    matrix::pdu::{create_omits_room_id, room_id_of_pdu_json},
+};
+use ruma::{CanonicalJsonObject, CanonicalJsonValue, RoomVersionId};
 use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 
 #[implement(super::Service)]
@@ -12,11 +15,7 @@ pub async fn format_pdu(
         return outgoing_pdu(pdu_json, room_version);
     }
 
-    let room_version = match pdu_json
-        .get("room_id")
-        .and_then(CanonicalJsonValue::as_str)
-        .and_then(|room_id| RoomId::parse(room_id).ok())
-    {
+    let room_version = match room_id_of_pdu_json(&pdu_json) {
         Some(room_id) => self.services.state.get_room_version(&room_id).await.ok(),
         None => None,
     };
@@ -36,11 +35,28 @@ pub fn outgoing_pdu(
         .rules()
         .is_some_and(|rules| rules.event_format.require_event_id);
 
+    let pdu_json = strip_derived_room_id(pdu_json, room_version);
+
     if keeps_event_id {
         serialize(strip_transaction_id(pdu_json))
     } else {
         outgoing_pdu_without_event_id(pdu_json)
     }
+}
+
+/// A room-version-12 create event is stored with the room_id its ID implies,
+/// but its signed form, the one other servers hash, has none.
+fn strip_derived_room_id(
+    mut pdu_json: CanonicalJsonObject,
+    room_version: &RoomVersionId,
+) -> CanonicalJsonObject {
+    if create_omits_room_id(room_version)
+        && pdu_json.get("type").and_then(CanonicalJsonValue::as_str) == Some("m.room.create")
+    {
+        pdu_json.remove("room_id");
+    }
+
+    pdu_json
 }
 
 fn outgoing_pdu_without_event_id(pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {

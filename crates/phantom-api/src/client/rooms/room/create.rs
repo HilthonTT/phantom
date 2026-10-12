@@ -12,7 +12,8 @@ use phantom_core::{
 };
 use phantom_service::{Services, ops::appservice::RegistrationInfo, rooms::state::RoomMutexGuard};
 use ruma::{
-    CanonicalJsonObject, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, RoomVersionId, UserId,
+    CanonicalJsonObject, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId,
+    RoomVersionId, UserId,
     api::client::room::{
         self,
         create_room::{self, v3::RoomPreset},
@@ -79,10 +80,10 @@ pub(crate) async fn create_room_route(
         None => None,
     };
 
-    // 1. Create the create event. Every supported room version still names its
-    // room with a server-generated ID rather than the create event's hash.
+    // 1. Create the create event. Since room version 12 its hash names the room;
+    // older versions use a server-generated ID.
     let (room_id, state_lock) =
-        create_create_event_legacy(&services, &body, room_version, &version_rules).await?;
+        create_create_event(&services, &body, &preset, room_version, &version_rules).await?;
 
     // 2. Let the room creator join
     apply_creator_join_pdu(&services, &body, sender_user, &room_id, &state_lock)
@@ -240,23 +241,14 @@ async fn finalize_alias_and_directory(
     Ok(())
 }
 
-async fn create_create_event_legacy(
+async fn create_create_event(
     services: &Services,
     body: &Ruma<create_room::v3::Request>,
+    preset: &RoomPreset,
     room_version: &RoomVersionId,
     version_rules: &RoomVersionRules,
 ) -> Result<(OwnedRoomId, RoomMutexGuard)> {
-    let room_id = new_room_id(services).await?;
-
-    let state_lock = services.rooms.state.mutex.lock(&*room_id).await;
-
-    let _short_id = services
-        .rooms
-        .short
-        .get_or_create_shortroomid(&room_id)
-        .await;
-
-    let create_content = match &body.creation_content {
+    let mut create_content = match &body.creation_content {
         Some(content) => {
             let mut content = content
                 .deserialize_as_unchecked::<CanonicalJsonObject>()
@@ -315,25 +307,84 @@ async fn create_create_event_legacy(
         }
     };
 
+    if version_rules.authorization.additional_room_creators
+        && *preset == RoomPreset::TrustedPrivateChat
+    {
+        add_invitees_as_creators(&mut create_content, &body.invite)?;
+    }
+
+    let create_pdu = PduBuilder {
+        event_type: TimelineEventType::RoomCreate,
+        content: to_raw_value(&create_content)?,
+        state_key: Some(StateKey::new()),
+        ..Default::default()
+    };
+
+    if version_rules.authorization.room_create_event_id_as_room_id {
+        return services
+            .rooms
+            .timeline
+            .build_and_append_create_pdu(create_pdu, body.sender_user())
+            .boxed()
+            .await;
+    }
+
+    let room_id = new_room_id(services).await?;
+
+    let state_lock = services.rooms.state.mutex.lock(&*room_id).await;
+
+    let _short_id = services
+        .rooms
+        .short
+        .get_or_create_shortroomid(&room_id)
+        .await;
+
     // 1. The room create event
     services
         .rooms
         .timeline
-        .build_and_append_pdu(
-            PduBuilder {
-                event_type: TimelineEventType::RoomCreate,
-                content: to_raw_value(&create_content)?,
-                state_key: Some(StateKey::new()),
-                ..Default::default()
-            },
-            body.sender_user(),
-            &room_id,
-            &state_lock,
-        )
+        .build_and_append_pdu(create_pdu, body.sender_user(), &room_id, &state_lock)
         .boxed()
         .await?;
 
     Ok((room_id, state_lock))
+}
+
+/// A trusted private chat in a room version with additional creators makes its
+/// invitees creators, where older versions gave them power level 100.
+fn add_invitees_as_creators(
+    create_content: &mut CanonicalJsonObject,
+    invitees: &[OwnedUserId],
+) -> Result {
+    use ruma::CanonicalJsonValue;
+
+    if invitees.is_empty() {
+        return Ok(());
+    }
+
+    let mut creators = match create_content.remove("additional_creators") {
+        None => Vec::new(),
+        Some(CanonicalJsonValue::Array(creators)) => creators,
+        Some(_) => {
+            return Err!(Request(BadJson(
+                "additional_creators must be an array of user IDs."
+            )));
+        }
+    };
+
+    for invitee in invitees {
+        let invitee = CanonicalJsonValue::String(invitee.to_string());
+        if !creators.contains(&invitee) {
+            creators.push(invitee);
+        }
+    }
+
+    create_content.insert(
+        "additional_creators".into(),
+        CanonicalJsonValue::Array(creators),
+    );
+
+    Ok(())
 }
 
 /// if a room is being created with a room alias, run our checks
