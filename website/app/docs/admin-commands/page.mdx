@@ -1,0 +1,41 @@
+export const metadata = { title: "Admin commands" };
+
+# Admin commands
+
+Admins can run the server from the admin room, `#admins:<server_name>`, by sending a message that starts with `!admin`. The server user answers each command with a notice, as a reply to it. Every command runs the same handler as the matching [admin API](/docs/admin-api/) route, so the room, the console and the API always agree.
+
+```text
+!admin users list
+!admin users reset-password bob
+!admin rooms shutdown '#lobby:example.com'
+!admin tokens create --uses 5 --expires-in 86400
+```
+
+`!admin --help` lists the groups, and `!admin users --help` lists the commands in a group. Quote an argument that contains spaces. A user can be a full ID or just a localpart on this server. A room can be its ID or a local alias.
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `users list` · `info <user>` · `devices <user>` | show accounts and their devices |
+| `users create <user> [password]` | create an account; without a password, a random one is made and shown |
+| `users reset-password <user> [password] [--keep-sessions]` | set a password and, unless kept, sign the account out |
+| `users deactivate <user> [--erase]` | deactivate, optionally erasing its data |
+| `users make-admin <user>` · `revoke-admin <user>` | grant or take away admin |
+| `users delete-device <user> <device>` | sign one device out |
+| `rooms list` · `info <room>` | show rooms |
+| `rooms ban <room>` · `unban <room>` | stop or allow local users and federation in a room |
+| `rooms shutdown <room>` · `delete <room> [--force]` | evict local members, or purge the room, as a task |
+| `tokens list` · `create [token] [--uses N] [--expires-in SECS]` · `revoke <token>` | registration tokens |
+| `media list` · `delete <mxc>` | the media store |
+| `federation list` · `purge-media <server>` | servers this one federates with |
+| `reports list` · `dismiss <id>` | abuse reports |
+| `appservices list` | registered appservices |
+| `server status` · `services` · `tasks` · `logs [--limit N]` · `config [filter]` | the server's state |
+| `server reload` · `backup` · `restart` · `shutdown` | act on the server |
+
+Shutting down or deleting a room, and backing up, run as tasks. `!admin server tasks` shows how each one went.
+
+## Elsewhere than the admin room
+
+With `admin_escape_commands` on, a local admin can also run `\!admin …` in any room. The answer goes to that room if the server user is in it, and to the admin room otherwise. Commands listed in the config's `admin_execute` run once at startup, and their output goes to the log.

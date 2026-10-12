@@ -27,6 +27,7 @@ export const docs: DocSection[] = [
     links: [
       { title: "Configuration", href: "/docs/configuration/" },
       { title: "Admin API", href: "/docs/admin-api/" },
+      { title: "Admin commands", href: "/docs/admin-commands/" },
       { title: "Status & limits", href: "/docs/status/" },
     ],
   },

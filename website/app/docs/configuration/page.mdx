@@ -39,9 +39,22 @@ Some values are refused at startup: an empty or invalid `server_name`, no bind a
 
 ## Reloading
 
-With `config_reload_signal` on (the default), `SIGUSR1` re-reads the config from the same files and overrides the server started with; so does the console's **reload config** action. Only `server_name` is fixed: a reload that changes it is refused.
+With `config_reload_signal` on (the default), `SIGUSR1` re-reads the config from the same files and overrides the server started with; so do the console's **reload config** action and `!admin server reload`. Only `server_name` is fixed: a reload that changes it is refused.
 
 `SIGUSR1` also makes the listeners re-read the TLS certificate and key, even with `config_reload_signal` off, so a renewed certificate takes effect without a restart. They re-read the paths they started with, so moving the files takes a restart, and a certificate that fails to load leaves the old one in use.
+
+## Phone numbers
+
+Users can add a phone number to their account, and use it to reset their password, once `[global.sms]` names a gateway. phantom texts a six-digit code through it, and the client sends the code back to `/_phantom/3pid/msisdn/submitToken`. `well_known_client` must be set too, because that URL is built from it.
+
+```toml
+[global.sms]
+gateway_url = "https://sms-relay.example.com/send"
+gateway_token = "…"   # sent as Authorization: Bearer …
+message = "Your {server_name} verification code is {code}"
+```
+
+For each code phantom POSTs `{"to": "+15551234567", "message": "…"}` and treats any 2xx answer as sent. Point it at a provider that accepts that request, or at a small relay that translates it. Codes expire after fifteen minutes, and five wrong guesses end the session.
 
 ## Useful options
 
@@ -53,6 +66,8 @@ With `config_reload_signal` on (the default), `SIGUSR1` re-reads the config from
 | `allow_federation`, `trusted_servers` | talking to other servers |
 | `database_backup_path`, `database_backups_to_keep` | backups, which the console can start |
 | `create_admin_room`, `admin_room_tag`, `admin_room_notices` | the admin room on a fresh database |
+| `default_room_version` | the version of rooms created without one, `1`–`12` (default `11`) |
+| `sms.gateway_url`, `sms.gateway_token`, `sms.message` | texting the codes that verify phone numbers |
 | `log` | the log filter, such as `info` or `phantom=debug` |
 
 The generated file documents the hundred or so others.

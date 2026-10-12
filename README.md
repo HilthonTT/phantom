@@ -17,10 +17,12 @@
 </p>
 
 > [!WARNING]
-> **Early; do not deploy.** The client-server API works over plain HTTP: local
-> accounts can register, chat, sync and be managed from the console. Federation
-> is untested, there is no TLS, room version 12 is unsupported, and `!admin`
-> room commands do nothing yet.
+> **Early; do not deploy.** Local accounts can register, chat, sync and be
+> managed from the console or with `!admin` commands in the admin room. The
+> server serves HTTPS itself when `[global.tls]` is set, supports room versions
+> 1–12, and federates: two phantom servers join each other's rooms in versions
+> 11 and 12. It has not yet been tried against Synapse or another
+> implementation.
 
 ![Signing in to the phantom console, then walking its sections](website/public/media/overview.gif)
 
@@ -74,6 +76,10 @@ the keys, `:` opens the command prompt, `q` quits.
   logs and abuse reports. Otherwise they show sample data, labelled as such.
 - **Actions:** `enter` on a row, or a `:` command, to manage users, devices,
   tokens, rooms, media and reports, reload the config or back up. `s` sorts.
+
+The same actions work as `!admin` commands in the admin room, for example
+`!admin users list` or `!admin rooms shutdown '#lobby:example.com'`;
+`!admin --help` lists them.
 
 See the [documentation](https://hilthontt.github.io/phantom/docs/navigation/).
 

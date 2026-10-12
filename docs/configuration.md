@@ -93,7 +93,8 @@ file again, validates the new config against the running one, and swaps it in.
 
 Only `server_name` is fixed for the life of the process — a reload that changes
 it is refused. Every other option is re-read. On platforms with no `SIGUSR1`
-the option has no effect.
+the option has no effect. The admin API's `POST /config/reload` and
+`!admin server reload` do the same as the signal.
 
 `SIGUSR1` also makes the listeners re-read the TLS certificate and key, whatever
 `config_reload_signal` says, so a renewed certificate is picked up without a
@@ -157,6 +158,9 @@ is a map of the territory so you know what to look for.
 | Networking | `proxy`, `ip_range_denylist`, the per-client timeouts (`request_*`, `well_known_*`, `federation_*`, `sender_*`, `appservice_*`, `pusher_*`), and the `gzip`/`brotli`/`zstd` compression switches |
 | DNS | `dns_cache_entries`, `dns_min_ttl`, `dns_min_ttl_nxdomain`, `dns_attempts`, `dns_timeout`, `dns_tcp_fallback`, `query_over_tcp_only`, `query_all_nameservers`, `ip_lookup_strategy` |
 | Process | `config_reload_signal`, `allow_check_for_updates`, `allow_invalid_tls_certificates` |
+| Rooms | `default_room_version`, `1`–`12`; version 12 derives room IDs from the create event and gives creators unlimited power |
+| Admin room | `create_admin_room`, `admin_escape_commands`, `admin_execute`, `admin_signal_execute` — the `!admin` commands are listed by `!admin --help` |
+| Phone numbers | `[global.sms]`: `gateway_url`, `gateway_token`, `message`. phantom POSTs `{"to": "+<number>", "message": "…"}` to the gateway with the token as a bearer, and texts a six-digit code that clients send back to `/_phantom/3pid/msisdn/submitToken`. Needs `well_known_client` |
 
 The timeout groups exist because the client service keeps one HTTP client per
 kind of outbound request rather than one for all of them — see
