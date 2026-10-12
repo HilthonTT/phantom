@@ -34,7 +34,17 @@ const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 pub(crate) async fn start(server: Arc<CoreServer>) -> Result<Arc<Services>> {
     debug!("Starting...");
 
-    let services = Services::build(server)?.start().await?;
+    let services = Services::build(server)?;
+
+    // Before start, so the config's admin_execute commands find it.
+    services
+        .admin
+        .set_processor(Some(phantom_api::admin::commands::processor));
+    services
+        .admin
+        .set_completer(Some(phantom_api::admin::commands::complete));
+
+    let services = services.start().await?;
 
     debug!("Started");
     Ok(services)

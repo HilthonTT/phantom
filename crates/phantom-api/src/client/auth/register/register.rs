@@ -456,7 +456,11 @@ async fn grant_admin_to_first_user(services: &Services, user_id: &UserId) {
 }
 
 /// Creates a local account with its initial profile and account data.
-async fn full_register(services: &Services, user_id: &UserId, password: Option<&str>) -> Result {
+pub(crate) async fn full_register(
+    services: &Services,
+    user_id: &UserId,
+    password: Option<&str>,
+) -> Result {
     if services.users.exists(user_id).await {
         return Err!(Request(UserInUse("User ID is not available.")));
     }

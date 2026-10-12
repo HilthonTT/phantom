@@ -8,7 +8,8 @@ use phantom_service::ops::appservice::RegistrationInfo;
 use crate::client::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH};
 
 pub(crate) use self::{
-    available::get_register_available_route, register::register_route,
+    available::get_register_available_route,
+    register::{full_register, register_route},
     token_validity::check_registration_token_validity,
 };
 

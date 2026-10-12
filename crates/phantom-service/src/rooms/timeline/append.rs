@@ -371,7 +371,7 @@ async fn act_on_message(
     if self.services.admin.is_admin_command(pdu, &body).await {
         self.services
             .admin
-            .command(body, Some(pdu.event_id.clone()))?;
+            .command(body, Some(pdu.event_id.clone()), Some(pdu.sender.clone()))?;
     }
 
     Ok(())

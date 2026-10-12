@@ -11,11 +11,17 @@ use std::{
 
 use async_trait::async_trait;
 use phantom_core::{
-    Result, debug, err, error, implement, info, matrix::pdu::PduEvent, result::LogErr,
+    Result, debug, err, implement, info,
+    matrix::pdu::{PduBuilder, PduEvent},
+    result::LogErr,
     runtime::server::Server,
 };
 use ruma::{
-    OwnedEventId, OwnedRoomId, RoomId, UserId, events::room::message::RoomMessageEventContent,
+    EventId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
+    events::{
+        relation::{InReplyTo, Reply},
+        room::message::{Relation, RoomMessageEventContent},
+    },
 };
 use tokio::sync::{Mutex, Notify, broadcast::error::RecvError, mpsc};
 
@@ -52,7 +58,12 @@ struct Services {
 #[derive(Debug)]
 pub struct CommandInput {
     pub command: String,
+
+    /// The message that issued the command; the output answers it.
     pub reply_id: Option<OwnedEventId>,
+
+    /// Who issued it; `None` for the config's `admin_execute` commands.
+    pub sender: Option<OwnedUserId>,
 }
 
 pub type Completer = fn(&str) -> String;
@@ -126,9 +137,18 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-pub fn command(&self, command: String, reply_id: Option<OwnedEventId>) -> Result {
+pub fn command(
+    &self,
+    command: String,
+    reply_id: Option<OwnedEventId>,
+    sender: Option<OwnedUserId>,
+) -> Result {
     self.sender
-        .try_send(CommandInput { command, reply_id })
+        .try_send(CommandInput {
+            command,
+            reply_id,
+            sender,
+        })
         .map_err(|e| err!("Failed to enqueue admin command: {e}"))
 }
 
@@ -138,8 +158,12 @@ pub async fn command_in_place(
     command: String,
     reply_id: Option<OwnedEventId>,
 ) -> ProcessorResult {
-    self.process_command(CommandInput { command, reply_id })
-        .await
+    self.process_command(CommandInput {
+        command,
+        reply_id,
+        sender: None,
+    })
+    .await
 }
 
 #[implement(Service)]
@@ -197,11 +221,77 @@ async fn process_command(&self, command: CommandInput) -> ProcessorResult {
 async fn handle_command(&self, command: CommandInput) {
     let reply_id = command.reply_id.clone();
 
-    match self.process_command(command).await {
-        Ok(None) => debug!(?reply_id, "Command successful with no response"),
-        Ok(Some(output)) => info!(?reply_id, "Command successful:\n{}", output.body()),
-        Err(output) => error!(?reply_id, "Command failed:\n{}", output.body()),
+    let output = match self.process_command(command).await {
+        Ok(None) => {
+            debug!(?reply_id, "Command successful with no response");
+            return;
+        }
+        Ok(Some(output)) => {
+            debug!(?reply_id, "Command successful:\n{}", output.body());
+            output
+        }
+        Err(output) => {
+            info!(?reply_id, "Command failed:\n{}", output.body());
+            output
+        }
+    };
+
+    if let Some(reply_id) = &reply_id {
+        self.respond(output, reply_id).await.log_err().ok();
     }
+}
+
+/// Posts a command's output as a notice from the server user: in the room the
+/// command came from when the server user is there, as a reply to it, and in
+/// the admin room otherwise.
+#[implement(Service)]
+async fn respond(&self, mut output: CommandOutput, reply_id: &EventId) -> Result {
+    let server_user = &self.services.server_state.server_user;
+
+    let origin = self
+        .services
+        .timeline
+        .get_pdu(reply_id)
+        .await
+        .ok()
+        .map(|pdu| pdu.room_id);
+
+    let origin = match origin {
+        Some(room_id)
+            if self
+                .services
+                .state_cache
+                .is_joined(server_user, &room_id)
+                .await =>
+        {
+            Some(room_id)
+        }
+        _ => None,
+    };
+
+    let room_id = match origin {
+        Some(room_id) => {
+            output.relates_to = Some(Relation::Reply(Reply::new(InReplyTo::new(
+                reply_id.to_owned(),
+            ))));
+            room_id
+        }
+        None => self.get_admin_room().await?,
+    };
+
+    let state_lock = self.services.state.mutex.lock(&*room_id).await;
+
+    self.services
+        .timeline
+        .build_and_append_pdu(
+            PduBuilder::timeline(&output),
+            server_user,
+            &room_id,
+            &state_lock,
+        )
+        .await?;
+
+    Ok(())
 }
 
 #[implement(Service)]

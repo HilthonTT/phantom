@@ -11,7 +11,6 @@ use phantom_core::{Config, matrix::Event};
 use phantom_service::{Services, rooms::timeline::PdusIterItem};
 use ruma::UserId;
 
-pub(crate) use self::rooms::message::{annotate_membership, is_ignored_pdu, with_membership};
 use self::{
     accounts::{
         account, account_data, backup, device, filter, keys, presence, profile, push, tag,
@@ -23,6 +22,10 @@ use self::{
         alias, context, directory, events, membership, message, read_marker, redact, relations,
         report, room, search, send, space, state, threads, typing, unstable,
     },
+};
+pub(crate) use self::{
+    auth::register::full_register,
+    rooms::message::{annotate_membership, is_ignored_pdu, with_membership},
 };
 use crate::router::{RouterExt, State};
 

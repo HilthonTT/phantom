@@ -11,6 +11,8 @@ axum = "0.8.9"
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 base64 = "0.23.1"
 bytes = "1.12.1"
+# Parses the `!admin` room commands.
+clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 # Builds the static email-validation pages at compile time.
 const-str = { version = "1.1.0", features = ["proc"] }
 futures = "0.3.34"

@@ -358,7 +358,7 @@ pub(crate) async fn create_admin_room(services: &Services) -> Result {
     .await?;
     append(
         state(&RoomTopicEventContent::new(format!(
-            "Manage {server_name} | Admins in this room can use the phantom console"
+            "Manage {server_name} | Send `!admin --help` here, or use the phantom console"
         ))),
         server_user,
     )

@@ -3,6 +3,7 @@
 //! [`AdminAuth`].
 
 mod appservices;
+pub mod commands;
 mod insight;
 mod ops;
 mod rooms;
