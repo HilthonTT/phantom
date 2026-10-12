@@ -64,8 +64,18 @@ impl Server {
         }
     }
 
+    /// Reloads what the running server can take without a restart, the config
+    /// and the TLS certificate, by raising SIGUSR1 for the services that
+    /// handle it. Anything else needs [`Self::restart`].
     pub fn reload(&self) -> Result {
-        Err!("Reloading is not supported by this build; restart instead.")
+        if self.reloading.swap(true, Ordering::AcqRel) {
+            return Err!("Reload already in progress");
+        }
+
+        let sent = self.signal("SIGUSR1");
+        self.reloading.store(false, Ordering::Release);
+
+        sent
     }
 
     pub fn restart(&self) -> Result {
@@ -241,10 +251,23 @@ mod tests {
     }
 
     #[test]
-    fn reload_reports_that_it_is_unsupported() {
-        let error = server().reload().expect_err("unsupported");
+    fn reload_raises_sigusr1() {
+        let server = server();
+        let mut signals = server.signal.subscribe();
 
-        assert!(error.message().contains("restart"), "{error}");
+        server.reload().expect("a receiver is listening");
+
+        assert_eq!(signals.try_recv().expect("signal sent"), "SIGUSR1");
+        assert!(!server.is_reloading(), "the flag is cleared once sent");
+    }
+
+    #[test]
+    fn reload_without_listeners_fails_and_clears_the_flag() {
+        let server = server();
+
+        server.reload().expect_err("no receivers");
+
+        assert!(!server.is_reloading());
     }
 
     #[tokio::test(flavor = "current_thread")]
