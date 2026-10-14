@@ -150,7 +150,7 @@ is a map of the territory so you know what to look for.
 | Database | `database_path`, backups (`database_backup_path`, `database_backups_to_keep`, `database_backup_interval_s`), cache sizes, the read pool (`db_pool_*`) |
 | RocksDB | compression, compaction, direct I/O, checksums, logging, recovery and repair, read-only and secondary modes — everything prefixed `rocksdb_` |
 | Streams | `stream_width_scale`, `stream_amplification` |
-| Logging and metrics | `log`, `log_colors`, `log_span_events`, `log_filter_regex`, `log_thread_ids`, `allow_metrics` |
+| Logging and metrics | `log`, `log_colors`, `log_span_events`, `log_filter_regex`, `log_thread_ids`, `allow_metrics`, `metrics_token`, `metrics_address` |
 | Registration and users | `registration_token`, `registration_token_file`, `new_user_displayname_suffix`, `forbidden_usernames`, `forbidden_alias_names` |
 | Rooms and federation | `allow_room_creation`, `allow_public_room_directory_over_federation`, `allow_device_name_federation`, `trusted_servers`, `federation_loopback` |
 | TURN | `turn_username`, `turn_password`, `turn_uris`, `turn_secret`, `turn_secret_file`, `turn_ttl` |

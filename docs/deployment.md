@@ -111,8 +111,53 @@ matter most on the storage side.
 statistics, or hardened_malloc. See
 [installation.md](installation.md#allocators).
 
-**Metrics.** `allow_metrics` gates them; `phantom-core::metrics` reads tokio's
-scheduler metrics, which need `--cfg tokio_unstable` at build time.
+**Prometheus metrics.** `allow_metrics` serves them at `/metrics`, in the
+Prometheus text format. Off by default. Either protect them with a bearer
+token on the main listeners, or serve them on a listener of their own, which
+is plain HTTP and should be bound where only the scraper reaches it:
+
+```toml
+[global]
+allow_metrics = true
+metrics_token = "a-long-random-string"   # required on the main listeners
+# metrics_address = "127.0.0.1:9090"     # or: a separate listener; token optional
+```
+
+The server refuses to start with metrics on, no token and no separate
+address. A Prometheus scrape config to match:
+
+```yaml
+scrape_configs:
+  - job_name: phantom
+    scheme: https                 # http for metrics_address
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials: a-long-random-string
+    static_configs:
+      - targets: ["matrix.example.com:443"]
+```
+
+What is exposed:
+
+| Metric | What |
+| :--- | :--- |
+| `phantom_http_requests_duration_seconds` | histogram by `route` (the route template, never the raw path), `method` and `status` class |
+| `phantom_http_requests_in_flight` | requests being answered |
+| `phantom_sync_long_polls` | `/sync` and `/events` requests parked waiting |
+| `phantom_sending_queue_events` | outgoing events waiting, by `class` (federation, appservice, push) and `state` (queued, active) |
+| `phantom_sending_transactions_total` | outgoing transactions by `class` and `outcome` (sent, failed) |
+| `phantom_federation_transactions_received_total`, `phantom_federation_pdus_received_total`, `phantom_federation_edus_received_total` | inbound federation, PDUs by `outcome` |
+| `phantom_database_*` | block cache use per cache, SST bytes per column, memtables, table readers, pending compaction bytes, running compactions, last and next backup |
+| `phantom_tasks` | admin tasks of the last week, by `status` |
+| `phantom_local_users`, `phantom_local_users_active`, `phantom_rooms` | counts, refreshed at most once a minute |
+| `phantom_uptime_seconds`, `process_start_time_seconds`, `phantom_build_info` | the process |
+| `tokio_*` | the runtime's workers, alive tasks, global queue depth, busy time and parks |
+
+The account and room counts and the sending queues are read with a database
+scan, so they are cached for a minute rather than taken on every scrape.
+tokio's further scheduler metrics need `--cfg tokio_unstable` at build time and
+are not exported.
 
 ## What does not exist
 

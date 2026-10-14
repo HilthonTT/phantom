@@ -47,11 +47,32 @@ pub fn validate(config: &Config) -> Result {
     check_database(config)?;
     check_registration(config)?;
     check_tls(config)?;
+    check_metrics(config)?;
 
     warn_url_previews(config);
     warn_insecure(config);
     warn_deprecated(config);
     warn_unknown_key(config);
+
+    Ok(())
+}
+
+fn check_metrics(config: &Config) -> Result {
+    let logging = &config.logging;
+    let token = logging
+        .metrics_token
+        .as_deref()
+        .is_some_and(|token| !token.is_empty());
+
+    // The main listeners face clients; the metrics name every route and
+    // count every federation peer's traffic, which is not theirs to read.
+    if logging.allow_metrics && logging.metrics_address.is_none() && !token {
+        return Err(err!(Config(
+            "allow_metrics",
+            "serving metrics on the main listeners needs `metrics_token`; set it, or serve \
+             them on their own listener with `metrics_address`"
+        )));
+    }
 
     Ok(())
 }

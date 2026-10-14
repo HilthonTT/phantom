@@ -91,8 +91,14 @@ impl Service {
         statuses: &mut CurTransactionStatus,
     ) {
         match response {
-            Ok(dest) => self.handle_response_ok(&dest, futures, statuses).await,
-            Err((dest, e)) => Self::handle_response_err(dest, statuses, &e),
+            Ok(dest) => {
+                self.server.metrics.sent(dest.class(), true);
+                self.handle_response_ok(&dest, futures, statuses).await;
+            }
+            Err((dest, e)) => {
+                self.server.metrics.sent(dest.class(), false);
+                Self::handle_response_err(dest, statuses, &e);
+            }
         }
     }
 

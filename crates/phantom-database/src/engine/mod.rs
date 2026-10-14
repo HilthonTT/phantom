@@ -8,6 +8,7 @@ mod files;
 mod memory_usage;
 mod open;
 mod repair;
+mod stats;
 
 use std::{
     ffi::CStr,
@@ -23,7 +24,7 @@ use rocksdb::{
     WaitForCompactOptions,
 };
 
-pub use self::context::Context;
+pub use self::{context::Context, stats::Stats};
 use crate::{engine::error::result, pool::Pool};
 
 pub struct Engine {

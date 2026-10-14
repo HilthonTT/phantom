@@ -3,6 +3,7 @@
 pub mod admin;
 pub mod client;
 mod keys;
+pub mod metrics;
 pub mod oidc;
 pub mod router;
 pub mod server;

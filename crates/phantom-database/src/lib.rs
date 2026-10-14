@@ -16,7 +16,7 @@ pub use self::{
             Cbor, Interfix, Json, SEP, Separator, serialize, serialize_to, serialize_to_vec,
         },
     },
-    engine::{Context, Engine, descriptor},
+    engine::{Context, Engine, Stats as EngineStats, descriptor},
     map::{Map, Qry, compact},
     schema::{Table, table},
     store::{

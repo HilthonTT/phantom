@@ -17,6 +17,15 @@ pub(super) type SendingItem = (Key, SendingEvent);
 pub(super) type QueueItem = (Key, SendingEvent);
 pub(super) type Key = Vec<u8>;
 
+/// Queued events by destination class, indexed in the order of
+/// [`SendClass::ALL`](phantom_core::runtime::metrics::SendClass::ALL):
+/// federation, appservice, push.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct QueueDepths {
+    pub queued: [u64; 3],
+    pub active: [u64; 3],
+}
+
 pub struct Data {
     servercurrentevent_data: Arc<Map>,
     servernameevent_data: Arc<Map>,
@@ -162,6 +171,31 @@ impl Data {
 
                 (key.to_vec(), event)
             })
+    }
+
+    /// How many events wait for each destination class: `queued` not yet
+    /// sent, `active` in a transaction in flight or awaiting a retry. Counted
+    /// from the keys alone, whose first byte gives the class away.
+    pub async fn queue_depths(&self) -> QueueDepths {
+        let mut depths = QueueDepths::default();
+        for (map, counts) in [
+            (&self.servernameevent_data, &mut depths.queued),
+            (&self.servercurrentevent_data, &mut depths.active),
+        ] {
+            map.raw_keys()
+                .ignore_err()
+                .ready_for_each(|key| {
+                    let class = match key.first() {
+                        Some(b'+') => 1,
+                        Some(b'$') => 2,
+                        _ => 0,
+                    };
+                    counts[class] = counts[class].saturating_add(1);
+                })
+                .await;
+        }
+
+        depths
     }
 
     pub(super) fn set_latest_educount(&self, server_name: &ServerName, last_count: u64) -> Result {

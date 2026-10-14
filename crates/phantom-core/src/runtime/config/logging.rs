@@ -3,8 +3,28 @@ use super::prelude::*;
 #[derive(Clone, Debug, Deserialize)]
 #[config_example_generator(filename = "phantom-example.toml", continues = "global")]
 pub struct Logging {
+    /// Serve Prometheus metrics at `/metrics`: request rates and latencies,
+    /// sync long-polls, the federation queues, database and runtime figures.
+    ///
+    /// On the main listeners a scrape must carry `metrics_token`, and the
+    /// server refuses to start with metrics on and neither a token nor
+    /// `metrics_address` set. See docs/deployment.md for a scrape config.
+    ///
+    /// default: false
     #[serde(default)]
     pub allow_metrics: bool,
+
+    /// Bearer token a scrape of `/metrics` must send as
+    /// `Authorization: Bearer <token>`. Required when metrics are served on
+    /// the main listeners; optional on `metrics_address`.
+    ///
+    /// display: sensitive
+    pub metrics_token: Option<String>,
+
+    /// Serve `/metrics` on its own plain-HTTP listener at this address, such
+    /// as "127.0.0.1:9090", instead of on the main listeners. Bind it to an
+    /// address only the scraper can reach.
+    pub metrics_address: Option<std::net::SocketAddr>,
 
     #[serde(default = "default_log")]
     pub log: String,

@@ -23,7 +23,7 @@ use ruma::{RoomId, ServerName, UserId};
 use smallvec::SmallVec;
 
 use self::data::Data;
-pub use self::dest::Destination;
+pub use self::{data::QueueDepths, dest::Destination};
 use crate::{
     Dep, accounts::presence, accounts::pusher, accounts::users, net::client, net::federation,
     ops::appservice as appservice_service, ops::server_state, rooms, rooms::timeline::RawPduId,

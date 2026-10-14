@@ -652,9 +652,26 @@
 #
 #fetch_fanout_rounds =
 
-# This item is undocumented. Please contribute documentation for it.
+# Serve Prometheus metrics at `/metrics`: request rates and latencies,
+# sync long-polls, the federation queues, database and runtime figures.
+#
+# On the main listeners a scrape must carry `metrics_token`, and the
+# server refuses to start with metrics on and neither a token nor
+# `metrics_address` set. See docs/deployment.md for a scrape config.
 #
 #allow_metrics = false
+
+# Bearer token a scrape of `/metrics` must send as
+# `Authorization: Bearer <token>`. Required when metrics are served on
+# the main listeners; optional on `metrics_address`.
+#
+#metrics_token =
+
+# Serve `/metrics` on its own plain-HTTP listener at this address, such
+# as "127.0.0.1:9090", instead of on the main listeners. Bind it to an
+# address only the scraper can reach.
+#
+#metrics_address =
 
 # This item is undocumented. Please contribute documentation for it.
 #

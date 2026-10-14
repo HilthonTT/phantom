@@ -1,3 +1,4 @@
+use phantom_core::runtime::metrics::SendClass;
 use ruma::{OwnedServerName, OwnedUserId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -8,6 +9,16 @@ pub enum Destination {
 }
 
 impl Destination {
+    /// The destination's class, as the metrics count it.
+    #[must_use]
+    pub fn class(&self) -> SendClass {
+        match self {
+            Self::Appservice(_) => SendClass::Appservice,
+            Self::Push(..) => SendClass::Push,
+            Self::Federation(_) => SendClass::Federation,
+        }
+    }
+
     #[must_use]
     pub(super) fn get_prefix(&self) -> Vec<u8> {
         match self {

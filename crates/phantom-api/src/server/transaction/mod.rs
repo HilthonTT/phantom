@@ -1,7 +1,7 @@
 mod edus;
 mod pdus;
 
-use std::time::Instant;
+use std::{sync::atomic::Ordering, time::Instant};
 
 use axum::extract::State;
 use futures::FutureExt;
@@ -54,6 +54,11 @@ pub(crate) async fn send_transaction_message_route(
     services.sending.notify_peer_alive(origin).await;
     services.federation.note_inbound(origin);
 
+    let metrics = &services.server.metrics;
+    metrics
+        .federation_transactions
+        .fetch_add(1, Ordering::Relaxed);
+
     let started = Instant::now();
     trace!(
         pdus = body.pdus.len(),
@@ -92,6 +97,21 @@ pub(crate) async fn send_transaction_message_route(
         elapsed = ?started.elapsed(),
         "Finished txn",
     );
+
+    // A PDU that could not even be parsed has no result, and counts as
+    // rejected with the ones that had an error.
+    let accepted = results.iter().filter(|(_, result)| result.is_ok()).count();
+    let rejected = body.pdus.len().saturating_sub(accepted);
+    let count = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+    metrics
+        .federation_pdus_accepted
+        .fetch_add(count(accepted), Ordering::Relaxed);
+    metrics
+        .federation_pdus_rejected
+        .fetch_add(count(rejected), Ordering::Relaxed);
+    metrics
+        .federation_edus
+        .fetch_add(count(body.edus.len()), Ordering::Relaxed);
 
     for (event_id, result) in &results {
         if let Err(e @ Error::BadRequest(ErrorKind::NotFound, _)) = result {

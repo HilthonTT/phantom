@@ -11,6 +11,7 @@ use axum::{
     Extension, Json, Router,
     extract::DefaultBodyLimit,
     http::StatusCode,
+    middleware,
     response::{IntoResponse, Response},
     serve::ListenerExt,
 };
@@ -150,6 +151,26 @@ async fn serve(services: Arc<Services>) -> Result {
         return Err!("No listener could be bound; see the errors above.");
     }
 
+    if config.logging.allow_metrics
+        && let Some(addr) = config.logging.metrics_address
+    {
+        // Plain HTTP whatever `[global.tls]` says: the address is meant to be
+        // one only the scraper reaches, and Prometheus scrapes plain HTTP by
+        // default. Failing to bind it does not stop the server serving.
+        match TcpListener::bind(addr).await {
+            Err(e) => error!(%addr, "Failed to bind the metrics listener: {e}"),
+            Ok(listener) => {
+                info!(%addr, "Serving metrics");
+                let app = phantom_api::metrics::register(Router::new())
+                    .with_state(State::new(services.clone()));
+                let server = server.clone();
+                let shutdown = async move { server.until_shutdown().await };
+                let serving = axum::serve(listener, app).with_graceful_shutdown(shutdown);
+                listeners.spawn(async move { serving.await.map_err(Error::from) });
+            }
+        }
+    }
+
     server.until_shutdown().await;
     debug!(timeout = ?SHUTDOWN_TIMEOUT, "Waiting for requests to finish...");
 
@@ -180,10 +201,28 @@ fn router(services: &Arc<Services>) -> Router {
     let routes = phantom_api::oidc::register(routes);
     let routes = phantom_api::admin::register(routes);
 
-    let router = routes
-        .into_router()
+    // `/metrics` stays out of the route table: it is not part of any Matrix
+    // API, and when `metrics_address` is set it is served elsewhere anyway.
+    let router = routes.into_router();
+    let metrics = config.logging.allow_metrics;
+    let router = match metrics && config.logging.metrics_address.is_none() {
+        true => phantom_api::metrics::register(router),
+        false => router,
+    };
+
+    let router = router
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(config.network.max_request_size));
+
+    // Last, so it wraps the rest and times the whole request. Off when
+    // metrics are, so a server nobody scrapes does not keep the series.
+    let router = match metrics {
+        true => router.layer(middleware::from_fn_with_state(
+            services.server.clone(),
+            phantom_api::metrics::track,
+        )),
+        false => router,
+    };
 
     let router = match config.ip_source {
         Some(source) => router.layer(Extension(ConfiguredIpSource(source))),

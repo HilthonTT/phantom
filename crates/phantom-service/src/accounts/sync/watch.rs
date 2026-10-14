@@ -145,9 +145,13 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Watc
     );
 
     let server = self.services.server.clone();
-    waiters.push(async move { server.until_shutdown().await }.boxed());
+    let shutdown = server.clone();
+    waiters.push(async move { shutdown.until_shutdown().await }.boxed());
 
     Ok(async move {
+        // Counted from the first poll for as long as the caller waits on this,
+        // however its wait ends: dropping the future drops the guard.
+        let _long_poll = server.metrics.sync_long_polls.enter();
         select_all(waiters).await;
     }
     .boxed())

@@ -180,3 +180,26 @@ fn tls_certs_and_key_go_together() {
     );
     assert!(half.is_err(), "a certificate without its key is rejected");
 }
+
+#[test]
+fn metrics_on_the_main_listeners_need_a_token() {
+    let with = |extra: &str| {
+        config(&format!(
+            "[global]\nserver_name = \"phantom.chat\"\ndatabase_path = \
+             \"/var/lib/phantom\"\nallow_metrics = true\n{extra}"
+        ))
+    };
+
+    assert!(with("").is_err(), "open to every client");
+    assert!(
+        with("metrics_token = \"\"").is_err(),
+        "an empty token is none"
+    );
+    assert!(with("metrics_token = \"s3cret\"").is_ok());
+
+    let own = with("metrics_address = \"127.0.0.1:9090\"").expect("config is valid");
+    assert_eq!(
+        own.logging.metrics_address,
+        Some("127.0.0.1:9090".parse().expect("valid"))
+    );
+}
