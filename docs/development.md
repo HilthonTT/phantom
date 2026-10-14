@@ -83,7 +83,39 @@ Where the interesting ones live:
   the same way the server does.
 - `phantom-service/src/net/resolver/tests.rs` — the server-name resolution steps.
 - `phantom-core/tests/alloc_je.rs` — only meaningful with a jemalloc feature on.
+- `phantom-server/tests/smoke.rs` and `federation.rs` — end to end, described
+  below.
+
 - `cli/internal/tui/{app,panel}/*_test.go` — rendering and truncation.
+
+### End-to-end tests
+
+`crates/phantom-server/tests/` spawns the real `phantom-server` binary — the
+one cargo builds for the test — on a fresh database in a temporary directory
+and on free loopback ports, and drives it over HTTP:
+
+- `smoke.rs` registers the first account (which becomes admin) through the
+  registration-token flow, creates a room, sends a message and sees it come
+  back through `/sync`, runs `!admin users list` in `#admins` and waits for the
+  server user's answer, calls a handful of `/_phantom/admin/v1/*` routes, and
+  stops the server with `SIGTERM`.
+- `federation.rs` starts two servers named `127.0.0.1:<port>`, each with a
+  plain client port and a TLS federation port (`[global.tls] ports`) serving
+  the self-signed certificate in `tests/fixtures`, has a user on one join a
+  room on the other, and passes a message each way.
+
+Both fail on a server that exits during startup, on any `panicked at` in its
+log, and on a shutdown that does not exit zero. They exist for what no unit
+test sees: a route registered twice (axum panics "Overlapping method route"
+only once the router is assembled), a service `Dep` nothing builds, a startup
+migration that fails on a fresh database. Each takes a few seconds once the
+binary is built, and they run under `cargo test --workspace` like everything
+else, unix only. A failure prints the server's whole log.
+
+```sh
+cargo test -p phantom-server --test smoke
+cargo test -p phantom-server --test federation
+```
 
 ### Complement
 

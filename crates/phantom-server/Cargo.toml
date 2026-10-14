@@ -39,6 +39,14 @@ tracing-flame = { version = "0.2.0", optional = true }
 tracing-opentelemetry = { version = "0.34.0", optional = true }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
+[dev-dependencies]
+# The end-to-end tests drive a spawned server over HTTP. Both are already in
+# the lockfile through phantom-service and phantom-database, so they bring no
+# new crate in. `rustls-tls` because the federation test's servers speak TLS
+# with a self-signed certificate.
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
+tempfile = "3.15.0"
+
 [features]
 perf_measurements = [
     "dep:opentelemetry",
