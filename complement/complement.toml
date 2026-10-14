@@ -1,0 +1,41 @@
+# phantom's configuration under Complement. `server_name` is not here: the
+# entrypoint passes Complement's `SERVER_NAME` on the command line.
+
+[global]
+address = ["0.0.0.0"]
+# 8008 is plain HTTP for clients, 8448 HTTPS for federation; `[global.tls]`
+# below names which is which.
+port = [8008, 8448]
+
+database_path = "/var/lib/phantom/db"
+database_backup_path = "/var/lib/phantom/backups"
+
+# Complement registers its users with `m.login.dummy`, and some tests need
+# guests.
+allow_registration = true
+allow_guest_registration = true
+
+# Peers are other containers on Complement's private network, addressed by
+# container name, and present certificates signed by Complement's own CA,
+# which no system trust store knows. Nothing here is reachable from outside.
+allow_federation = true
+allow_invalid_tls_certificates = true
+ip_range_denylist = []
+trusted_servers = []
+allow_public_room_directory_over_federation = true
+allow_device_name_federation = true
+
+# The tests assume a homeserver whose fresh accounts are in no rooms; the admin
+# room would put the first one in #admins.
+create_admin_room = false
+
+allow_check_for_updates = false
+startup_netburst = false
+
+log = "info"
+log_colors = false
+
+[global.tls]
+certs = "/run/phantom/tls.crt"
+key = "/run/phantom/tls.key"
+ports = [8448]

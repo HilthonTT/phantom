@@ -1,0 +1,84 @@
+name: complement
+
+# Complement is Matrix's own homeserver test suite. A run builds a release
+# image and starts hundreds of containers, so it is not on every pull request:
+# it runs once a change is on main, weekly against Complement's newest tests,
+# and on demand (narrowed with `run`, if given).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "Cargo.*"
+      - "rust-toolchain.toml"
+      - "complement/**"
+      - ".github/workflows/complement.yml"
+  schedule:
+    - cron: "0 5 * * 2"
+  workflow_dispatch:
+    inputs:
+      run:
+        description: "Only the tests matching this `go test -run` pattern"
+        required: false
+        default: ""
+
+# The job builds an image locally and uploads its results as an artifact;
+# neither needs a token that can write to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: complement-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  complement:
+    runs-on: ubuntu-latest
+    # The image build is around twenty minutes and the suite under an hour; a
+    # hung container should not hold the runner for the six-hour job limit.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: matrix-org/complement
+          path: target/complement
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: target/complement/go.mod
+          cache-dependency-path: target/complement/go.sum
+
+      - run: go install gotest.tools/gotestsum@v1.12.0
+
+      # phantom fails a good part of the suite today, so a failing run must
+      # not turn main red: the step is allowed to fail, and the results below
+      # are what to read. Once the pass rate settles, the plan is to keep a
+      # list of tests known to pass and fail the job when one of those
+      # regresses, rather than on the suite as a whole.
+      - name: Run Complement
+        continue-on-error: true
+        env:
+          COMPLEMENT_DIR: ${{ github.workspace }}/target/complement
+          RUN: ${{ inputs.run }}
+        run: |
+          if [ -n "$RUN" ]; then
+            complement/run.sh -run "$RUN"
+          else
+            complement/run.sh
+          fi
+
+      - name: Summarise
+        if: always()
+        run: |
+          if [ -f target/complement-results/results.json ]; then
+            complement/summary.sh >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: complement-results
+          path: target/complement-results/
+          if-no-files-found: warn

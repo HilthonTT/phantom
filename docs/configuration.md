@@ -146,7 +146,7 @@ is a map of the territory so you know what to look for.
 
 | Group | Covers |
 | :--- | :--- |
-| Identity and listeners | `server_name`, `address`, `port`, and `[global.tls]` (`certs`, `key`) to serve HTTPS directly instead of behind a TLS-terminating proxy |
+| Identity and listeners | `server_name`, `address`, `port`, and `[global.tls]` (`certs`, `key`, and `ports` to limit TLS to some ports) to serve HTTPS directly instead of behind a TLS-terminating proxy |
 | Database | `database_path`, backups (`database_backup_path`, `database_backups_to_keep`), cache sizes, the read pool (`db_pool_*`) |
 | RocksDB | compression, compaction, direct I/O, checksums, logging, recovery and repair, read-only and secondary modes — everything prefixed `rocksdb_` |
 | Streams | `stream_width_scale`, `stream_amplification` |

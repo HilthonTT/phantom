@@ -126,7 +126,8 @@ async fn serve(services: Arc<Services>) -> Result {
 
         let server = server.clone();
         let shutdown = async move { server.until_shutdown().await };
-        match &certs {
+        let certs = certs.as_ref().filter(|_| config.tls.on_port(addr.port()));
+        match certs {
             None => {
                 info!(%addr, "Listening");
                 let serving = axum::serve(listener, app.clone()).with_graceful_shutdown(shutdown);

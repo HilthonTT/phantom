@@ -17,6 +17,11 @@ build:
     cargo build --release
     cd cli && go build -o ../target/phantom ./cmd/phantom
 
+# Builds the Complement image and runs Matrix's test suite against it; needs
+# Docker and Go. Arguments go to `go test`, e.g. `just complement -run TestLogin`.
+complement *args:
+    complement/run.sh {{args}}
+
 fonts:
     mkdir -p target/fonts
     curl -sL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz | tar -xJ -C target/fonts JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf JetBrainsMonoNerdFontMono-Italic.ttf

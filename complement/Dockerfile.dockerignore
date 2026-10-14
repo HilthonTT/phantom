@@ -1,0 +1,7 @@
+# Only the Rust workspace goes into the build. The build output in particular
+# would otherwise be sent to the daemon on every build, gigabytes of it.
+.git
+target
+cli
+website
+docs

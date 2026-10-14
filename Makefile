@@ -1,6 +1,6 @@
 # The Justfile's recipes, for machines without just. Keep the two in step.
 
-.PHONY: check check-rust check-go build fmt clean fonts media website help
+.PHONY: check check-rust check-go build fmt clean complement fonts media website help
 
 ## check: everything CI runs, for both languages (the default)
 check: check-rust check-go
@@ -32,6 +32,10 @@ fmt:
 clean:
 	cargo clean
 	cd cli && go clean ./...
+
+## complement: build the Complement image and run Matrix's test suite on it (needs Docker and Go; ARGS go to go test)
+complement:
+	complement/run.sh $(ARGS)
 
 FONT_DIR := target/fonts
 NERD_FONT := https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz

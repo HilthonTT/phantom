@@ -27,8 +27,18 @@ instead, HTTP/2 included:
 tls = { certs = "/etc/letsencrypt/live/example.com/fullchain.pem", key = "/etc/letsencrypt/live/example.com/privkey.pem" }
 ```
 
-It is all or nothing: there is no mixing plain and TLS listeners, and no
-serving both on one port.
+`ports` under `[global.tls]` narrows TLS to the ports it lists, and the other
+ports in `port` stay plain HTTP: a federation port peers reach directly next to
+a client port behind a proxy, say, or the plain 8008 and TLS 8448 that Matrix's
+Complement suite expects:
+
+```toml
+[global]
+port = [8008, 8448]
+tls = { certs = "...", key = "...", ports = [8448] }
+```
+
+There is no serving both on one port.
 
 **Config and certificate reload without a restart.** `config_reload_signal`
 (default on) makes the server re-read its config on `SIGUSR1`. Only

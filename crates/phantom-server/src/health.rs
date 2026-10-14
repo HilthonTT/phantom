@@ -34,7 +34,7 @@ pub(crate) fn check(args: &Args) -> Result {
     let tls = config.tls.paths().is_some();
     let mut last = Err!("No listeners are configured.");
     for addr in config.get_bind_addrs().into_iter().map(loopback) {
-        last = probe_tcp(addr, tls);
+        last = probe_tcp(addr, tls && config.tls.on_port(addr.port()));
         if last.is_ok() {
             break;
         }

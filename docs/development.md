@@ -42,6 +42,7 @@ warning-free today; keep it that way rather than leaving one for later.
 | `rust.yml` | pushes to `main`, PRs touching `crates/`, `Cargo.*`, `rust-toolchain.toml`, `rustfmt.toml` | `cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace`, then clippy and the tests again with `--all-features` |
 | `go.yml` | pushes to `main`, PRs touching `cli/` or `.golangci.yml` | `go vet`, `golangci-lint`, `go test -race` |
 | `audit.yml` | weekly, on demand, and on anything that moves the dependency set — a lockfile, a manifest, `deny.toml`, `cli/go.mod` | `cargo-deny`, `govulncheck` |
+| `complement.yml` | pushes to `main` touching the server, weekly, on demand | Matrix's Complement suite against an image of the server — non-blocking, see [Complement](#complement) |
 | `release.yml` | tags matching `v*` | placeholder — the CLI release and the server image are both still TODO |
 
 Both check jobs carry a timeout — 45 minutes for Rust, 20 for Go — because a
@@ -83,6 +84,39 @@ Where the interesting ones live:
 - `phantom-service/src/net/resolver/tests.rs` — the server-name resolution steps.
 - `phantom-core/tests/alloc_je.rs` — only meaningful with a jemalloc feature on.
 - `cli/internal/tui/{app,panel}/*_test.go` — rendering and truncation.
+
+### Complement
+
+[Complement](https://github.com/matrix-org/complement) is the Matrix
+homeserver test suite. It runs each test against fresh containers of an image
+built to its contract, which `complement/` provides:
+
+- `Dockerfile` builds the server (release, without LTO, for build time) into a
+  slim image exposing 8008 for clients and 8448 for federation.
+- `entrypoint.sh` takes the server name from `$SERVER_NAME` and issues the
+  federation certificate from the CA Complement mounts at `/complement/ca`.
+- `complement.toml` is the config: open registration with guests, federation
+  with Complement's certificates accepted, no admin room, and TLS on 8448
+  only.
+- `run.sh` builds the image, clones Complement into `target/complement` if it
+  is not there, and runs it, writing `target/complement-results/`.
+  `summary.sh` turns the results into a pass/fail table (needs `jq`).
+
+It needs Docker and Go:
+
+```sh
+just complement                     # the whole suite
+just complement -run TestLogin      # one area
+complement/summary.sh               # the table for the last run
+```
+
+`complement.yml` runs it in CI. phantom fails a good share of the suite today,
+so that job does not fail on test failures: read the job summary and the
+`complement-results` artifact instead. The intent, once the pass rate settles,
+is a list of tests known to pass and a job that fails only when one of those
+regresses.
+
+### Benchmarks
 
 The `#[bench]` suites in `matrix/state_res/benches.rs` are gated behind
 `--cfg phantom_bench` and need a nightly compiler:
