@@ -158,6 +158,10 @@ schema! {
         ..descriptor::RANDOM_SMALL
     }
 
+    MEDIAID_QUARANTINE = "mediaid_quarantine" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     MEDIAID_USER = "mediaid_user" {
         ..descriptor::RANDOM_SMALL
     }
@@ -326,6 +330,10 @@ schema! {
     }
 
     SERVERCURRENTEVENT_DATA = "servercurrentevent_data" {
+        ..descriptor::RANDOM_SMALL
+    }
+
+    SERVERNAME_BLOCKED = "servername_blocked" {
         ..descriptor::RANDOM_SMALL
     }
 

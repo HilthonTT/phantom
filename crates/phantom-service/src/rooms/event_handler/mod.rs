@@ -20,7 +20,10 @@ use phantom_core::{
     time::exponential_backoff::continue_exponential_backoff_secs,
 };
 use phantom_database::{Map, table};
-use ruma::{CanonicalJsonObject, EventId, OwnedEventId, OwnedRoomId, RoomId, ServerName};
+use ruma::{
+    CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, RoomId,
+    ServerName, UserId,
+};
 
 use crate::{
     Dep,
@@ -178,6 +181,20 @@ pub async fn handle_incoming_pdu(
     }
 
     self.acl_check(origin, room_id).await?;
+
+    // The origin may relay an event another server's user sent; the ACL
+    // refuses that server's events however they arrive, as conduwuit does.
+    let sender_server = value
+        .get("sender")
+        .and_then(CanonicalJsonValue::as_str)
+        .and_then(|sender| <&UserId>::try_from(sender).ok())
+        .map(UserId::server_name);
+
+    if let Some(sender_server) = sender_server
+        && sender_server != origin
+    {
+        self.acl_check(sender_server, room_id).await?;
+    }
 
     if self
         .services

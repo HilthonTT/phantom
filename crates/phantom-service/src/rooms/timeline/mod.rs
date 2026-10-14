@@ -22,6 +22,7 @@ use ruma::{
 
 use self::data::Data;
 pub use self::data::PdusIterItem;
+pub use self::purge::{HistoryCutoff, PurgedHistory};
 use crate::{
     Dep, accounts::users, net::sending, ops::admin, ops::appservice, ops::server_state, rooms,
     rooms::membership,

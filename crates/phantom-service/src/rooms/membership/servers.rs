@@ -10,6 +10,7 @@ use phantom_core::{debug_info, implement, rand::shuffle};
 use ruma::{OwnedServerName, RoomId, RoomOrAliasId, UserId};
 
 use super::{Service, sender_servers};
+use crate::ops::moderation::Restriction;
 
 #[implement(Service)]
 pub(super) async fn servers_for_room(
@@ -50,6 +51,15 @@ pub(super) async fn servers_for_room(
 
     shuffle(&mut additional_servers);
     servers.extend(additional_servers);
+
+    // A refused server would fail at the request anyway; dropping it here
+    // spares the join a round of timeouts before it reaches one that answers.
+    servers.retain(|server| {
+        !self
+            .services
+            .moderation
+            .forbids(server, Restriction::Federation)
+    });
 
     order_servers(
         servers,

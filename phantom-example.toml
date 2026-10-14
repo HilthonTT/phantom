@@ -1099,6 +1099,20 @@
 #
 #redaction_retention_seconds =
 
+# Enforce the message retention policy (`m.room.retention`) a room sets.
+# Once an hour, every room whose policy names a `max_lifetime` has its
+# timeline events older than that purged, local ones included. State
+# events are always kept, since the room cannot work without them. Other
+# servers in the room keep their own copies whatever this server does.
+#
+#retention_policy_enforcement = false
+
+# The shortest `max_lifetime` enforced, in seconds. A room whose policy
+# asks for less is purged as if it had asked for this, so a room admin
+# cannot make the server delete messages as soon as they arrive.
+#
+#retention_min_lifetime_secs = 86400
+
 # This item is undocumented. Please contribute documentation for it.
 #
 #forbidden_alias_names = false

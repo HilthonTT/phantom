@@ -28,14 +28,19 @@ Admins can run the server from the admin room, `#admins:<server_name>`, by sendi
 | `rooms ban <room>` · `unban <room>` | stop or allow local users and federation in a room |
 | `rooms shutdown <room>` · `delete <room> [--force]` | evict local members, or purge the room, as a task |
 | `tokens list` · `create [token] [--uses N] [--expires-in SECS]` · `revoke <token>` | registration tokens |
+| `rooms purge-history <room> (--days N \| --before-event ID \| --before-ts MS) [--include-local]` | delete old timeline events, keeping state, as a task |
+| `rooms quarantine-media <room> [--reason R]` | quarantine every file the room's events name, as a task |
 | `media list` · `delete <mxc>` | the media store |
+| `media quarantined` · `quarantine <mxc> [--reason R]` · `unquarantine <mxc>` · `quarantine-user <user>` | keep files but stop serving or fetching them |
+| `media purge-remote --days N` · `purge-local --days N` | delete stored media older than, as a task |
 | `federation list` · `purge-media <server>` | servers this one federates with |
+| `federation blocks` · `block <server> [--pattern] [--reason R]` · `unblock <server> [--pattern]` | the runtime server block list |
 | `reports list` · `dismiss <id>` | abuse reports |
 | `appservices list` | registered appservices |
 | `server status` · `services` · `tasks` · `logs [--limit N]` · `config [filter]` | the server's state |
 | `server reload` · `backup` · `restart` · `shutdown` | act on the server |
 
-Shutting down or deleting a room, and backing up, run as tasks. `!admin server tasks` shows how each one went.
+Shutting down or deleting a room, purging history or media, quarantining a room's media, and backing up, run as tasks. `!admin server tasks` shows how each one went.
 
 ## Elsewhere than the admin room
 

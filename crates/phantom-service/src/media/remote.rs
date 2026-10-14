@@ -14,6 +14,8 @@ use crate::ops::moderation::Restriction;
 
 #[implement(Service)]
 pub async fn get_or_fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
+    self.refuse_quarantined(mxc).await?;
+
     if let Ok(found) = self.get(mxc, Dimensions::ORIGINAL).await {
         return Ok(found);
     }
@@ -95,6 +97,7 @@ pub async fn fetch(&self, mxc: &MxcUri) -> Result<(FileMeta, Vec<u8>)> {
     let (server_name, media_id) = parts(mxc)?;
 
     self.may_fetch_from(server_name)?;
+    self.refuse_quarantined(mxc).await?;
 
     let request = get_content::v1::Request::new(media_id.to_owned());
 
@@ -115,6 +118,7 @@ pub(super) async fn fetch_thumbnail(&self, mxc: &MxcUri, dim: &Dim) -> Result<(F
     let (server_name, media_id) = parts(mxc)?;
 
     self.may_fetch_from(server_name)?;
+    self.refuse_quarantined(mxc).await?;
 
     let mut request = get_content_thumbnail::v1::Request::new(
         media_id.to_owned(),

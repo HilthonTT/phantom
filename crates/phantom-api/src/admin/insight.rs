@@ -1,7 +1,7 @@
 //! The admin API's views of the server's internals: its services, the
 //! servers it federates with, its media store, its log and its abuse reports.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use axum::{
     Json,
@@ -85,6 +85,9 @@ pub(super) struct Peer {
 
     /// Events waiting for the transaction in flight to finish.
     queued: usize,
+
+    /// Whether the config file or the runtime block list refuses it.
+    blocked: bool,
 
     /// When a request to it last failed since startup, and why.
     last_failure_ms: Option<u64>,
@@ -170,6 +173,10 @@ pub(super) async fn federation(
                 resolved: resolved.get(server.as_str()).cloned(),
                 sending: sending.get(&server).copied().unwrap_or(0),
                 queued: queued.get(&server).copied().unwrap_or(0),
+                blocked: services.moderation.forbids(
+                    &server,
+                    phantom_service::ops::moderation::Restriction::Federation,
+                ),
                 last_failure_ms: health.last_failure_ms,
                 last_error: health.last_error,
                 consecutive_failures: health.consecutive_failures,
@@ -191,6 +198,9 @@ pub(super) struct MediaRow {
     thumbnails: usize,
     uploader: Option<String>,
     local: bool,
+
+    /// Whether the file is quarantined: kept, but answered as missing.
+    quarantined: bool,
 }
 
 /// # `GET /_phantom/admin/v1/media`
@@ -200,12 +210,21 @@ pub(super) async fn media(
     State(services): State<RouterState>,
     _admin: AdminAuth,
 ) -> Result<impl IntoResponse> {
+    let quarantined: BTreeSet<OwnedMxcUri> = services
+        .media
+        .quarantined()
+        .await
+        .into_iter()
+        .map(|record| record.mxc)
+        .collect();
+
     let rows: Vec<MediaRow> = services
         .media
         .list()
         .await
         .into_iter()
         .map(|media| MediaRow {
+            quarantined: quarantined.contains(&media.mxc),
             local: media
                 .mxc
                 .server_name()

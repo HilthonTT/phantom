@@ -424,6 +424,10 @@ pub(super) fn default_redaction_retention_seconds() -> u64 {
     60 * 60 * 24 * 60
 }
 
+pub(super) fn default_retention_min_lifetime_secs() -> u64 {
+    60 * 60 * 24
+}
+
 pub(super) fn default_oidc_max_response_size() -> usize {
     256 * 1024
 }

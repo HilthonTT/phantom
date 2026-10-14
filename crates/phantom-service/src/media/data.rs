@@ -23,6 +23,7 @@ pub(crate) struct Data {
     #[cfg(feature = "url_preview")]
     pub mediaid_lazycontent: Arc<Map>,
     pub mediaid_pending: Arc<Map>,
+    pub mediaid_quarantine: Arc<Map>,
     pub mediaid_user: Arc<Map>,
     pub url_previews: Arc<Map>,
 
@@ -74,6 +75,7 @@ impl Data {
             #[cfg(feature = "url_preview")]
             mediaid_lazycontent: db[table::MEDIAID_LAZYCONTENT].clone(),
             mediaid_pending: db[table::MEDIAID_PENDING].clone(),
+            mediaid_quarantine: db[table::MEDIAID_QUARANTINE].clone(),
             mediaid_user: db[table::MEDIAID_USER].clone(),
             url_previews: db[table::URL_PREVIEWS].clone(),
         }

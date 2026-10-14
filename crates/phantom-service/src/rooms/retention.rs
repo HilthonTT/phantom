@@ -1,15 +1,19 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use futures::{Stream, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use phantom_core::{
-    Result, debug_info, expected, implement, matrix::pdu::PduEvent, runtime::server::Server,
-    stream::TryReadyExt, time::now_secs,
+    Result, debug_info, debug_warn, expected, implement, info, matrix::pdu::PduEvent,
+    runtime::server::Server, stream::TryReadyExt, time::now_millis, time::now_secs,
 };
 use phantom_database::{Deserialized, Json, Map, table};
-use ruma::{CanonicalJsonObject, EventId};
+use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, RoomId, events::StateEventType};
+use serde::Deserialize;
 
-use crate::rooms::state::RoomMutexGuard;
+use crate::{
+    Dep, rooms,
+    rooms::{state::RoomMutexGuard, timeline::HistoryCutoff},
+};
 
 const SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
@@ -25,6 +29,16 @@ struct Data {
 
 struct Services {
     server: Arc<Server>,
+    metadata: Dep<rooms::metadata::Service>,
+    state_accessor: Dep<rooms::state_accessor::Service>,
+    timeline: Dep<rooms::timeline::Service>,
+}
+
+/// The part of `m.room.retention` enforced: how long a message may live, in
+/// milliseconds. ruma has no type for the event, which never left its MSC.
+#[derive(Deserialize)]
+struct RetentionPolicy {
+    max_lifetime: Option<u64>,
 }
 
 #[async_trait]
@@ -40,6 +54,9 @@ impl crate::Service for Service {
             },
             services: Services {
                 server: args.server.clone(),
+                metadata: args.depend::<rooms::metadata::Service>(),
+                state_accessor: args.depend::<rooms::state_accessor::Service>(),
+                timeline: args.depend::<rooms::timeline::Service>(),
             },
         }))
     }
@@ -80,6 +97,16 @@ impl crate::Service for Service {
                 debug_info!(?count, "Finished cleaning up retained events");
             }
 
+            if self
+                .services
+                .server
+                .config
+                .rooms
+                .retention_policy_enforcement
+            {
+                self.enforce_policies().await;
+            }
+
             tokio::select! {
                 () = tokio::time::sleep(SWEEP_INTERVAL) => {},
                 () = self.services.server.until_shutdown() => return Ok(()),
@@ -90,6 +117,64 @@ impl crate::Service for Service {
     fn name(&self) -> &str {
         crate::make_name(std::module_path!())
     }
+}
+
+/// Purges each room's history past the lifetime its `m.room.retention`
+/// policy allows, raised to the configured minimum.
+#[implement(Service)]
+async fn enforce_policies(&self) {
+    let min_lifetime_ms = self
+        .services
+        .server
+        .config
+        .rooms
+        .retention_min_lifetime_secs
+        .saturating_mul(1000);
+
+    let rooms: Vec<OwnedRoomId> = self
+        .services
+        .metadata
+        .iter_ids()
+        .map(ToOwned::to_owned)
+        .collect()
+        .await;
+
+    for room_id in rooms {
+        let Some(max_lifetime) = self.max_lifetime(&room_id).await else {
+            continue;
+        };
+
+        let lifetime = max_lifetime.max(min_lifetime_ms);
+        let cutoff = HistoryCutoff::Timestamp(now_millis().saturating_sub(lifetime));
+
+        match self
+            .services
+            .timeline
+            .purge_history(&room_id, cutoff, true)
+            .await
+        {
+            Ok(purged) if purged.purged > 0 => {
+                info!(%room_id, purged = purged.purged, "Enforced the room's retention policy");
+            }
+            Ok(_) => {}
+            Err(e) => debug_warn!(%room_id, "Could not enforce the retention policy: {e}"),
+        }
+    }
+}
+
+#[implement(Service)]
+async fn max_lifetime(&self, room_id: &RoomId) -> Option<u64> {
+    self.services
+        .state_accessor
+        .room_state_get_content::<RetentionPolicy>(
+            room_id,
+            &StateEventType::from("m.room.retention"),
+            "",
+        )
+        .await
+        .ok()
+        .and_then(|policy| policy.max_lifetime)
+        .filter(|&lifetime| lifetime > 0)
 }
 
 #[implement(Service)]

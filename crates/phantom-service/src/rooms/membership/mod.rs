@@ -36,7 +36,7 @@ pub use self::{
 use crate::net::federation::outgoing_pdu;
 use crate::{
     Dep, accounts::account_data, accounts::profile, accounts::users, net::federation, net::sending,
-    net::server_keys, ops::server_state, rooms,
+    net::server_keys, ops::moderation, ops::server_state, rooms,
 };
 
 pub struct Service {
@@ -51,6 +51,7 @@ struct Services {
     event_handler: Dep<rooms::event_handler::Service>,
     federation: Dep<federation::Service>,
     metadata: Dep<rooms::metadata::Service>,
+    moderation: Dep<moderation::Service>,
     outlier: Dep<rooms::outlier::Service>,
     profile: Dep<profile::Service>,
     sending: Dep<sending::Service>,
@@ -76,6 +77,7 @@ impl crate::Service for Service {
                 event_handler: args.depend::<rooms::event_handler::Service>(),
                 federation: args.depend::<federation::Service>(),
                 metadata: args.depend::<rooms::metadata::Service>(),
+                moderation: args.depend::<moderation::Service>(),
                 outlier: args.depend::<rooms::outlier::Service>(),
                 profile: args.depend::<profile::Service>(),
                 sending: args.depend::<sending::Service>(),

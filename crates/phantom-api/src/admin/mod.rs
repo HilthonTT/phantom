@@ -7,6 +7,7 @@ mod audit;
 pub mod commands;
 mod insight;
 mod inspect;
+mod moderation;
 mod ops;
 mod rooms;
 mod routes;
@@ -33,7 +34,7 @@ pub fn register(router: Routes) -> Routes {
 }
 
 fn routes(router: Routes) -> Routes {
-    router
+    moderation::register(router)
         .route("/_phantom/admin/v1/whoami", get(whoami))
         .route("/_phantom/admin/v1/stats", get(stats::stats))
         .route("/_phantom/admin/v1/users", get(users::users))

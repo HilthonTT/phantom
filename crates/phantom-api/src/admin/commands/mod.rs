@@ -2,6 +2,7 @@
 //! the admin API route the console calls, so the two cannot drift apart, and
 //! renders the handler's JSON as a notice.
 
+mod moderation;
 mod render;
 mod words;
 
@@ -254,6 +255,13 @@ enum RoomCommand {
         #[arg(long)]
         force: bool,
     },
+
+    /// Deletes the room's timeline events before a point, keeping its state,
+    /// as a task.
+    PurgeHistory(moderation::PurgeHistoryArgs),
+
+    /// Quarantines every file the room's events refer to, as a task.
+    QuarantineMedia(moderation::QuarantineRoomArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -285,6 +293,26 @@ enum MediaCommand {
 
     /// Deletes one file, by its mxc:// URI.
     Delete { mxc: OwnedMxcUri },
+
+    /// Lists the quarantined files.
+    Quarantined,
+
+    /// Quarantines a file: kept, but answered as missing and never fetched.
+    Quarantine(moderation::QuarantineArgs),
+
+    /// Lifts a file's quarantine.
+    Unquarantine { mxc: OwnedMxcUri },
+
+    /// Quarantines every file a local user uploaded.
+    QuarantineUser(moderation::QuarantineUserArgs),
+
+    /// Deletes cached copies of remote media stored before a number of days
+    /// ago, as a task.
+    PurgeRemote(moderation::PurgeMediaArgs),
+
+    /// Deletes local uploads stored before a number of days ago, for good,
+    /// as a task.
+    PurgeLocal(moderation::PurgeMediaArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -294,6 +322,15 @@ enum FederationCommand {
 
     /// Deletes the cached media of a remote server.
     PurgeMedia { server: OwnedServerName },
+
+    /// Lists the patterns refusing remote servers.
+    Blocks,
+
+    /// Blocks a server, or with --pattern every server a pattern matches.
+    Block(moderation::BlockArgs),
+
+    /// Unblocks a server, or with --pattern removes one pattern.
+    Unblock(moderation::UnblockArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -630,6 +667,10 @@ async fn run_rooms(
 
             Ok(task_started(&task, "Deleting", &room_id))
         }
+        RoomCommand::PurgeHistory(args) => moderation::purge_history(services, admin, args).await,
+        RoomCommand::QuarantineMedia(args) => {
+            moderation::quarantine_room(services, admin, args).await
+        }
     }
 }
 
@@ -727,6 +768,18 @@ async fn run_media(
 
             Ok(done(&format!("Deleted {mxc}.")))
         }
+        MediaCommand::Quarantined => moderation::quarantined(services, admin).await,
+        MediaCommand::Quarantine(args) => moderation::quarantine(services, admin, args).await,
+        MediaCommand::Unquarantine { mxc } => moderation::unquarantine(services, admin, mxc).await,
+        MediaCommand::QuarantineUser(args) => {
+            moderation::quarantine_user(services, admin, args).await
+        }
+        MediaCommand::PurgeRemote(args) => {
+            moderation::purge_media(services, admin, "remote", args).await
+        }
+        MediaCommand::PurgeLocal(args) => {
+            moderation::purge_media(services, admin, "local", args).await
+        }
     }
 }
 
@@ -747,6 +800,7 @@ async fn run_federation(
                     Column::time("last contact", "last_contact_ms"),
                     Column::new("sending", "sending"),
                     Column::new("backoff", "backoff"),
+                    Column::new("blocked", "blocked"),
                 ],
             ))
         }
@@ -763,6 +817,9 @@ async fn run_federation(
                 render::scalar(&removed)
             )))
         }
+        FederationCommand::Blocks => moderation::blocks(services, admin).await,
+        FederationCommand::Block(args) => moderation::block(services, admin, args).await,
+        FederationCommand::Unblock(args) => moderation::unblock(services, admin, args).await,
     }
 }
 

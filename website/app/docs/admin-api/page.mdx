@@ -30,6 +30,8 @@ curl -H "Authorization: Bearer $TOKEN" localhost:8008/_phantom/admin/v1/whoami
 | `GET /media` | the media store |
 | `GET /logs?limit=` | recent log lines, newest first |
 | `GET /reports` | open abuse reports |
+| `GET /federation/blocks` | the config's and the runtime server block patterns |
+| `GET /media/quarantine` | quarantined media |
 
 ## Changing
 
@@ -47,6 +49,12 @@ curl -H "Authorization: Bearer $TOKEN" localhost:8008/_phantom/admin/v1/whoami
 | `DELETE /media/{server}/{media_id}` | delete a file |
 | `DELETE /federation/{server}/media` | delete a remote server's cached media |
 | `DELETE /reports/{id}` | dismiss a report |
+| `POST` / `DELETE /federation/blocks` | `{"server"}` or `{"pattern"}` (a regex), optional `"reason"`: block / unblock |
+| `PUT` / `DELETE /media/{server}/{media_id}/quarantine` | quarantine / lift; optional `{"reason"}` |
+| `POST /rooms/{room}/media/quarantine` | quarantine every file the room names; answers `{"task_id"}` |
+| `POST /users/{user}/media/quarantine` | quarantine every file a local user uploaded |
+| `POST /rooms/{room}/purge_history` | `{"before_ts_ms"}` or `{"before_event_id"}`, `"include_local"?`; answers `{"task_id"}` |
+| `POST /media/purge` | `{"origin": "remote"\|"local", "older_than_days"}`; answers `{"task_id"}` |
 | `POST /config/reload` | reload the config |
 | `POST /backup` | back up into `database_backup_path`; answers `{"task_id"}` |
 

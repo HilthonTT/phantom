@@ -1,5 +1,7 @@
 mod data;
 mod preview;
+mod purge;
+mod quarantine;
 mod remote;
 mod thumbnail;
 #[cfg(feature = "media_thumbnail")]
@@ -37,9 +39,13 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
 use tokio::{fs, sync::Notify};
 
-pub use self::thumbnail::Dim;
 #[cfg(feature = "media_thumbnail")]
 use self::video::{FAILURES, Failures, sweep_staging_dir};
+pub use self::{
+    purge::{Origin, Purged},
+    quarantine::Quarantine,
+    thumbnail::Dim,
+};
 use crate::{
     Dep,
     net::client,
@@ -367,6 +373,8 @@ fn spend_reservation(&self, uploader: &UserId) -> Result {
 
 #[implement(Service)]
 pub async fn get(&self, mxc: &MxcUri, dimensions: Dimensions) -> Result<(FileMeta, Vec<u8>)> {
+    self.refuse_quarantined(mxc).await?;
+
     let key = self.key(mxc, dimensions)?;
 
     let meta: FileMeta = self
