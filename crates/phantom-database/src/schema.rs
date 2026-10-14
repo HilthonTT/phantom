@@ -426,6 +426,10 @@ schema! {
         ..descriptor::RANDOM
     }
 
+    USERDEVICECONNID_SLIDINGSYNC = "userdeviceconnid_slidingsync" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     USERDEVICEID_METADATA = "userdeviceid_metadata" {
         ..descriptor::RANDOM_SMALL
     }

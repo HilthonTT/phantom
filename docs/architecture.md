@@ -311,6 +311,29 @@ next request re-walks from the root and starts emitting when it reaches that
 path again. A room is visited once per walk however many parents name it, which
 is what stops a cyclic space from being walked forever.
 
+**`accounts::sync`** is what `/sync`, sliding sync and `/events` park on, and
+it holds sliding sync's per-connection state. Two rules keep it honest:
+
+- *Arm, then sample.* A long-poll answers up to the global count it sampled,
+  then waits for a write it has not sent. `watch` registers every watcher — the
+  user's and device's prefixes, each joined room's timeline, receipts and
+  key changes, and a typing subscription — before it returns, and handlers
+  call it *before* sampling the count, re-arming before each re-sample. A write
+  that lands while the response is being built therefore wakes the wait at once
+  instead of being missed until the timeout. A request with `timeout=0` (or
+  v3's `full_state`) never waits, so it arms nothing.
+- *A sliding sync position survives a restart.* A connection's lists,
+  subscriptions, extension settings and per-room delivery cursors live in
+  `userdeviceconnid_slidingsync` as JSON, keyed by user, device and `conn_id`,
+  with an in-memory cache in front. The first request after a restart reads it
+  back, so clients keep their `pos` instead of getting `M_UNKNOWN_POS`. Each
+  response writes it back only if it changed (or its last-use time is an hour
+  old), so idle long-polls cost no writes. The worker deletes connections idle
+  for `sliding_sync_connection_expiry_days`, and deleting a device or logging
+  it out deletes its connections. `pos` is the global count, so any position
+  is resumable; rooms delivered past it are rewound to it. v3's `since` token
+  is the same count and needs no stored state at all.
+
 ### `phantom-api`
 
 The HTTP handlers, one tree per audience: `client/` for the client-server API,

@@ -39,6 +39,9 @@ impl Service {
 
         self.db.keyid_key.del(userdeviceid).ok();
 
+        // A removed device can no longer resume its sliding sync connections.
+        self.services.sync.forget_device(user_id, device_id).await;
+
         // Pushers registered from this device must stop with it (this also runs
         // for every device on deactivation).
         let pushkeys: Vec<_> = self

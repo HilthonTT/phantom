@@ -158,6 +158,7 @@ is a map of the territory so you know what to look for.
 | Networking | `proxy`, `ip_range_denylist`, the per-client timeouts (`request_*`, `well_known_*`, `federation_*`, `sender_*`, `appservice_*`, `pusher_*`), and the `gzip`/`brotli`/`zstd` compression switches |
 | DNS | `dns_cache_entries`, `dns_min_ttl`, `dns_min_ttl_nxdomain`, `dns_attempts`, `dns_timeout`, `dns_tcp_fallback`, `query_over_tcp_only`, `query_all_nameservers`, `ip_lookup_strategy` |
 | Process | `config_reload_signal`, `allow_check_for_updates`, `allow_invalid_tls_certificates` |
+| Sync | `client_sync_timeout_min`, `client_sync_timeout_default`, `client_sync_timeout_max` bound a long-poll (an explicit `timeout=0` always answers at once); `sliding_sync_connection_expiry_days` deletes sliding sync connections left unused that long (0 keeps them) |
 | Rooms | `default_room_version`, `1`–`12`; version 12 derives room IDs from the create event and gives creators unlimited power |
 | Notifications | `notification_retention_days`, `notification_max_per_user` — how long and how many notified events `GET /notifications` keeps per user |
 | Admin room | `create_admin_room`, `admin_escape_commands`, `admin_execute`, `admin_signal_execute` — the `!admin` commands are listed by `!admin --help` |

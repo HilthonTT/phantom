@@ -73,6 +73,7 @@ struct Services {
     server_state: Dep<server_state::Service>,
     state_accessor: Dep<rooms::state_accessor::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
+    sync: Dep<accounts::sync::Service>,
 }
 
 struct Data {
@@ -111,6 +112,7 @@ impl crate::Service for Service {
                 state_accessor: args.depend::<rooms::state_accessor::Service>(),
                 alias: args.depend::<rooms::alias::Service>(),
                 state_cache: args.depend::<rooms::state_cache::Service>(),
+                sync: args.depend::<accounts::sync::Service>(),
             },
             db: Data {
                 database: args.db.clone(),

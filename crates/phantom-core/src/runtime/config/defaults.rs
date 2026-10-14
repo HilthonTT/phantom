@@ -480,6 +480,10 @@ pub(super) fn default_client_sync_timeout_max() -> u64 {
     90000
 }
 
+pub(super) fn default_sliding_sync_connection_expiry_days() -> u64 {
+    7
+}
+
 pub(super) fn default_one_time_key_limit() -> usize {
     256
 }

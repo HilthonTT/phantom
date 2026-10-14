@@ -1,16 +1,33 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, future::Future, pin::Pin};
 
-use futures::{FutureExt, StreamExt, future::select_all, pin_mut, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, future::select_all};
 use phantom_core::{Result, implement, trace};
 use phantom_database::{Interfix, serialize_to_vec, table};
-use ruma::{DeviceId, RoomId, UserId};
+use ruma::{DeviceId, OwnedRoomId, RoomId, UserId};
+use tokio::sync::broadcast::error::RecvError;
 
 use super::Service;
 
+/// A sync's armed wait: it resolves on the first write that may change what
+/// the user would be sent, on a typing update in one of their rooms, or on
+/// shutdown.
+pub type Watch = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+/// Arms every wake source a sync of this user and device waits on.
+///
+/// Every watcher is registered by the time this returns, so a sync must call
+/// it *before* it samples the global count it answers up to: a write landing
+/// after that sample, while the response is being built, then wakes the
+/// returned future instead of leaving the long-poll parked until its timeout.
+/// The future is `'static` so it can be held across the response build.
 #[implement(Service)]
 #[tracing::instrument(name = "watch", level = "debug", skip(self))]
-pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
-    let mut waiters = Vec::new();
+pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Watch> {
+    let mut waiters: Vec<Watch> = Vec::new();
+
+    // Subscribed before anything is read, for the same reason as the
+    // database watchers below.
+    let mut typing_updates = self.services.typing.typing_update_sender.subscribe();
 
     let user_prefix = serialize_to_vec((user_id, Interfix))?;
     let device_prefix = serialize_to_vec((user_id, device_id, Interfix))?;
@@ -69,8 +86,6 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
             .boxed(),
     );
 
-    let mut typing = FuturesUnordered::new();
-
     for room_id in &rooms {
         let room_user_prefix = serialize_to_vec((room_id, user_id, Interfix))?;
         let room_prefix = serialize_to_vec((room_id, Interfix))?;
@@ -106,28 +121,36 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
                     .boxed(),
             );
         }
-
-        typing.push(self.services.typing.wait_for_update(room_id));
     }
 
     trace!(
         waiters = waiters.len(),
         rooms = rooms.len(),
-        "Parked on sync"
+        "Armed sync watchers"
     );
 
-    let typing = typing.next();
-    let shutdown = self.services.server.until_shutdown();
+    let rooms: HashSet<OwnedRoomId> = rooms.into_iter().collect();
+    waiters.push(
+        async move {
+            loop {
+                match typing_updates.recv().await {
+                    Ok(room_id) if !rooms.contains(&room_id) => {}
+                    // A lagged receiver may have missed one of the user's rooms.
+                    Ok(_) | Err(RecvError::Lagged(_)) => break,
+                    Err(RecvError::Closed) => futures::future::pending().await,
+                }
+            }
+        }
+        .boxed(),
+    );
 
-    pin_mut!(typing, shutdown);
+    let server = self.services.server.clone();
+    waiters.push(async move { server.until_shutdown().await }.boxed());
 
-    tokio::select! {
-        () = select_all(waiters).map(|_| ()) => {},
-        _ = typing => {},
-        () = shutdown => {},
+    Ok(async move {
+        select_all(waiters).await;
     }
-
-    Ok(())
+    .boxed())
 }
 
 #[implement(Service)]

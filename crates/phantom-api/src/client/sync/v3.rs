@@ -4,7 +4,6 @@ mod state;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    pin::pin,
     time::Duration,
 };
 
@@ -114,16 +113,15 @@ pub(crate) async fn sync_events_route(
         .flat_ok()
         .unwrap_or(0);
 
-    let timeout = body
-        .body
-        .timeout
-        .as_ref()
-        .map(Duration::as_millis)
-        .map(TryInto::try_into)
-        .flat_ok()
-        .unwrap_or(services.config.client.client_sync_timeout_default)
-        .max(services.config.client.client_sync_timeout_min)
-        .min(services.config.client.client_sync_timeout_max);
+    let client = &services.config.client;
+    let timeout = sync_timeout(
+        body.body.timeout.as_ref().map(Duration::as_millis),
+        client.client_sync_timeout_default,
+        (
+            client.client_sync_timeout_min,
+            client.client_sync_timeout_max,
+        ),
+    );
 
     let stop_at = time::Instant::now()
         .checked_add(Duration::from_millis(timeout))
@@ -133,11 +131,18 @@ pub(crate) async fn sync_events_route(
     // user has none, so it watches an empty device ID that never matches.
     let watch_device = sender_device.unwrap_or_else(|| "".into());
 
+    // A sync that never waits needs nothing armed.
+    let waits = timeout > 0 && !body.body.full_state;
+
     loop {
-        // Poll the watcher once before sampling the count so the watches it
-        // registers up front cannot miss a write made while building.
-        let mut watchers = pin!(services.sync.watch(sender_user, watch_device).fuse());
-        let fired = futures::poll!(watchers.as_mut()).is_ready();
+        // Arm every watcher before sampling the count: a write landing while
+        // the response below is built then wakes the wait instead of being
+        // missed until the timeout.
+        let watchers = if waits {
+            Some(services.sync.watch(sender_user, watch_device).await?)
+        } else {
+            None
+        };
 
         let next_batch = services.server_state.current_count();
         if since > next_batch {
@@ -159,7 +164,11 @@ pub(crate) async fn sync_events_route(
         }
 
         // Wait for activity
-        let woken = fired || time::timeout_at(stop_at, watchers).await.is_ok();
+        let woken = match watchers {
+            Some(watchers) => time::timeout_at(stop_at, watchers).await.is_ok(),
+            None => false,
+        };
+
         if !woken || services.server.is_stopping() {
             trace!(since, next_batch, "empty response");
             return Ok(
@@ -175,6 +184,18 @@ pub(crate) async fn sync_events_route(
         );
 
         since = next_batch;
+    }
+}
+
+/// The long-poll timeout in milliseconds for a requested one.
+///
+/// An explicit zero answers at once, as the spec asks; anything else is
+/// clamped to the configured bounds, and a missing timeout takes the
+/// configured default.
+fn sync_timeout(requested: Option<u128>, default: u64, (min, max): (u64, u64)) -> u64 {
+    match requested.map(u64::try_from) {
+        Some(Ok(0)) => 0,
+        requested => requested.flat_ok().unwrap_or(default).max(min).min(max),
     }
 }
 
@@ -478,4 +499,25 @@ async fn process_presence_updates(
         })
         .collect()
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sync_timeout;
+
+    const BOUNDS: (u64, u64) = (5_000, 90_000);
+
+    #[test]
+    fn an_explicit_zero_timeout_answers_at_once() {
+        assert_eq!(sync_timeout(Some(0), 30_000, BOUNDS), 0);
+    }
+
+    #[test]
+    fn other_timeouts_are_clamped_to_the_bounds() {
+        assert_eq!(sync_timeout(None, 30_000, BOUNDS), 30_000);
+        assert_eq!(sync_timeout(Some(1), 30_000, BOUNDS), 5_000);
+        assert_eq!(sync_timeout(Some(60_000), 30_000, BOUNDS), 60_000);
+        assert_eq!(sync_timeout(Some(u128::MAX), 30_000, BOUNDS), 30_000);
+        assert_eq!(sync_timeout(Some(500_000), 30_000, BOUNDS), 90_000);
+    }
 }

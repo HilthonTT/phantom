@@ -89,9 +89,10 @@ pub(crate) async fn events_route(
 
     loop {
         // Without a device there is nothing to watch, so the listen runs out its
-        // timeout.
+        // timeout. The watchers are armed before the count is sampled, so an
+        // event landing while the window is read still wakes the wait.
         let watchers = match body.sender_device.as_deref() {
-            Some(device_id) => services.sync.watch(sender_user, device_id).boxed(),
+            Some(device_id) => services.sync.watch(sender_user, device_id).await?,
             None => pending().boxed(),
         };
 

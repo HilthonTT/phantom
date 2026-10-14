@@ -125,6 +125,15 @@ pub struct Client {
     #[serde(default = "default_client_sync_timeout_max")]
     pub client_sync_timeout_max: u64,
 
+    /// Days a sliding sync (MSC4186) connection may go unused before it is
+    /// deleted. Connections are kept in the database so clients resume them
+    /// across restarts; an expired one makes its client start over with a
+    /// full sync. 0 keeps them until their device is removed.
+    ///
+    /// default: 7
+    #[serde(default = "default_sliding_sync_connection_expiry_days")]
+    pub sliding_sync_connection_expiry_days: u64,
+
     /// Whether sync computes room heroes. The spec mandates them; disable
     /// only to save resources on custom deployments.
     ///

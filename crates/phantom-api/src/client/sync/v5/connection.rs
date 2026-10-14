@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use phantom_service::{Services, accounts::sync};
 use ruma::{
-    OwnedDeviceId, OwnedRoomId, RoomId, UserId,
+    DeviceId, OwnedRoomId, RoomId, UserId,
     api::client::sync::sync_events::v5::{
         Request, request,
         request::{AccountData, E2EE, Profiles, Receipts, ToDevice, Typing},
@@ -100,42 +100,35 @@ impl Connection {
         &self,
         services: &Services,
         user_id: &UserId,
-        device_id: &OwnedDeviceId,
+        device_id: &DeviceId,
         conn_id: Option<&str>,
     ) {
-        let sync = &services.sync;
+        services
+            .sync
+            .update(user_id, device_id, conn_id, self.to_stored());
+    }
 
-        sync.forget(user_id, device_id, conn_id);
-        sync.remember(
-            user_id,
-            device_id,
-            conn_id,
-            self.lists.clone(),
-            self.subscriptions.clone(),
-            self.extensions.clone(),
-        );
-
-        let rooms = || {
+    /// The service's view of this connection, rooms folded into `known_rooms`.
+    fn to_stored(&self) -> sync::Connection {
+        let rooms = |value: fn(&Room) -> u64| {
             self.rooms
                 .iter()
-                .map(|(room_id, room)| (room_id.clone(), room))
+                .map(|(room_id, room)| (room_id.clone(), value(room)))
+                .collect()
         };
 
-        sync.remember_rooms(
-            user_id,
-            device_id,
-            conn_id,
-            ROOMSINCE_KEY,
-            rooms().map(|(room_id, room)| (room_id, room.roomsince)),
-        );
+        let known_rooms = [
+            (ROOMSINCE_KEY.to_owned(), rooms(|room| room.roomsince)),
+            (CONFIG_KEY.to_owned(), rooms(|room| room.config_hash)),
+        ]
+        .into();
 
-        sync.remember_rooms(
-            user_id,
-            device_id,
-            conn_id,
-            CONFIG_KEY,
-            rooms().map(|(room_id, room)| (room_id, room.config_hash)),
-        );
+        sync::Connection {
+            lists: self.lists.clone(),
+            subscriptions: self.subscriptions.clone(),
+            known_rooms,
+            extensions: self.extensions.clone(),
+        }
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -428,6 +421,26 @@ mod tests {
 
         assert_eq!(conn.rooms[&room_id].roomsince, 15);
         assert_eq!(conn.rooms[&room_id].config_hash, 7);
+    }
+
+    #[test]
+    fn rooms_survive_the_round_trip_through_the_store() {
+        let room_id = owned_room_id!("!room:example.com");
+        let mut conn = Connection::default();
+        conn.rooms.insert(
+            room_id.clone(),
+            Room {
+                roomsince: 9,
+                config_hash: 3,
+            },
+        );
+
+        let stored = conn.to_stored();
+        let json = serde_json::to_vec(&stored).expect("serializable");
+        let loaded = Connection::load(serde_json::from_slice(&json).expect("deserializable"));
+
+        assert_eq!(loaded.rooms[&room_id].roomsince, 9);
+        assert_eq!(loaded.rooms[&room_id].config_hash, 3);
     }
 
     #[test]

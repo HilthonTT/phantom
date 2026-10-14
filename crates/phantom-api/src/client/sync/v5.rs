@@ -123,7 +123,12 @@ pub(crate) async fn sync_events_v5_route(
             .ok();
     }
 
-    let stored = services.sync.connection(sender_user, &device_key, conn_id);
+    // Loaded from the database when this process has not served the
+    // connection yet, so a position survives a restart.
+    let stored = services
+        .sync
+        .connection(sender_user, &device_key, conn_id)
+        .await;
 
     if since != 0 && stored.is_none() {
         return Err!(Request(UnknownPos(warn!(
@@ -139,6 +144,14 @@ pub(crate) async fn sync_events_v5_route(
             debug_warn!(?conn_id, "Client cleared cache and reloaded.");
             Connection::default()
         }
+    };
+
+    // Armed before the count is sampled, so a write landing while the first
+    // response is built wakes the wait instead of being missed. A request
+    // that never waits needs nothing armed.
+    let mut watchers = match timeout {
+        0 => None,
+        _ => Some(services.sync.watch(sender_user, &device_key).await?),
     };
 
     // Update parameters regardless of replay or advance
@@ -172,8 +185,6 @@ pub(crate) async fn sync_events_v5_route(
         );
 
         let window;
-        let watchers = services.sync.watch(sender_user, &device_key);
-
         let direct_rooms = direct_rooms(services, sender_user).await;
         let sync_info = SyncInfo {
             services,
@@ -206,14 +217,13 @@ pub(crate) async fn sync_events_v5_route(
             }
         }
 
-        let waiter = async || {
-            tokio::select! {
-                () = services.server.until_shutdown() => true,
-                watch = timeout_at(stop_at, watchers) => watch.is_err(),
-            }
+        // The armed wait also ends on shutdown.
+        let woken = match watchers.take() {
+            Some(watchers) => timeout_at(stop_at, watchers).await.is_ok(),
+            None => false,
         };
 
-        if timeout == 0 || services.server.is_stopping() || waiter().boxed().await {
+        if !woken || services.server.is_stopping() {
             response.pos = conn.next_batch.to_string();
             trace!(
                 conn.globalsince,
@@ -230,6 +240,8 @@ pub(crate) async fn sync_events_v5_route(
             "notified by watcher"
         );
 
+        // Re-armed before the next sample, for the same reason as above.
+        watchers = Some(services.sync.watch(sender_user, &device_key).await?);
         conn.globalsince = conn.next_batch;
         conn.next_batch = services.server_state.current_count();
     }
