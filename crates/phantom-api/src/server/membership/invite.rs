@@ -18,18 +18,16 @@ use phantom_service::{
 };
 use ruma::{
     CanonicalJsonObject, CanonicalJsonValue, OwnedRoomId, OwnedTransactionId, OwnedUserId,
-    RoomVersionId, ServerName, UInt, UserId,
+    RoomVersionId, ServerName, UserId,
     api::{
         appservice::event::push_events,
         error::{ErrorKind, IncompatibleRoomVersionErrorData},
         federation::membership::{RawStrippedState, create_invite},
     },
     events::{
-        AnyStrippedStateEvent, GlobalAccountDataEventType, StateEventType,
-        push_rules::PushRulesEvent,
+        AnyStrippedStateEvent, StateEventType,
         room::member::{MembershipState, RoomMemberEventContent},
     },
-    push::Ruleset,
     serde::{JsonObject, Raw},
 };
 use serde::Deserialize;
@@ -340,14 +338,7 @@ async fn record_invite(
 }
 
 async fn notify_pushers(services: &Services, invited_user: &UserId, pdu: &PduEvent) {
-    let ruleset = services
-        .account_data
-        .get_global(invited_user, GlobalAccountDataEventType::PushRules)
-        .await
-        .map_or_else(
-            |_| Ruleset::server_default(invited_user),
-            |event: PushRulesEvent| event.content.global,
-        );
+    let ruleset = services.pusher.ruleset(invited_user).await;
 
     services
         .pusher
@@ -360,13 +351,7 @@ async fn notify_pushers(services: &Services, invited_user: &UserId, pdu: &PduEve
 
             services
                 .pusher
-                .send_push_notice(
-                    invited_user,
-                    UInt::from(1_u32),
-                    &pusher,
-                    ruleset.clone(),
-                    pdu,
-                )
+                .send_push_notice(invited_user, &pusher, &ruleset, pdu)
                 .await
                 .ok();
         })

@@ -1,8 +1,14 @@
 use std::{fmt::Debug, sync::Arc};
 
-use phantom_core::{Result, implement};
-use phantom_database::{Deserialized, Engine, Interfix, Map, table};
-use ruma::{OwnedUserId, RoomId, UserId};
+use futures::StreamExt;
+
+use phantom_core::{
+    Result, implement,
+    stream::{ReadyExt, TryIgnore},
+    sync::MutexMap,
+};
+use phantom_database::{Deserialized, Engine, Ignore, Interfix, Map, table};
+use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use serde::Serialize;
 
 use crate::{
@@ -17,6 +23,11 @@ use crate::{
 pub struct Service {
     db: Data,
     services: Services,
+
+    /// Serializes a user's count writes. Raising a count is a read followed
+    /// by a write, and a reset landing between the two would be overwritten
+    /// by the stale sum, leaving a room unread that the user just read.
+    count_mutex: MutexMap<OwnedUserId, ()>,
 }
 
 struct Data {
@@ -30,6 +41,7 @@ struct Data {
 struct Services {
     server_state: Dep<server_state::Service>,
     short: Dep<rooms::short::Service>,
+    state_cache: Dep<rooms::state_cache::Service>,
 }
 
 impl crate::Service for Service {
@@ -49,7 +61,9 @@ impl crate::Service for Service {
             services: Services {
                 server_state: args.depend::<server_state::Service>(),
                 short: args.depend::<rooms::short::Service>(),
+                state_cache: args.depend::<rooms::state_cache::Service>(),
             },
+            count_mutex: MutexMap::new(),
         }))
     }
 
@@ -58,8 +72,15 @@ impl crate::Service for Service {
     }
 }
 
+/// Zeroes the user's counts in the room and stamps when it happened.
+///
+/// The stamp is a fresh count, so it is above every event already in the
+/// room: `GET /notifications` reports an event as read when it is below the
+/// stamp, which keeps that flag in step with the counts sync serves.
 #[implement(Service)]
-pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) {
+pub async fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) {
+    let _lock = self.count_mutex.lock(user_id).await;
+
     let userroom_id = (user_id, room_id);
     self.db
         .userroomid_highlightcount
@@ -80,6 +101,62 @@ pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) {
         .roomuserid_lastnotificationread
         .put(roomuser_id, count)
         .ok();
+}
+
+/// Counts one more notifying event for the user in the room, and one more
+/// highlight when `highlight` is set.
+#[implement(Service)]
+pub async fn increment_notification_counts(
+    &self,
+    user_id: &UserId,
+    room_id: &RoomId,
+    highlight: bool,
+) {
+    let _lock = self.count_mutex.lock(user_id).await;
+
+    let userroom_id = (user_id, room_id);
+    increment(&self.db.userroomid_notificationcount, userroom_id).await;
+
+    if highlight {
+        increment(&self.db.userroomid_highlightcount, userroom_id).await;
+    }
+}
+
+async fn increment(map: &Arc<Map>, key: (&UserId, &RoomId)) {
+    let old = stored_count(map, &key).await;
+    map.put(key, old.saturating_add(1)).ok();
+}
+
+/// The user's unread notifications across every room they are joined to:
+/// the badge a push gateway shows.
+///
+/// Rooms the user has left keep their last count until the room is deleted,
+/// so only joined rooms are summed; otherwise a room left unread would hold
+/// the badge up for good.
+#[implement(Service)]
+pub async fn global_notification_count(&self, user_id: &UserId) -> u64 {
+    let counts: Vec<_> = self
+        .db
+        .userroomid_notificationcount
+        .stream_prefix(&(user_id, Interfix))
+        .ignore_err()
+        .ready_filter_map(|((_, room_id), count): ((Ignore, &str), u64)| {
+            let room_id = OwnedRoomId::try_from(room_id).ok()?;
+
+            (count > 0).then_some((room_id, count))
+        })
+        .boxed()
+        .collect()
+        .await;
+
+    let mut total = 0_u64;
+    for (room_id, count) in counts {
+        if self.services.state_cache.is_joined(user_id, &room_id).await {
+            total = total.saturating_add(count);
+        }
+    }
+
+    total
 }
 
 #[implement(Service)]

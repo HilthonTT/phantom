@@ -1,22 +1,23 @@
 use super::{SendingFuture, SendingResult};
-use crate::net::sending::{Destination, SendingEvent, Service};
+use crate::{
+    accounts::pusher::{Delivery, is_permanent_failure},
+    net::sending::{Destination, SendingEvent, Service},
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures::{FutureExt, StreamExt};
 use phantom_core::{
-    Result, err,
+    Result, debug, err,
     future::TryExt,
     hash::sha256,
     stream::{IterStream, WidebandExt},
     tracing, warn,
 };
 use ruma::{
-    MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedTransactionId, OwnedUserId, UInt,
+    MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedTransactionId, OwnedUserId,
     api::{
         appservice::event::push_events::v1::EphemeralData,
         federation::transactions::{edu::Edu, send_transaction_message},
     },
-    events::{GlobalAccountDataEventType, push_rules::PushRulesEvent},
-    push,
     serde::Raw,
 };
 
@@ -129,66 +130,49 @@ impl Service {
         pushkey: String,
         events: Vec<SendingEvent>,
     ) -> SendingResult {
+        let dest = || Destination::Push(user_id.clone(), pushkey.clone());
+
+        // The pusher was deleted since these were queued: there is nowhere to
+        // send them, and failing would only keep them queued for good.
         let Ok(pusher) = self.services.pusher.get_pusher(&user_id, &pushkey).await else {
-            return Err((
-                Destination::Push(user_id.clone(), pushkey.clone()),
-                err!(Database(error!(
-                    message = format_args!("Missing pusher"),
-                    ?user_id,
-                    ?pushkey,
-                ))),
-            ));
+            debug!(%user_id, %pushkey, "Dropping push events for a removed pusher");
+            return Ok(dest());
         };
 
-        let mut pdus = Vec::with_capacity(
-            events
-                .iter()
-                .filter(|event| matches!(event, SendingEvent::Pdu(_)))
-                .count(),
-        );
-        for event in &events {
-            match event {
-                SendingEvent::Pdu(pdu_id) => {
-                    if let Ok(pdu) = self.services.timeline.get_pdu_from_id(pdu_id).await {
-                        pdus.push(pdu);
-                    }
-                }
-                SendingEvent::Edu(_) | SendingEvent::Flush => {}
-            }
-        }
+        let ruleset = self.services.pusher.ruleset(&user_id).await;
 
-        for pdu in pdus {
-            if pdu.contains_unsigned_property("redacted_because", serde_json::Value::is_string) {
+        for event in &events {
+            let SendingEvent::Pdu(pdu_id) = event else {
+                continue;
+            };
+
+            let Ok(pdu) = self.services.timeline.get_pdu_from_id(pdu_id).await else {
+                continue;
+            };
+
+            if pdu.is_redacted() {
                 continue;
             }
 
-            let rules_for_user = self
-                .services
-                .account_data
-                .get_global(&user_id, GlobalAccountDataEventType::PushRules)
-                .await
-                .map_or_else(
-                    |_| push::Ruleset::server_default(&user_id),
-                    |ev: PushRulesEvent| ev.content.global,
-                );
-
-            let unread: UInt = self
-                .services
-                .user
-                .notification_count(&user_id, &pdu.room_id)
-                .await
-                .try_into()
-                .expect("notification count can't go that high");
-
-            let _response = self
+            match self
                 .services
                 .pusher
-                .send_push_notice(&user_id, unread, &pusher, rules_for_user, &pdu)
+                .send_push_notice(&user_id, &pusher, &ruleset, &pdu)
                 .await
-                .map_err(|e| (Destination::Push(user_id.clone(), pushkey.clone()), e));
+            {
+                Ok(Delivery::Removed) => break,
+                Ok(Delivery::Sent | Delivery::Skipped) => {}
+                Err(e) if is_permanent_failure(&e) => {
+                    warn!(%user_id, %pushkey, event_id = %pdu.event_id, "Push not delivered: {e}");
+                }
+                // A failure the gateway may recover from fails the whole
+                // transaction, so the sender keeps it and retries with
+                // backoff. Events already delivered in it are sent again.
+                Err(e) => return Err((dest(), e)),
+            }
         }
 
-        Ok(Destination::Push(user_id, pushkey))
+        Ok(dest())
     }
 
     async fn send_events_dest_federation(

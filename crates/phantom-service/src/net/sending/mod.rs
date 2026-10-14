@@ -25,9 +25,8 @@ use smallvec::SmallVec;
 use self::data::Data;
 pub use self::dest::Destination;
 use crate::{
-    Dep, accounts::account_data, accounts::presence, accounts::pusher, accounts::users,
-    net::client, net::federation, ops::appservice as appservice_service, ops::server_state, rooms,
-    rooms::timeline::RawPduId,
+    Dep, accounts::presence, accounts::pusher, accounts::users, net::client, net::federation,
+    ops::appservice as appservice_service, ops::server_state, rooms, rooms::timeline::RawPduId,
 };
 
 pub struct Service {
@@ -42,12 +41,10 @@ struct Services {
     client: Dep<client::Service>,
     server_state: Dep<server_state::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
-    user: Dep<rooms::user::Service>,
     users: Dep<users::Service>,
     presence: Dep<presence::Service>,
     read_receipt: Dep<rooms::read_receipt::Service>,
     timeline: Dep<rooms::timeline::Service>,
-    account_data: Dep<account_data::Service>,
     appservice: Dep<appservice_service::Service>,
     pusher: Dep<pusher::Service>,
     federation: Dep<federation::Service>,
@@ -89,12 +86,10 @@ impl crate::Service for Service {
                 client: args.depend::<client::Service>(),
                 server_state: args.depend::<server_state::Service>(),
                 state_cache: args.depend::<rooms::state_cache::Service>(),
-                user: args.depend::<rooms::user::Service>(),
                 users: args.depend::<users::Service>(),
                 presence: args.depend::<presence::Service>(),
                 read_receipt: args.depend::<rooms::read_receipt::Service>(),
                 timeline: args.depend::<rooms::timeline::Service>(),
-                account_data: args.depend::<account_data::Service>(),
                 appservice: args.depend::<appservice_service::Service>(),
                 pusher: args.depend::<pusher::Service>(),
                 federation: args.depend::<federation::Service>(),

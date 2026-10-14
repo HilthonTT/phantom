@@ -24,9 +24,12 @@
 #
 #port =
 
-# This item is undocumented. Please contribute documentation for it.
+# No longer used. Notifications are posted to the URL a pusher
+# registered, which the spec requires to be the gateway's full
+# `/_matrix/push/v1/notify` URL; the option is still read so existing
+# config files keep loading.
 #
-#notification_push_path =
+#notification_push_path = "/_matrix/push/v1/notify"
 
 # This item is undocumented. Please contribute documentation for it.
 #
@@ -285,6 +288,17 @@
 # remote server.
 #
 #federation_keys_timeout = 8
+
+# Days a notified event stays listed in `GET /notifications`. Older
+# entries are swept hourly; 0 keeps them until the per-user cap below
+# removes them.
+#
+#notification_retention_days = 30
+
+# Most notified events kept per user for `GET /notifications`; the
+# oldest go first. 0 removes the cap.
+#
+#notification_max_per_user = 1000
 
 # Allow guest users to fetch TURN credentials.
 #

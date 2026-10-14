@@ -127,7 +127,7 @@ pub(crate) async fn create_receipt_route(
     };
 
     if advanced {
-        reset_notification_counts(&services, sender_user, &body.room_id);
+        reset_notification_counts(&services, sender_user, &body.room_id).await;
     }
 
     Ok(create_receipt::v3::Response::new())

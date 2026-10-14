@@ -56,13 +56,16 @@ async fn set_private_marker(
     Ok(advances)
 }
 
-/// Clears the room's notification counts after a receipt advanced.
+/// Clears the room's notification counts after a receipt advanced, and tells
+/// the user's push gateways the lower badge.
 ///
-/// Phantom keeps counts per room only, so per-thread counts and the push
-/// gateway badge are not touched.
-fn reset_notification_counts(services: &Services, user_id: &UserId, room_id: &RoomId) {
+/// Phantom keeps counts per room only, so per-thread counts are not touched.
+async fn reset_notification_counts(services: &Services, user_id: &UserId, room_id: &RoomId) {
     services
         .rooms
         .user
-        .reset_notification_counts(user_id, room_id);
+        .reset_notification_counts(user_id, room_id)
+        .await;
+
+    services.pusher.refresh_badges(user_id);
 }

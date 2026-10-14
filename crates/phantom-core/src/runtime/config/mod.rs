@@ -73,6 +73,12 @@ pub struct Config {
     #[serde(default = "default_port")]
     port: ListeningPort,
 
+    /// No longer used. Notifications are posted to the URL a pusher
+    /// registered, which the spec requires to be the gateway's full
+    /// `/_matrix/push/v1/notify` URL; the option is still read so existing
+    /// config files keep loading.
+    ///
+    /// default: "/_matrix/push/v1/notify"
     #[serde(default = "default_notification_push_path")]
     pub notification_push_path: String,
 

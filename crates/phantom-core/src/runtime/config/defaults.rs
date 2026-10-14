@@ -484,6 +484,14 @@ pub(super) fn default_one_time_key_limit() -> usize {
     256
 }
 
+pub(super) fn default_notification_retention_days() -> u64 {
+    30
+}
+
+pub(super) fn default_notification_max_per_user() -> usize {
+    1000
+}
+
 pub(super) fn default_federation_keys_timeout() -> u64 {
     8
 }

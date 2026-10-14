@@ -163,7 +163,7 @@ Currently built, outside the room tree:
 | `account_data` | the account data a client stores against itself and against a room |
 | `key_backups` | server-side backups of a client's room keys |
 | `presence` | who is online, and when they stop counting as online |
-| `pusher` | the push gateways a client registered, and the notifications sent through them |
+| `pusher` | the push gateways a client registered, the notifications sent through them, and the notified events `GET /notifications` lists |
 | `sync` | parking a `/sync` until something happens, and the sliding-sync conversation state |
 | `transaction_id` | what a transaction id was answered with, so a retry gets the original response |
 
@@ -283,6 +283,27 @@ comes first.
 by the time it runs the event is settled — and everything after the write is a
 fan-out to whatever has to be told: push rules, the search index, the relation
 indexes, appservices, and whatever the event's own type implies.
+
+**Notifications** start in that fan-out. For each local member other than
+the sender (and the user a membership event is about, so an invite notifies),
+append evaluates the member's push rules with ruma. An event the rules do not
+notify for stops there — `.m.rule.suppress_notices`, muted rooms and
+`dont_notify` rules all end this way. One that notifies raises the member's
+counts for the room (`rooms::user`, which sync serves as `unread_notifications`),
+gets a row in the member's notified-event list, and is queued on `sending` for
+each of their pushers. The sender evaluates the rules again when it sends,
+since they may have changed while the event waited, and posts to the gateway
+with the badge set to the member's unread total across joined rooms. A gateway
+that is down or answers 5xx or 429 keeps the event queued under the sender's
+backoff; one that answers any other 4xx drops it; a pushkey the gateway names
+as rejected has its pusher removed. Email pushers are stored but no mail is
+sent for them.
+
+A receipt or read marker that advances resets the room's counts, stamps the
+reset with a fresh count, and posts the lower badge to the user's gateways.
+`GET /notifications` reports an event as read when it is below that stamp, so
+the flag agrees with the counts. The list is swept hourly down to
+`notification_retention_days` and `notification_max_per_user`.
 
 **`spaces`** walks a space hierarchy depth-first and pages it without holding
 any per-client state: a page ends by recording the path it stopped at, and the

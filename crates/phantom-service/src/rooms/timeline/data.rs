@@ -2,13 +2,13 @@ use std::{borrow::Borrow, sync::Arc};
 
 use futures::{FutureExt, Stream, TryFutureExt, TryStreamExt, future::select_ok, pin_mut};
 use phantom_core::{
-    Err, Result, at, bytes, err,
+    Err, Result, at, err,
     matrix::pdu::{PduCount, PduEvent},
     result::{LogErr, NotFound},
     stream::TryReadyExt,
 };
 use phantom_database::{Deserialized, Engine, Json, KeyVal, Map, table};
-use ruma::{CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId, api::Direction};
+use ruma::{CanonicalJsonObject, EventId, RoomId, UserId, api::Direction};
 
 use super::{PduId, RawPduId};
 use crate::{Dep, rooms, rooms::short::ShortRoomId};
@@ -17,8 +17,6 @@ pub(super) struct Data {
     pub(super) eventid_outlierpdu: Arc<Map>,
     pub(super) eventid_pduid: Arc<Map>,
     pub(super) pduid_pdu: Arc<Map>,
-    userroomid_highlightcount: Arc<Map>,
-    userroomid_notificationcount: Arc<Map>,
     pub(super) engine: Arc<Engine>,
     services: Services,
 }
@@ -36,8 +34,6 @@ impl Data {
             eventid_outlierpdu: db[table::EVENTID_OUTLIERPDU].clone(),
             eventid_pduid: db[table::EVENTID_PDUID].clone(),
             pduid_pdu: db[table::PDUID_PDU].clone(),
-            userroomid_highlightcount: db[table::USERROOMID_HIGHLIGHTCOUNT].clone(),
-            userroomid_notificationcount: db[table::USERROOMID_NOTIFICATIONCOUNT].clone(),
             engine: args.db.engine.clone(),
             services: Services {
                 short: args.depend::<rooms::short::Service>(),
@@ -252,30 +248,6 @@ impl Data {
         Ok((pdu_id.pdu_count(), pdu))
     }
 
-    #[allow(dead_code, reason = "called by the parked write path")]
-    pub(super) fn increment_notification_counts(
-        &self,
-        room_id: &RoomId,
-        notifies: Vec<OwnedUserId>,
-        highlights: Vec<OwnedUserId>,
-    ) {
-        let _cork = self.engine.cork_guard();
-
-        for user in notifies {
-            let mut userroom_id = user.as_bytes().to_vec();
-            userroom_id.push(0xFF);
-            userroom_id.extend_from_slice(room_id.as_bytes());
-            increment(&self.userroomid_notificationcount, &userroom_id);
-        }
-
-        for user in highlights {
-            let mut userroom_id = user.as_bytes().to_vec();
-            userroom_id.push(0xFF);
-            userroom_id.extend_from_slice(room_id.as_bytes());
-            increment(&self.userroomid_highlightcount, &userroom_id);
-        }
-    }
-
     async fn count_to_id(
         &self,
         room_id: &RoomId,
@@ -296,11 +268,4 @@ impl Data {
 
         Ok(pdu_id.into())
     }
-}
-
-#[allow(dead_code, reason = "called by the parked write path")]
-fn increment(db: &Arc<Map>, key: &[u8]) {
-    let old = db.get_blocking(key);
-    let new = bytes::increment(old.ok().as_deref());
-    db.insert(key, new).ok();
 }

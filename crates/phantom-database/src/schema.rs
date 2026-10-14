@@ -511,6 +511,10 @@ schema! {
         ..descriptor::RANDOM_SMALL
     }
 
+    USERIDCOUNT_NOTIFICATION = "useridcount_notification" {
+        ..descriptor::SEQUENTIAL_SMALL
+    }
+
     USERIDPROFILEKEY_VALUE = "useridprofilekey_value" {
         ..descriptor::RANDOM_SMALL
     }

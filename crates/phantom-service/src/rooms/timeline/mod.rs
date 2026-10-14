@@ -23,8 +23,8 @@ use ruma::{
 use self::data::Data;
 pub use self::data::PdusIterItem;
 use crate::{
-    Dep, accounts::account_data, accounts::users, net::sending, ops::admin, ops::appservice,
-    ops::server_state, rooms, rooms::membership,
+    Dep, accounts::users, net::sending, ops::admin, ops::appservice, ops::server_state, rooms,
+    rooms::membership,
 };
 
 pub struct Service {
@@ -34,7 +34,6 @@ pub struct Service {
 }
 
 struct Services {
-    account_data: Dep<account_data::Service>,
     admin: Dep<admin::Service>,
     alias: Dep<rooms::alias::Service>,
     appservice: Dep<appservice::Service>,
@@ -67,7 +66,6 @@ impl crate::Service for Service {
         Ok(Arc::new(Self {
             mutex_insert: RoomMutexMap::new(),
             services: Services {
-                account_data: args.depend::<account_data::Service>(),
                 admin: args.depend::<admin::Service>(),
                 alias: args.depend::<rooms::alias::Service>(),
                 appservice: args.depend::<appservice::Service>(),

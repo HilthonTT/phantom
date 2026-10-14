@@ -79,7 +79,7 @@ pub(crate) async fn set_read_marker_route(
     };
 
     if private_advanced || public_advanced {
-        reset_notification_counts(&services, sender_user, &body.room_id);
+        reset_notification_counts(&services, sender_user, &body.room_id).await;
     }
 
     Ok(set_read_marker::v3::Response::new())

@@ -170,6 +170,21 @@ pub struct Client {
     #[serde(default = "default_federation_keys_timeout")]
     pub federation_keys_timeout: u64,
 
+    /// Days a notified event stays listed in `GET /notifications`. Older
+    /// entries are swept hourly; 0 keeps them until the per-user cap below
+    /// removes them.
+    ///
+    /// default: 30
+    #[serde(default = "default_notification_retention_days")]
+    pub notification_retention_days: u64,
+
+    /// Most notified events kept per user for `GET /notifications`; the
+    /// oldest go first. 0 removes the cap.
+    ///
+    /// default: 1000
+    #[serde(default = "default_notification_max_per_user")]
+    pub notification_max_per_user: usize,
+
     /// Allow guest users to fetch TURN credentials.
     ///
     /// default: false

@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
 use futures::StreamExt;
 use phantom_core::{
@@ -11,15 +14,14 @@ use ruma::{
     CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedUserId, RoomVersionId,
     UserId,
     events::{
-        GlobalAccountDataEventType, TimelineEventType,
-        push_rules::PushRulesEvent,
+        TimelineEventType,
         relation::{InReplyTo, RelationType},
         room::{
             member::{MembershipState, RoomMemberEventContent},
             redaction::RoomRedactionEventContent,
         },
     },
-    push::{Action, Ruleset},
+    push::Action,
 };
 use serde::Deserialize;
 
@@ -109,7 +111,8 @@ async fn insert(
 
     self.services
         .user
-        .reset_notification_counts(&pdu.sender, &pdu.room_id);
+        .reset_notification_counts(&pdu.sender, &pdu.room_id)
+        .await;
 
     let count = PduCount::Normal(self.services.server_state.next_count()?);
     let pdu_id: RawPduId = PduId {
@@ -179,8 +182,37 @@ async fn add_prev_content(&self, pdu: &PduEvent, pdu_json: &mut CanonicalJsonObj
     Ok(())
 }
 
+/// Evaluates every local recipient's push rules against the event, counts
+/// and records it for those it notifies, and queues it for their pushers.
+///
+/// The sender is never a recipient of their own event. A membership event
+/// also reaches the local user it is about (an invite, a kick, a ban) even
+/// when that user is not joined, which is what lets an invite notify.
 #[implement(Service)]
 async fn notify_local_users(&self, pdu: &PduEvent, pdu_id: &RawPduId) -> Result {
+    let mut targets = self.push_targets(pdu).await;
+
+    if pdu.kind == TimelineEventType::RoomMember
+        && let Some(state_key) = &pdu.state_key
+    {
+        let target = UserId::parse(state_key.as_str())?;
+
+        if target != pdu.sender
+            && self.services.users.is_active_local(&target).await
+            && !self
+                .services
+                .users
+                .user_is_ignored(&pdu.sender, &target)
+                .await
+        {
+            targets.insert(target);
+        }
+    }
+
+    if targets.is_empty() {
+        return Ok(());
+    }
+
     let power_levels = self
         .services
         .state_accessor
@@ -189,31 +221,8 @@ async fn notify_local_users(&self, pdu: &PduEvent, pdu_id: &RawPduId) -> Result 
 
     let sync_pdu = pdu.to_sync_room_event();
 
-    let mut targets = self.push_targets(pdu).await;
-
-    if pdu.kind == TimelineEventType::RoomMember
-        && let Some(state_key) = &pdu.state_key
-    {
-        let target = UserId::parse(state_key.as_str())?;
-
-        if self.services.users.is_active_local(&target).await {
-            targets.push(target);
-        }
-    }
-
-    let mut notifies = Vec::with_capacity(targets.len());
-    let mut highlights = Vec::with_capacity(targets.len());
-
     for user in &targets {
-        let rules = self
-            .services
-            .account_data
-            .get_global(user, GlobalAccountDataEventType::PushRules)
-            .await
-            .map_or_else(
-                |_| Ruleset::server_default(user),
-                |event: PushRulesEvent| event.content.global,
-            );
+        let rules = self.services.pusher.ruleset(user).await;
 
         let actions = self
             .services
@@ -221,16 +230,25 @@ async fn notify_local_users(&self, pdu: &PduEvent, pdu_id: &RawPduId) -> Result 
             .get_actions(user, &rules, power_levels.clone(), &sync_pdu, &pdu.room_id)
             .await;
 
-        let notify = actions.iter().any(Action::should_notify);
+        // A highlight tweak on a rule that does not notify is not a
+        // notification, so it is neither counted nor listed; the spec's
+        // highlight count is a subset of the notification count.
+        if !actions.iter().any(Action::should_notify) {
+            continue;
+        }
+
         let highlight = actions.iter().any(Action::is_highlight);
 
-        if notify {
-            notifies.push(user.clone());
-        }
+        self.services
+            .user
+            .increment_notification_counts(user, &pdu.room_id, highlight)
+            .await;
 
-        if highlight {
-            highlights.push(user.clone());
-        }
+        self.services
+            .pusher
+            .record_notification(user, pdu_id, actions)
+            .log_err()
+            .ok();
 
         self.services
             .pusher
@@ -245,14 +263,11 @@ async fn notify_local_users(&self, pdu: &PduEvent, pdu_id: &RawPduId) -> Result 
             .await;
     }
 
-    self.db
-        .increment_notification_counts(&pdu.room_id, notifies, highlights);
-
     Ok(())
 }
 
 #[implement(Service)]
-async fn push_targets(&self, pdu: &PduEvent) -> Vec<OwnedUserId> {
+async fn push_targets(&self, pdu: &PduEvent) -> HashSet<OwnedUserId> {
     self.services
         .state_cache
         .active_local_users_in_room(&pdu.room_id)

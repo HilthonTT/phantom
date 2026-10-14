@@ -6,7 +6,9 @@ use futures::StreamExt;
 use phantom_core::Result;
 use ruma::{OwnedRoomId, UserId};
 
-use crate::{Dep, accounts::account_data, accounts::profile, accounts::users, rooms};
+use crate::{
+    Dep, accounts::account_data, accounts::profile, accounts::pusher, accounts::users, rooms,
+};
 
 pub struct Service {
     services: Services,
@@ -15,6 +17,7 @@ pub struct Service {
 struct Services {
     account_data: Dep<account_data::Service>,
     profile: Dep<profile::Service>,
+    pusher: Dep<pusher::Service>,
     state: Dep<rooms::state::Service>,
     state_accessor: Dep<rooms::state_accessor::Service>,
     state_cache: Dep<rooms::state_cache::Service>,
@@ -31,6 +34,7 @@ impl crate::Service for Service {
             services: Services {
                 account_data: args.depend::<account_data::Service>(),
                 profile: args.depend::<profile::Service>(),
+                pusher: args.depend::<pusher::Service>(),
                 state: args.depend::<rooms::state::Service>(),
                 state_accessor: args.depend::<rooms::state_accessor::Service>(),
                 state_cache: args.depend::<rooms::state_cache::Service>(),
@@ -62,6 +66,7 @@ impl Service {
     ) -> Result {
         self.services.users.deactivate_account(user_id, by).await?;
         self.services.profile.clear_profile(user_id).await;
+        self.services.pusher.delete_notifications(user_id).await;
 
         self.demote_self(user_id).await?;
 
