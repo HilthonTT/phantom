@@ -132,3 +132,24 @@ func TestTasksBecomeRowsAndTaskbarEntries(t *testing.T) {
 		t.Errorf("taskbar 1 = %+v", bar[1])
 	}
 }
+
+func TestOnlyACancellableTaskIsOfferedForCancelling(t *testing.T) {
+	tasks := []client.AdminTask{
+		{ID: "T1", Action: "delete room", Status: "active", Cancellable: true},
+		{ID: "T2", Action: "delete room", Status: "active", Cancellable: true, CancelRequested: true},
+		{ID: "T3", Action: "database backup", Status: "active"},
+		{ID: "T4", Action: "shutdown room", Status: "cancelled"},
+	}
+
+	l := Tasks(tasks, now)
+	want := []string{"cancellable", "", "", ""}
+	for i, row := range l.Rows {
+		if row.Ref[1] != want[i] {
+			t.Errorf("row %d ref = %v, want %q", i, row.Ref, want[i])
+		}
+	}
+
+	if l.Rows[3].State != resource.Held {
+		t.Errorf("a cancelled task is not a failure: %v", l.Rows[3].State)
+	}
+}

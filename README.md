@@ -75,10 +75,15 @@ the keys, `:` opens the command prompt, `q` quits.
   tokens, rooms, appservices, settings, tasks, services, federation, media,
   logs and abuse reports. Otherwise they show sample data, labelled as such.
 - **Actions:** `enter` on a row, or a `:` command, to manage users, devices,
-  tokens, rooms, media and reports, reload the config or back up. `s` sorts.
+  tokens, rooms, media and reports, block servers, quarantine media, purge old
+  history and media, reload the config, back up, or cancel a running task. `s`
+  sorts. See [docs/moderation.md](docs/moderation.md).
+  A deactivated account stays deactivated through a password reset; only
+  reactivating it (`:reactivate`, or `enter` on its row) lets it log in again.
 
 The same actions work as `!admin` commands in the admin room, for example
-`!admin users list` or `!admin rooms shutdown '#lobby:example.com'`;
+`!admin users list`, `!admin users reactivate bob` or
+`!admin rooms shutdown '#lobby:example.com'`;
 `!admin --help` lists them.
 
 See the [documentation](https://hilthontt.github.io/phantom/docs/navigation/).

@@ -66,6 +66,18 @@ type Model struct {
 
 	chatOpen bool
 
+	// room is the room inspector, shown in the workspace's place while
+	// roomOpen.
+	room     inspector.Room
+	roomOpen bool
+
+	// logTick numbers the follow timer's runs, so only the latest one asks
+	// for the log's new lines.
+	logTick int
+
+	// inputFor is what the line the input box asks for is for.
+	inputFor inputPurpose
+
 	help    modal.HelpModel
 	prompt  modal.PromptModel
 	confirm modal.ConfirmModel
@@ -122,6 +134,7 @@ func New(c *client.Client, store session.Store) Model {
 		summary:    summary.New(t),
 		connection: connection.New(t, g, state.Server()),
 		chat:       chat.New(t, g),
+		room:       inspector.NewRoom(t, g),
 
 		help:    modal.NewHelp(t, g, keys),
 		prompt:  modal.NewPrompt(t),

@@ -26,6 +26,22 @@ type KeyMap struct {
 	Compose key.Binding
 	Send    key.Binding
 
+	// The Logs section's own keys.
+	LogFollow key.Binding
+	LogPause  key.Binding
+	LogLevel  key.Binding
+	LogTarget key.Binding
+	LogSearch key.Binding
+	LogDebug  key.Binding
+
+	// Inspect opens the room inspector on a Rooms row, and Older loads the
+	// next page where a listing is read a page at a time.
+	Inspect  key.Binding
+	Older    key.Binding
+	NextView key.Binding
+	PrevView key.Binding
+	Expand   key.Binding
+
 	Filter key.Binding
 	Prompt key.Binding
 	Sort   key.Binding
@@ -60,6 +76,19 @@ func Default() KeyMap {
 
 		Compose: binding("write in the open room", "enter"),
 		Send:    binding("send what you wrote", "enter"),
+
+		LogFollow: binding("follow the log as it grows, or stop", "f"),
+		LogPause:  binding("pause or resume following", "p"),
+		LogLevel:  binding("step the lowest level shown", "v"),
+		LogTarget: binding("show one target module's lines", "t"),
+		LogSearch: binding("search the lines' text", "m"),
+		LogDebug:  binding("keep the server's debug lines, or stop", "d"),
+
+		Inspect:  binding("inspect the room under the cursor", "i"),
+		Older:    binding("load older events or audit records", "o"),
+		NextView: binding("the inspector's next view", "tab"),
+		PrevView: binding("the inspector's previous view", "shift+tab"),
+		Expand:   binding("show or hide the event's JSON", "enter", "space"),
 
 		Filter: binding("filter what is listed", "/"),
 		Prompt: binding("open the command prompt", ":"),
@@ -101,6 +130,9 @@ func (k KeyMap) Entries() []Entry {
 		k.NextPanel, k.PrevPanel, k.OpenPanel, k.ClosePanel, k.FocusNext, k.FocusPrev)...)
 	help = append(help, section("Rows", k.Mark, k.MarkAll, k.ClearMark, k.Open, k.Refresh)...)
 	help = append(help, section("Chat", k.Compose, k.Send, k.PageUp, k.PageDown, k.Cancel)...)
+	help = append(help, section("Logs", k.LogFollow, k.LogPause, k.LogLevel, k.LogTarget, k.LogSearch, k.LogDebug)...)
+	help = append(help, section("Room inspector",
+		k.Inspect, k.NextView, k.PrevView, k.Expand, k.Older, k.Refresh, k.Cancel)...)
 	help = append(help, section("Overlays", k.Filter, k.Prompt, k.Sort, k.Help, k.Cancel)...)
 	help = append(help, section("Session", k.Quit, k.ForceQuit)...)
 

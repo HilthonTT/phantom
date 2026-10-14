@@ -37,6 +37,11 @@ type Stats struct {
 	LastBackupMs    *int64 `json:"last_backup_ms"`
 	LastBackupBytes *int64 `json:"last_backup_bytes"`
 
+	// NextBackupMs is when the next scheduled backup is due, absent when
+	// backups are taken only by hand; BackupIntervalSecs is zero then.
+	NextBackupMs       *int64 `json:"next_backup_ms"`
+	BackupIntervalSecs int64  `json:"backup_interval_secs"`
+
 	Login []string `json:"login"`
 }
 
@@ -119,12 +124,22 @@ type Peer struct {
 	LastContactMs *int64  `json:"last_contact_ms"`
 	Resolved      *string `json:"resolved"`
 	Sending       int     `json:"sending"`
+	Blocked       bool    `json:"blocked"`
 
 	Backoff *struct {
 		Permanent bool  `json:"permanent"`
 		SinceMs   int64 `json:"since_ms"`
 		DelaySecs int64 `json:"delay_secs"`
 	} `json:"backoff"`
+
+	// The health of the link since the server started: events waiting to
+	// go, the last failure and its error, failures since the last answer,
+	// and the last transaction it sent us.
+	Queued              int     `json:"queued"`
+	LastFailureMs       *int64  `json:"last_failure_ms"`
+	LastError           *string `json:"last_error"`
+	ConsecutiveFailures int     `json:"consecutive_failures"`
+	LastInboundMs       *int64  `json:"last_inbound_ms"`
 }
 
 type StoredMedia struct {
@@ -135,9 +150,12 @@ type StoredMedia struct {
 	Thumbnails  int     `json:"thumbnails"`
 	Uploader    *string `json:"uploader"`
 	Local       bool    `json:"local"`
+	Quarantined bool    `json:"quarantined"`
 }
 
 type LogLine struct {
+	// Seq numbers the server's lines, so a follow asks for only newer ones.
+	Seq     int64  `json:"seq"`
 	AtMs    int64  `json:"at_ms"`
 	Level   string `json:"level"`
 	Target  string `json:"target"`

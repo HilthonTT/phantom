@@ -136,6 +136,13 @@ func (s State) Server() resource.Server {
 // Listing is the sample listing for section with what the server reported
 // written over it.
 func (s State) Listing(section resource.Section) resource.Listing {
+	if l, ok := s.consoleListing(section); ok {
+		if err := s.AdminErr(section); err != nil {
+			l.Note = "refresh failed: " + err.Error()
+		}
+		return l
+	}
+
 	if l, ok := s.Admin.listings[section]; ok {
 		if err := s.AdminErr(section); err != nil {
 			l.Note = "refresh failed: " + err.Error()
@@ -150,6 +157,7 @@ func (s State) Listing(section resource.Section) resource.Listing {
 		s.overview(&l)
 	case resource.API:
 		s.api(&l)
+		l.Note = s.sampleNote(section)
 	default:
 		l.Note = s.sampleNote(section)
 	}
@@ -162,6 +170,8 @@ func (s State) sampleNote(section resource.Section) string {
 	switch {
 	case !Served(section):
 		return "sample data"
+	case !s.Account.Admin && section == resource.API:
+		return "sample, kept by hand · sign in as an admin for the server's own"
 	case !s.Account.Admin:
 		return "sample · sign in as an admin"
 	case s.AdminErr(section) != nil:
@@ -266,7 +276,7 @@ var adminKeys = map[string]bool{
 	"Uptime": true, "Local users": true, "Rooms": true, "Database size": true,
 	"Appservices": true, "Registration": true, "Read-only mode": true, "Devices": true,
 	"Key backups": true, "Media store": true, "Open reports": true, "Backup": true,
-	"Login": true, "Services": true, "Federation": true,
+	"Login": true, "Services": true, "Federation": true, "API routes": true,
 }
 
 // unsourced are overview rows the server keeps nothing to answer, dropped
@@ -278,6 +288,9 @@ var unsourced = map[string]bool{"Events today": true}
 func (s State) adminOverview(live map[string]value) {
 	if d := s.Admin.Devices; d != nil {
 		live["Devices"] = value{fmt.Sprint(*d), resource.NoState}
+	}
+	if s.Admin.Routes != "" {
+		live["API routes"] = value{s.Admin.Routes, resource.NoState}
 	}
 
 	st := s.Admin.Stats
@@ -349,6 +362,13 @@ func (s State) adminOverview(live map[string]value) {
 		if time.Since(at) > 7*24*time.Hour {
 			backup.state = resource.Held
 		}
+	}
+	if st.NextBackupMs != nil {
+		next := time.UnixMilli(*st.NextBackupMs).Local().Format("2006-01-02 15:04")
+		if st.LastBackupMs == nil {
+			backup = value{"none yet", resource.NoState}
+		}
+		backup.text += "; next " + next
 	}
 	live["Backup"] = backup
 

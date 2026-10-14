@@ -43,6 +43,11 @@ func (m Model) fetchSection(section resource.Section) tea.Cmd {
 		return nil
 	}
 
+	// The log asks only for the lines after the newest it holds.
+	if section == resource.Logs {
+		return live.FetchLogs(m.client, m.live.Admin.Gen, m.live.Admin.Logs.Cursor())
+	}
+
 	return live.FetchAdmin(m.client, m.live.Admin.Gen, section)
 }
 
@@ -52,6 +57,12 @@ func (m Model) adminAnswered(msg live.AdminMsg) (tea.Model, tea.Cmd) {
 		m.workspace.SetSource(m.live.Listing)
 		if msg.Section == resource.Tasks && msg.Err == nil {
 			m.taskbar.SetTasks(m.live.Admin.Tasks)
+		}
+
+		// A followed log keeps the newest line under the cursor.
+		if msg.Section == resource.Logs && m.live.Admin.Logs.Polling() &&
+			m.workspace.Section() == resource.Logs {
+			m.workspace.Top()
 		}
 	}
 

@@ -104,32 +104,59 @@ func held(p client.Peer, now time.Time) bool {
 	return p.Backoff != nil && (p.Backoff.Permanent || retryAt(p).After(now))
 }
 
+// failingAfter is how many failures in a row turn a server answering now
+// and then from flaky to failing.
+const failingAfter = 5
+
+// PeerHealth is how talking to a server is going, in a word and a colour:
+// held back or failing in red and amber, answering in green.
+func PeerHealth(p client.Peer, now time.Time) (string, resource.State) {
+	switch {
+	case p.Backoff != nil && p.Backoff.Permanent:
+		return "unreachable", resource.Failed
+	case held(p, now):
+		return "backing off", resource.Held
+	case p.Backoff != nil:
+		return "retrying", resource.Held
+	case p.ConsecutiveFailures >= failingAfter:
+		return "failing", resource.Failed
+	case p.ConsecutiveFailures > 0:
+		return "flaky", resource.Held
+	case p.LastContactMs != nil:
+		return "reachable", resource.Done
+	case p.LastInboundMs != nil:
+		return "inbound only", resource.Done
+	default:
+		return "not contacted", resource.NoState
+	}
+}
+
+// peerRank sorts servers held back first, then those failing, then the
+// rest.
+func peerRank(p client.Peer) int {
+	switch {
+	case p.Backoff != nil:
+		return 0
+	case p.ConsecutiveFailures > 0:
+		return 1
+	default:
+		return 2
+	}
+}
+
 // Federation lists the servers this one shares rooms with, those held back
-// after failures first, then by last contact.
+// after failures first, then those failing, then by last contact.
 func Federation(peers []client.Peer, now time.Time) resource.Listing {
 	slices.SortStableFunc(peers, func(a, b client.Peer) int {
-		if (a.Backoff != nil) != (b.Backoff != nil) {
-			if a.Backoff != nil {
-				return -1
-			}
-			return 1
+		if c := cmp.Compare(peerRank(a), peerRank(b)); c != 0 {
+			return c
 		}
 		return cmp.Compare(ms(b.LastContactMs), ms(a.LastContactMs))
 	})
 
 	rows := make([]resource.Row, 0, len(peers))
 	for _, p := range peers {
-		status, state := "not contacted", resource.NoState
-		switch {
-		case p.Backoff != nil && p.Backoff.Permanent:
-			status, state = "unreachable", resource.Failed
-		case held(p, now):
-			status, state = "backing off", resource.Held
-		case p.Backoff != nil:
-			status, state = "retrying", resource.Held
-		case p.LastContactMs != nil:
-			status, state = "reachable", resource.Done
-		}
+		status, state := PeerHealth(p, now)
 
 		backoff := "—"
 		if p.Backoff != nil {
@@ -144,10 +171,20 @@ func Federation(peers []client.Peer, now time.Time) resource.Listing {
 			}
 		}
 
+		blocked := ""
+		if p.Blocked {
+			blocked = "blocked"
+		}
+
+		lastError := or(p.LastError, "—")
+		if p.LastFailureMs != nil {
+			lastError = ago(p.LastFailureMs, now) + ": " + lastError
+		}
+
 		rows = append(rows, resource.Row{
-			Cells:    []string{p.Server, status, fmt.Sprint(p.Rooms), ago(p.LastContactMs, now)},
-			Ref:      []string{p.Server},
-			SortKeys: map[int]string{3: fmt.Sprint(ms(p.LastContactMs))},
+			Cells:    []string{p.Server, status, fmt.Sprint(p.Queued), fmt.Sprint(p.Rooms), ago(p.LastContactMs, now), yesNo(p.Blocked)},
+			Ref:      []string{p.Server, blocked},
+			SortKeys: map[int]string{2: fmt.Sprintf("%09d", p.Queued), 3: fmt.Sprintf("%09d", p.Rooms), 4: fmt.Sprint(ms(p.LastContactMs))},
 			State:    state,
 			Detail: []resource.Field{
 				{Label: "Server", Value: p.Server},
@@ -157,6 +194,11 @@ func Federation(peers []client.Peer, now time.Time) resource.Listing {
 				{Label: "Backoff", Value: backoff, Emphasis: flag(p.Backoff != nil, state)},
 				{Label: "Resolved to", Value: or(p.Resolved, "not cached")},
 				{Label: "Sending", Value: fmt.Sprintf("%d in flight", p.Sending)},
+				{Label: "Queued", Value: fmt.Sprintf("%d waiting", p.Queued), Emphasis: flag(p.Queued > 0, resource.Held)},
+				{Label: "Last error", Value: lastError, Emphasis: flag(p.LastError != nil, state)},
+				{Label: "Failing for", Value: failures(p.ConsecutiveFailures), Emphasis: flag(p.ConsecutiveFailures > 0, state)},
+				{Label: "Last inbound", Value: when(p.LastInboundMs, now) + " (since startup)"},
+				{Label: "Blocked", Value: yesNo(p.Blocked), Emphasis: flag(p.Blocked, resource.Failed)},
 				{Label: "Source", Value: Source},
 			},
 		})
@@ -166,11 +208,24 @@ func Federation(peers []client.Peer, now time.Time) resource.Listing {
 		Sort: "failing first, then last contact",
 		Columns: []resource.Column{
 			{Title: "Server", Flex: true},
-			{Title: "Status", Width: 13},
+			{Title: "Health", Width: 13},
+			{Title: "Queue", Width: 6, Right: true},
 			{Title: "Rooms", Width: 7, Right: true},
 			{Title: "Last contact", Width: 14, Right: true},
+			{Title: "Blocked", Width: 8},
 		},
 		Rows: rows,
+	}
+}
+
+func failures(n int) string {
+	switch n {
+	case 0:
+		return "—"
+	case 1:
+		return "1 request in a row"
+	default:
+		return fmt.Sprintf("%d requests in a row", n)
 	}
 }
 
@@ -190,10 +245,16 @@ func Media(media []client.StoredMedia, now time.Time) resource.Listing {
 			origin = "remote copy"
 		}
 
+		quarantined, state := "", resource.NoState
+		if m.Quarantined {
+			quarantined, state = "quarantined", resource.Held
+		}
+
 		created := m.CreatedAtMs
 		rows = append(rows, resource.Row{
-			Cells:    []string{id, Bytes(m.Size), or(m.ContentType, "—"), localpartOr(m.Uploader)},
-			Ref:      []string{m.MXC},
+			Cells:    []string{id, Bytes(m.Size), or(m.ContentType, "—"), localpartOr(m.Uploader), yesNo(m.Quarantined)},
+			Ref:      []string{m.MXC, quarantined},
+			State:    state,
 			SortKeys: map[int]string{1: fmt.Sprint(m.Size)},
 			Detail: []resource.Field{
 				{Label: "Media", Value: m.MXC},
@@ -203,6 +264,7 @@ func Media(media []client.StoredMedia, now time.Time) resource.Listing {
 				{Label: "Stored", Value: when(&created, now)},
 				{Label: "Origin", Value: origin},
 				{Label: "Thumbnails", Value: fmt.Sprint(m.Thumbnails)},
+				{Label: "Quarantined", Value: yesNo(m.Quarantined), Emphasis: flag(m.Quarantined, resource.Held)},
 				{Label: "Source", Value: Source},
 			},
 		})
@@ -215,6 +277,7 @@ func Media(media []client.StoredMedia, now time.Time) resource.Listing {
 			{Title: "Size", Width: 10, Right: true},
 			{Title: "Type", Width: 18},
 			{Title: "Uploader", Width: 12},
+			{Title: "Quarantined", Width: 12},
 		},
 		Rows: rows,
 	}
@@ -230,6 +293,8 @@ func Logs(lines []client.LogLine, now time.Time) resource.Listing {
 			state = resource.Failed
 		case "WARN":
 			state = resource.Held
+		case "DEBUG", "TRACE":
+			state = resource.Running
 		}
 
 		at := l.AtMs
@@ -238,6 +303,7 @@ func Logs(lines []client.LogLine, now time.Time) resource.Listing {
 
 		rows = append(rows, resource.Row{
 			Cells:    []string{stamp.Format("15:04:05"), l.Level, target, l.Message},
+			Ref:      []string{fmt.Sprint(l.Seq)},
 			SortKeys: map[int]string{0: fmt.Sprint(at)},
 			State:    state,
 			Detail: []resource.Field{

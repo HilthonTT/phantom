@@ -24,6 +24,13 @@ func (c *Client) SetPassword(ctx context.Context, userID, password string, logou
 		map[string]any{"password": password, "logout_devices": logout}, nil)
 }
 
+// Reactivate lifts a deactivation, giving the account a new password; the
+// rooms, profile and admin rights deactivation took stay gone.
+func (c *Client) Reactivate(ctx context.Context, userID, password string) error {
+	return c.adminDo(ctx, http.MethodPost, "/users/"+url.PathEscape(userID)+"/reactivate",
+		map[string]string{"password": password}, nil)
+}
+
 func (c *Client) GrantAdmin(ctx context.Context, userID string) error {
 	return c.adminDo(ctx, http.MethodPut, "/users/"+url.PathEscape(userID)+"/admin", nil, nil)
 }
@@ -95,10 +102,25 @@ type AdminTask struct {
 	Status      string  `json:"status"`
 	UpdatedAtMs int64   `json:"updated_at_ms"`
 	Error       *string `json:"error"`
+
+	// Cancellable is whether the task can still be asked to stop, and
+	// CancelRequested whether it has been and is yet to reach a point where
+	// it can.
+	Cancellable     bool `json:"cancellable"`
+	CancelRequested bool `json:"cancel_requested"`
 }
 
 func (c *Client) Tasks(ctx context.Context) ([]AdminTask, error) {
 	return adminGet[[]AdminTask](ctx, c, "/tasks")
+}
+
+// CancelTask asks a running task to stop, answering with the task as it is
+// now: cancelled, or still running until it reaches a point it can stop at.
+func (c *Client) CancelTask(ctx context.Context, id string) (AdminTask, error) {
+	var task AdminTask
+	err := c.adminDo(ctx, http.MethodPost, "/tasks/"+url.PathEscape(id)+"/cancel", nil, &task)
+
+	return task, err
 }
 
 // ResolveAlias finds the room an alias points at.

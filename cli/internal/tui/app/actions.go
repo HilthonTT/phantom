@@ -48,10 +48,12 @@ func (m Model) begin(a live.Action) (tea.Model, tea.Cmd) {
 	m.acting = a
 
 	if a.NeedsInput() {
-		m.modal = modal.Input
+		m.modal, m.inputFor = modal.Input, inputAction
 		switch a.Kind {
 		case live.SetPassword:
 			return m, m.input.Open("New password for "+a.Target, "", "the account's devices are signed out", true)
+		case live.ReactivateUser:
+			return m, m.input.Open("New password for "+a.Target, "", "the account can log in with it", true)
 		default:
 			return m, m.input.Open("New registration token", "uses days token",
 				"all optional: max uses, days valid, the token itself", false)
@@ -63,6 +65,10 @@ func (m Model) begin(a live.Action) (tea.Model, tea.Cmd) {
 
 func (m Model) confirmAct(a live.Action) (tea.Model, tea.Cmd) {
 	m.acting = a
+
+	if name := a.TypeToConfirm(); name != "" {
+		return m.confirmByName(a, name)
+	}
 
 	title, body := a.Confirm()
 	if title == "" {
@@ -79,8 +85,15 @@ func (m Model) inputGiven() (tea.Model, tea.Cmd) {
 	a, value := m.acting, strings.TrimSpace(m.input.Value())
 	m = m.closeModal()
 
+	switch m.inputFor {
+	case inputLogTarget, inputLogSearch:
+		return m.logInputGiven(m.inputFor, value), nil
+	case inputConfirmName:
+		return m.nameGiven(value)
+	}
+
 	switch a.Kind {
-	case live.SetPassword:
+	case live.SetPassword, live.ReactivateUser:
 		if value == "" {
 			m.notify("No password given", "The password was left as it was.", true)
 			return m, nil
@@ -123,6 +136,26 @@ func tokenArgs(a live.Action, args []string) (live.Action, error) {
 	return a, nil
 }
 
+// purgeArgs reads a purge's target and its age in days: a room for
+// :purgehistory, "remote" or "local" for :cleanmedia.
+func purgeArgs(word, target, days string) (live.Action, error) {
+	a := live.Action{Kind: live.PurgeHistory, Target: target}
+	if word == "cleanmedia" {
+		a.Kind = live.PurgeOldMedia
+		if target != "remote" && target != "local" {
+			return a, errMediaOrigin
+		}
+	}
+
+	n, err := strconv.ParseInt(days, 10, 64)
+	if err != nil || n < 1 {
+		return a, errPurgeDays
+	}
+	a.Days = n
+
+	return a, nil
+}
+
 type argError string
 
 func (e argError) Error() string { return string(e) }
@@ -130,6 +163,9 @@ func (e argError) Error() string { return string(e) }
 const (
 	errNegative  argError = "uses and days cannot be negative"
 	errTokenArgs argError = "give at most: uses, days, and the token"
+
+	errPurgeDays   argError = "give how many days old, at least one, after what to purge"
+	errMediaOrigin argError = "say which media: remote or local"
 )
 
 func (m Model) act(a live.Action) (tea.Model, tea.Cmd) {
@@ -145,7 +181,7 @@ func (m Model) acted(msg live.ActedMsg) (tea.Model, tea.Cmd) {
 
 	m.notify(msg.Action.Label(), msg.Done, false)
 
-	cmds := []tea.Cmd{m.fetchSection(resource.Tasks)}
+	cmds := []tea.Cmd{m.fetchSection(resource.Tasks), m.fetchSection(resource.Audit)}
 	for _, s := range msg.Action.Refreshes() {
 		cmds = append(cmds, m.fetchSection(s))
 	}
@@ -177,12 +213,20 @@ func (m Model) adminCommand(word string, args []string) (tea.Model, tea.Cmd) {
 	switch word {
 	case "user", "room":
 		return m.openRecord(word, arg(0))
+	case "inspect":
+		if arg(0) == "" {
+			m.notify("Missing argument", ":inspect needs a room's ID, name or alias.", true)
+			return m, nil
+		}
+		return m.inspectNamed(arg(0))
 	case "passwd":
 		a = live.Action{Kind: live.SetPassword, Target: m.userID(arg(0))}
 	case "admin":
 		a = live.Action{Kind: live.GrantAdmin, Target: m.userID(arg(0))}
 	case "unadmin":
 		a = live.Action{Kind: live.RevokeAdmin, Target: m.userID(arg(0))}
+	case "reactivate":
+		a = live.Action{Kind: live.ReactivateUser, Target: m.userID(arg(0))}
 	case "deactivate":
 		a = live.Action{Kind: live.DeactivateUser, Target: m.userID(arg(0))}
 		if arg(1) == "erase" {
@@ -211,6 +255,22 @@ func (m Model) adminCommand(word string, args []string) (tea.Model, tea.Cmd) {
 		a = live.Action{Kind: live.PurgeRemoteMedia, Target: arg(0)}
 	case "dismiss":
 		a = live.Action{Kind: live.DismissReport, Target: arg(0)}
+	case "block":
+		a = live.Action{Kind: live.BlockServer, Target: arg(0)}
+	case "unblock":
+		a = live.Action{Kind: live.UnblockServer, Target: arg(0)}
+	case "quarantine":
+		a = live.Action{Kind: live.QuarantineMedia, Target: arg(0)}
+	case "unquarantine":
+		a = live.Action{Kind: live.UnquarantineMedia, Target: arg(0)}
+	case "purgehistory", "cleanmedia":
+		var err error
+		if a, err = purgeArgs(word, arg(0), arg(1)); err != nil {
+			m.notify("Not a purge", err.Error(), true)
+			return m, nil
+		}
+	case "cancel":
+		a = live.Action{Kind: live.CancelTask, Target: arg(0)}
 	case "reload":
 		a = live.Action{Kind: live.ReloadConfig}
 	case "backup":
@@ -264,7 +324,7 @@ func (m Model) openRecord(kind, name string) (tea.Model, tea.Cmd) {
 		name = m.userID(name)
 	}
 
-	m.chatOpen, m.focus = false, focusWorkspace
+	m.chatOpen, m.roomOpen, m.focus = false, false, focusWorkspace
 	m.workspace.Open(section)
 
 	found := m.workspace.Select(func(r resource.Row) bool {

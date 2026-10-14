@@ -9,6 +9,7 @@ import (
 	"github.com/HilthonTT/phantom/cli/internal/tui/inspector"
 	"github.com/HilthonTT/phantom/cli/internal/tui/modal"
 	"github.com/HilthonTT/phantom/cli/internal/tui/panel"
+	"github.com/HilthonTT/phantom/cli/internal/tui/resource"
 )
 
 func (m Model) View() tea.View {
@@ -56,6 +57,16 @@ func (m Model) renderMain() string {
 		return lipgloss.JoinHorizontal(lipgloss.Top, panels...)
 	}
 
+	if m.roomOpen {
+		panels = append(panels, m.room.Render(m.focus == focusWorkspace))
+		if m.showInspector() {
+			row, ok := m.room.Selected()
+			panels = append(panels, m.inspector.Render(resource.Rooms, row, ok))
+		}
+
+		return lipgloss.JoinHorizontal(lipgloss.Top, panels...)
+	}
+
 	panels = append(panels, m.workspace.Render(m.focus == focusWorkspace))
 
 	if m.showInspector() {
@@ -68,8 +79,11 @@ func (m Model) renderMain() string {
 
 func (m Model) renderFooter() string {
 	row, ok := m.workspace.Selected()
-	if m.chatOpen {
+	switch {
+	case m.chatOpen:
 		row, ok = m.chat.Summary()
+	case m.roomOpen:
+		row, ok = m.room.Selected()
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top,

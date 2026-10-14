@@ -42,6 +42,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case live.ActedMsg:
 		return m.acted(msg)
 
+	case live.LogTickMsg:
+		return m.logTicked(msg)
+
+	case live.LogCaptureMsg:
+		return m.logCaptured(msg)
+
+	case live.RoomMsg:
+		return m.roomAnswered(msg)
+
 	case live.SyncedMsg:
 		return m.synced(msg)
 
@@ -264,6 +273,9 @@ func (m Model) handlePanelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.chatOpen {
 			return m.handleChatKey(msg)
 		}
+		if m.roomOpen {
+			return m.handleRoomKey(msg)
+		}
 		return m.handleWorkspaceKey(msg)
 	default:
 		return m.handleTaskbarKey(msg), nil
@@ -280,7 +292,7 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) Model {
 
 	case key.Matches(msg, m.keys.Open):
 		if section, ok := m.sidebar.Selected(); ok {
-			m.chatOpen = section == resource.Chat
+			m.chatOpen, m.roomOpen = section == resource.Chat, false
 			if !m.chatOpen {
 				m.workspace.Open(section)
 			}
@@ -289,7 +301,7 @@ func (m Model) handleSidebarKey(msg tea.KeyPressMsg) Model {
 
 	case key.Matches(msg, m.keys.OpenPanel):
 		if section, ok := m.sidebar.Selected(); ok {
-			m.chatOpen = section == resource.Chat
+			m.chatOpen, m.roomOpen = section == resource.Chat, false
 			if !m.chatOpen {
 				m.workspace.OpenTab(section)
 			}
@@ -348,6 +360,10 @@ func (m Model) handleComposeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleWorkspaceKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if handled, model, cmd := m.handleSectionKey(msg); handled {
+		return model, cmd
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Open):
 		return m.openActions()

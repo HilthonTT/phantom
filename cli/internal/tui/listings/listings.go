@@ -295,9 +295,14 @@ func Tasks(tasks []client.AdminTask, now time.Time) resource.Listing {
 		at := t.UpdatedAtMs
 		name := taskName(t)
 
+		cancellable := ""
+		if t.Cancellable && !t.CancelRequested {
+			cancellable = "cancellable"
+		}
+
 		rows = append(rows, resource.Row{
 			Cells:    []string{name, t.Status, ago(&at, now)},
-			Ref:      []string{t.ID},
+			Ref:      []string{t.ID, cancellable},
 			SortKeys: map[int]string{2: fmt.Sprint(t.UpdatedAtMs)},
 			State:    state,
 			Detail: []resource.Field{
@@ -306,7 +311,7 @@ func Tasks(tasks []client.AdminTask, now time.Time) resource.Listing {
 				{Label: "State", Value: t.Status, Emphasis: state},
 				{Label: "Updated", Value: when(&at, now)},
 				{Label: "Error", Value: or(t.Error, "—"), Emphasis: flag(t.Error != nil, resource.Failed)},
-				{Label: "Cancellable", Value: "no; phantom cannot stop a task once started"},
+				{Label: "Cancellable", Value: taskCancellable(t)},
 				{Label: "Source", Value: Source},
 			},
 		})
@@ -372,7 +377,21 @@ func taskState(status string) resource.State {
 	case "failed":
 		return resource.Failed
 	default:
+		// Scheduled, and cancelled: neither running nor a failure.
 		return resource.Held
+	}
+}
+
+func taskCancellable(t client.AdminTask) string {
+	switch {
+	case t.CancelRequested:
+		return "cancel requested; it stops at its next safe point"
+	case t.Cancellable:
+		return "yes"
+	case t.Status == "active" || t.Status == "scheduled":
+		return "no; this kind of task cannot be stopped once started"
+	default:
+		return "no; it has finished"
 	}
 }
 

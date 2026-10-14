@@ -25,6 +25,7 @@ func TestActionsUseTheirMethodsAndPaths(t *testing.T) {
 
 	_ = c.Deactivate(ctx, "@bob:test", true)
 	_ = c.SetPassword(ctx, "@bob:test", "pw", true)
+	_ = c.Reactivate(ctx, "@bob:test", "pw")
 	_ = c.RevokeAdmin(ctx, "@bob:test")
 	_ = c.DeleteDevice(ctx, "@bob:test", "DEV")
 	_ = c.BanRoom(ctx, "!r:test", false)
@@ -34,6 +35,7 @@ func TestActionsUseTheirMethodsAndPaths(t *testing.T) {
 	want := []call{
 		{"POST", "/_phantom/admin/v1/users/@bob:test/deactivate", `{"erase":true}`},
 		{"PUT", "/_phantom/admin/v1/users/@bob:test/password", `{"logout_devices":true,"password":"pw"}`},
+		{"POST", "/_phantom/admin/v1/users/@bob:test/reactivate", `{"password":"pw"}`},
 		{"DELETE", "/_phantom/admin/v1/users/@bob:test/admin", `null`},
 		{"DELETE", "/_phantom/admin/v1/devices/@bob:test/DEV", `null`},
 		{"DELETE", "/_phantom/admin/v1/rooms/%21r:test/ban", `null`},

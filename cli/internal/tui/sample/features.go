@@ -75,7 +75,7 @@ var endpoints = []endpoint{
 	{group: "client", module: "media_legacy", routes: 5, covers: "the deprecated unauthenticated media endpoints"},
 	{group: "client", module: "phantom", routes: 2, covers: "server version and local user count"},
 
-	{group: "federation", module: "server", routes: 31, covers: "the server-server API"},
+	{group: "federation", module: "server", routes: 33, covers: "the server-server API, third-party invite exchange included"},
 	{group: "oidc", module: "oidc", routes: 20, covers: "the built-in OIDC provider (MSC3861)"},
 }
 

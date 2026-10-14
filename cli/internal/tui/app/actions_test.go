@@ -116,3 +116,14 @@ func TestTokenArgs(t *testing.T) {
 		t.Error("two tokens accepted")
 	}
 }
+
+func TestReactivateAsksForAPassword(t *testing.T) {
+	m := withUsers(t)
+
+	next, _ := m.runCommand("reactivate bob")
+	m = next.(Model)
+	if m.modal != modal.Input || m.acting.Kind != live.ReactivateUser || m.acting.Target != "@bob:test" {
+		t.Errorf("modal = %d action %v target %q, want the password input for @bob:test",
+			m.modal, m.acting.Kind, m.acting.Target)
+	}
+}

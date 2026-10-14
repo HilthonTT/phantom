@@ -18,6 +18,7 @@ const (
 	Logs
 	Settings
 	Chat
+	Audit
 )
 
 type Group int
@@ -60,6 +61,8 @@ func (s Section) String() string {
 		return "Settings"
 	case Chat:
 		return "Chat"
+	case Audit:
+		return "Audit"
 	default:
 		return "Unknown"
 	}
@@ -93,7 +96,7 @@ func Sections() []Section {
 	return []Section{
 		Chat,
 		Overview, Services, API, Rooms, Users, Devices, Tokens, Federation, Appservices, Media,
-		Tasks, Reports, Logs, Settings,
+		Tasks, Reports, Logs, Audit, Settings,
 	}
 }
 

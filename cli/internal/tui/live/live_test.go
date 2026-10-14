@@ -155,6 +155,22 @@ func TestTheAdminStatsFillTheRestOfTheOverview(t *testing.T) {
 	}
 }
 
+func TestTheOverviewShowsTheNextScheduledBackup(t *testing.T) {
+	s := state(t).Apply(ProbedMsg{Status: up})
+	s, gen := s.StartAdmin()
+	next := time.Now().Add(time.Hour)
+	nextMs := next.UnixMilli()
+
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Overview, Stats: &client.Stats{
+		NextBackupMs: &nextMs, BackupIntervalSecs: 86400,
+	}})
+
+	want := "none yet; next " + next.Local().Format("2006-01-02 15:04")
+	if got := cell(t, s.Listing(resource.Overview), "Backup").Cells[1]; got != want {
+		t.Errorf("Backup = %q, want %q", got, want)
+	}
+}
+
 func TestTheOverviewCountsTheServersFederatedWith(t *testing.T) {
 	s := state(t).Apply(ProbedMsg{Status: up})
 	s, gen := s.StartAdmin()
