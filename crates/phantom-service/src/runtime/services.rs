@@ -18,9 +18,9 @@ use crate::{
     accounts::profile, accounts::pusher, accounts::sync, accounts::transaction_id, accounts::users,
     auth::oauth, auth::registration_tokens, auth::rendezvous, auth::threepid, auth::uiaa, media,
     net::client, net::federation, net::fetcher, net::resolver, net::sending, net::sendmail,
-    net::server_keys, net::sms, ops::admin, ops::appservice, ops::config, ops::emergency,
-    ops::logs, ops::moderation, ops::reports, ops::server_state, ops::storage, ops::tasks,
-    ops::updates, rooms,
+    net::server_keys, net::sms, ops::admin, ops::appservice, ops::backups, ops::config,
+    ops::emergency, ops::logs, ops::moderation, ops::reports, ops::server_state, ops::storage,
+    ops::tasks, ops::updates, rooms,
 };
 
 pub struct Services {
@@ -38,6 +38,7 @@ pub struct Services {
     pub server_state: Arc<server_state::Service>,
     pub sync: Arc<sync::Service>,
     pub tasks: Arc<tasks::Service>,
+    pub backups: Arc<backups::Service>,
     pub transaction_id: Arc<transaction_id::Service>,
     pub uiaa: Arc<uiaa::Service>,
     pub account_data: Arc<account_data::Service>,
@@ -139,6 +140,7 @@ impl Services {
             server_state: build!(server_state::Service),
             sync: build!(sync::Service),
             tasks: build!(tasks::Service),
+            backups: build!(backups::Service),
             transaction_id: build!(transaction_id::Service),
             uiaa: build!(uiaa::Service),
             account_data: build!(account_data::Service),

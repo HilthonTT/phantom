@@ -190,6 +190,8 @@ Currently built, outside the room tree:
 | `updates` | the announcement feed, and which announcements have been surfaced |
 | `emergency` | the emergency password and what turning it on does |
 | `admin` | the admin room, who counts as an admin, and the command queue |
+| `tasks` | the admin's long-running operations, and asking one to stop |
+| `backups` | database backups, taken by hand or on a schedule |
 
 `media/` is a domain of one: uploaded and cached files, their metadata, their
 thumbnails and the fetch from the server that holds them.

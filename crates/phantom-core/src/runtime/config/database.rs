@@ -10,6 +10,15 @@ pub struct Database {
     #[serde(default = "default_database_backups_to_keep")]
     pub database_backups_to_keep: i16,
 
+    /// Back the database up into `database_backup_path` this often, in
+    /// seconds; 0 takes backups only when an admin asks for one. The newest
+    /// `database_backups_to_keep` are kept and older ones pruned. The interval
+    /// counts from the newest backup, so a restart does not reset it.
+    ///
+    /// default: 0
+    #[serde(default)]
+    pub database_backup_interval_s: u64,
+
     /// Apply pending database migrations on startup. Setting this to false
     /// leaves the schema version untouched and skips every migration step;
     /// it is intended for developer debugging only and may cause data loss.

@@ -4,7 +4,6 @@ use axum::{Json, extract::State, response::IntoResponse};
 use futures::StreamExt;
 use phantom_core::{Result, diagnostics::info, stream::ReadyExt, warn};
 use serde::Serialize;
-use tokio::task::spawn_blocking;
 
 use crate::router::{AdminAuth, State as RouterState};
 
@@ -47,6 +46,11 @@ pub(super) struct Stats {
     /// The newest database backup, when backups are on and one was made.
     last_backup_ms: Option<u64>,
     last_backup_bytes: Option<u64>,
+
+    /// When the next scheduled backup is due, and how far apart they are;
+    /// none and zero when backups are only taken by hand.
+    next_backup_ms: Option<u64>,
+    backup_interval_secs: u64,
 
     /// The ways an account can sign in.
     login: Vec<&'static str>,
@@ -93,11 +97,10 @@ pub(super) async fn stats(
     let media = services.media.list().await;
 
     // An unreadable backup directory leaves the backup out, not the page.
-    let db = services.db.clone();
-    let last_backup = spawn_blocking(move || db.engine.last_backup())
+    let last_backup = services
+        .backups
+        .last_backup()
         .await
-        .map_err(Into::into)
-        .and_then(|result| result)
         .inspect_err(|e| warn!("Reading the last database backup failed: {e}"))
         .ok()
         .flatten();
@@ -138,9 +141,10 @@ pub(super) async fn stats(
         media_files: media.len(),
         media_bytes: media.iter().map(|media| media.meta.size).sum(),
         open_reports: services.reports.list().await.len(),
-        last_backup_ms: last_backup
-            .map(|(secs, _)| u64::try_from(secs).unwrap_or_default().saturating_mul(1000)),
+        last_backup_ms: last_backup.map(|(ms, _)| ms),
         last_backup_bytes: last_backup.map(|(_, size)| size),
+        next_backup_ms: services.backups.next_backup_ms(),
+        backup_interval_secs: config.database.database_backup_interval_s,
         login,
     }))
 }

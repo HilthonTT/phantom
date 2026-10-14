@@ -1,3 +1,19 @@
+//! The admin's long-running operations: room shutdowns and deletions,
+//! backups, purges. Each runs as its own tokio task, tracked here so the admin
+//! API can list it, and an admin can ask for it to stop.
+//!
+//! How a task stops depends on how it was spawned, because not every task
+//! can be dropped half way safely:
+//!
+//! - [`spawn`](Service::spawn): dropped at its next await point, the same
+//!   thing shutdown already does to every task.
+//! - [`spawn_cancellable`](Service::spawn_cancellable): handed a
+//!   [`CancelToken`] it checks between steps it can stop between, so it ends
+//!   at a point it chose.
+//! - [`spawn_uncancellable`](Service::spawn_uncancellable): refuses, for work
+//!   that would carry on regardless, such as a backup running on a blocking
+//!   thread that nothing can interrupt.
+
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex as StdMutex},
@@ -7,10 +23,10 @@ use std::{
 use arrayvec::ArrayString;
 use async_trait::async_trait;
 use phantom_core::{
-    Result, implement, rand::string_array, runtime::server::Server, time::now_millis,
+    Err, Result, err, implement, rand::string_array, runtime::server::Server, time::now_millis,
 };
 use serde_json::Value as JsonValue;
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{sync::watch, task::JoinHandle, time::sleep};
 
 const TASK_ID_LEN: usize = 16;
 
@@ -20,7 +36,7 @@ const CAPACITY: usize = 1024;
 
 const GC_INTERVAL: Duration = Duration::from_hours(1);
 
-type TaskId = ArrayString<TASK_ID_LEN>;
+pub type TaskId = ArrayString<TASK_ID_LEN>;
 
 pub struct Service {
     services: Services,
@@ -37,7 +53,26 @@ pub enum Status {
     Active,
     Complete,
     Failed,
+    Cancelled,
 }
+
+/// How a task answers a request to cancel it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Cancel {
+    /// Dropped at its next await point.
+    Abort,
+
+    /// Told through its [`CancelToken`]; it stops at the next point it checks.
+    Cooperative,
+
+    /// Cannot be stopped once started.
+    Never,
+}
+
+/// Tells a cooperative task it has been asked to stop. The task checks it at
+/// the points it can stop at without leaving a half-done step behind.
+#[derive(Clone, Debug)]
+pub struct CancelToken(Arc<watch::Sender<bool>>);
 
 /// A tracked task's public snapshot, cloned out from under the lock.
 #[derive(Clone, Debug)]
@@ -49,6 +84,10 @@ pub struct TaskInfo {
     pub timestamp_ms: u64,
     pub result: Option<JsonValue>,
     pub error: Option<String>,
+    pub cancel: Cancel,
+
+    /// An admin asked for the task to stop, and it has not finished since.
+    pub cancel_requested: bool,
 }
 
 struct Task {
@@ -62,6 +101,8 @@ struct Task {
     result: Option<JsonValue>,
     error: Option<String>,
     handle: Option<JoinHandle<()>>,
+    cancel: Cancel,
+    token: CancelToken,
 }
 
 #[async_trait]
@@ -98,22 +139,83 @@ impl crate::Service for Service {
 /// Spawn `work` on the runtime as a tracked task, returning its id. The record
 /// transitions Scheduled -> Active -> Complete/Failed; `work`'s `Ok` value is
 /// stored as the result, its `Err` as the error string.
+///
+/// Cancelling it drops `work` at its next await point, so whatever it had
+/// done by then stays done; spawn work that cannot stop just anywhere with
+/// [`spawn_cancellable`](Self::spawn_cancellable) instead.
 #[implement(Service)]
 pub fn spawn<F>(self: &Arc<Self>, action: &'static str, resource_id: String, work: F) -> TaskId
 where
     F: Future<Output = Result<JsonValue>> + Send + 'static,
 {
+    self.spawn_with(action, resource_id, Cancel::Abort, |_| work)
+}
+
+/// Spawn a tracked task that stops itself when cancelled: `work` is given a
+/// [`CancelToken`] and is expected to check it between steps. A task that
+/// returns an error after it was cancelled is recorded as cancelled; one that
+/// finishes regardless is recorded as complete.
+#[implement(Service)]
+pub fn spawn_cancellable<F, W>(
+    self: &Arc<Self>,
+    action: &'static str,
+    resource_id: String,
+    work: W,
+) -> TaskId
+where
+    W: FnOnce(CancelToken) -> F,
+    F: Future<Output = Result<JsonValue>> + Send + 'static,
+{
+    self.spawn_with(action, resource_id, Cancel::Cooperative, work)
+}
+
+/// Spawn a tracked task that refuses to be cancelled.
+#[implement(Service)]
+pub fn spawn_uncancellable<F>(
+    self: &Arc<Self>,
+    action: &'static str,
+    resource_id: String,
+    work: F,
+) -> TaskId
+where
+    F: Future<Output = Result<JsonValue>> + Send + 'static,
+{
+    self.spawn_with(action, resource_id, Cancel::Never, |_| work)
+}
+
+#[implement(Service)]
+fn spawn_with<F, W>(
+    self: &Arc<Self>,
+    action: &'static str,
+    resource_id: String,
+    cancel: Cancel,
+    work: W,
+) -> TaskId
+where
+    W: FnOnce(CancelToken) -> F,
+    F: Future<Output = Result<JsonValue>> + Send + 'static,
+{
     let id = string_array::<TASK_ID_LEN>();
+    let token = CancelToken::new();
+    let work = work(token.clone());
 
     // Hold the lock across the spawn+insert so the task cannot mark itself
     // Active before its record exists.
     let mut tasks = self.tasks.lock().expect("locked");
     let this = Arc::clone(self);
     let task_id = id;
+    let task_token = token.clone();
     let handle = self.services.server.runtime().spawn(async move {
         this.set_active(&task_id);
-        let outcome = work.await;
-        this.finish(&task_id, outcome);
+        let outcome = match cancel {
+            Cancel::Abort => tokio::select! {
+                biased;
+                () = task_token.cancelled() => Err(cancelled()),
+                outcome = work => outcome,
+            },
+            Cancel::Cooperative | Cancel::Never => work.await,
+        };
+        this.finish(&task_id, outcome, task_token.is_cancelled());
     });
 
     tasks.insert(
@@ -126,10 +228,38 @@ where
             result: None,
             error: None,
             handle: Some(handle),
+            cancel,
+            token,
         },
     );
 
     id
+}
+
+/// Ask the task with this id to stop, answering with its record as it is
+/// now. A cooperative task may take until its next check to stop, so the
+/// record can still say active, with `cancel_requested` set.
+#[implement(Service)]
+pub fn cancel(&self, id: &str) -> Result<TaskInfo> {
+    let tasks = self.tasks.lock().expect("locked");
+    let Some((id, task)) = tasks.get_key_value(id) else {
+        return Err!(Request(NotFound("No task has the ID {id}.")));
+    };
+
+    if task.status.is_terminal() {
+        return Err!(Conflict("The task has already finished."));
+    }
+
+    if task.cancel == Cancel::Never {
+        return Err!(Conflict(
+            "A {} cannot be stopped once started.",
+            task.action
+        ));
+    }
+
+    task.token.cancel();
+
+    Ok(task.info(id))
 }
 
 /// The task with this id, if it is still tracked.
@@ -188,23 +318,33 @@ fn set_active(&self, id: &str) {
 }
 
 #[implement(Service)]
-fn finish(&self, id: &str, outcome: Result<JsonValue>) {
+fn finish(&self, id: &str, outcome: Result<JsonValue>, cancel_requested: bool) {
     let mut tasks = self.tasks.lock().expect("locked");
     let Some(task) = tasks.get_mut(id) else {
         return;
     };
 
+    task.status = outcome_status(outcome.is_ok(), cancel_requested);
     match outcome {
-        Ok(value) => {
-            task.status = Status::Complete;
-            task.result = Some(value);
-        }
-        Err(error) => {
-            task.status = Status::Failed;
-            task.error = Some(error.to_string());
-        }
+        Ok(value) => task.result = Some(value),
+        Err(error) => task.error = Some(error.to_string()),
     }
     task.timestamp_ms = now_millis();
+}
+
+/// What a task that ended this way is recorded as. One that finished despite
+/// being asked to stop did all its work, so it is complete; one that failed
+/// after being asked is taken to have stopped because it was asked.
+fn outcome_status(ok: bool, cancel_requested: bool) -> Status {
+    match (ok, cancel_requested) {
+        (true, _) => Status::Complete,
+        (false, true) => Status::Cancelled,
+        (false, false) => Status::Failed,
+    }
+}
+
+fn cancelled() -> phantom_core::Error {
+    err!("Cancelled by an admin.")
 }
 
 #[implement(Service)]
@@ -227,7 +367,7 @@ fn abort_all(&self) {
 impl Status {
     #[must_use]
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Complete | Self::Failed)
+        matches!(self, Self::Complete | Self::Failed | Self::Cancelled)
     }
 
     #[must_use]
@@ -237,6 +377,7 @@ impl Status {
             Self::Active => "active",
             Self::Complete => "complete",
             Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
         }
     }
 }
@@ -251,7 +392,54 @@ impl Task {
             timestamp_ms: self.timestamp_ms,
             result: self.result.clone(),
             error: self.error.clone(),
+            cancel: self.cancel,
+            cancel_requested: self.token.is_cancelled() && !self.status.is_terminal(),
         }
+    }
+}
+
+impl Default for CancelToken {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CancelToken {
+    /// A token nothing cancels, for running cancellable work outside a task.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Arc::new(watch::Sender::new(false)))
+    }
+
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        *self.0.borrow()
+    }
+
+    /// Fails once the task has been asked to stop; `?` it at each point the
+    /// task can stop at.
+    pub fn check(&self) -> Result {
+        if self.is_cancelled() {
+            return Err(cancelled());
+        }
+
+        Ok(())
+    }
+
+    /// Resolves once the task has been asked to stop, for racing a wait that
+    /// could otherwise outlast the request.
+    pub async fn cancelled(&self) {
+        // The sender lives in the token, so the channel cannot close under
+        // the wait; an error here would only mean it had.
+        self.0
+            .subscribe()
+            .wait_for(|&cancelled| cancelled)
+            .await
+            .ok();
+    }
+
+    fn cancel(&self) {
+        self.0.send_replace(true);
     }
 }
 
@@ -276,4 +464,36 @@ fn prune_tasks(tasks: &mut BTreeMap<TaskId, Task>, now_ms: u64) {
     let cutoff = timestamps[timestamps.len().saturating_sub(CAPACITY)];
 
     tasks.retain(|_, task| !task.status.is_terminal() || task.timestamp_ms >= cutoff);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CancelToken, Status, outcome_status};
+
+    #[test]
+    fn an_outcome_after_a_cancel_request_reads_as_cancelled_only_if_it_failed() {
+        assert_eq!(outcome_status(true, false), Status::Complete);
+        assert_eq!(outcome_status(false, false), Status::Failed);
+        assert_eq!(outcome_status(false, true), Status::Cancelled);
+        assert_eq!(outcome_status(true, true), Status::Complete);
+        assert!(Status::Cancelled.is_terminal());
+    }
+
+    #[tokio::test]
+    async fn a_token_wakes_its_waiters_and_fails_its_checks() {
+        let token = CancelToken::new();
+        assert!(token.check().is_ok());
+
+        let waiter = tokio::spawn({
+            let token = token.clone();
+            async move { token.cancelled().await }
+        });
+
+        token.cancel();
+        waiter.await.expect("woken");
+        assert!(token.check().is_err());
+
+        // A wait that starts after the cancel resolves at once.
+        token.cancelled().await;
+    }
 }

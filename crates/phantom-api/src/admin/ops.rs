@@ -1,8 +1,12 @@
-use axum::{Json, extract::State, response::IntoResponse};
-use phantom_core::{Err, Result};
+use axum::{
+    Json,
+    extract::{Path, State},
+    response::IntoResponse,
+};
+use phantom_core::Result;
+use phantom_service::ops::tasks::{Cancel, TaskInfo};
 use serde::Serialize;
 use serde_json::json;
-use tokio::task::spawn_blocking;
 
 use crate::router::{AdminAuth, State as RouterState};
 
@@ -28,25 +32,7 @@ pub(super) async fn backup(
     State(services): State<RouterState>,
     _admin: AdminAuth,
 ) -> Result<impl IntoResponse> {
-    if services.config.database.database_backup_path.is_none() {
-        return Err!(Request(InvalidParam(
-            "Backups are off; set database_backup_path to turn them on."
-        )));
-    }
-
-    // The engine refuses a second backup at once as well; this answers the
-    // request with why instead of starting a task bound to fail.
-    if services.tasks.has_nonterminal("database backup", "") {
-        return Err!(Conflict("A database backup is already running."));
-    }
-
-    let db = services.db.clone();
-    let task_id = services
-        .tasks
-        .spawn("database backup", String::new(), async move {
-            spawn_blocking(move || db.engine.backup()).await??;
-            Ok(json!({}))
-        });
+    let task_id = services.backups.start()?;
 
     Ok(Json(json!({ "task_id": task_id.as_str() })))
 }
@@ -60,6 +46,26 @@ pub(super) struct Task {
     updated_at_ms: u64,
     result: Option<serde_json::Value>,
     error: Option<String>,
+
+    /// Whether the task can be asked to stop, and whether it has been.
+    cancellable: bool,
+    cancel_requested: bool,
+}
+
+impl From<TaskInfo> for Task {
+    fn from(task: TaskInfo) -> Self {
+        Self {
+            id: task.id.to_string(),
+            action: task.action,
+            resource: task.resource_id,
+            status: task.status.as_str(),
+            updated_at_ms: task.timestamp_ms,
+            result: task.result,
+            error: task.error,
+            cancellable: task.cancel != Cancel::Never && !task.status.is_terminal(),
+            cancel_requested: task.cancel_requested,
+        }
+    }
 }
 
 /// # `GET /_phantom/admin/v1/tasks`
@@ -69,22 +75,24 @@ pub(super) async fn tasks(
     State(services): State<RouterState>,
     _admin: AdminAuth,
 ) -> Result<impl IntoResponse> {
-    let mut tasks: Vec<Task> = services
-        .tasks
-        .list()
-        .into_iter()
-        .map(|task| Task {
-            id: task.id.to_string(),
-            action: task.action,
-            resource: task.resource_id,
-            status: task.status.as_str(),
-            updated_at_ms: task.timestamp_ms,
-            result: task.result,
-            error: task.error,
-        })
-        .collect();
+    let mut tasks: Vec<Task> = services.tasks.list().into_iter().map(Task::from).collect();
 
     tasks.sort_by_key(|task| std::cmp::Reverse(task.updated_at_ms));
 
     Ok(Json(tasks))
+}
+
+/// # `POST /_phantom/admin/v1/tasks/{id}/cancel`
+///
+/// Asks a running task to stop, answering with the task as it is now. A room
+/// shutdown or deletion stops at its next safe point, so it can still read as
+/// active, with `cancel_requested` set; a backup cannot be stopped.
+pub(super) async fn cancel_task(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse> {
+    let task = services.tasks.cancel(&id)?;
+
+    Ok(Json(Task::from(task)))
 }

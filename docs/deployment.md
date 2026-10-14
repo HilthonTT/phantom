@@ -67,6 +67,36 @@ before it is.
 keeps every one. They go through RocksDB's backup engine, so the server does
 not have to be stopped to take one. Leaving the path unset disables backups.
 
+An admin takes one with `!admin server backup` or the console's `backup`;
+`database_backup_interval_s` takes them on a schedule as well:
+
+```toml
+[global]
+database_backup_path = "/var/backups/phantom"
+database_backups_to_keep = 7
+database_backup_interval_s = 86400   # daily
+```
+
+The interval counts from the newest backup in the directory, not from
+startup, so restarts do not postpone it; a server that has never backed up
+takes its first one shortly after it starts. A failed backup is retried an
+interval later. Each backup prunes the directory down to the newest
+`database_backups_to_keep`. The console's overview, `!admin server status`
+and the admin stats show the last backup and when the next is due. A backup
+runs as an admin task, but one that cannot be cancelled: RocksDB gives no way
+to interrupt it.
+
+**Cancelling admin tasks.** Room shutdowns and deletions run as tasks
+(`!admin tasks list`) and can be stopped with `!admin tasks cancel <id>`,
+`POST /_phantom/admin/v1/tasks/{id}/cancel`, or the Tasks section's action.
+A task stops at the next point where that leaves the room consistent: a
+shutdown between two members' evictions, leaving the rest joined and the
+aliases and directory listing untouched; a deletion likewise, or after the
+shutdown but before the purge. Once the purge has started it runs to the end,
+because a room with some of its tables purged and others not is neither intact
+nor gone. Running the deletion again finishes a cancelled one. A stopped task
+reads `cancelled`, with what it had done in its error.
+
 **Read-only and secondary modes.** `rocksdb_read_only` and `rocksdb_secondary`
 exist for opening a database without taking write ownership of it.
 

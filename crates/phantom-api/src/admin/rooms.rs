@@ -118,6 +118,7 @@ pub(super) async fn unban(
 ///
 /// Evicts every local member, frees the room's local aliases and takes it
 /// out of the directory, as a tracked task; answers with the task's ID.
+/// Cancelling the task stops it between two members' evictions.
 pub(super) async fn shutdown(
     State(services): State<RouterState>,
     _admin: AdminAuth,
@@ -128,15 +129,24 @@ pub(super) async fn shutdown(
 
     let task_services = services.clone();
     let task_room = room_id.clone();
-    let task_id = services
-        .tasks
-        .spawn("shutdown room", room_id.to_string(), async move {
+    let task_id = services.tasks.spawn_cancellable(
+        "shutdown room",
+        room_id.to_string(),
+        |cancel| async move {
             let rooms = &task_services.rooms;
-            let state_lock = rooms.state.mutex.lock(&*task_room).await;
-            let summary = rooms.delete.shutdown_room(&task_room, &state_lock).await;
+            let state_lock = tokio::select! {
+                lock = rooms.state.mutex.lock(&*task_room) => lock,
+                () = cancel.cancelled() => return Err!("Cancelled by an admin before it started."),
+            };
+
+            let summary = rooms
+                .delete
+                .shutdown_room_cancellable(&task_room, &state_lock, &cancel)
+                .await?;
 
             Ok(serde_json::to_value(summary)?)
-        });
+        },
+    );
 
     Ok(Json(json!({ "task_id": task_id.as_str() })))
 }
@@ -151,7 +161,8 @@ pub(super) struct Delete {
 /// # `DELETE /_phantom/admin/v1/rooms/{room_id}`
 ///
 /// Shuts the room down, then purges everything the server holds of it, as a
-/// tracked task; answers with the task's ID.
+/// tracked task; answers with the task's ID. Cancelling the task stops it
+/// during the shutdown or before the purge starts, never during the purge.
 pub(super) async fn delete(
     State(services): State<RouterState>,
     _admin: AdminAuth,
@@ -164,18 +175,24 @@ pub(super) async fn delete(
 
     let task_services = services.clone();
     let task_room = room_id.clone();
-    let task_id = services
-        .tasks
-        .spawn("delete room", room_id.to_string(), async move {
+    let task_id = services.tasks.spawn_cancellable(
+        "delete room",
+        room_id.to_string(),
+        |cancel| async move {
             let rooms = &task_services.rooms;
-            let state_lock = rooms.state.mutex.lock(&*task_room).await;
+            let state_lock = tokio::select! {
+                lock = rooms.state.mutex.lock(&*task_room) => lock,
+                () = cancel.cancelled() => return Err!("Cancelled by an admin before it started."),
+            };
+
             let summary = rooms
                 .delete
-                .delete_room(&task_room, body.force, &state_lock)
+                .delete_room_cancellable(&task_room, body.force, &state_lock, &cancel)
                 .await?;
 
             Ok(serde_json::to_value(summary)?)
-        });
+        },
+    );
 
     Ok(Json(json!({ "task_id": task_id.as_str() })))
 }

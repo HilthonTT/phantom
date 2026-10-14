@@ -154,6 +154,19 @@ enum Command {
     /// The server itself.
     #[command(subcommand)]
     Server(ServerCommand),
+
+    /// Long operations: room shutdowns and deletions, backups.
+    #[command(subcommand)]
+    Tasks(TaskCommand),
+}
+
+#[derive(Debug, Subcommand)]
+enum TaskCommand {
+    /// The long operations of the last week.
+    List,
+
+    /// Asks a running task to stop.
+    Cancel { id: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -353,7 +366,44 @@ async fn run(
             ))
         }
         Command::Server(command) => run_server(services, admin, command).await,
+        Command::Tasks(command) => run_tasks(services, admin, command).await,
     }
+}
+
+async fn run_tasks(
+    services: &Arc<Services>,
+    admin: AdminAuth,
+    command: TaskCommand,
+) -> Result<CommandOutput> {
+    match command {
+        TaskCommand::List => {
+            let rows = call(ops::tasks(state(services), admin)).await?;
+
+            Ok(table(&rows, &task_columns()))
+        }
+        TaskCommand::Cancel { id } => {
+            let task = call(ops::cancel_task(state(services), admin, Path(id.clone()))).await?;
+
+            Ok(match task["status"].as_str() {
+                Some("cancelled") => done(&format!("Cancelled task {id}.")),
+                _ => done(&format!(
+                    "Asked task {id} to stop; it stops at its next safe point. `!admin tasks \
+                     list` shows when it has."
+                )),
+            })
+        }
+    }
+}
+
+fn task_columns() -> [Column; 6] {
+    [
+        Column::new("task", "id"),
+        Column::new("action", "action"),
+        Column::new("resource", "resource"),
+        Column::new("status", "status"),
+        Column::time("updated", "updated_at_ms"),
+        Column::new("error", "error"),
+    ]
 }
 
 async fn run_users(
@@ -594,7 +644,8 @@ fn task_started(task: &Value, doing: &str, room_id: &OwnedRoomId) -> CommandOutp
     let task_id = task["task_id"].as_str().unwrap_or("");
 
     done(&format!(
-        "{doing} {room_id} as task {task_id}; `!admin server tasks` shows how it went."
+        "{doing} {room_id} as task {task_id}; `!admin tasks list` shows how it went, and \
+         `!admin tasks cancel {task_id}` stops it."
     ))
 }
 
@@ -798,17 +849,7 @@ async fn run_server(
         ServerCommand::Tasks => {
             let rows = call(ops::tasks(state(services), admin)).await?;
 
-            Ok(table(
-                &rows,
-                &[
-                    Column::new("task", "id"),
-                    Column::new("action", "action"),
-                    Column::new("resource", "resource"),
-                    Column::new("status", "status"),
-                    Column::time("updated", "updated_at_ms"),
-                    Column::new("error", "error"),
-                ],
-            ))
+            Ok(table(&rows, &task_columns()))
         }
         ServerCommand::Reload => {
             call(ops::reload(state(services), admin)).await?;

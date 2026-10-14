@@ -43,6 +43,10 @@ pub fn register(router: Router<RouterState>) -> Router<RouterState> {
         .route("/_phantom/admin/v1/settings", get(settings::settings))
         .route("/_phantom/admin/v1/tasks", get(ops::tasks))
         .route(
+            "/_phantom/admin/v1/tasks/{id}/cancel",
+            post(ops::cancel_task),
+        )
+        .route(
             "/_phantom/admin/v1/users/{user_id}/deactivate",
             post(users::deactivate),
         )

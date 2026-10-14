@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use phantom_core::{Result, debug, debug_info, matrix::PduBuilder, result::LogErr, warn};
+use phantom_core::{Result, debug, debug_info, err, matrix::PduBuilder, result::LogErr, warn};
 use ruma::{
     OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomId, UserId,
     events::{
@@ -11,7 +11,7 @@ use ruma::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{Dep, rooms, rooms::state::RoomMutexGuard};
+use crate::{Dep, ops::tasks::CancelToken, rooms, rooms::state::RoomMutexGuard};
 
 const LEAVE_REASON: &str = "Room deleted";
 
@@ -78,7 +78,32 @@ impl Service {
         force: bool,
         state_lock: &RoomMutexGuard,
     ) -> Result<ShutdownRoom> {
-        let summary = self.shutdown_room(room_id, state_lock).await;
+        self.delete_room_cancellable(room_id, force, state_lock, &CancelToken::new())
+            .await
+    }
+
+    /// [`delete_room`](Self::delete_room), stopping when `cancel` is
+    /// cancelled at a point that leaves the room consistent: between two
+    /// members' evictions, or once every member is out but before the purge
+    /// starts. The purge is never stopped half way: it removes the room one
+    /// table after another, and a room missing some tables but not others is
+    /// neither the room nor gone. A cancelled deletion can be started again,
+    /// and carries on from where it stopped.
+    #[tracing::instrument(skip(self, state_lock, cancel), level = "debug")]
+    pub async fn delete_room_cancellable(
+        &self,
+        room_id: &RoomId,
+        force: bool,
+        state_lock: &RoomMutexGuard,
+        cancel: &CancelToken,
+    ) -> Result<ShutdownRoom> {
+        let summary = self
+            .shutdown_room_cancellable(room_id, state_lock, cancel)
+            .await?;
+
+        cancel
+            .check()
+            .map_err(|_| err!("{} The room was not purged.", cancelled_after(&summary)))?;
 
         self.purge_room(room_id, force, state_lock).await;
 
@@ -93,6 +118,37 @@ impl Service {
         room_id: &RoomId,
         state_lock: &RoomMutexGuard,
     ) -> ShutdownRoom {
+        self.shutdown_room_until(room_id, state_lock, &CancelToken::new())
+            .await
+            .0
+    }
+
+    /// [`shutdown_room`](Self::shutdown_room), stopping between two members'
+    /// evictions when `cancel` is cancelled. Each eviction is a whole leave
+    /// event, so a cancelled shutdown leaves the members not yet reached
+    /// joined, and the room's aliases and directory listing untouched.
+    pub async fn shutdown_room_cancellable(
+        &self,
+        room_id: &RoomId,
+        state_lock: &RoomMutexGuard,
+        cancel: &CancelToken,
+    ) -> Result<ShutdownRoom> {
+        match self.shutdown_room_until(room_id, state_lock, cancel).await {
+            (summary, false) => Ok(summary),
+            (summary, true) => Err(err!(
+                "{} Its aliases and directory listing were left as they were.",
+                cancelled_after(&summary)
+            )),
+        }
+    }
+
+    /// The shutdown, and whether it stopped early because `cancel` was.
+    async fn shutdown_room_until(
+        &self,
+        room_id: &RoomId,
+        state_lock: &RoomMutexGuard,
+        cancel: &CancelToken,
+    ) -> (ShutdownRoom, bool) {
         debug!(%room_id, "Evicting local users");
 
         let local_users: Vec<OwnedUserId> = self
@@ -107,6 +163,16 @@ impl Service {
         let mut failed_to_kick_users = Vec::new();
 
         for user_id in local_users {
+            if cancel.is_cancelled() {
+                let summary = ShutdownRoom {
+                    kicked_users,
+                    failed_to_kick_users,
+                    ..ShutdownRoom::default()
+                };
+
+                return (summary, true);
+            }
+
             match self.evict(&user_id, room_id, state_lock).await {
                 Ok(()) => kicked_users.push(user_id),
                 Err(e) => {
@@ -137,13 +203,15 @@ impl Service {
             .log_err()
             .ok();
 
-        ShutdownRoom {
+        let summary = ShutdownRoom {
             kicked_users,
             failed_to_kick_users,
             local_aliases,
 
             new_room_id: None,
-        }
+        };
+
+        (summary, false)
     }
 
     #[tracing::instrument(skip(self, state_lock), level = "debug")]
@@ -285,6 +353,15 @@ impl Service {
             .update_membership(room_id, user_id, leave_content, user_id, None, None, true)
             .await
     }
+}
+
+/// What a cancelled shutdown had done, for the task's error.
+fn cancelled_after(summary: &ShutdownRoom) -> String {
+    format!(
+        "Cancelled by an admin after evicting {} local member(s); {} could not be evicted.",
+        summary.kicked_users.len(),
+        summary.failed_to_kick_users.len(),
+    )
 }
 
 #[cfg(test)]

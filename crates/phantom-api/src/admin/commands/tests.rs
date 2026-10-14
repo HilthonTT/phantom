@@ -133,3 +133,14 @@ fn an_empty_table_says_so() {
     let output = render::table(&serde_json::json!([]), &[render::Column::new("x", "x")]);
     assert_eq!(output.body(), "Nothing to show.");
 }
+
+#[test]
+fn tasks_cancel_takes_an_id() {
+    let cli = parse("!admin tasks cancel AbCdEf0123456789").unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Tasks(super::TaskCommand::Cancel { ref id }) if id == "AbCdEf0123456789"
+    ));
+
+    assert!(parse("!admin tasks cancel").is_err(), "the id is required");
+}
