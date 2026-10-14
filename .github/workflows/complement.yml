@@ -79,7 +79,7 @@ jobs:
             complement/summary.sh >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: complement-results
