@@ -6,6 +6,7 @@ pub(super) mod restricted_join;
 pub(super) mod send_join;
 pub(super) mod send_knock;
 pub(super) mod send_leave;
+pub(super) mod third_party;
 
 use phantom_core::{Err, Result, err, matrix::pdu::gen_event_id_canonical_json};
 use phantom_service::{Services, ops::moderation::Restriction, rooms::timeline::RawPduId};

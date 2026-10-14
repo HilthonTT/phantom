@@ -165,6 +165,14 @@ is a map of the territory so you know what to look for.
 | Login and registration limits | `login_rc_per_second` and `login_rc_burst_count` (logins per client address), `login_rc_failed_per_second` and `login_rc_failed_burst_count` (wrong passwords per account, through `/login` and interactive auth alike), `registration_rc_per_second` and `registration_rc_burst_count` (accounts created per address). A refusal is `M_LIMIT_EXCEEDED` with `retry_after_ms`; `0` turns a limit off; appservices are exempt. The address is the one `ip_source` yields, so set that behind a reverse proxy or every client shares the proxy's |
 | Phone numbers | `[global.sms]`: `gateway_url`, `gateway_token`, `message`. phantom POSTs `{"to": "+<number>", "message": "…"}` to the gateway with the token as a bearer, and texts a six-digit code that clients send back to `/_phantom/3pid/msisdn/submitToken`. Needs `well_known_client` |
 
+Inviting by email address or phone number needs no option: the client names
+the identity server and an access token it holds there, and phantom asks that
+server whether the address is bound, inviting the account if so and otherwise
+leaving a pending invite the identity server tells the address about. The
+request is held to `ip_range_denylist` like any other outbound one. Completing
+a pending invite arrives as a federation request
+(`/_matrix/federation/v1/3pid/onbind`), so it needs federation enabled.
+
 The timeout groups exist because the client service keeps one HTTP client per
 kind of outbound request rather than one for all of them — see
 [architecture.md](architecture.md).

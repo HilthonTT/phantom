@@ -177,6 +177,7 @@ Currently built, outside the room tree:
 | `fetcher` | fetching events over federation: coalescing duplicate requests, failing over between servers and validating the reply |
 | `server_keys` | this server's signing keys and the keys it has fetched for others |
 | `sending` | the outgoing queue: transactions to servers, appservices and pushers |
+| `identity` | asking an identity server who an email address or phone number belongs to, and leaving an invite with it when no one yet |
 
 `ops/` — running the server itself:
 

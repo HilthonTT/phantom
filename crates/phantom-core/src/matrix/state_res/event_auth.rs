@@ -5,7 +5,7 @@ use std::{borrow::Borrow, collections::BTreeSet};
 
 use futures::{
     Future,
-    future::{OptionFuture, join3},
+    future::{OptionFuture, join3, join4},
 };
 use ruma::{
     Int, OwnedUserId, RoomVersionId, UserId,
@@ -18,7 +18,6 @@ use ruma::{
     },
     int,
     serde::{Base64, Raw, base64::Standard},
-    third_party_invite::IdentityServerBase64PublicKey,
 };
 use serde::{
     Deserialize,
@@ -51,6 +50,7 @@ struct GetMembership {
 #[derive(Deserialize)]
 struct RoomMemberContentFields {
     membership: Option<Raw<MembershipState>>,
+    third_party_invite: Option<Raw<ThirdPartyInvite>>,
     join_authorised_via_users_server: Option<Raw<OwnedUserId>>,
 }
 
@@ -132,6 +132,11 @@ pub fn auth_types_for_event(
     Ok(auth_types)
 }
 
+/// `_current_third_party_invite` is no longer read: an invite carrying a
+/// third-party signature is checked against the `m.room.third_party_invite`
+/// its token names, fetched through `fetch_state` like the rest of the auth
+/// state. Callers used to pass whichever such event they had to hand, and most
+/// passed none, which refused every genuine third-party invite.
 #[tracing::instrument(
 	level = "debug",
 	skip_all,
@@ -142,7 +147,7 @@ pub fn auth_types_for_event(
 pub async fn auth_check<F, Fut, Fetched, Incoming>(
     room_version: &RoomVersion,
     incoming_event: &Incoming,
-    current_third_party_invite: Option<&Incoming>,
+    _current_third_party_invite: Option<&Incoming>,
     fetch_state: F,
 ) -> Result<bool, Error>
 where
@@ -328,10 +333,28 @@ where
 
         let join_rules_event = fetch_state(&StateEventType::RoomJoinRules, "");
 
-        let (join_rules_event, target_user_member_event, user_for_join_auth_event) = join3(
+        let third_party_token = content
+            .third_party_invite
+            .as_ref()
+            .and_then(|invite| invite.deserialize().ok())
+            .and_then(|invite| invite.signed.deserialize().ok())
+            .map(|signed| signed.token);
+
+        let third_party_invite_event: OptionFuture<_> = third_party_token
+            .as_deref()
+            .map(|token| fetch_state(&StateEventType::RoomThirdPartyInvite, token))
+            .into();
+
+        let (
             join_rules_event,
             target_user_member_event,
             user_for_join_auth_event,
+            third_party_invite_event,
+        ) = join4(
+            join_rules_event,
+            target_user_member_event,
+            user_for_join_auth_event,
+            third_party_invite_event,
         )
         .await;
 
@@ -346,7 +369,7 @@ where
             sender,
             sender_member_event.as_ref(),
             incoming_event,
-            current_third_party_invite,
+            third_party_invite_event.flatten().as_ref(),
             power_levels_event.as_ref(),
             join_rules_event.as_ref(),
             user_for_join_auth.as_deref(),

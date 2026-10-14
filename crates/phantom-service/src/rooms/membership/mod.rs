@@ -7,6 +7,7 @@ mod knock;
 mod leave;
 mod servers;
 mod stripped_state;
+mod third_party;
 mod unban;
 
 use std::sync::Arc;

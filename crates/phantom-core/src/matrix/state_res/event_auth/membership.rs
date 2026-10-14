@@ -1,3 +1,5 @@
+use ruma::{CanonicalJsonObject, CanonicalJsonValue, SigningKeyAlgorithm, signatures};
+
 use super::*;
 
 #[allow(clippy::too_many_arguments)]
@@ -307,26 +309,31 @@ pub(super) fn valid_membership_change(
     })
 }
 
-fn verify_third_party_invite(
+/// The third-party invite rules of `m.room.member`: the invite's `signed`
+/// block names the target, answers an `m.room.third_party_invite` the same
+/// sender put in the room, and carries a signature by one of that event's
+/// public keys.
+///
+/// ruma's state resolution, which this was ported from, compared the token
+/// itself against the public keys instead of verifying the signature, so no
+/// genuine third-party invite could ever pass; this checks the signature as
+/// the spec's rule 4.4.7 asks.
+pub(super) fn verify_third_party_invite(
     target_user: Option<&UserId>,
     sender: &UserId,
     tp_id: &ThirdPartyInvite,
     current_third_party_invite: Option<impl Event>,
 ) -> bool {
-    #[allow(clippy::manual_let_else)]
-    let signed = match tp_id.signed.deserialize() {
-        Ok(signed) => signed,
-        Err(_) => return false,
+    let Ok(signed) = tp_id.signed.deserialize() else {
+        return false;
     };
 
     if target_user != Some(&signed.mxid) {
         return false;
     }
 
-    #[allow(clippy::manual_let_else)]
-    let current_tpid = match current_third_party_invite {
-        Some(id) => id,
-        None => return false,
+    let Some(current_tpid) = current_third_party_invite else {
+        return false;
     };
 
     if current_tpid.state_key() != Some(signed.token.as_str()) {
@@ -337,28 +344,200 @@ fn verify_third_party_invite(
         return false;
     }
 
-    #[allow(clippy::manual_let_else)]
-    let tpid_ev =
-        match from_json_str::<RoomThirdPartyInviteEventContent>(current_tpid.content().get()) {
-            Ok(ev) => ev,
-            Err(_) => return false,
-        };
-
-    #[allow(clippy::manual_let_else)]
-    let decoded_invite_token = match Base64::<Standard>::parse(&signed.token) {
-        Ok(tok) => tok.into_inner(),
-        Err(_) => return false,
+    let Ok(tpid_ev) =
+        from_json_str::<RoomThirdPartyInviteEventContent>(current_tpid.content().get())
+    else {
+        return false;
     };
 
-    let matches_token = |key: &IdentityServerBase64PublicKey| {
-        key.decode().is_ok_and(|key| key == decoded_invite_token)
+    let public_keys: Vec<Vec<u8>> = tpid_ev
+        .public_keys
+        .unwrap_or_default()
+        .iter()
+        .map(|key| &key.public_key)
+        .chain(std::iter::once(&tpid_ev.public_key))
+        .filter_map(|key| key.decode().ok())
+        .collect();
+
+    signed_by_any(tp_id.signed.json().get(), &public_keys)
+}
+
+/// Whether any ed25519 signature on the `signed` JSON object verifies under
+/// any of `public_keys`, whoever the signature is attributed to.
+fn signed_by_any(signed: &str, public_keys: &[Vec<u8>]) -> bool {
+    let Ok(object) = from_json_str::<CanonicalJsonObject>(signed) else {
+        return false;
     };
 
-    for key in tpid_ev.public_keys.unwrap_or_default() {
-        if matches_token(&key.public_key) {
-            return true;
-        }
+    let Ok(canonical) = signatures::to_canonical_json_string_for_signing(&object) else {
+        return false;
+    };
+
+    let Some(CanonicalJsonValue::Object(by_entity)) = object.get("signatures") else {
+        return false;
+    };
+
+    by_entity
+        .values()
+        .filter_map(|keys| match keys {
+            CanonicalJsonValue::Object(keys) => Some(keys),
+            _ => None,
+        })
+        .flatten()
+        .filter(|(key_id, _)| key_id.starts_with("ed25519:"))
+        .filter_map(|(_, signature)| match signature {
+            CanonicalJsonValue::String(signature) => Base64::<Standard>::parse(signature).ok(),
+            _ => None,
+        })
+        .any(|signature| {
+            public_keys.iter().any(|key| {
+                signatures::verify_canonical_json_bytes(
+                    &SigningKeyAlgorithm::Ed25519,
+                    key,
+                    signature.as_bytes(),
+                    canonical.as_bytes(),
+                )
+                .is_ok()
+            })
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use ruma::{
+        CanonicalJsonObject,
+        events::room::member::ThirdPartyInvite,
+        serde::Raw,
+        signatures::{Ed25519KeyPair, sign_json},
+    };
+    use serde_json::json;
+
+    use super::verify_third_party_invite;
+    use crate::matrix::state_res::{
+        TimelineEventType,
+        fixtures::{alice, bob, charlie, to_pdu_event},
+    };
+
+    const TOKEN: &str = "abc123";
+
+    fn key_pair() -> Ed25519KeyPair {
+        let document = Ed25519KeyPair::generate();
+
+        Ed25519KeyPair::from_der(&document, "0".to_owned()).expect("a parseable key")
     }
 
-    matches_token(&tpid_ev.public_key)
+    fn raw<T: serde::Serialize, U>(value: &T) -> Raw<U> {
+        Raw::from_json(serde_json::value::to_raw_value(value).unwrap())
+    }
+
+    /// The invite's `signed` block, for `mxid`, signed by `key`.
+    fn invite(key: &Ed25519KeyPair, mxid: &str) -> ThirdPartyInvite {
+        let mut signed: CanonicalJsonObject =
+            serde_json::from_value(json!({ "mxid": mxid, "token": TOKEN })).unwrap();
+        sign_json("identity.test", key, &mut signed).unwrap();
+
+        ThirdPartyInvite::new("a...@example.com".to_owned(), raw(&signed))
+    }
+
+    /// The room's `m.room.third_party_invite` from `sender`, naming `key`.
+    fn room_invite(
+        key: &Ed25519KeyPair,
+        sender: &ruma::UserId,
+    ) -> std::sync::Arc<crate::matrix::state_res::fixtures::PduEvent> {
+        let public_key =
+            ruma::serde::Base64::<ruma::serde::base64::Standard, _>::new(key.public_key()).encode();
+        let content = json!({
+            "display_name": "a...@example.com",
+            "key_validity_url": "https://identity.test/_matrix/identity/v2/pubkey/isvalid",
+            "public_key": public_key,
+        });
+
+        to_pdu_event(
+            "TPI",
+            sender,
+            TimelineEventType::RoomThirdPartyInvite,
+            Some(TOKEN),
+            serde_json::value::to_raw_value(&content).unwrap(),
+            &["CREATE"],
+            &["CREATE"],
+        )
+    }
+
+    #[test]
+    fn a_signed_invite_from_the_same_sender_passes() {
+        let key = key_pair();
+        let tpi = room_invite(&key, alice());
+
+        assert!(verify_third_party_invite(
+            Some(bob()),
+            alice(),
+            &invite(&key, bob().as_str()),
+            Some(&*tpi),
+        ));
+    }
+
+    #[test]
+    fn a_signature_by_another_key_fails() {
+        let tpi = room_invite(&key_pair(), alice());
+
+        assert!(!verify_third_party_invite(
+            Some(bob()),
+            alice(),
+            &invite(&key_pair(), bob().as_str()),
+            Some(&*tpi),
+        ));
+    }
+
+    #[test]
+    fn the_wrong_target_or_sender_fails() {
+        let key = key_pair();
+        let tpi = room_invite(&key, alice());
+        let signed = invite(&key, bob().as_str());
+
+        assert!(!verify_third_party_invite(
+            Some(charlie()),
+            alice(),
+            &signed,
+            Some(&*tpi)
+        ));
+        assert!(!verify_third_party_invite(
+            Some(bob()),
+            charlie(),
+            &signed,
+            Some(&*tpi)
+        ));
+    }
+
+    #[test]
+    fn a_tampered_block_fails() {
+        let key = key_pair();
+        let tpi = room_invite(&key, alice());
+        let genuine = invite(&key, bob().as_str());
+
+        let mut tampered: BTreeMap<String, serde_json::Value> =
+            serde_json::from_str(genuine.signed.json().get()).unwrap();
+        tampered.insert("extra".to_owned(), json!(true));
+        let tampered = ThirdPartyInvite::new(genuine.display_name.clone(), raw(&tampered));
+
+        assert!(!verify_third_party_invite(
+            Some(bob()),
+            alice(),
+            &tampered,
+            Some(&*tpi)
+        ));
+    }
+
+    #[test]
+    fn no_room_invite_fails() {
+        let key = key_pair();
+
+        assert!(!verify_third_party_invite(
+            Some(bob()),
+            alice(),
+            &invite(&key, bob().as_str()),
+            None::<&crate::matrix::state_res::fixtures::PduEvent>,
+        ));
+    }
 }

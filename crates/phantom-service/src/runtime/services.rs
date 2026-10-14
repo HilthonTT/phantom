@@ -60,6 +60,7 @@ pub struct Services {
     pub threepid: Arc<threepid::Service>,
     pub oauth: Arc<oauth::Service>,
     pub attempts: Arc<crate::auth::attempts::Service>,
+    pub identity: Arc<crate::net::identity::Service>,
 
     manager: Mutex<Option<Arc<Manager>>>,
     pub(super) worker_states: WorkerStates,
@@ -159,6 +160,7 @@ impl Services {
             threepid: build!(threepid::Service),
             oauth: build!(oauth::Service),
             attempts: build!(crate::auth::attempts::Service),
+            identity: build!(crate::net::identity::Service),
 
             manager: Mutex::new(None),
             worker_states: WorkerStates::default(),

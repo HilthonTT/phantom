@@ -27,19 +27,35 @@ pub async fn invite(
     reason: Option<&String>,
     is_direct: bool,
 ) -> Result {
+    let content = self.invite_content(user_id, reason, is_direct).await;
+
+    self.invite_with_content(sender_user, user_id, room_id, content)
+        .await
+}
+
+/// Sends an invite whose content the caller has already put together, as a
+/// third-party invite does.
+#[implement(Service)]
+pub(super) async fn invite_with_content(
+    &self,
+    sender_user: &UserId,
+    user_id: &UserId,
+    room_id: &RoomId,
+    content: RoomMemberEventContent,
+) -> Result {
     if self.services.server_state.user_is_local(user_id) {
-        self.local_invite(sender_user, user_id, room_id, reason, is_direct)
+        self.local_invite(sender_user, user_id, room_id, content)
             .boxed()
             .await
     } else {
-        self.remote_invite(sender_user, user_id, room_id, reason, is_direct)
+        self.remote_invite(sender_user, user_id, room_id, content)
             .boxed()
             .await
     }
 }
 
 #[implement(Service)]
-async fn invite_content(
+pub(super) async fn invite_content(
     &self,
     user_id: &UserId,
     reason: Option<&String>,
@@ -64,13 +80,10 @@ async fn remote_invite(
     sender_user: &UserId,
     user_id: &UserId,
     room_id: &RoomId,
-    reason: Option<&String>,
-    is_direct: bool,
+    content: RoomMemberEventContent,
 ) -> Result {
     let (pdu, pdu_json, invite_room_state, room_version_id) = {
         let state_lock = self.services.state.mutex.lock(room_id).await;
-
-        let content = self.invite_content(user_id, reason, is_direct).await;
 
         let (pdu, pdu_json) = self
             .services
@@ -164,8 +177,7 @@ async fn local_invite(
     sender_user: &UserId,
     user_id: &UserId,
     room_id: &RoomId,
-    reason: Option<&String>,
-    is_direct: bool,
+    content: RoomMemberEventContent,
 ) -> Result {
     if !self
         .services
@@ -179,8 +191,6 @@ async fn local_invite(
     }
 
     let state_lock = self.services.state.mutex.lock(room_id).await;
-
-    let content = self.invite_content(user_id, reason, is_direct).await;
 
     self.services
         .timeline

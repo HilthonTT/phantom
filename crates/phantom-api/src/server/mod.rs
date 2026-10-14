@@ -20,7 +20,9 @@ use self::{
     access::AccessCheck,
     directory::{hierarchy, publicrooms, query, user},
     events::{backfill, event, event_auth, get_missing_events, state, state_ids, timestamp},
-    membership::{invite, make_join, make_knock, make_leave, send_join, send_knock, send_leave},
+    membership::{
+        invite, make_join, make_knock, make_leave, send_join, send_knock, send_leave, third_party,
+    },
 };
 use crate::router::{RouterExt, State};
 
@@ -55,6 +57,8 @@ pub fn register(router: Router<State>, config: &Config) -> Router<State> {
         .ruma_route(&send_knock::create_knock_event_v1_route)
         .ruma_route(&send_join::create_join_event_v2_route)
         .ruma_route(&invite::create_invite_route)
+        .ruma_route(&third_party::bind_callback_route)
+        .ruma_route(&third_party::exchange_third_party_invite_route)
         .ruma_route(&user::get_devices_route)
         .ruma_route(&query::get_room_information_route)
         .ruma_route(&query::get_profile_information_route)
