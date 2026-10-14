@@ -21,6 +21,11 @@ port. Note that they are unanchored: `evil.example` also matches
 anchored pattern `^evil\.example$`, which matches that host alone. Blocking
 by pattern (`--pattern`, `{"pattern": …}`) takes the expression as written.
 
+The runtime list is matched as one compiled set, which has a size limit. A
+pattern that would push the list past it is refused when added; a stored list
+that no longer compiles as a whole leaves the one in force in place and logs
+an error, rather than unblocking everything.
+
 A blocked server:
 
 - has its federation requests refused, by the `X-Matrix` origin, before any
@@ -92,8 +97,9 @@ as a task (`purge room history`). It keeps:
   copies of remote events, but a local one exists nowhere else.
 
 Purged events go from the timeline, the event indexes, the search index and
-the relation indexes. Other servers in the room keep theirs, and a client that
-pages back far enough can have them backfilled again.
+the relation indexes. Their IDs are remembered (`eventid_purged`), so a server
+that sends one again, or a later event that names one as a previous event,
+does not bring it back. Other servers in the room keep their copies.
 
 `!admin rooms purge-history <room> --days N | --before-event ID | --before-ts MS [--include-local]`
 does the same; the console has `:purgehistory <room> <days>`.

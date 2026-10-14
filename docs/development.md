@@ -128,8 +128,9 @@ built to its contract, which `complement/` provides:
 - `entrypoint.sh` takes the server name from `$SERVER_NAME` and issues the
   federation certificate from the CA Complement mounts at `/complement/ca`.
 - `complement.toml` is the config: open registration with guests, federation
-  with Complement's certificates accepted, no admin room, and TLS on 8448
-  only.
+  with Complement's certificates accepted, no admin room, the login and
+  registration rate limits off (every request arrives from Docker's gateway
+  address), and TLS on 8448 only.
 - `run.sh` builds the image, clones Complement into `target/complement` if it
   is not there, and runs it, writing `target/complement-results/`.
   `summary.sh` turns the results into a pass/fail table (needs `jq`).
@@ -142,9 +143,10 @@ just complement -run TestLogin      # one area
 complement/summary.sh               # the table for the last run
 ```
 
-`complement.yml` runs it in CI. phantom fails a good share of the suite today,
-so that job does not fail on test failures: read the job summary and the
-`complement-results` artifact instead. The intent, once the pass rate settles,
+`complement.yml` runs it in CI. A run takes over an hour, so a newer run waits
+for the one in progress rather than cancelling it. phantom fails a good share
+of the suite today, so that job does not fail on test failures: read the job
+summary and the `complement-results` artifact instead. The intent, once the pass rate settles,
 is a list of tests known to pass and a job that fails only when one of those
 regresses.
 

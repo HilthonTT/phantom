@@ -13,7 +13,8 @@ pub struct Database {
     /// Back the database up into `database_backup_path` this often, in
     /// seconds; 0 takes backups only when an admin asks for one. The newest
     /// `database_backups_to_keep` are kept and older ones pruned. The interval
-    /// counts from the newest backup, so a restart does not reset it.
+    /// counts from the newest backup, so a restart does not reset it. A
+    /// schedule needs `database_backups_to_keep` of at least 1.
     ///
     /// default: 0
     #[serde(default)]

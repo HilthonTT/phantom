@@ -97,8 +97,9 @@ struct ExtractBody {
 ///
 /// Events local users sent are kept unless `include_local` is set: other
 /// servers in the room hold their own copies of remote events, but a local
-/// event exists nowhere else once purged here. A purged remote event can be
-/// fetched back by backfill if a client pages that far.
+/// event exists nowhere else once purged here. A purged event's ID is kept
+/// in `eventid_purged`, so it is not taken in again when a server resends it
+/// or a later event names it as a previous event.
 #[implement(super::Service)]
 #[tracing::instrument(skip(self), level = "info")]
 pub async fn purge_history(

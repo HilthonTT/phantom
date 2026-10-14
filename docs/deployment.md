@@ -63,9 +63,12 @@ is ready again, so a `Type=notify` unit does not treat a reload as finished
 before it is.
 
 **Online database backups.** `database_backup_path` turns them on, and
-`database_backups_to_keep` bounds how many are retained — a negative value
-keeps every one. They go through RocksDB's backup engine, so the server does
-not have to be stopped to take one. Leaving the path unset disables backups.
+`database_backups_to_keep` bounds how many are retained, and must be at least
+1: RocksDB's backup engine takes a backup only while it may keep one, so below
+1 a backup would create nothing (and at 0 delete the ones already taken). A
+manual backup is refused then, and a schedule is refused at startup. Backups
+go through that engine, so the server does not have to be stopped to take
+one. Leaving the path unset disables backups.
 
 An admin takes one with `!admin server backup` or the console's `backup`;
 `database_backup_interval_s` takes them on a schedule as well:
@@ -124,7 +127,9 @@ metrics_token = "a-long-random-string"   # required on the main listeners
 ```
 
 The server refuses to start with metrics on, no token and no separate
-address. A Prometheus scrape config to match:
+address. The main listeners always ask for the token: a config reload that
+removes it makes them refuse every scrape (403) rather than serve one to
+anybody. Moving metrics to `metrics_address`, or back, takes a restart. A Prometheus scrape config to match:
 
 ```yaml
 scrape_configs:

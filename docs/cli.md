@@ -216,15 +216,17 @@ what, to what, and how it went. It is kept in the database. The recording is
 done by a layer over every admin route and by the command processor, never by
 the handlers, so an admin route or command added later is recorded without
 anyone remembering to. Reads are not recorded; nor are passwords, since a
-command keeps only its first argument.
+command keeps only its first argument. Registration tokens are recorded as
+`(withheld)`, whether named as a command's argument or in an API path.
 
 ### Confirmation
 
 Anything that changes the server asks first. The ones that cannot be undone
 and act on one thing easily mistaken for another — deleting a room, erasing an
 account, purging a server's media — ask for its name to be typed: a room's
-name or ID, an account's ID, a server's name. Anything else that typed text
-does not match is refused and nothing happens.
+name or ID, an account's ID, a server's name. `:cleanmedia local`, which
+deletes uploads that exist nowhere else, asks for `local`. Anything else that
+typed text does not match is refused and nothing happens.
 
 ## Theming
 

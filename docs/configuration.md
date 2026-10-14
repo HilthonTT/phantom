@@ -163,16 +163,19 @@ is a map of the territory so you know what to look for.
 | Moderation | `forbidden_remote_server_names` (merged with the runtime block list), `forbidden_remote_room_directory_server_names`, `forbidden_remote_media_server_names`, `retention_policy_enforcement`, `retention_min_lifetime_secs` — see [moderation.md](moderation.md) |
 | Notifications | `notification_retention_days`, `notification_max_per_user` — how long and how many notified events `GET /notifications` keeps per user |
 | Admin room | `create_admin_room`, `admin_escape_commands`, `admin_execute`, `admin_signal_execute` — the `!admin` commands are listed by `!admin --help` |
-| Login and registration limits | `login_rc_per_second` and `login_rc_burst_count` (logins per client address), `login_rc_failed_per_second` and `login_rc_failed_burst_count` (wrong passwords per account, through `/login` and interactive auth alike), `registration_rc_per_second` and `registration_rc_burst_count` (accounts created per address). A refusal is `M_LIMIT_EXCEEDED` with `retry_after_ms`; `0` turns a limit off; appservices are exempt. The address is the one `ip_source` yields. Without `ip_source`, forwarding headers are believed only from a loopback peer (a reverse proxy on the same host); behind a proxy elsewhere, set `ip_source` or every client shares the proxy's address |
+| Login and registration limits | `login_rc_per_second` and `login_rc_burst_count` (logins per client address), `login_rc_failed_per_second` and `login_rc_failed_burst_count` (wrong passwords per account through `/login` and OIDC sign-in; per device in interactive auth, so nobody else can lock an owner out of changing their password), `registration_rc_per_second` and `registration_rc_burst_count` (accounts created per address). A refusal is `M_LIMIT_EXCEEDED` with `retry_after_ms`; `0` turns a limit off; appservices are exempt. The address is the one `ip_source` yields. Without `ip_source`, forwarding headers are believed only from a loopback peer (a reverse proxy on the same host); behind a proxy elsewhere, set `ip_source` or every client shares the proxy's address |
 | Phone numbers | `[global.sms]`: `gateway_url`, `gateway_token`, `message`. phantom POSTs `{"to": "+<number>", "message": "…"}` to the gateway with the token as a bearer, and texts a six-digit code that clients send back to `/_phantom/3pid/msisdn/submitToken`. Needs `well_known_client` |
 
 Inviting by email address or phone number needs no option: the client names
 the identity server and an access token it holds there, and phantom asks that
 server whether the address is bound, inviting the account if so and otherwise
-leaving a pending invite the identity server tells the address about. The
-request is held to `ip_range_denylist` like any other outbound one. Completing
-a pending invite arrives as a federation request
-(`/_matrix/federation/v1/3pid/onbind`), so it needs federation enabled.
+leaving a pending invite the identity server tells the address about. Requests
+to the identity server never connect to an address in `ip_range_denylist`, even
+through a name that resolves there, and follow no redirect. Completing a
+pending invite arrives as a federation request
+(`/_matrix/federation/v1/3pid/onbind`), so it needs federation enabled; once
+exchanged, the pending invite is revoked, so the same callback cannot invite
+the user again.
 
 The timeout groups exist because the client service keeps one HTTP client per
 kind of outbound request rather than one for all of them — see
