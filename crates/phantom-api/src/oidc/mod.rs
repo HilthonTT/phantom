@@ -16,12 +16,7 @@ mod tests;
 
 use std::fmt::Write;
 
-use axum::{
-    Json, Router,
-    body::Body,
-    response::IntoResponse,
-    routing::{get, post},
-};
+use axum::{Json, body::Body, response::IntoResponse};
 use http::{Response, StatusCode};
 use phantom_core::{Result, err};
 use phantom_service::Services;
@@ -29,7 +24,7 @@ use ruma::OwnedUserId;
 use serde_json::json;
 use url::Url;
 
-use crate::router::State;
+use crate::router::{Routes, get, post};
 
 const OIDC_REQ_ID_LENGTH: usize = 32;
 
@@ -42,7 +37,7 @@ struct NativeChoice {
 /// Routes of the OIDC server for next-gen auth (MSC2964/MSC2965/MSC2966/
 /// MSC2967/MSC4191/MSC4254). Each handler refuses on its own when the server is
 /// not configured, so they are registered unconditionally.
-pub fn register(router: Router<State>) -> Router<State> {
+pub fn register(router: Routes) -> Routes {
     router
         .route(
             "/_phantom/oidc/registration",

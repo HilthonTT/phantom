@@ -183,6 +183,7 @@ where
         .inspect(move |outcome| {
             if record == Record::Contribute && matches!(&outcome.result, Err(Fault::Elapsed)) {
                 self.record_failure(&outcome.origin, Classification::Transient);
+                self.note_failure(&outcome.origin, &"timed out");
             }
         })
 }

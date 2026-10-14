@@ -52,7 +52,12 @@ tracing = "0.1.44"
 url = "2.5.7"
 
 [dev-dependencies]
+# Builds a config from TOML the way the server does, for the route table and
+# metrics tests.
+figment = { version = "0.10.19", default-features = false, features = ["toml"] }
 tokio = { version = "1.49.0", features = ["macros", "rt"] }
+# `ServiceExt::oneshot`, to drive a router without binding a socket.
+tower = { version = "0.5.3", default-features = false, features = ["util"] }
 
 [lints]
 workspace = true

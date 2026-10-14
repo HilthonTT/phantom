@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod appservice;
+pub mod audit;
 pub mod backups;
 pub mod config;
 pub mod emergency;

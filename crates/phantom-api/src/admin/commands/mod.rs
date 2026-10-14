@@ -76,7 +76,8 @@ async fn process(services: Arc<Services>, input: CommandInput) -> ProcessorResul
         Err(e) => return Err(error(&e)),
     };
 
-    let cli = match Cli::try_parse_from(words::argv(words, &services.server_state.server_user)) {
+    let argv = words::argv(words, &services.server_state.server_user);
+    let cli = match Cli::try_parse_from(&argv) {
         Ok(cli) => cli,
         Err(e) => {
             let text = e.render().to_string();
@@ -99,10 +100,13 @@ async fn process(services: Arc<Services>, input: CommandInput) -> ProcessorResul
         device_id: OwnedDeviceId::from(COMMAND_DEVICE),
     };
 
-    run(&services, admin, cli.command)
-        .await
-        .map(Some)
-        .map_err(|e| error(&e.message()))
+    let user_id = admin.user_id.clone();
+    let result = run(&services, admin, cli.command).await;
+
+    let failure = result.as_ref().err().map(phantom_core::Error::message);
+    super::audit::command(&services, &user_id, &argv, failure.as_deref());
+
+    result.map(Some).map_err(|e| error(&e.message()))
 }
 
 /// The device an admin acts from in the admin room. No real device has it, so

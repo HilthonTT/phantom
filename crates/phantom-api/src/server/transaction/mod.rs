@@ -52,6 +52,7 @@ pub(crate) async fn send_transaction_message_route(
     }
 
     services.sending.notify_peer_alive(origin).await;
+    services.federation.note_inbound(origin);
 
     let started = Instant::now();
     trace!(

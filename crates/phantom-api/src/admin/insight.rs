@@ -5,10 +5,12 @@ use std::collections::BTreeMap;
 
 use axum::{
     Json,
+    body::Bytes,
     extract::{Path, Query, State},
     response::IntoResponse,
 };
-use phantom_core::{Result, stream::ReadyExt};
+use futures::StreamExt;
+use phantom_core::{Err, Result, stream::ReadyExt};
 use phantom_service::net::sending::Destination;
 use ruma::{OwnedMxcUri, OwnedServerName};
 use serde::{Deserialize, Serialize};
@@ -80,6 +82,19 @@ pub(super) struct Peer {
 
     /// Transactions to it now in flight.
     sending: usize,
+
+    /// Events waiting for the transaction in flight to finish.
+    queued: usize,
+
+    /// When a request to it last failed since startup, and why.
+    last_failure_ms: Option<u64>,
+    last_error: Option<String>,
+
+    /// Requests that failed since the last one it answered.
+    consecutive_failures: u32,
+
+    /// When it last sent this server a transaction, since startup.
+    last_inbound_ms: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -98,6 +113,7 @@ pub(super) async fn federation(
 ) -> Result<impl IntoResponse> {
     let contacts = services.federation.last_contacts();
     let backoffs = services.federation.peer_backoffs().await;
+    let health = services.federation.peer_health();
 
     let mut resolved: BTreeMap<String, String> = BTreeMap::new();
     services
@@ -121,25 +137,45 @@ pub(super) async fn federation(
         })
         .await;
 
-    let peers: Vec<Peer> = services
+    let known: Vec<(OwnedServerName, usize)> = services
         .rooms
         .state_cache
         .known_servers()
         .await
         .into_iter()
         .filter(|(server, _)| !services.server_state.server_is_ours(server))
-        .map(|(server, rooms)| Peer {
-            rooms,
-            last_contact_ms: contacts.get(&server).map(|secs| secs.saturating_mul(1000)),
-            backoff: backoffs.get(&server).map(|backoff| Backoff {
-                permanent: backoff.class
-                    == phantom_service::net::federation::Classification::Permanent,
-                since_ms: backoff.anchor_secs.saturating_mul(1000),
-                delay_secs: backoff.delay_secs,
-            }),
-            resolved: resolved.get(server.as_str()).cloned(),
-            sending: sending.get(&server).copied().unwrap_or(0),
-            server,
+        .collect();
+
+    let mut queued: BTreeMap<OwnedServerName, usize> = BTreeMap::new();
+    for (server, _) in &known {
+        let dest = Destination::Federation(server.clone());
+        let count = services.sending.db.queued_requests(&dest).count().await;
+        queued.insert(server.clone(), count);
+    }
+
+    let peers: Vec<Peer> = known
+        .into_iter()
+        .map(|(server, rooms)| {
+            let health = health.get(&server).cloned().unwrap_or_default();
+
+            Peer {
+                rooms,
+                last_contact_ms: contacts.get(&server).map(|secs| secs.saturating_mul(1000)),
+                backoff: backoffs.get(&server).map(|backoff| Backoff {
+                    permanent: backoff.class
+                        == phantom_service::net::federation::Classification::Permanent,
+                    since_ms: backoff.anchor_secs.saturating_mul(1000),
+                    delay_secs: backoff.delay_secs,
+                }),
+                resolved: resolved.get(server.as_str()).cloned(),
+                sending: sending.get(&server).copied().unwrap_or(0),
+                queued: queued.get(&server).copied().unwrap_or(0),
+                last_failure_ms: health.last_failure_ms,
+                last_error: health.last_error,
+                consecutive_failures: health.consecutive_failures,
+                last_inbound_ms: health.last_inbound_ms,
+                server,
+            }
         })
         .collect();
 
@@ -218,10 +254,14 @@ pub(super) async fn purge_remote_media(
 #[serde(default)]
 pub(super) struct LogQuery {
     limit: Option<usize>,
+
+    /// Only the lines after the one with this `seq`, for following the log.
+    since: Option<u64>,
 }
 
 #[derive(Serialize)]
 pub(super) struct LogLine {
+    seq: u64,
     at_ms: u64,
     level: String,
     target: String,
@@ -229,20 +269,27 @@ pub(super) struct LogLine {
     message: String,
 }
 
-/// # `GET /_phantom/admin/v1/logs?limit=`
+/// # `GET /_phantom/admin/v1/logs?limit=&since=`
 ///
 /// The server's recent log at info level and above, newest first; the
-/// server keeps the last thousand lines.
+/// server keeps the last thousand lines. Each line carries a `seq`, and
+/// `since` answers with only the lines after it, which is how the console
+/// follows the log.
 pub(super) async fn logs(
     State(services): State<RouterState>,
     _admin: AdminAuth,
     Query(query): Query<LogQuery>,
 ) -> Result<impl IntoResponse> {
-    let lines: Vec<LogLine> = services
-        .logs
-        .recent(query.limit.unwrap_or(usize::MAX))
+    let limit = query.limit.unwrap_or(usize::MAX);
+    let lines = match query.since {
+        Some(since) => services.logs.since(since, limit),
+        None => services.logs.recent(limit),
+    };
+
+    let lines: Vec<LogLine> = lines
         .into_iter()
         .map(|line| LogLine {
+            seq: line.seq,
             at_ms: line.at_ms,
             level: line.level.to_string(),
             target: line.target,
@@ -252,6 +299,53 @@ pub(super) async fn logs(
         .collect();
 
     Ok(Json(lines))
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct LogCapture {
+    /// "info", or "debug" while phantom's own debug lines are kept too.
+    level: String,
+}
+
+/// # `GET /_phantom/admin/v1/logs/capture`
+///
+/// The lowest level the log keeps.
+pub(super) async fn log_capture(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+) -> Result<impl IntoResponse> {
+    Ok(Json(capture_level(services.logs.captures_debug())))
+}
+
+/// # `PUT /_phantom/admin/v1/logs/capture`
+///
+/// Sets the lowest level the log keeps: "debug" adds phantom's own debug
+/// lines until it is set back to "info" or the server restarts.
+pub(super) async fn set_log_capture(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    body: Bytes,
+) -> Result<impl IntoResponse> {
+    let body: LogCapture = super::body(&body)?;
+    let debug = match body.level.as_str() {
+        "debug" => true,
+        "info" => false,
+        level => {
+            return Err!(Request(InvalidParam(
+                "The log keeps \"info\" or \"debug\", not {level:?}."
+            )));
+        }
+    };
+
+    services.logs.capture_debug(debug);
+
+    Ok(Json(capture_level(debug)))
+}
+
+fn capture_level(debug: bool) -> LogCapture {
+    LogCapture {
+        level: if debug { "debug" } else { "info" }.to_owned(),
+    }
 }
 
 #[derive(Serialize)]

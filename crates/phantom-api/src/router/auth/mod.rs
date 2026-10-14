@@ -10,7 +10,11 @@ use phantom_service::{Services, ops::appservice::RegistrationInfo};
 use ruma::{OwnedDeviceId, OwnedServerName, OwnedUserId};
 
 use self::token::Token;
-pub use self::{admin::AdminAuth, scheme::Authenticate, uiaa::authenticate_uiaa};
+pub use self::{
+    admin::{AdminAuth, AdminWitness},
+    scheme::Authenticate,
+    uiaa::authenticate_uiaa,
+};
 use super::raw_request::RawRequest;
 
 #[derive(Debug, Default)]

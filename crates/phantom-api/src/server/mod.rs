@@ -9,11 +9,7 @@ mod transaction;
 mod version;
 mod well_known;
 
-use axum::{
-    Router,
-    response::IntoResponse,
-    routing::{any, get},
-};
+use axum::response::IntoResponse;
 use phantom_core::{Config, err};
 
 use self::{
@@ -24,9 +20,9 @@ use self::{
         invite, make_join, make_knock, make_leave, send_join, send_knock, send_leave, third_party,
     },
 };
-use crate::router::{RouterExt, State};
+use crate::router::{Routes, any, get};
 
-pub fn register(router: Router<State>, config: &Config) -> Router<State> {
+pub fn register(router: Routes, config: &Config) -> Routes {
     let router = router
         .ruma_route(&well_known::well_known_server)
         .ruma_route(&openid::get_openid_userinfo_route);

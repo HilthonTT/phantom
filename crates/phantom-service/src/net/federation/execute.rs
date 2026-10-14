@@ -49,6 +49,7 @@ where
 {
     let result = self.execute_uncounted(client, dest, request).await;
 
+    self.note_outcome(dest, &result);
     self.record_outcome(dest, verdict(&result)).await;
 
     result
@@ -77,6 +78,16 @@ fn verdict<T>(result: &Result<T>) -> Option<Option<Classification>> {
     result.as_ref().err().map(classify_error)
 }
 
+/// Notes why a request failed, for the admin API. Kept apart from
+/// `record_outcome` so the response, which need not be `Sync`, is never held
+/// across its await.
+#[implement(super::Service)]
+fn note_outcome<T>(&self, dest: &ServerName, result: &Result<T>) {
+    if let Err(e) = result {
+        self.note_failure(dest, e);
+    }
+}
+
 #[implement(super::Service)]
 async fn record_outcome(&self, dest: &ServerName, verdict: Option<Option<Classification>>) {
     match verdict {
@@ -100,6 +111,7 @@ where
     let client = &self.services.client.federation;
     let result = self.execute_on(client, dest, request, ()).await;
 
+    self.note_outcome(dest, &result);
     self.record_outcome(dest, verdict(&result)).await;
 
     result
@@ -119,6 +131,7 @@ where
     let client = &self.services.client.synapse;
     let result = self.execute_on(client, dest, request, ()).await;
 
+    self.note_outcome(dest, &result);
     self.record_outcome(dest, verdict(&result)).await;
 
     result

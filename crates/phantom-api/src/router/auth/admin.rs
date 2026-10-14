@@ -1,6 +1,8 @@
 //! Authentication for the phantom admin API: a user's access token, presented
 //! as `Authorization: Bearer`, whose owner is joined to the admin room.
 
+use std::sync::{Arc, OnceLock};
+
 use axum::extract::FromRequestParts;
 use http::request::Parts;
 use phantom_core::{Err, Error, Result};
@@ -39,6 +41,27 @@ impl FromRequestParts<State> for AdminAuth {
             )));
         }
 
+        // The audit layer asks who acted; tell it, now that it is known.
+        if let Some(witness) = parts.extensions.get::<AdminWitness>() {
+            witness.0.set((services.clone(), user_id.clone())).ok();
+        }
+
         Ok(Self { user_id, device_id })
+    }
+}
+
+/// Left in a request's extensions by the admin API's audit layer, which runs
+/// before any extractor and so cannot tell whose request it is. The extractor
+/// fills it in once the request has proved to be an admin's, so a request
+/// refused at authentication leaves it empty and is not recorded.
+#[derive(Clone, Default)]
+pub struct AdminWitness(Arc<OnceLock<(State, OwnedUserId)>>);
+
+impl AdminWitness {
+    /// The admin who acted, and the services to record it with, once the
+    /// request authenticated.
+    #[must_use]
+    pub fn seen(&self) -> Option<&(State, OwnedUserId)> {
+        self.0.get()
     }
 }

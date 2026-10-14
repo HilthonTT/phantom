@@ -116,7 +116,7 @@ It is built in layers:
   key and value types, the `Handle` a read returns, and batched (`Cork`) and
   transactional (`Txn`) writes.
 - **`Database`** — the engine plus every column open on it, and what a server
-  hands around. `schema.rs` declares all 113 columns once each, which yields
+  hands around. `schema.rs` declares every column once, which yields
   both the column's descriptor and its constant in `table`; a test asserts the
   list stays alphabetical and free of duplicates. A `Database` is indexed only
   by those constants (`db[table::USERID_PASSWORD]`), so a mistyped column is a
@@ -356,6 +356,14 @@ user and profile queries, and `transaction/` for incoming transactions.
 
 tuwunel keeps each tree flat, so a handler ported from `src/api/client/<name>`
 lands in `client/<domain>/<name>` here.
+
+The `register` functions build a `router::Routes` rather than an axum `Router`
+directly, and take `get`, `post` and the rest from `router` rather than from
+axum. `Routes` records each method and path as it is added, which is where the
+admin API's route table (`GET /_phantom/admin/v1/routes`) comes from: axum
+keeps no list it can be read back from. Every admin route sits under one audit
+layer that records each change in the `ops::audit` service's table, so no
+handler records anything itself.
 
 ### `phantom-server`
 

@@ -15,7 +15,7 @@ use ruma::OwnedServerName;
 
 pub use self::{
     format::outgoing_pdu,
-    peer::{Classification, PeerBackoff, ShouldAttempt},
+    peer::{Classification, PeerBackoff, PeerHealth, ShouldAttempt},
     rank::{Candidates, WhenAllBackedOff},
 };
 use crate::{
@@ -38,6 +38,10 @@ pub struct Service {
     /// When each server last answered a request, in seconds since the epoch;
     /// kept in memory, so it covers only the time since startup.
     last_contact: std::sync::Mutex<BTreeMap<OwnedServerName, u64>>,
+
+    /// How talking to each server has gone since startup, for the admin
+    /// API's federation view; in memory, like `last_contact`.
+    health: std::sync::Mutex<BTreeMap<OwnedServerName, PeerHealth>>,
 }
 
 struct Services {
@@ -77,6 +81,7 @@ impl crate::Service for Service {
             grace: Duration::from_secs(config.sender_retry_grace),
             max_backoff,
             last_contact: std::sync::Mutex::new(BTreeMap::new()),
+            health: std::sync::Mutex::new(BTreeMap::new()),
         }))
     }
 

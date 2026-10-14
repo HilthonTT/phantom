@@ -3,29 +3,36 @@
 //! [`AdminAuth`].
 
 mod appservices;
+mod audit;
 pub mod commands;
 mod insight;
+mod inspect;
 mod ops;
 mod rooms;
+mod routes;
 mod settings;
 mod stats;
 mod tokens;
 mod users;
 
-use axum::{
-    Json, Router,
-    body::Bytes,
-    extract::State,
-    response::IntoResponse,
-    routing::{delete, get, post, put},
-};
+use axum::{Json, body::Bytes, extract::State, middleware, response::IntoResponse};
 use phantom_core::{Result, err};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
-use crate::router::{AdminAuth, State as RouterState};
+use crate::router::{AdminAuth, Routes, State as RouterState, delete, get, post, put};
 
-pub fn register(router: Router<RouterState>) -> Router<RouterState> {
+/// The admin API's routes, every one of them under the audit layer: whatever
+/// changes something is recorded in the audit log, so a route added to
+/// [`routes`] is recorded without asking.
+pub fn register(router: Routes) -> Routes {
+    let admin = routes(Routes::new())
+        .map_router(|admin| admin.route_layer(middleware::from_fn(audit::layer)));
+
+    router.merge(admin)
+}
+
+fn routes(router: Routes) -> Routes {
     router
         .route("/_phantom/admin/v1/whoami", get(whoami))
         .route("/_phantom/admin/v1/stats", get(stats::stats))
@@ -102,6 +109,28 @@ pub fn register(router: Router<RouterState>) -> Router<RouterState> {
             "/_phantom/admin/v1/reports/{id}",
             delete(insight::dismiss_report),
         )
+        .route("/_phantom/admin/v1/routes", get(routes::routes))
+        .route(
+            "/_phantom/admin/v1/logs/capture",
+            get(insight::log_capture).put(insight::set_log_capture),
+        )
+        .route(
+            "/_phantom/admin/v1/rooms/{room_id}/state",
+            get(inspect::state),
+        )
+        .route(
+            "/_phantom/admin/v1/rooms/{room_id}/events",
+            get(inspect::events),
+        )
+        .route(
+            "/_phantom/admin/v1/rooms/{room_id}/extremities",
+            get(inspect::extremities),
+        )
+        .route(
+            "/_phantom/admin/v1/rooms/{room_id}/servers",
+            get(inspect::servers),
+        )
+        .route("/_phantom/admin/v1/audit", get(audit::audit))
 }
 
 /// Reads an action's JSON body; an empty body reads as `{}`, so optional

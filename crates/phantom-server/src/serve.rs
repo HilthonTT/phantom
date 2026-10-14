@@ -14,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
     serve::ListenerExt,
 };
-use phantom_api::router::{ConfiguredIpSource, State};
+use phantom_api::router::{ConfiguredIpSource, Routes, State};
 use phantom_core::{
     Err, Error, Result, debug, debug_error, debug_info, error, info,
     runtime::server::Server as CoreServer,
@@ -174,13 +174,14 @@ async fn serve(services: Arc<Services>) -> Result {
 fn router(services: &Arc<Services>) -> Router {
     let config = &services.server.config;
 
-    let router = Router::new();
-    let router = phantom_api::client::register(router, config);
-    let router = phantom_api::server::register(router, config);
-    let router = phantom_api::oidc::register(router);
-    let router = phantom_api::admin::register(router);
+    let routes = Routes::new();
+    let routes = phantom_api::client::register(routes, config);
+    let routes = phantom_api::server::register(routes, config);
+    let routes = phantom_api::oidc::register(routes);
+    let routes = phantom_api::admin::register(routes);
 
-    let router = router
+    let router = routes
+        .into_router()
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(config.network.max_request_size));
 

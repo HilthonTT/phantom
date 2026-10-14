@@ -6,10 +6,6 @@ mod rooms;
 mod sync;
 mod utils;
 
-use axum::{
-    Router,
-    routing::{get, post},
-};
 use phantom_core::{Config, matrix::Event};
 use phantom_service::{Services, rooms::timeline::PdusIterItem};
 use ruma::UserId;
@@ -30,7 +26,7 @@ pub(crate) use self::{
     auth::register::full_register,
     rooms::message::{annotate_membership, is_ignored_pdu, with_membership},
 };
-use crate::router::{RouterExt, State};
+use crate::router::{Routes, get, post};
 
 /// generated device ID length
 const DEVICE_ID_LENGTH: usize = 10;
@@ -41,7 +37,7 @@ const TOKEN_LENGTH: usize = phantom_service::accounts::users::TOKEN_LENGTH;
 /// generated user session ID length
 const SESSION_ID_LENGTH: usize = phantom_service::auth::uiaa::SESSION_ID_LENGTH;
 
-pub fn register(router: Router<State>, config: &Config) -> Router<State> {
+pub fn register(router: Routes, config: &Config) -> Routes {
     let router = router
         .ruma_route(&versions::get_supported_versions_route)
         .ruma_route(&register::get_register_available_route)

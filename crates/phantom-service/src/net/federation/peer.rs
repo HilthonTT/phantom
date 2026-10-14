@@ -9,7 +9,7 @@ use phantom_core::{
     http::StatusCode,
     implement,
     stream::{ReadyExt, TryIgnore},
-    time::now_secs,
+    time::{now_millis, now_secs},
 };
 use phantom_database::Interfix;
 use ruma::{OwnedServerName, ServerName, api::error::ErrorBody};
@@ -86,12 +86,30 @@ pub struct PeerBackoff {
     pub delay_secs: u64,
 }
 
+/// How talking to one server has gone since startup: what the persisted
+/// backoff does not keep, which is the error and the inbound side.
+#[derive(Clone, Debug, Default)]
+pub struct PeerHealth {
+    pub last_failure_ms: Option<u64>,
+    pub last_error: Option<String>,
+
+    /// Requests that failed since the last one that was answered.
+    pub consecutive_failures: u32,
+
+    /// When it last sent this server a transaction.
+    pub last_inbound_ms: Option<u64>,
+}
+
 #[implement(Service)]
 pub async fn record_success(&self, server: &ServerName) {
     self.last_contact
         .lock()
         .expect("locked")
         .insert(server.to_owned(), now_secs());
+
+    if let Some(health) = self.health.lock().expect("locked").get_mut(server) {
+        health.consecutive_failures = 0;
+    }
 
     self.statuses.del_prefix(&(server, Interfix)).await;
 }
@@ -101,6 +119,35 @@ pub async fn record_success(&self, server: &ServerName) {
 #[implement(Service)]
 pub fn last_contacts(&self) -> BTreeMap<OwnedServerName, u64> {
     self.last_contact.lock().expect("locked").clone()
+}
+
+/// Notes why a request to a server failed, whether or not the failure counts
+/// towards its backoff.
+#[implement(Service)]
+pub fn note_failure(&self, server: &ServerName, error: &dyn std::fmt::Display) {
+    let mut health = self.health.lock().expect("locked");
+    let health = health.entry(server.to_owned()).or_default();
+
+    health.last_failure_ms = Some(now_millis());
+    health.last_error = Some(error.to_string());
+    health.consecutive_failures = health.consecutive_failures.saturating_add(1);
+}
+
+/// Notes a transaction arriving from a server.
+#[implement(Service)]
+pub fn note_inbound(&self, server: &ServerName) {
+    self.health
+        .lock()
+        .expect("locked")
+        .entry(server.to_owned())
+        .or_default()
+        .last_inbound_ms = Some(now_millis());
+}
+
+/// How talking to each server has gone since startup.
+#[implement(Service)]
+pub fn peer_health(&self) -> BTreeMap<OwnedServerName, PeerHealth> {
+    self.health.lock().expect("locked").clone()
 }
 
 #[implement(Service)]

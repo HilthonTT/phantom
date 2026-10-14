@@ -11,7 +11,10 @@ use axum::{
 use http::Request;
 use ruma::api::{IncomingRequest, path_builder::PathBuilder};
 
-use super::{Authenticate, Ruma, RumaResponse, State};
+use super::{
+    Authenticate, Ruma, RumaResponse, State,
+    routes::{Endpoint, request_name},
+};
 
 pub trait RouterExt {
     #[must_use]
@@ -31,6 +34,11 @@ impl RouterExt for Router<State> {
 
 pub trait RumaHandler<T> {
     fn register(&'static self, router: Router<State>) -> Router<State>;
+
+    /// What the handler serves, for the admin API's route table.
+    fn endpoint() -> Endpoint
+    where
+        Self: Sized;
 
     /// Runs the handler for one request.
     ///
@@ -96,6 +104,14 @@ macro_rules! ruma_handler {
                 Req::PATH_BUILDER
                     .all_paths()
                     .fold(router, |router, path| router.route(path, on(filter, route)))
+            }
+
+            fn endpoint() -> Endpoint {
+                Endpoint {
+                    method: Req::METHOD,
+                    paths: Req::PATH_BUILDER.all_paths().collect(),
+                    request: request_name::<Req>(),
+                }
             }
 
             fn call_route(

@@ -63,6 +63,10 @@ schema! {
         ..descriptor::RANDOM_SMALL
     }
 
+    AUDITID_RECORD = "auditid_record" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     BACKUPID_ALGORITHM = "backupid_algorithm" {
         ..descriptor::RANDOM_SMALL
     }
