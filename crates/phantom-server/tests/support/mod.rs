@@ -52,14 +52,43 @@ pub struct Server {
     _dir: TempDir,
 }
 
-/// Picks a loopback port nothing is listening on. The listener is dropped
-/// before the server binds it, so in principle another process could take it
-/// in between; on a test machine that window is small enough not to matter.
+/// Picks a loopback port nothing is listening on, for a server to bind a
+/// few seconds later, once its database is open.
+///
+/// The port comes from below the kernel's ephemeral range (32768 and up on
+/// Linux), which outgoing connections draw from: the tests' own requests
+/// open those by the hundred while a server starts, and one could otherwise
+/// take the port first. Ports handed out are remembered, so two calls never
+/// return the same one, even before either is bound.
 pub fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .and_then(|listener| listener.local_addr())
-        .expect("bind an ephemeral loopback port")
-        .port()
+    use std::{
+        collections::BTreeSet,
+        hash::{BuildHasher, RandomState},
+        sync::Mutex,
+    };
+
+    const LOW: u16 = 20_000;
+    const SPAN: u64 = 12_000;
+
+    static TAKEN: Mutex<BTreeSet<u16>> = Mutex::new(BTreeSet::new());
+
+    let mut taken = TAKEN.lock().expect("the port set is not poisoned");
+    let random = RandomState::new();
+
+    for attempt in 0_u64..10_000 {
+        let offset = u16::try_from(random.hash_one(attempt) % SPAN).expect("below the span");
+        let port = LOW + offset;
+
+        if !taken.contains(&port) && TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            taken.insert(port);
+            return port;
+        }
+    }
+
+    panic!(
+        "no free loopback port between {LOW} and {}",
+        u64::from(LOW) + SPAN
+    );
 }
 
 impl Server {

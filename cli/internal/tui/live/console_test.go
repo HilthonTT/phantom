@@ -83,6 +83,24 @@ func TestTheAuditLogPagesOn(t *testing.T) {
 	}
 }
 
+func TestAnOlderAuditPageOvertakenByARefreshIsDropped(t *testing.T) {
+	s, gen := state(t).StartAdmin()
+	page := func(id, next string) *client.AuditPage {
+		return &client.AuditPage{Records: []client.AuditRecord{{ID: id, OK: true}}, Next: &next}
+	}
+
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Audit, AuditPage: page("0010", "0009")})
+
+	// An action refetches the first page, which now ends further on, before
+	// the older page asked for from 0009 arrives.
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Audit, AuditPage: page("0012", "0011")})
+	s, _ = s.TakeAdmin(AdminMsg{Gen: gen, Section: resource.Audit, AuditBefore: "0009", AuditPage: page("0009", "0008")})
+
+	if len(s.Admin.Audit.Records) != 1 || s.Admin.Audit.Next != "0011" {
+		t.Errorf("records %+v next %q: the stale page was appended", s.Admin.Audit.Records, s.Admin.Audit.Next)
+	}
+}
+
 func TestTheRouteTableReplacesTheSampleForAnAdmin(t *testing.T) {
 	s := state(t).Apply(ProbedMsg{Status: up})
 	if note := s.Listing(resource.API).Note; !strings.Contains(note, "kept by hand") {
@@ -114,6 +132,12 @@ func TestOnlyTheIrreversibleAreConfirmedByName(t *testing.T) {
 
 	if (Action{Kind: EraseUser, Target: "@bob:test"}).TypeToConfirm() != "@bob:test" {
 		t.Error("erasing a user is not confirmed by name")
+	}
+	if (Action{Kind: PurgeOldMedia, Target: "local", Days: 30}).TypeToConfirm() != "local" {
+		t.Error("purging local uploads does not ask for \"local\" to be typed")
+	}
+	if (Action{Kind: PurgeOldMedia, Target: "remote", Days: 30}).TypeToConfirm() != "" {
+		t.Error("purging remote copies, which can be fetched again, asks for a name")
 	}
 	if (Action{Kind: BanRoom, Target: "!r:test"}).TypeToConfirm() != "" {
 		t.Error("a ban, which can be lifted, asks for the name")

@@ -152,6 +152,17 @@ pub async fn get_pdu_id(&self, event_id: &EventId) -> Result<RawPduId> {
     self.db.get_pdu_id(event_id).await
 }
 
+/// Whether the event was taken out of the timeline by a history purge.
+///
+/// A purge removes what finds an event by its ID, so without this a purged
+/// event a server sends again, or one a later event cites as a previous
+/// event, would be taken in as new: back at the end of the timeline, with
+/// its notifications sent a second time.
+#[implement(Service)]
+pub async fn is_purged(&self, event_id: &EventId) -> bool {
+    self.db.eventid_purged.exists(event_id).await.is_ok()
+}
+
 #[implement(Service)]
 #[inline]
 pub async fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<PduEvent> {

@@ -197,6 +197,13 @@ func (a Action) TypeToConfirm() string {
 			return a.Name
 		}
 		return a.Target
+	case PurgeOldMedia:
+		// Local uploads are the only copies there are; remote media can be
+		// fetched again, so a confirm is enough for that one.
+		if a.Target == "local" {
+			return a.Target
+		}
+		return ""
 	default:
 		return ""
 	}

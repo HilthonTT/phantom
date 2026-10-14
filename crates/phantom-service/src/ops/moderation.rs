@@ -182,6 +182,21 @@ pub async fn block(&self, pattern: &str, reason: Option<String>, by: &UserId) ->
         return Ok(false);
     }
 
+    // Each pattern compiles alone, but the list is matched as one set, which
+    // has a size limit of its own: refuse the pattern that would break it
+    // rather than store a list that no longer compiles.
+    let mut patterns: Vec<String> = self
+        .blocks()
+        .into_iter()
+        .map(|block| block.pattern)
+        .collect();
+    patterns.push(pattern.to_owned());
+    if let Err(e) = RegexSet::new(&patterns) {
+        return Err!(Request(InvalidParam(
+            "Adding {pattern:?} would make the block list too large to match: {e}"
+        )));
+    }
+
     let block = Block {
         pattern: pattern.to_owned(),
         reason,
@@ -242,7 +257,8 @@ pub async fn unblock_server(&self, server: &ServerName) -> Result<Vec<String>> {
 
 /// Reads the runtime block list back from the database and recompiles it.
 /// A stored pattern that no longer compiles is skipped and logged rather
-/// than failing the whole list, which would unblock everything.
+/// than failing the whole list, which would unblock everything. If the list
+/// as a whole does not compile, the one in force is kept.
 #[implement(Service)]
 async fn reload_blocks(&self) -> Result {
     let entries: Vec<Block> = self
@@ -253,13 +269,17 @@ async fn reload_blocks(&self) -> Result {
         .collect()
         .await;
 
-    let blocks = compile(entries);
+    let blocks = compile(entries).inspect_err(|e| {
+        phantom_core::error!(
+            "The runtime block list does not compile; keeping the one in force: {e}"
+        );
+    })?;
     *self.blocks.write().expect("locked") = blocks;
 
     Ok(())
 }
 
-fn compile(mut entries: Vec<Block>) -> Blocks {
+fn compile(mut entries: Vec<Block>) -> Result<Blocks> {
     entries.sort_by_key(|block| block.at_ms);
     entries.retain(|block| match regex::Regex::new(&block.pattern) {
         Ok(_) => true,
@@ -269,10 +289,12 @@ fn compile(mut entries: Vec<Block>) -> Blocks {
         }
     });
 
+    // Never an empty set on failure: that would unblock every server while
+    // the list still reads as blocking them.
     let set = RegexSet::new(entries.iter().map(|block| block.pattern.as_str()))
-        .unwrap_or_else(|_| RegexSet::empty());
+        .map_err(|e| err!("The block patterns do not compile together: {e}"))?;
 
-    Blocks { entries, set }
+    Ok(Blocks { entries, set })
 }
 
 /// The pattern that blocks exactly one server: its host, escaped and
@@ -321,7 +343,7 @@ mod tests {
     #[test]
     fn an_exact_block_matches_only_that_host() {
         let pattern = exact_pattern(server_name!("evil.example:8448"));
-        let blocks = compile(vec![block(&pattern, 1)]);
+        let blocks = compile(vec![block(&pattern, 1)]).expect("the patterns compile");
 
         assert_eq!(pattern, r"^evil\.example$");
         assert!(blocks.set.is_match("evil.example"));
@@ -332,7 +354,8 @@ mod tests {
 
     #[test]
     fn patterns_match_as_the_config_list_does() {
-        let blocks = compile(vec![block(r"\.spam\.example$", 1), block("^bad", 2)]);
+        let blocks = compile(vec![block(r"\.spam\.example$", 1), block("^bad", 2)])
+            .expect("the patterns compile");
 
         assert!(blocks.set.is_match("a.spam.example"));
         assert!(blocks.set.is_match("badserver.org"));
@@ -341,7 +364,8 @@ mod tests {
 
     #[test]
     fn a_broken_pattern_is_skipped_not_fatal() {
-        let blocks = compile(vec![block("(unclosed", 1), block("^bad", 2)]);
+        let blocks =
+            compile(vec![block("(unclosed", 1), block("^bad", 2)]).expect("the patterns compile");
 
         assert_eq!(blocks.entries.len(), 1);
         assert!(blocks.set.is_match("bad.example"));
@@ -349,7 +373,7 @@ mod tests {
 
     #[test]
     fn entries_are_oldest_first() {
-        let blocks = compile(vec![block("^b", 2), block("^a", 1)]);
+        let blocks = compile(vec![block("^b", 2), block("^a", 1)]).expect("the patterns compile");
         let order: Vec<&str> = blocks
             .entries
             .iter()
@@ -361,7 +385,7 @@ mod tests {
 
     #[test]
     fn an_empty_list_matches_nothing() {
-        let blocks = compile(Vec::new());
+        let blocks = compile(Vec::new()).expect("the patterns compile");
 
         assert!(!blocks.set.is_match("anything.example"));
     }

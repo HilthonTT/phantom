@@ -41,6 +41,16 @@ where
                 .ok_or((ERROR, "Can't extract client IP from configured ip_source"));
         }
 
+        // Without `ip_source`, forwarding headers are believed only from a
+        // peer that could be a local reverse proxy. Anyone else could put any
+        // address there, and the login and registration limits are counted
+        // per address: a fresh one on every request would never run out.
+        if let Some(peer) = peer_ip(&parts.extensions)
+            && !peer_is_trusted(&parts.extensions)
+        {
+            return Ok(Self(peer));
+        }
+
         insecure_fallback(&parts.headers, &parts.extensions)
             .map(Self)
             .ok_or((
@@ -304,6 +314,27 @@ mod tests {
 
         let ClientIp(ip) = extract_client_ip(&mut parts).await.unwrap();
         assert_eq!(ip, socket_addr.ip());
+    }
+
+    #[tokio::test]
+    async fn an_untrusted_peer_cannot_choose_its_address_without_config() {
+        let socket_addr = SocketAddr::from(([203, 0, 113, 9], 4567));
+        let mut parts = parts([("X-Forwarded-For", "1.1.1.1"), ("X-Real-Ip", "2.2.2.2")]);
+        parts.extensions.insert(ConnectInfo(socket_addr));
+
+        let ClientIp(ip) = extract_client_ip(&mut parts).await.unwrap();
+        assert_eq!(ip, socket_addr.ip(), "the headers are the client's own");
+    }
+
+    #[tokio::test]
+    async fn a_local_proxy_is_believed_without_config() {
+        let mut parts = parts([("X-Forwarded-For", "1.1.1.1, 2.2.2.2")]);
+        parts
+            .extensions
+            .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 4567))));
+
+        let ClientIp(ip) = extract_client_ip(&mut parts).await.unwrap();
+        assert_eq!(ip.to_string(), "1.1.1.1");
     }
 
     #[tokio::test]

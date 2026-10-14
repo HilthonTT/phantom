@@ -272,6 +272,12 @@ func (m Model) roomAnswered(msg live.RoomMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// An older page asked for before the inspector was reopened or reloaded
+	// belongs to a timeline it no longer shows.
+	if msg.Older && msg.From != m.room.Older() {
+		return m, nil
+	}
+
 	switch {
 	case msg.Err != nil:
 		m.room.Fail(msg.Err)

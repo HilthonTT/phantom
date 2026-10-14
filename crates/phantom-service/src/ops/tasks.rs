@@ -15,13 +15,16 @@
 //!   thread that nothing can interrupt.
 
 use std::{
+    any::Any,
     collections::BTreeMap,
+    panic::AssertUnwindSafe,
     sync::{Arc, Mutex as StdMutex},
     time::Duration,
 };
 
 use arrayvec::ArrayString;
 use async_trait::async_trait;
+use futures::FutureExt;
 use phantom_core::{
     Err, Result, err, implement, rand::string_array, runtime::server::Server, time::now_millis,
 };
@@ -197,7 +200,13 @@ where
 {
     let id = string_array::<TASK_ID_LEN>();
     let token = CancelToken::new();
-    let work = work(token.clone());
+
+    // A panic is caught and recorded as the task failing: left to unwind, it
+    // would end the tokio task before `finish`, and the record would read
+    // active for good, refusing every later task of its kind.
+    let work = AssertUnwindSafe(work(token.clone()))
+        .catch_unwind()
+        .map(|outcome| outcome.unwrap_or_else(|panic| Err(panicked(&*panic))));
 
     // Hold the lock across the spawn+insert so the task cannot mark itself
     // Active before its record exists.
@@ -347,6 +356,16 @@ fn cancelled() -> phantom_core::Error {
     err!("Cancelled by an admin.")
 }
 
+fn panicked(panic: &(dyn Any + Send)) -> phantom_core::Error {
+    let message = panic
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("no message");
+
+    err!("The task panicked: {message}")
+}
+
 #[implement(Service)]
 fn prune(&self) {
     let now = now_millis();
@@ -468,7 +487,22 @@ fn prune_tasks(tasks: &mut BTreeMap<TaskId, Task>, now_ms: u64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{CancelToken, Status, outcome_status};
+    use super::{CancelToken, Status, outcome_status, panicked};
+
+    #[test]
+    fn a_panic_becomes_the_tasks_error() {
+        let literal = std::panic::catch_unwind(|| panic!("index out of bounds")).unwrap_err();
+        let formatted = std::panic::catch_unwind(|| panic!("room {} is gone", "!r:x")).unwrap_err();
+
+        assert_eq!(
+            panicked(&*literal).message(),
+            "The task panicked: index out of bounds"
+        );
+        assert_eq!(
+            panicked(&*formatted).message(),
+            "The task panicked: room !r:x is gone"
+        );
+    }
 
     #[test]
     fn an_outcome_after_a_cancel_request_reads_as_cancelled_only_if_it_failed() {

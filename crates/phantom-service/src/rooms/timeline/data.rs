@@ -16,6 +16,7 @@ use crate::{Dep, rooms, rooms::short::ShortRoomId};
 pub(super) struct Data {
     pub(super) eventid_outlierpdu: Arc<Map>,
     pub(super) eventid_pduid: Arc<Map>,
+    pub(super) eventid_purged: Arc<Map>,
     pub(super) pduid_pdu: Arc<Map>,
     pub(super) engine: Arc<Engine>,
     services: Services,
@@ -33,6 +34,7 @@ impl Data {
         Self {
             eventid_outlierpdu: db[table::EVENTID_OUTLIERPDU].clone(),
             eventid_pduid: db[table::EVENTID_PDUID].clone(),
+            eventid_purged: db[table::EVENTID_PURGED].clone(),
             pduid_pdu: db[table::PDUID_PDU].clone(),
             engine: args.db.engine.clone(),
             services: Services {

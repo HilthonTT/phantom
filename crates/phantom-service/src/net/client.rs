@@ -11,7 +11,11 @@ use phantom_core::{
     Config, Err, Result, debug, diagnostics::info::user_agent, err, implement,
     runtime::config::proxy::ProxyConfig, trace,
 };
-use reqwest::{Url, redirect};
+use reqwest::{
+    Url,
+    dns::{Addrs, Name, Resolve, Resolving},
+    redirect,
+};
 
 use crate::net::resolver;
 
@@ -36,6 +40,10 @@ pub struct Service {
 
     pub oauth: reqwest::Client,
 
+    /// For identity servers, which a client names: never follows a redirect,
+    /// and never connects to an address in `ip_range_denylist`.
+    pub identity: reqwest::Client,
+
     pub cidr_range_denylist: Vec<IPAddress>,
 
     pub proxy: ProxyConfig,
@@ -58,6 +66,15 @@ impl crate::Service for Service {
             .url_preview_bound_interface
             .clone()
             .and_then(Either::right);
+
+        let cidr_range_denylist: Vec<IPAddress> = config
+            .network
+            .ip_range_denylist
+            .iter()
+            .map(IPAddress::parse)
+            .inspect(|cidr| trace!("Denied CIDR range: {cidr:?}"))
+            .collect::<Result<_, String>>()
+            .map_err(|e| err!(Config("ip_range_denylist", "{e}")))?;
 
         Ok(Arc::new(Self {
             default: base(config)?
@@ -133,14 +150,15 @@ impl crate::Service for Service {
                 .redirect(redirect::Policy::limited(2))
                 .build()?,
 
-            cidr_range_denylist: config
-                .network
-                .ip_range_denylist
-                .iter()
-                .map(IPAddress::parse)
-                .inspect(|cidr| trace!("Denied CIDR range: {cidr:?}"))
-                .collect::<Result<_, String>>()
-                .map_err(|e| err!(Config("ip_range_denylist", "{e}")))?,
+            identity: base(config)?
+                .dns_resolver(Arc::new(Denylisted {
+                    inner: resolver.resolver.clone(),
+                    denylist: cidr_range_denylist.clone(),
+                }))
+                .redirect(redirect::Policy::none())
+                .build()?,
+
+            cidr_range_denylist,
 
             proxy: config.network.proxy.clone(),
         }))
@@ -148,6 +166,38 @@ impl crate::Service for Service {
 
     fn name(&self) -> &str {
         crate::make_name(std::module_path!())
+    }
+}
+
+/// A resolver that leaves out every address in `ip_range_denylist`, so a
+/// client using it cannot be pointed inward by a name that resolves there.
+/// The check sits where the connection is made, so a name answering
+/// differently the second time it is asked changes nothing.
+struct Denylisted {
+    inner: Arc<resolver::dns::Resolver>,
+    denylist: Vec<IPAddress>,
+}
+
+impl Resolve for Denylisted {
+    fn resolve(&self, name: Name) -> Resolving {
+        let resolving = self.inner.resolve(name);
+        let denylist = self.denylist.clone();
+
+        Box::pin(async move {
+            let allowed: Vec<SocketAddr> = resolving
+                .await?
+                .filter(|addr| {
+                    let ip = ipaddress_from_std(addr.ip());
+                    denylist.iter().all(|cidr| !cidr.includes(&ip))
+                })
+                .collect();
+
+            if allowed.is_empty() {
+                return Err("every address of the host is in ip_range_denylist".into());
+            }
+
+            Ok(Box::new(allowed.into_iter()) as Addrs)
+        })
     }
 }
 

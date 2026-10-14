@@ -108,6 +108,13 @@ func (v AuditView) take(page *client.AuditPage, before string) AuditView {
 		return v
 	}
 
+	// An older page asked for with a cursor the view no longer holds was
+	// overtaken by a refresh: appended, it would leave a hole between the
+	// fresh first page and itself, so it is dropped and asked for again.
+	if before != "" && before != v.Next {
+		return v
+	}
+
 	if before == "" {
 		v.Records = nil
 	}
@@ -238,6 +245,10 @@ type RoomMsg struct {
 	// the events held rather than replacing everything.
 	Older bool
 
+	// From is where an older page was asked to start, so a page that
+	// arrives after the inspector was reopened or reloaded is told apart.
+	From string
+
 	Err error
 }
 
@@ -294,6 +305,6 @@ func FetchRoom(c *client.Client, roomID string) tea.Cmd {
 func FetchOlderEvents(c *client.Client, roomID, from string) tea.Cmd {
 	return func() tea.Msg {
 		page, err := c.RoomEvents(context.Background(), roomID, from, RoomPageSize)
-		return RoomMsg{RoomID: roomID, Events: page, Older: true, Err: err}
+		return RoomMsg{RoomID: roomID, Events: page, Older: true, From: from, Err: err}
 	}
 }

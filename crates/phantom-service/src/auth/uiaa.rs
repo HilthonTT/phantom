@@ -178,8 +178,11 @@ async fn try_auth_inner(
             let user_id = user_id_from_username;
 
             // The access token is already proven, but guessing the password
-            // behind it is what would let a stolen token change it.
-            self.services.attempts.check_password(&user_id)?;
+            // behind it is what would let a stolen token change it. Counted
+            // per device, so nobody else can lock the owner out of this.
+            self.services
+                .attempts
+                .check_session_password(&user_id, device_id)?;
 
             let hash_matches = match self.services.users.password_hash(&user_id).await {
                 Ok(hash) => hash::verify_password(password, &hash).is_ok(),
@@ -187,7 +190,9 @@ async fn try_auth_inner(
             };
 
             if !hash_matches {
-                self.services.attempts.record_failed(&user_id);
+                self.services
+                    .attempts
+                    .record_session_failed(&user_id, device_id);
 
                 uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(
                     ErrorKind::Forbidden,

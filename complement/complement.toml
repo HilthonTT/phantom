@@ -15,6 +15,13 @@ database_backup_path = "/var/lib/phantom/backups"
 allow_registration = true
 allow_guest_registration = true
 
+# Complement's requests all arrive from the Docker network's gateway, so the
+# per-address login and registration limits would refuse most of the suite;
+# the tests check protocol behaviour, not throttling.
+login_rc_per_second = 0
+login_rc_failed_per_second = 0
+registration_rc_per_second = 0
+
 # Peers are other containers on Complement's private network, addressed by
 # container name, and present certificates signed by Complement's own CA,
 # which no system trust store knows. Nothing here is reachable from outside.

@@ -111,6 +111,10 @@ schema! {
         ..descriptor::RANDOM
     }
 
+    EVENTID_PURGED = "eventid_purged" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     EVENTID_SHORTEVENTID = "eventid_shorteventid" {
         cache_disp: CacheDisp::Unique,
         block_size: 512,

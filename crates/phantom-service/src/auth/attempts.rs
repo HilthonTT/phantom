@@ -11,9 +11,9 @@
 use std::{net::IpAddr, sync::Arc};
 
 use phantom_core::{Result, runtime::server::Server};
-use ruma::{OwnedUserId, UserId};
+use ruma::{DeviceId, OwnedDeviceId, OwnedUserId, UserId};
 
-use crate::ratelimit::{Limit, Ratelimiter, check, peek};
+use crate::ratelimit::{Limit, Ratelimiter, check, peek, refund};
 
 pub struct Service {
     server: Arc<Server>,
@@ -24,7 +24,37 @@ pub struct Service {
 struct Tables {
     login: Ratelimiter<IpAddr>,
     failed: Ratelimiter<OwnedUserId>,
+    session_failed: Ratelimiter<(OwnedUserId, OwnedDeviceId)>,
     registration: Ratelimiter<IpAddr>,
+}
+
+/// A registration's token, taken from its address's allowance before the
+/// account exists. Dropped without [`commit`](Self::commit) — an interactive
+/// auth round trip, an error, a request the client gave up on — it is given
+/// back, so only registrations that create an account count. Taking it up
+/// front is what stops concurrent registrations all passing one check.
+#[must_use]
+pub struct RegistrationToken<'a> {
+    service: &'a Service,
+    client: IpAddr,
+    committed: bool,
+}
+
+impl RegistrationToken<'_> {
+    /// Keeps the token spent: the account exists.
+    pub fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for RegistrationToken<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            self.service
+                .tables
+                .refund_registration(self.client, self.service.registration_limit());
+        }
+    }
 }
 
 impl crate::Service for Service {
@@ -64,18 +94,34 @@ impl Service {
         self.tables.record_failed(user_id, self.failed_limit());
     }
 
-    /// Refuses a registration from `client` while its allowance is spent.
-    /// Spends nothing; [`Self::record_registration`] does, once an account
-    /// exists.
-    pub fn check_registration(&self, client: IpAddr) -> Result {
+    /// Refuses a password attempt from an authenticated session while the
+    /// device's wrong-password allowance is spent. Interactive auth is keyed
+    /// by device rather than account: the access token is already proven, so
+    /// nobody else can spend the owner's allowance and lock them out of
+    /// changing their own password. Spends nothing;
+    /// [`Self::record_session_failed`] does.
+    pub fn check_session_password(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
         self.tables
-            .check_registration(client, self.registration_limit())
+            .check_session_password(user_id, device_id, self.failed_limit())
     }
 
-    /// Charges a created account to `client`'s registration allowance.
-    pub fn record_registration(&self, client: IpAddr) {
+    /// Charges a wrong password to the device's allowance.
+    pub fn record_session_failed(&self, user_id: &UserId, device_id: &DeviceId) {
         self.tables
-            .record_registration(client, self.registration_limit());
+            .record_session_failed(user_id, device_id, self.failed_limit());
+    }
+
+    /// Takes a token from `client`'s registration allowance, refusing once it
+    /// is spent. The token is given back unless the registration commits it.
+    pub fn reserve_registration(&self, client: IpAddr) -> Result<RegistrationToken<'_>> {
+        self.tables
+            .reserve_registration(client, self.registration_limit())?;
+
+        Ok(RegistrationToken {
+            service: self,
+            client,
+            committed: false,
+        })
     }
 
     fn failed_limit(&self) -> Limit {
@@ -131,21 +177,47 @@ impl Tables {
         check(&self.failed, user_id, || user_id.to_owned(), limit).ok();
     }
 
-    fn check_registration(&self, client: IpAddr, limit: Limit) -> Result {
+    fn check_session_password(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+        limit: Limit,
+    ) -> Result {
         if limit.is_disabled() {
             return Ok(());
         }
 
-        peek(&self.registration, &client.to_canonical(), limit)
+        peek(
+            &self.session_failed,
+            &(user_id.to_owned(), device_id.to_owned()),
+            limit,
+        )
     }
 
-    fn record_registration(&self, client: IpAddr, limit: Limit) {
+    fn record_session_failed(&self, user_id: &UserId, device_id: &DeviceId, limit: Limit) {
         if limit.is_disabled() {
             return;
         }
 
+        let key = (user_id.to_owned(), device_id.to_owned());
+        check(&self.session_failed, &key, || key.clone(), limit).ok();
+    }
+
+    fn reserve_registration(&self, client: IpAddr, limit: Limit) -> Result {
+        if limit.is_disabled() {
+            return Ok(());
+        }
+
         let client = client.to_canonical();
-        check(&self.registration, &client, || client, limit).ok();
+        check(&self.registration, &client, || client, limit)
+    }
+
+    fn refund_registration(&self, client: IpAddr, limit: Limit) {
+        if limit.is_disabled() {
+            return;
+        }
+
+        refund(&self.registration, &client.to_canonical(), limit);
     }
 }
 
@@ -161,7 +233,7 @@ fn limit(rate: f64, burst: u32, message: &'static str) -> Limit {
 mod tests {
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-    use ruma::user_id;
+    use ruma::{device_id, user_id};
 
     use super::{Limit, Tables, limit};
 
@@ -231,16 +303,48 @@ mod tests {
     }
 
     #[test]
-    fn registrations_count_once_an_account_exists() {
+    fn concurrent_registrations_each_hold_a_token() {
         let tables = Tables::default();
 
-        assert!(tables.check_registration(CLIENT, STRICT).is_ok());
-        assert!(tables.check_registration(CLIENT, STRICT).is_ok());
+        // Two in flight at once take the burst of two; a third is refused
+        // before either has finished.
+        assert!(tables.reserve_registration(CLIENT, STRICT).is_ok());
+        assert!(tables.reserve_registration(CLIENT, STRICT).is_ok());
+        assert!(tables.reserve_registration(CLIENT, STRICT).is_err());
+    }
 
-        tables.record_registration(CLIENT, STRICT);
-        tables.record_registration(CLIENT, STRICT);
+    #[test]
+    fn a_registration_that_creates_nothing_gives_its_token_back() {
+        let tables = Tables::default();
 
-        assert!(tables.check_registration(CLIENT, STRICT).is_err());
+        for _ in 0..10 {
+            assert!(tables.reserve_registration(CLIENT, STRICT).is_ok());
+            tables.refund_registration(CLIENT, STRICT);
+        }
+
+        assert!(tables.reserve_registration(CLIENT, STRICT).is_ok());
+        assert!(tables.reserve_registration(CLIENT, STRICT).is_ok());
+        assert!(tables.reserve_registration(CLIENT, STRICT).is_err());
+    }
+
+    #[test]
+    fn a_session_spends_its_own_allowance() {
+        let tables = Tables::default();
+        let alice = user_id!("@alice:example.com");
+        let (phone, laptop) = (device_id!("PHONE"), device_id!("LAPTOP"));
+
+        tables.record_session_failed(alice, phone, STRICT);
+        tables.record_session_failed(alice, phone, STRICT);
+
+        assert!(tables.check_session_password(alice, phone, STRICT).is_err());
+        assert!(
+            tables.check_session_password(alice, laptop, STRICT).is_ok(),
+            "another session of the same account is not locked out"
+        );
+        assert!(
+            tables.check_password(alice, STRICT).is_ok(),
+            "nor is the account's login"
+        );
     }
 
     #[test]

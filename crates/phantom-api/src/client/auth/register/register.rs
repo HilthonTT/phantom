@@ -53,11 +53,13 @@ pub(crate) async fn register_route(
 
     gate_registration_allowed(&services, &body, is_guest)?;
 
-    // Appservices create their users as they need them.
-    let limited = body.appservice_info.is_none();
-    if limited {
-        services.attempts.check_registration(client)?;
-    }
+    // Appservices create their users as they need them. The token is taken
+    // now and given back unless an account is created below, so concurrent
+    // registrations cannot all pass on one remaining token.
+    let reserved = match body.appservice_info {
+        None => Some(services.attempts.reserve_registration(client)?),
+        Some(_) => None,
+    };
 
     let user_id =
         resolve_registration_user_id(&services, &body, is_guest, emergency_mode_enabled).await?;
@@ -74,8 +76,8 @@ pub(crate) async fn register_route(
 
     full_register(&services, &user_id, password).await?;
 
-    if limited {
-        services.attempts.record_registration(client);
+    if let Some(reserved) = reserved {
+        reserved.commit();
     }
 
     bind_registration_email(&services, &user_id, email_association.as_ref()).await;

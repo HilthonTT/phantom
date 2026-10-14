@@ -91,6 +91,20 @@ pub fn start(&self) -> Result<TaskId> {
         )));
     }
 
+    if self
+        .services
+        .server
+        .config
+        .database
+        .database_backups_to_keep
+        < 1
+    {
+        return Err!(Request(InvalidParam(
+            "database_backups_to_keep is below 1, so a backup would create nothing and could \
+             delete the backups already taken."
+        )));
+    }
+
     // The engine refuses a second backup at once as well; this answers with
     // why instead of starting a task bound to fail.
     if self.services.tasks.has_nonterminal(ACTION, "") {

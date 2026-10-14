@@ -28,6 +28,16 @@ use crate::router::{AdminAuth, AdminWitness, State as RouterState};
 /// The prefix every admin route shares, left out of the recorded action.
 const PREFIX: &str = "/_phantom/admin/v1";
 
+/// What a secret is recorded as: a registration token is a credential, and
+/// the audit log is kept for good and shown to every admin.
+const WITHHELD: &str = "(withheld)";
+
+/// Path parameters whose value is a secret.
+const SECRET_PARAMS: [&str; 1] = ["token"];
+
+/// Command groups whose arguments are secrets.
+const SECRET_GROUPS: [&str; 1] = ["tokens"];
+
 /// How much of a failed action's answer is read for its error message.
 const ERROR_BODY_LIMIT: usize = 64 * 1024;
 
@@ -59,7 +69,10 @@ pub(super) async fn layer(
         .map(|params| {
             params
                 .iter()
-                .map(|(_, value)| value)
+                .map(|(name, value)| match SECRET_PARAMS.contains(&name) {
+                    true => WITHHELD,
+                    false => value,
+                })
                 .collect::<Vec<_>>()
                 .join(" ")
         })
@@ -150,7 +163,10 @@ fn command_action(argv: &[String]) -> Option<(String, String)> {
 
     let target = words
         .find(|word| !word.starts_with('-'))
-        .cloned()
+        .map(|word| match SECRET_GROUPS.contains(&group.as_str()) {
+            true => WITHHELD.to_owned(),
+            false => word.clone(),
+        })
         .unwrap_or_default();
 
     Some((
@@ -206,6 +222,17 @@ mod tests {
             "!admin server tasks",
         ] {
             assert_eq!(command_action(&argv(line)), None, "{line}");
+        }
+    }
+
+    #[test]
+    fn registration_tokens_are_withheld() {
+        for line in [
+            "!admin tokens create letmein --uses 5",
+            "!admin tokens revoke letmein",
+        ] {
+            let (_, target) = command_action(&argv(line)).expect("a change is recorded");
+            assert_eq!(target, "(withheld)", "{line}");
         }
     }
 

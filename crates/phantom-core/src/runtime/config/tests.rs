@@ -203,3 +203,23 @@ fn metrics_on_the_main_listeners_need_a_token() {
         Some("127.0.0.1:9090".parse().expect("valid"))
     );
 }
+
+#[test]
+fn scheduled_backups_need_one_to_keep() {
+    let with = |extra: &str| {
+        config(&format!(
+            "[global]\nserver_name = \"phantom.chat\"\ndatabase_path = \
+             \"/var/lib/phantom\"\ndatabase_backup_path = \"/var/backups/phantom\"\n{extra}"
+        ))
+    };
+
+    assert!(
+        with("database_backup_interval_s = 86400\ndatabase_backups_to_keep = 0").is_err(),
+        "a schedule that keeps nothing would delete every backup"
+    );
+    assert!(with("database_backup_interval_s = 86400\ndatabase_backups_to_keep = 1").is_ok());
+    assert!(
+        with("database_backups_to_keep = 0").is_ok(),
+        "without a schedule the setting is left alone"
+    );
+}

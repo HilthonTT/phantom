@@ -161,7 +161,7 @@ async fn serve(services: Arc<Services>) -> Result {
             Err(e) => error!(%addr, "Failed to bind the metrics listener: {e}"),
             Ok(listener) => {
                 info!(%addr, "Serving metrics");
-                let app = phantom_api::metrics::register(Router::new())
+                let app = phantom_api::metrics::register_own(Router::new())
                     .with_state(State::new(services.clone()));
                 let server = server.clone();
                 let shutdown = async move { server.until_shutdown().await };

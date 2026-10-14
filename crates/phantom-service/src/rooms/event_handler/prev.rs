@@ -31,7 +31,11 @@ pub(super) async fn fill_gap(
         let mut missing = Vec::new();
 
         for prev_event_id in &incoming_pdu.prev_events {
-            if !self.services.timeline.pdu_exists(prev_event_id).await {
+            // A purged event is not missing: fetching it again would put it
+            // back in the timeline.
+            if !self.services.timeline.pdu_exists(prev_event_id).await
+                && !self.services.timeline.is_purged(prev_event_id).await
+            {
                 missing.push(prev_event_id.clone());
             }
         }
@@ -68,7 +72,9 @@ pub(super) async fn fill_gap(
             continue;
         }
 
-        if self.services.timeline.get_pdu_id(&event_id).await.is_ok() {
+        if self.services.timeline.get_pdu_id(&event_id).await.is_ok()
+            || self.services.timeline.is_purged(&event_id).await
+        {
             continue;
         }
 

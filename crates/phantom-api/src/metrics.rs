@@ -45,9 +45,16 @@ use crate::router::State as RouterState;
 /// How long the figures that need a database scan are reused for.
 const SLOW_TTL: Duration = Duration::from_secs(60);
 
-/// Adds `/metrics` to `router`.
+/// Adds `/metrics` to `router` for the main listeners, where a scrape must
+/// always carry `metrics_token`.
 pub fn register(router: axum::Router<RouterState>) -> axum::Router<RouterState> {
-    router.route("/metrics", get(metrics))
+    router.route("/metrics", get(metrics_main))
+}
+
+/// Adds `/metrics` to `router` for the `metrics_address` listener, where the
+/// token is asked for only when one is set.
+pub fn register_own(router: axum::Router<RouterState>) -> axum::Router<RouterState> {
+    router.route("/metrics", get(metrics_own))
 }
 
 /// Times a request and counts it by the route template it matched. Added
@@ -93,11 +100,23 @@ impl Drop for InFlight<'_> {
     }
 }
 
-/// # `GET /metrics`
+/// # `GET /metrics` on the main listeners
+async fn metrics_main(State(services): State<RouterState>, headers: HeaderMap) -> Response {
+    metrics(&services, &headers, true).await
+}
+
+/// # `GET /metrics` on the `metrics_address` listener
+async fn metrics_own(State(services): State<RouterState>, headers: HeaderMap) -> Response {
+    metrics(&services, &headers, false).await
+}
+
+/// Every metric, in the Prometheus text format.
 ///
-/// Every metric, in the Prometheus text format. Needs `metrics_token` as a
-/// bearer token when one is set.
-async fn metrics(State(services): State<RouterState>, headers: HeaderMap) -> Response {
+/// Which listener the route sits on is fixed at startup, while the config
+/// can be reloaded since, so the listener decides whether a token is needed:
+/// on the main listeners one always is, and with none configured any longer
+/// the scrape is refused rather than served to everyone.
+async fn metrics(services: &Services, headers: &HeaderMap, token_required: bool) -> Response {
     let logging = &services.server.config.logging;
 
     // Routed at startup; a reload that turns metrics off since closes it here.
@@ -105,23 +124,31 @@ async fn metrics(State(services): State<RouterState>, headers: HeaderMap) -> Res
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    if let Some(token) = logging
-        .metrics_token
-        .as_deref()
-        .filter(|token| !token.is_empty())
-        && !authorized(&headers, token)
-    {
-        return (
-            StatusCode::UNAUTHORIZED,
-            [(header::WWW_AUTHENTICATE, "Bearer")],
-        )
-            .into_response();
+    if let Some(refusal) = refusal(headers, logging.metrics_token.as_deref(), token_required) {
+        return refusal;
     }
 
     let mut text = Text::new();
-    encode(&services, &mut text).await;
+    encode(services, &mut text).await;
 
     ([(header::CONTENT_TYPE, CONTENT_TYPE)], text.finish()).into_response()
+}
+
+/// Why a scrape is refused, if it is: a token is configured and the request
+/// lacks it, or one is required and none is configured.
+fn refusal(headers: &HeaderMap, token: Option<&str>, required: bool) -> Option<Response> {
+    match token.filter(|token| !token.is_empty()) {
+        Some(token) if authorized(headers, token) => None,
+        Some(_) => Some(
+            (
+                StatusCode::UNAUTHORIZED,
+                [(header::WWW_AUTHENTICATE, "Bearer")],
+            )
+                .into_response(),
+        ),
+        None if required => Some(StatusCode::FORBIDDEN.into_response()),
+        None => None,
+    }
 }
 
 /// Whether the request carries `token` as its bearer token. Digests are
@@ -384,7 +411,7 @@ mod tests {
     };
     use tower::ServiceExt;
 
-    use super::{authorized, track};
+    use super::{authorized, refusal, track};
 
     fn server() -> Arc<Server> {
         let toml = r#"
@@ -462,5 +489,32 @@ mod tests {
         assert!(!authorized(&with("Bearer s3cre"), "s3cret"));
         assert!(!authorized(&with("Basic s3cret"), "s3cret"));
         assert!(!authorized(&HeaderMap::new(), "s3cret"));
+    }
+
+    #[test]
+    fn the_main_listeners_never_serve_without_a_token() {
+        let none = HeaderMap::new();
+        let status = |refused: Option<axum::response::Response>| refused.map(|r| r.status());
+
+        // A reload dropped the token: the main listeners refuse every scrape.
+        assert_eq!(
+            status(refusal(&none, None, true)),
+            Some(StatusCode::FORBIDDEN)
+        );
+        assert_eq!(
+            status(refusal(&none, Some(""), true)),
+            Some(StatusCode::FORBIDDEN)
+        );
+
+        // The metrics listener serves without one, as configured.
+        assert_eq!(status(refusal(&none, None, false)), None);
+
+        // With a token, both ask for it.
+        for required in [true, false] {
+            assert_eq!(
+                status(refusal(&none, Some("s3cret"), required)),
+                Some(StatusCode::UNAUTHORIZED)
+            );
+        }
     }
 }

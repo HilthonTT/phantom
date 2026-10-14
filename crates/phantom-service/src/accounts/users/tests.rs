@@ -123,8 +123,17 @@ async fn the_emergency_logout_does_not_deactivate() {
     let server_user = services.server_state.server_user.clone();
 
     users.create(&server_user, Some("emergency")).unwrap();
+    assert!(
+        users.is_active_local(&server_user).await,
+        "with the emergency password, someone can act as the server user"
+    );
+
     users.revoke_credentials(&server_user).await.unwrap();
 
     assert!(users.password_hash(&server_user).await.unwrap().is_empty());
     assert!(!users.is_deactivated(&server_user).await.unwrap());
+    assert!(
+        !users.is_active_local(&server_user).await,
+        "without it the server user is no member to notify or auto-join"
+    );
 }

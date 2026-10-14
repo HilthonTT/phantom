@@ -27,9 +27,12 @@ on:
 permissions:
   contents: read
 
+# A run takes over an hour, so a push must not cancel the one in progress, or
+# frequent pushes to main would leave none finishing; a newer run waits, and
+# replaces any older one still waiting.
 concurrency:
   group: complement-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   complement:

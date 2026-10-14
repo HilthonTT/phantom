@@ -80,6 +80,16 @@ func TestMergingTheLogKeepsEachLineOnceNewestFirst(t *testing.T) {
 	}
 }
 
+func TestAServerThatStartedNumberingOverReplacesTheLog(t *testing.T) {
+	held := []client.LogLine{line(800, "INFO", "", "old"), line(799, "INFO", "", "older")}
+	fresh := []client.LogLine{line(2, "INFO", "", "b"), line(1, "INFO", "", "a")}
+
+	got := MergeLogs(held, fresh, 10)
+	if len(got) != 2 || got[0].Seq != 2 || got[1].Seq != 1 {
+		t.Errorf("merge after a restart = %+v, want the fresh lines alone", got)
+	}
+}
+
 func TestFilteringTheLogKeepsItsOrder(t *testing.T) {
 	lines := []client.LogLine{line(3, "ERROR", "", "c"), line(2, "INFO", "", "b"), line(1, "WARN", "", "a")}
 

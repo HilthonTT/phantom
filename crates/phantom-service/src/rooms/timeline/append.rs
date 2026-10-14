@@ -241,7 +241,12 @@ async fn notify_local_users(&self, pdu: &PduEvent, pdu_id: &RawPduId) -> Result 
 
         self.services
             .user
-            .increment_notification_counts(user, &pdu.room_id, highlight)
+            .increment_notification_counts(
+                user,
+                &pdu.room_id,
+                pdu_id.pdu_count().into_unsigned(),
+                highlight,
+            )
             .await;
 
         self.services

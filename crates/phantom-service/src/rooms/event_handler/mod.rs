@@ -170,6 +170,11 @@ pub async fn handle_incoming_pdu(
         return Ok(Some(pdu_id));
     }
 
+    if self.services.timeline.is_purged(event_id).await {
+        debug!("Event was purged from the history here; not taking it in again");
+        return Ok(None);
+    }
+
     if !self.services.metadata.exists(room_id).await {
         return Err!(Request(NotFound("Room is unknown to this server.")));
     }

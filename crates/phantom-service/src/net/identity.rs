@@ -4,9 +4,10 @@
 //! The identity server is the one the inviting client names, with the access
 //! token the client registered there, so every request here is made on a
 //! user's behalf to a host the user chose. That is why each one is held to
-//! the outbound denylist (`ip_range_denylist`) twice: an IP literal is refused
-//! before connecting, and the address actually connected to, after redirects
-//! and DNS, is checked before the body is read.
+//! the outbound denylist (`ip_range_denylist`): the identity client's resolver
+//! leaves out denylisted addresses and it follows no redirect, so nothing is
+//! sent to one. An IP literal is refused before connecting, and the address
+//! connected to is checked again before the body is read.
 
 use std::sync::Arc;
 
@@ -212,8 +213,12 @@ async fn request<T: DeserializeOwned>(
         )));
     }
 
+    // The identity client refuses denylisted addresses at connection time
+    // and follows no redirect, so a name resolving inward, or a redirect
+    // pointing there, is refused before anything is sent. The checks either
+    // side of it remain for IP literals and for requests sent through a proxy.
     let mut request = client
-        .default
+        .identity
         .request(method, url.clone())
         .bearer_auth(access_token);
 

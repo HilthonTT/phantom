@@ -167,6 +167,7 @@ pub async fn purge_history(
                 self.db.pduid_pdu.remove(key).ok();
                 self.db.eventid_pduid.remove(event_id.as_bytes()).ok();
                 self.db.eventid_outlierpdu.remove(event_id.as_bytes()).ok();
+                self.db.eventid_purged.insert(event_id.as_bytes(), []).ok();
 
                 self.services
                     .pdu_metadata

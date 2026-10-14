@@ -134,6 +134,23 @@ where
     }
 }
 
+/// Gives back a token [`check`] took from `key`'s bucket, for an attempt
+/// charged up front that turned out not to count. The bucket never rises
+/// above its burst, and a bucket evicted meanwhile is already full.
+pub(crate) fn refund<K, Q>(table: &Ratelimiter<K>, key: &Q, limit: Limit)
+where
+    K: Borrow<Q> + Eq + Hash,
+    Q: Eq + Hash + ?Sized,
+{
+    let Ok(mut buckets) = table.lock() else {
+        return;
+    };
+
+    if let Some((_, tokens)) = buckets.get_mut(key) {
+        *tokens = (*tokens + 1.0).min(limit.burst);
+    }
+}
+
 /// Make room in a full table, first by sweeping, then by dropping the oldest.
 ///
 /// The sweep drops buckets that have refilled to their ceiling, since those are

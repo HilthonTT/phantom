@@ -104,15 +104,23 @@ pub async fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId
 }
 
 /// Counts one more notifying event for the user in the room, and one more
-/// highlight when `highlight` is set.
+/// highlight when `highlight` is set. `event_count` is the event's position
+/// in the timeline: an event the user has already read past, by a receipt
+/// that arrived between the event becoming visible and this count, is not
+/// counted, or the room would stay unread after it was read.
 #[implement(Service)]
 pub async fn increment_notification_counts(
     &self,
     user_id: &UserId,
     room_id: &RoomId,
+    event_count: u64,
     highlight: bool,
 ) {
     let _lock = self.count_mutex.lock(user_id).await;
+
+    if self.last_notification_read(user_id, room_id).await > event_count {
+        return;
+    }
 
     let userroom_id = (user_id, room_id);
     increment(&self.db.userroomid_notificationcount, userroom_id).await;

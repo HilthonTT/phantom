@@ -14,7 +14,7 @@ use phantom_core::{Err, Result, err, implement, matrix::PduBuilder};
 use ruma::{
     RoomId, UserId,
     events::{
-        StateEventType,
+        StateEventType, TimelineEventType,
         room::{
             member::{SignedContent, ThirdPartyInvite},
             third_party_invite::RoomThirdPartyInviteEventContent,
@@ -22,6 +22,8 @@ use ruma::{
     },
     serde::Raw,
 };
+
+use serde_json::{json, value::to_raw_value};
 
 use super::Service;
 
@@ -117,7 +119,42 @@ pub async fn exchange_third_party_invite(
 
     self.invite_with_content(sender, user_id, room_id, member)
         .boxed()
+        .await?;
+
+    // The signed block is public once the invite is in the room, and the
+    // callback that exchanges it is unauthenticated, so a pending invite is
+    // used up here: otherwise anyone could post it again after the user left
+    // or declined, and have them invited again each time.
+    self.revoke_third_party_invite(sender, room_id, &content.token)
         .await
+}
+
+/// Revokes the pending invite `token` names, by replacing it with empty
+/// content: the exchange then finds nothing to exchange, and the auth rules,
+/// which need the pending invite's public keys, refuse a member event that
+/// still cites it.
+#[implement(Service)]
+async fn revoke_third_party_invite(
+    &self,
+    sender: &UserId,
+    room_id: &RoomId,
+    token: &str,
+) -> Result {
+    let state_lock = self.services.state.mutex.lock(room_id).await;
+
+    let revoked = PduBuilder {
+        event_type: TimelineEventType::RoomThirdPartyInvite,
+        content: to_raw_value(&json!({}))?,
+        state_key: Some(token.into()),
+        ..PduBuilder::default()
+    };
+
+    self.services
+        .timeline
+        .build_and_append_pdu(revoked, sender, room_id, &state_lock)
+        .await?;
+
+    Ok(())
 }
 
 /// The display name of the pending invite `token` names in the room, which

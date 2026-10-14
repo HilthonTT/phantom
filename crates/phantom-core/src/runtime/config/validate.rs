@@ -78,6 +78,19 @@ fn check_metrics(config: &Config) -> Result {
 }
 
 fn check_database(config: &Config) -> Result {
+    // The backup engine creates a backup only while it may keep one, and
+    // prunes down to the count first: below 1, a scheduled backup would take
+    // nothing and delete every backup already in the directory.
+    if config.database.database_backup_interval_s > 0
+        && config.database.database_backups_to_keep < 1
+    {
+        return Err(err!(Config(
+            "database_backup_interval_s",
+            "scheduled backups need database_backups_to_keep of at least 1, not {}",
+            config.database.database_backups_to_keep
+        )));
+    }
+
     if config.database.rocksdb_max_log_files == 0 {
         return Err(err!(Config(
             "rocksdb_max_log_files",

@@ -107,11 +107,17 @@ func FilterLogs(lines []client.LogLine, f LogFilter) []client.LogLine {
 
 // MergeLogs lays lines newly fetched, newest first, over the ones already
 // held, also newest first: a line already held is not repeated, and only
-// the newest limit are kept.
+// the newest limit are kept. Fresh lines numbered below everything held mean
+// the server's numbering started over, so they replace what is held rather
+// than being dropped as already seen.
 func MergeLogs(held, fresh []client.LogLine, limit int) []client.LogLine {
 	newest := int64(-1)
 	if len(held) > 0 {
 		newest = held[0].Seq
+	}
+
+	if len(fresh) > 0 && fresh[0].Seq < newest {
+		held, newest = nil, -1
 	}
 
 	merged := make([]client.LogLine, 0, min(len(fresh)+len(held), limit))

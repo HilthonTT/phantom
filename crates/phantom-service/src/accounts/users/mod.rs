@@ -255,7 +255,21 @@ impl Service {
         Ok(false)
     }
 
+    /// Whether the account exists and can act as a user. The server user
+    /// counts only while the emergency password lets someone sign in as it,
+    /// as before the deactivation marker existed: otherwise it would count
+    /// as a member to notify, an account to auto-accept invites for, and so
+    /// on, which it is not.
     pub async fn is_active(&self, user_id: &UserId) -> bool {
+        if *user_id == self.services.server_state.server_user {
+            return self
+                .db
+                .userid_password
+                .get(user_id)
+                .await
+                .is_ok_and(|hash| !hash.is_empty());
+        }
+
         !self.is_deactivated(user_id).await.unwrap_or(true)
     }
 
