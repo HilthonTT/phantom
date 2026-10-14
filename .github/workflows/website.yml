@@ -38,7 +38,7 @@ jobs:
           # Served from https://<user>.github.io/phantom/
           NEXT_PUBLIC_BASE_PATH: /phantom
           NEXT_TELEMETRY_DISABLED: 1
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
           path: website/out
