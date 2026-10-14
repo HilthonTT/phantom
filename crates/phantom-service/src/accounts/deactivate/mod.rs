@@ -46,9 +46,21 @@ impl crate::Service for Service {
 }
 
 impl Service {
-    #[tracing::instrument(skip(self), level = "debug")]
+    /// Deactivates an account at its own request.
     pub async fn full_deactivate(&self, user_id: &UserId, erase: bool) -> Result {
-        self.services.users.deactivate_account(user_id).await?;
+        self.full_deactivate_by(user_id, erase, Some(user_id)).await
+    }
+
+    /// Deactivates an account, recording `by` (an admin, the user itself, or
+    /// `None` for the server) with the deactivation marker.
+    #[tracing::instrument(skip(self), level = "debug")]
+    pub async fn full_deactivate_by(
+        &self,
+        user_id: &UserId,
+        erase: bool,
+        by: Option<&UserId>,
+    ) -> Result {
+        self.services.users.deactivate_account(user_id, by).await?;
         self.services.profile.clear_profile(user_id).await;
 
         self.demote_self(user_id).await?;

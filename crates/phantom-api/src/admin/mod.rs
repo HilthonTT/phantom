@@ -51,6 +51,10 @@ pub fn register(router: Router<RouterState>) -> Router<RouterState> {
             put(users::password),
         )
         .route(
+            "/_phantom/admin/v1/users/{user_id}/reactivate",
+            post(users::reactivate),
+        )
+        .route(
             "/_phantom/admin/v1/users/{user_id}/admin",
             put(users::grant_admin).delete(users::revoke_admin),
         )

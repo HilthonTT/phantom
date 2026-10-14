@@ -150,7 +150,7 @@ pub(super) async fn deactivate(
 
     services
         .deactivate
-        .full_deactivate(&user_id, body.erase)
+        .full_deactivate_by(&user_id, body.erase, Some(&admin.user_id))
         .await?;
 
     Ok(Json(json!({})))
@@ -173,6 +173,9 @@ fn true_fn() -> bool {
 ///
 /// Sets a local account's password, signing its devices out unless asked
 /// not to. An admin resetting their own keeps the device they asked from.
+///
+/// A deactivated account is refused: a password would not let it log in, and
+/// [`reactivate`] is the one action that brings an account back.
 pub(super) async fn password(
     State(services): State<RouterState>,
     admin: AdminAuth,
@@ -184,6 +187,12 @@ pub(super) async fn password(
 
     if body.password.is_empty() {
         return Err!(Request(InvalidParam("The password cannot be empty.")));
+    }
+
+    if services.users.is_deactivated(&user_id).await? {
+        return Err!(Request(Forbidden(
+            "{user_id} is deactivated; reactivate it with a new password instead."
+        )));
     }
 
     services
@@ -204,6 +213,37 @@ pub(super) async fn password(
             }
         }
     }
+
+    Ok(Json(json!({})))
+}
+
+#[derive(Deserialize)]
+pub(super) struct Reactivate {
+    password: String,
+}
+
+/// # `POST /_phantom/admin/v1/users/{user_id}/reactivate`
+///
+/// Lifts a deactivation, giving the account a new password. Only the ability
+/// to log in comes back: the rooms it left, its profile and any admin rights
+/// stay gone.
+pub(super) async fn reactivate(
+    State(services): State<RouterState>,
+    _admin: AdminAuth,
+    Path(user_id): Path<OwnedUserId>,
+    body: Bytes,
+) -> Result<impl IntoResponse> {
+    let body: Reactivate = super::body(&body)?;
+    local_account(&services, &user_id).await?;
+
+    if body.password.is_empty() {
+        return Err!(Request(InvalidParam("The password cannot be empty.")));
+    }
+
+    services
+        .users
+        .reactivate_account(&user_id, &body.password)
+        .await?;
 
     Ok(Json(json!({})))
 }

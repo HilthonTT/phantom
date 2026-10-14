@@ -206,7 +206,7 @@ fn validate(&self, registration: &Registration) -> Result<RegistrationInfo> {
 }
 
 #[implement(Service)]
-async fn load_from_db(&self) -> Result<Registrations> {
+pub(crate) async fn load_from_db(&self) -> Result<Registrations> {
     let loaded: Registrations = self
         .db
         .id_appserviceregistrations

@@ -238,14 +238,7 @@ async fn user_can_see_summary(
         return Ok(());
     }
 
-    // Guest accounts carry no password, which `is_deactivated` reports as true.
-    if guest_can_join
-        && services
-            .users
-            .is_deactivated(sender_user)
-            .await
-            .unwrap_or(false)
-    {
+    if guest_can_join && services.users.is_guest(sender_user).await {
         return Ok(());
     }
 

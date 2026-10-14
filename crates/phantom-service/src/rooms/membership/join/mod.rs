@@ -50,13 +50,7 @@ pub async fn join<'a>(
 
     let (federation_lock, state_lock) = self.lock_join(room_id, &servers).await;
 
-    let user_is_guest = !is_appservice
-        && self
-            .services
-            .users
-            .is_deactivated(sender_user)
-            .await
-            .unwrap_or(false);
+    let user_is_guest = !is_appservice && self.services.users.is_guest(sender_user).await;
 
     if user_is_guest && !self.services.state_accessor.guest_can_join(room_id).await {
         return Err!(Request(Forbidden(

@@ -110,7 +110,7 @@ async fn maybe_deactivate(services: &Services, user_id: &UserId, client_ip: IpAd
 
         services
             .deactivate
-            .full_deactivate(user_id, false)
+            .full_deactivate_by(user_id, false, None)
             .boxed()
             .await?;
     }

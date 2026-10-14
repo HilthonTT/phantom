@@ -154,5 +154,12 @@ subtle = "2.6.1"
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2.189", optional = true }
 
+[dev-dependencies]
+# Building a `Config` in tests the way the server does, from a TOML string.
+figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
+# A real database is opened under a temporary directory for the storage tests.
+tempfile = "3.15.0"
+tokio = { version = "1.49.0", default-features = false, features = ["macros", "rt"] }
+
 [lints]
 workspace = true

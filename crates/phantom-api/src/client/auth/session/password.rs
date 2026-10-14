@@ -82,8 +82,18 @@ pub(super) async fn password_login(
         .map_err(|_| wrong())
         .await?;
 
-    if hash.is_empty() {
+    if services
+        .users
+        .is_deactivated(user_id)
+        .await
+        .unwrap_or(false)
+    {
         return Err!(Request(UserDeactivated("The user has been deactivated")));
+    }
+
+    // A guest or an appservice user has no password to log in with.
+    if hash.is_empty() {
+        return Err(wrong());
     }
 
     verify_password(password, &hash)

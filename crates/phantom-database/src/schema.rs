@@ -467,6 +467,10 @@ schema! {
         ..descriptor::RANDOM_SMALL
     }
 
+    USERID_DEACTIVATED = "userid_deactivated" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     USERID_DEVICELISTVERSION = "userid_devicelistversion" {
         ..descriptor::RANDOM_SMALL
     }

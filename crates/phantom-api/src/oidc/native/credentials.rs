@@ -67,8 +67,15 @@ pub(super) async fn verify_credentials(
         }
     };
 
-    // Deactivated accounts have no password here to check.
-    if hash.is_empty() {
+    // Deactivated accounts have no password here to check; the marker is
+    // checked too, so a password set on one later still does not sign it in.
+    if hash.is_empty()
+        || services
+            .users
+            .is_deactivated(&user_id)
+            .await
+            .unwrap_or(true)
+    {
         return Err(invalid());
     }
 

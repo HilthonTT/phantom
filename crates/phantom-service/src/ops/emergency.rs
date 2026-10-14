@@ -87,5 +87,5 @@ async fn set_emergency_access(&self) -> Result {
         return Ok(());
     }
 
-    self.services.users.deactivate_account(server_user).await
+    self.services.users.revoke_credentials(server_user).await
 }

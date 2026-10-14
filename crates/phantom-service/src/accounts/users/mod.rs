@@ -1,5 +1,7 @@
 mod device;
 mod keys;
+#[cfg(test)]
+mod tests;
 mod to_device;
 mod token;
 
@@ -33,6 +35,7 @@ use ruma::{
     },
     serde::Raw,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub use self::{
@@ -53,6 +56,14 @@ pub struct Service {
 
 /// How long an approved cross-signing reset stays open.
 pub const CROSS_SIGNING_REPLACEMENT_TTL: Duration = Duration::from_secs(10 * 60);
+
+/// The deactivation marker's value: when an account was deactivated, and who
+/// asked for it when that was not the server itself.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Deactivation {
+    pub deactivated_at: MilliSecondsSinceUnixEpoch,
+    pub by: Option<OwnedUserId>,
+}
 
 struct Services {
     server: Arc<Server>,
@@ -80,6 +91,7 @@ struct Data {
     userdeviceid_spentrefresh: Arc<Map>,
     userdeviceid_token: Arc<Map>,
     userfilterid_filter: Arc<Map>,
+    userid_deactivated: Arc<Map>,
     userid_devicelistversion: Arc<Map>,
     userid_lastonetimekeyupdate: Arc<Map>,
     userid_masterkeyid: Arc<Map>,
@@ -116,6 +128,7 @@ impl crate::Service for Service {
                 userdeviceid_spentrefresh: args.db[table::USERDEVICEID_SPENTREFRESH].clone(),
                 userdeviceid_token: args.db[table::USERDEVICEID_TOKEN].clone(),
                 userfilterid_filter: args.db[table::USERFILTERID_FILTER].clone(),
+                userid_deactivated: args.db[table::USERID_DEACTIVATED].clone(),
                 userid_devicelistversion: args.db[table::USERID_DEVICELISTVERSION].clone(),
                 userid_lastonetimekeyupdate: args.db[table::USERID_LASTONETIMEKEYUPDATE].clone(),
                 userid_masterkeyid: args.db[table::USERID_MASTERKEYID].clone(),
@@ -165,14 +178,60 @@ impl Service {
         self.set_password(user_id, password)
     }
 
-    pub async fn deactivate_account(&self, user_id: &UserId) -> Result<()> {
+    /// Deactivates a local account: marks it deactivated, signs every device
+    /// out and clears its password. `by` is who asked, kept with the marker
+    /// for the operator; `None` is the server itself.
+    ///
+    /// The marker, not the empty password, is what makes the account
+    /// deactivated. Guests and appservice users never had a password, and
+    /// reading the empty password as deactivation is what made them look
+    /// deactivated before the marker existed.
+    pub async fn deactivate_account(&self, user_id: &UserId, by: Option<&UserId>) -> Result<()> {
+        self.mark_deactivated(user_id, by)?;
+
+        self.revoke_credentials(user_id).await
+    }
+
+    /// Sets the deactivation marker alone, for an account whose credentials
+    /// are already gone.
+    pub fn mark_deactivated(&self, user_id: &UserId, by: Option<&UserId>) -> Result<()> {
+        let deactivation = Deactivation {
+            deactivated_at: MilliSecondsSinceUnixEpoch::now(),
+            by: by.map(ToOwned::to_owned),
+        };
+
+        self.db
+            .userid_deactivated
+            .raw_put(user_id, Json(&deactivation))
+    }
+
+    /// Signs every device out and clears the password, without deactivating.
+    /// The server user takes this when its emergency password is removed: it
+    /// stops being able to log in, but it is not a deactivated account.
+    pub async fn revoke_credentials(&self, user_id: &UserId) -> Result<()> {
         self.all_device_ids(user_id)
             .for_each(|device_id| self.remove_device(user_id, device_id))
             .await;
 
-        self.set_password(user_id, None)?;
+        self.set_password(user_id, None)
+    }
+
+    /// Lifts a deactivation, giving the account `password`. What deactivation
+    /// took besides the password (rooms, profile, admin rights) stays gone.
+    pub async fn reactivate_account(&self, user_id: &UserId, password: &str) -> Result<()> {
+        if !self.is_deactivated(user_id).await? {
+            return Err!(Request(InvalidParam("{user_id} is not deactivated.")));
+        }
+
+        self.set_password(user_id, Some(password))?;
+        self.db.userid_deactivated.remove(user_id)?;
 
         Ok(())
+    }
+
+    /// When and by whom an account was deactivated; `NotFound` when it is not.
+    pub async fn deactivation(&self, user_id: &UserId) -> Result<Deactivation> {
+        self.db.userid_deactivated.get(user_id).await.deserialized()
     }
 
     #[inline]
@@ -180,13 +239,18 @@ impl Service {
         self.db.userid_password.get(user_id).await.is_ok()
     }
 
+    /// Whether the account carries the deactivation marker; an error for an
+    /// account that does not exist.
     pub async fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
-        self.db
-            .userid_password
-            .get(user_id)
-            .map_ok(|val| val.is_empty())
-            .map_err(|_| err!(Request(NotFound("User does not exist."))))
-            .await
+        if self.db.userid_deactivated.exists(user_id).await.is_ok() {
+            return Ok(true);
+        }
+
+        if !self.exists(user_id).await {
+            return Err!(Request(NotFound("User does not exist.")));
+        }
+
+        Ok(false)
     }
 
     pub async fn is_active(&self, user_id: &UserId) -> bool {
@@ -195,6 +259,30 @@ impl Service {
 
     pub async fn is_active_local(&self, user_id: &UserId) -> bool {
         self.services.server_state.user_is_local(user_id) && self.is_active(user_id).await
+    }
+
+    /// Whether a local account is a guest: one with no password that was not
+    /// deactivated, other than the server user.
+    ///
+    /// Guests are not recorded as such, so this is an inference, and it also
+    /// holds for an appservice user registered without a password. Callers
+    /// acting on it exempt requests made with an appservice token, as they did
+    /// when guests were told apart by `is_deactivated`.
+    pub async fn is_guest(&self, user_id: &UserId) -> bool {
+        if *user_id == self.services.server_state.server_user
+            || !self.services.server_state.user_is_local(user_id)
+        {
+            return false;
+        }
+
+        let passwordless = self
+            .db
+            .userid_password
+            .get(user_id)
+            .await
+            .is_ok_and(|hash| hash.is_empty());
+
+        passwordless && !self.is_deactivated(user_id).await.unwrap_or(true)
     }
 
     #[inline]
@@ -215,14 +303,31 @@ impl Service {
             .map(|user_id| <&UserId>::try_from(user_id).expect("valid user id in db"))
     }
 
+    /// Every local account that is not deactivated, guests and appservice
+    /// users included, and the server user excluded.
+    ///
+    /// Remote users are stored too, without a password, once they share a
+    /// room; this used to drop them by their empty password, which dropped
+    /// every passwordless local account with them.
     pub fn list_local_users(&self) -> impl Stream<Item = &UserId> + Send + '_ {
-        self.db
-            .userid_password
-            .stream()
-            .ignore_err()
-            .ready_filter_map(|(u, p): (&str, &[u8])| {
-                (!p.is_empty()).then(|| <&UserId>::try_from(u).expect("valid user id in db"))
+        let server_state = &self.services.server_state;
+
+        self.stream()
+            .ready_filter(move |user_id| {
+                server_state.user_is_local(user_id) && *user_id != server_state.server_user
             })
+            .filter_map(
+                move |user_id| async move { self.is_active(user_id).await.then_some(user_id) },
+            )
+    }
+
+    /// Every account carrying the deactivation marker.
+    pub fn deactivated_users(&self) -> impl Stream<Item = &UserId> + Send + '_ {
+        self.db
+            .userid_deactivated
+            .keys::<&str>()
+            .ignore_err()
+            .map(|user_id| <&UserId>::try_from(user_id).expect("valid user id in db"))
     }
 
     pub async fn password_hash(&self, user_id: &UserId) -> Result<String> {

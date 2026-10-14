@@ -198,6 +198,13 @@ enum UserCommand {
         erase: bool,
     },
 
+    /// Lifts a deactivation, with a random password unless one is given.
+    /// Rooms, profile and admin rights do not come back.
+    Reactivate {
+        user: String,
+        password: Option<String>,
+    },
+
     /// Makes a user an admin by joining them to this room.
     MakeAdmin { user: String },
 
@@ -463,6 +470,26 @@ async fn run_users(
             .await?;
 
             Ok(done(&format!("Deactivated {user_id}.")))
+        }
+        UserCommand::Reactivate { user, password } => {
+            let user_id = user_id(services, &user)?;
+            let generated = password.is_none();
+            let password = password.unwrap_or_else(|| phantom_core::rand::string(PASSWORD_LENGTH));
+
+            call(users::reactivate(
+                state(services),
+                admin,
+                Path(user_id.clone()),
+                bytes(&json!({ "password": password })),
+            ))
+            .await?;
+
+            Ok(match generated {
+                true => done(&format!(
+                    "Reactivated {user_id} with the password: {password}"
+                )),
+                false => done(&format!("Reactivated {user_id}.")),
+            })
         }
         UserCommand::MakeAdmin { user } => {
             let user_id = user_id(services, &user)?;

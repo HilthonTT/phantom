@@ -102,13 +102,7 @@ pub(crate) async fn set_room_visibility_route(
         return Err!(Request(NotFound("Room not found")));
     }
 
-    if services
-        .users
-        .is_deactivated(sender_user)
-        .await
-        .unwrap_or(false)
-        && body.appservice_info.is_none()
-    {
+    if services.users.is_guest(sender_user).await && body.appservice_info.is_none() {
         return Err!(Request(Forbidden(
             "Guests cannot publish to room directories"
         )));

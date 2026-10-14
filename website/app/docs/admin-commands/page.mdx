@@ -19,8 +19,9 @@ Admins can run the server from the admin room, `#admins:<server_name>`, by sendi
 | --- | --- |
 | `users list` · `info <user>` · `devices <user>` | show accounts and their devices |
 | `users create <user> [password]` | create an account; without a password, a random one is made and shown |
-| `users reset-password <user> [password] [--keep-sessions]` | set a password and, unless kept, sign the account out |
+| `users reset-password <user> [password] [--keep-sessions]` | set a password and, unless kept, sign the account out; refused for a deactivated account |
 | `users deactivate <user> [--erase]` | deactivate, optionally erasing its data |
+| `users reactivate <user> [password]` | let a deactivated account log in again, with a random password unless one is given; its rooms, profile and admin rights do not come back |
 | `users make-admin <user>` · `revoke-admin <user>` | grant or take away admin |
 | `users delete-device <user> <device>` | sign one device out |
 | `rooms list` · `info <room>` | show rooms |

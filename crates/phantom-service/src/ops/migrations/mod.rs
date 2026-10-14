@@ -5,12 +5,13 @@
 //! to touch. This is a plain module run by `Services::start` before any worker
 //! starts, not a registered service.
 
+mod deactivated;
 #[cfg(test)]
 mod tests;
 
 use std::{cmp::Ordering, time::Duration};
 
-use futures::{StreamExt, TryStreamExt, future::BoxFuture};
+use futures::{FutureExt, StreamExt, TryStreamExt, future::BoxFuture};
 use phantom_core::{
     Err, Result, debug_info, info,
     stream::{ReadyExt, TryReadyExt},
@@ -47,7 +48,10 @@ struct Step {
 /// ever runs against data written before it existed. To add one, write the
 /// pass in a submodule and append it; never reorder or rename an entry, since
 /// the marker is what records it done.
-const STEPS: &[Step] = &[];
+const STEPS: &[Step] = &[Step {
+    marker: "userid_deactivated_backfill",
+    run: |services| deactivated::mark(services).boxed(),
+}];
 
 pub(crate) async fn migrations(services: &Services) -> Result {
     let config = &services.server.config.database;

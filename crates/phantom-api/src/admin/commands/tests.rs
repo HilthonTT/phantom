@@ -60,6 +60,22 @@ fn subcommands_and_flags_parse() {
 }
 
 #[test]
+fn reactivate_takes_an_optional_password() {
+    let cli = parse("!admin users reactivate bob hunter2").unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Users(UserCommand::Reactivate { ref user, password: Some(ref password) })
+            if user == "bob" && password == "hunter2"
+    ));
+
+    let cli = parse("!admin users reactivate bob").unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Users(UserCommand::Reactivate { password: None, .. })
+    ));
+}
+
+#[test]
 fn an_unknown_command_is_an_error_with_help() {
     let error = parse("!admin users frobnicate").unwrap_err();
     assert!(error.render().to_string().contains("frobnicate"));

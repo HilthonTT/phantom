@@ -98,13 +98,13 @@ pub(crate) async fn login_route(
         }
     };
 
-    // Appservice users are often passwordless, which reads as deactivated.
-    if !matches!(body.login_info, LoginInfo::ApplicationService(_))
-        && services
-            .users
-            .is_deactivated(&user_id)
-            .await
-            .unwrap_or(false)
+    // Deactivation is its own marker, so an appservice user, passwordless as
+    // most are, is refused only when it was actually deactivated.
+    if services
+        .users
+        .is_deactivated(&user_id)
+        .await
+        .unwrap_or(false)
     {
         return Err!(Request(UserDeactivated(
             "This account has been deactivated."
