@@ -91,6 +91,30 @@ pub(super) fn default_openid_token_ttl() -> u64 {
     60 * 60
 }
 
+pub(super) fn default_login_rc_per_second() -> f64 {
+    0.1
+}
+
+pub(super) fn default_login_rc_burst_count() -> u32 {
+    10
+}
+
+pub(super) fn default_login_rc_failed_per_second() -> f64 {
+    0.05
+}
+
+pub(super) fn default_login_rc_failed_burst_count() -> u32 {
+    5
+}
+
+pub(super) fn default_registration_rc_per_second() -> f64 {
+    0.17
+}
+
+pub(super) fn default_registration_rc_burst_count() -> u32 {
+    3
+}
+
 pub(super) fn default_access_token_ttl() -> u64 {
     7 * 24 * 60 * 60
 }

@@ -160,6 +160,7 @@ is a map of the territory so you know what to look for.
 | Process | `config_reload_signal`, `allow_check_for_updates`, `allow_invalid_tls_certificates` |
 | Rooms | `default_room_version`, `1`–`12`; version 12 derives room IDs from the create event and gives creators unlimited power |
 | Admin room | `create_admin_room`, `admin_escape_commands`, `admin_execute`, `admin_signal_execute` — the `!admin` commands are listed by `!admin --help` |
+| Login and registration limits | `login_rc_per_second` and `login_rc_burst_count` (logins per client address), `login_rc_failed_per_second` and `login_rc_failed_burst_count` (wrong passwords per account, through `/login` and interactive auth alike), `registration_rc_per_second` and `registration_rc_burst_count` (accounts created per address). A refusal is `M_LIMIT_EXCEEDED` with `retry_after_ms`; `0` turns a limit off; appservices are exempt. The address is the one `ip_source` yields, so set that behind a reverse proxy or every client shares the proxy's |
 | Phone numbers | `[global.sms]`: `gateway_url`, `gateway_token`, `message`. phantom POSTs `{"to": "+<number>", "message": "…"}` to the gateway with the token as a bearer, and texts a six-digit code that clients send back to `/_phantom/3pid/msisdn/submitToken`. Needs `well_known_client` |
 
 The timeout groups exist because the client service keeps one HTTP client per

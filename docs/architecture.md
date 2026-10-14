@@ -153,6 +153,7 @@ Currently built, outside the room tree:
 | `uiaa` | interactive-auth sessions in progress |
 | `registration_tokens` | registration tokens from the config file and the database, their use counts and expiry |
 | `threepid` | email bindings, and the pending validation sessions that prove them |
+| `attempts` | how often a client may log in or register, and how many wrong passwords an account may be sent |
 
 `accounts/` — what belongs to one account and its devices:
 

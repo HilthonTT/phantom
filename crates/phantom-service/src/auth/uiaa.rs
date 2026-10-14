@@ -19,7 +19,7 @@ use ruma::{
 use crate::{
     Dep,
     accounts::users,
-    auth::{registration_tokens, threepid},
+    auth::{attempts, registration_tokens, threepid},
     ops::server_state,
 };
 
@@ -33,6 +33,7 @@ pub struct Service {
 }
 
 struct Services {
+    attempts: Dep<attempts::Service>,
     server_state: Dep<server_state::Service>,
     users: Dep<users::Service>,
     registration_tokens: Dep<registration_tokens::Service>,
@@ -64,6 +65,7 @@ impl crate::Service for Service {
                 userdevicesessionid_uiaainfo: args.db[table::USERDEVICESESSIONID_UIAAINFO].clone(),
             },
             services: Services {
+                attempts: args.depend::<attempts::Service>(),
                 server_state: args.depend::<server_state::Service>(),
                 users: args.depend::<users::Service>(),
                 registration_tokens: args.depend::<registration_tokens::Service>(),
@@ -175,12 +177,18 @@ async fn try_auth_inner(
             }
             let user_id = user_id_from_username;
 
+            // The access token is already proven, but guessing the password
+            // behind it is what would let a stolen token change it.
+            self.services.attempts.check_password(&user_id)?;
+
             let hash_matches = match self.services.users.password_hash(&user_id).await {
                 Ok(hash) => hash::verify_password(password, &hash).is_ok(),
                 Err(_) => false,
             };
 
             if !hash_matches {
+                self.services.attempts.record_failed(&user_id);
+
                 uiaainfo.auth_error = Some(Box::new(StandardErrorBody::new(
                     ErrorKind::Forbidden,
                     "Invalid username or password.".to_owned(),

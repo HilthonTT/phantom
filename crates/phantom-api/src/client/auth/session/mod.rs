@@ -83,6 +83,12 @@ pub(crate) async fn login_route(
     body: Ruma<login::v3::Request>,
 ) -> Result<login::v3::Response> {
     let config = &services.config.client;
+
+    // Appservices log their users in by token, as often as they need to.
+    if !matches!(body.login_info, LoginInfo::ApplicationService(_)) {
+        services.attempts.check_login(client_ip)?;
+    }
+
     let user_id = match &body.login_info {
         LoginInfo::Password(info) if config.login_with_password => {
             password::handle_login(&services, &body, info).await?

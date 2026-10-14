@@ -53,6 +53,12 @@ pub(crate) async fn register_route(
 
     gate_registration_allowed(&services, &body, is_guest)?;
 
+    // Appservices create their users as they need them.
+    let limited = body.appservice_info.is_none();
+    if limited {
+        services.attempts.check_registration(client)?;
+    }
+
     let user_id =
         resolve_registration_user_id(&services, &body, is_guest, emergency_mode_enabled).await?;
 
@@ -67,6 +73,10 @@ pub(crate) async fn register_route(
     };
 
     full_register(&services, &user_id, password).await?;
+
+    if limited {
+        services.attempts.record_registration(client);
+    }
 
     bind_registration_email(&services, &user_id, email_association.as_ref()).await;
 

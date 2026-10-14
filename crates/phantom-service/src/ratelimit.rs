@@ -7,11 +7,17 @@
 //! at all. Holding the refill, the cap and the eviction in one place is what
 //! keeps them from drifting apart again.
 
-use std::{borrow::Borrow, collections::HashMap, hash::Hash, sync::Mutex, time::Instant};
+use std::{
+    borrow::Borrow,
+    collections::HashMap,
+    hash::Hash,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 use http::StatusCode;
 use phantom_core::{Error, Result};
-use ruma::api::error::{ErrorKind, LimitExceededErrorData};
+use ruma::api::error::{ErrorKind, LimitExceededErrorData, RetryAfter};
 
 /// Each key's last debit and the allowance remaining to it.
 pub(crate) type Ratelimiter<K> = Mutex<HashMap<K, (Instant, f64)>>;
@@ -98,6 +104,36 @@ where
     debit(bucket, limit, now)
 }
 
+/// Whether `key`'s bucket holds a token, without spending it.
+///
+/// For a limit charged only on failure: the check comes before the attempt,
+/// and [`check`] debits once the attempt is known to have failed. A key with
+/// no bucket has its whole burst, so nothing is inserted.
+pub(crate) fn peek<K, Q>(table: &Ratelimiter<K>, key: &Q, limit: Limit) -> Result
+where
+    K: Borrow<Q> + Eq + Hash,
+    Q: Eq + Hash + ?Sized,
+{
+    peek_at(table, key, limit, Instant::now())
+}
+
+/// [`peek`], with the clock supplied by the caller.
+pub(crate) fn peek_at<K, Q>(table: &Ratelimiter<K>, key: &Q, limit: Limit, now: Instant) -> Result
+where
+    K: Borrow<Q> + Eq + Hash,
+    Q: Eq + Hash + ?Sized,
+{
+    let buckets = table.lock()?;
+
+    match buckets.get(key) {
+        Some(&(last, tokens)) => match refill(last, tokens, limit, now) {
+            tokens if tokens < 1.0 => Err(exceeded(limit, tokens)),
+            _ => Ok(()),
+        },
+        None => Ok(()),
+    }
+}
+
 /// Make room in a full table, first by sweeping, then by dropping the oldest.
 ///
 /// The sweep drops buckets that have refilled to their ceiling, since those are
@@ -141,18 +177,10 @@ where
 /// Refill a bucket for the time elapsed, then spend one token from it.
 fn debit(bucket: &mut (Instant, f64), limit: Limit, now: Instant) -> Result {
     let (last_time, tokens) = bucket;
-    let new_tokens = now
-        .duration_since(*last_time)
-        .as_secs_f64()
-        .mul_add(limit.rate, *tokens)
-        .min(limit.burst);
+    let new_tokens = refill(*last_time, *tokens, limit, now);
 
     if new_tokens < 1.0 {
-        return Err(Error::Request(
-            ErrorKind::LimitExceeded(LimitExceededErrorData::new()),
-            limit.message.into(),
-            StatusCode::TOO_MANY_REQUESTS,
-        ));
+        return Err(exceeded(limit, new_tokens));
     }
 
     *last_time = now;
@@ -161,11 +189,48 @@ fn debit(bucket: &mut (Instant, f64), limit: Limit, now: Instant) -> Result {
     Ok(())
 }
 
+/// A bucket's tokens after refilling for the time since `last`.
+fn refill(last: Instant, tokens: f64, limit: Limit, now: Instant) -> f64 {
+    now.duration_since(last)
+        .as_secs_f64()
+        .mul_add(limit.rate, tokens)
+        .min(limit.burst)
+}
+
+/// The `M_LIMIT_EXCEEDED` for a bucket holding `tokens`, telling the client
+/// how long until it holds one whole token again.
+fn exceeded(limit: Limit, tokens: f64) -> Error {
+    let mut data = LimitExceededErrorData::new();
+    data.retry_after = retry_after(limit, tokens).map(RetryAfter::Delay);
+
+    Error::Request(
+        ErrorKind::LimitExceeded(data),
+        limit.message.into(),
+        StatusCode::TOO_MANY_REQUESTS,
+    )
+}
+
+/// How long until a bucket holding `tokens` refills to one, rounded up to the
+/// millisecond so a client retrying on time is not refused again; `None` when
+/// the limit never refills.
+fn retry_after(limit: Limit, tokens: f64) -> Option<Duration> {
+    if limit.rate <= 0.0 {
+        return None;
+    }
+
+    let secs = ((1.0 - tokens) / limit.rate).max(0.0);
+
+    Duration::try_from_secs_f64((secs * 1000.0).ceil() / 1000.0).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Mutex, time::Duration};
 
-    use super::{Instant, Limit, Ratelimiter, check_at};
+    use phantom_core::Error;
+    use ruma::api::error::{ErrorKind, RetryAfter};
+
+    use super::{Instant, Limit, Ratelimiter, check_at, peek_at};
 
     const LIMIT: Limit = Limit {
         rate: 1.0,
@@ -248,6 +313,50 @@ mod tests {
 
         assert!(buckets.contains_key(&99), "the new key got a bucket");
         assert!(buckets.len() <= 2, "the table stayed within its cap");
+    }
+
+    #[test]
+    fn a_refusal_says_when_to_retry() {
+        let table = table();
+        let now = Instant::now();
+
+        for _ in 0..3 {
+            assert!(check(&table, 1, now, 16));
+        }
+
+        let error = check_at(&table, &1, || 1, LIMIT, now, 16).expect_err("bucket is empty");
+        let Error::Request(ErrorKind::LimitExceeded(data), ..) = error else {
+            panic!("expected M_LIMIT_EXCEEDED, got {error:?}");
+        };
+
+        assert_eq!(
+            data.retry_after,
+            Some(RetryAfter::Delay(Duration::from_secs(1))),
+            "an empty bucket at one token per second has one second to wait"
+        );
+    }
+
+    #[test]
+    fn peeking_spends_nothing() {
+        let table = table();
+        let now = Instant::now();
+
+        assert!(peek_at(&table, &1, LIMIT, now).is_ok());
+        assert!(
+            table.lock().expect("table is not poisoned").is_empty(),
+            "a peek at a missing bucket inserts none"
+        );
+
+        for _ in 0..3 {
+            assert!(check(&table, 1, now, 16));
+        }
+
+        assert!(peek_at(&table, &1, LIMIT, now).is_err());
+        assert!(peek_at(&table, &1, LIMIT, now + Duration::from_secs(1)).is_ok());
+        assert!(
+            peek_at(&table, &1, LIMIT, now + Duration::from_secs(1)).is_ok(),
+            "a second peek still finds the token the first did not spend"
+        );
     }
 
     #[test]

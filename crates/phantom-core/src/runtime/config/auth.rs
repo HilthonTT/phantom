@@ -55,6 +55,57 @@ pub struct Auth {
     #[serde(default = "true_fn")]
     pub refresh_token_reuse_revoke: bool,
 
+    /// Login attempts one client address may make, as tokens restored per
+    /// second. Every `/login` other than an appservice's spends one, whether
+    /// it succeeds or not. The address is the one `ip_source` yields, so
+    /// behind a reverse proxy set that, or every client shares the proxy's.
+    /// `0` turns the limit off.
+    ///
+    /// default: 0.1
+    #[serde(default = "default_login_rc_per_second")]
+    pub login_rc_per_second: f64,
+
+    /// Login attempts one client address may make in a burst before
+    /// `login_rc_per_second` applies.
+    ///
+    /// default: 10
+    #[serde(default = "default_login_rc_burst_count")]
+    pub login_rc_burst_count: u32,
+
+    /// Wrong passwords one account may be sent, as tokens restored per
+    /// second, through `/login` and the interactive-auth password stage
+    /// alike. Unlike the per-address limit this holds against guesses spread
+    /// over many addresses. Only failures spend a token, so the account's
+    /// owner is not locked out by their own successful logins. `0` turns the
+    /// limit off.
+    ///
+    /// default: 0.05
+    #[serde(default = "default_login_rc_failed_per_second")]
+    pub login_rc_failed_per_second: f64,
+
+    /// Wrong passwords one account may be sent in a burst before
+    /// `login_rc_failed_per_second` applies.
+    ///
+    /// default: 5
+    #[serde(default = "default_login_rc_failed_burst_count")]
+    pub login_rc_failed_burst_count: u32,
+
+    /// Accounts one client address may register, as tokens restored per
+    /// second. Only a registration that creates an account spends one, so the
+    /// interactive-auth round trips before it do not. Appservices are exempt.
+    /// `0` turns the limit off.
+    ///
+    /// default: 0.17
+    #[serde(default = "default_registration_rc_per_second")]
+    pub registration_rc_per_second: f64,
+
+    /// Accounts one client address may register in a burst before
+    /// `registration_rc_per_second` applies.
+    ///
+    /// default: 3
+    #[serde(default = "default_registration_rc_burst_count")]
+    pub registration_rc_burst_count: u32,
+
     #[serde(default = "default_openid_token_ttl")]
     pub openid_token_ttl: u64,
 
