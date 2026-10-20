@@ -2297,9 +2297,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "loole"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88b6a999892b8cba8e96d6962573c7e0fc4a9a17058d3acf7fd69b675a0e0423"
+checksum = "45a6f2ee852ef619dac448846d7a80fb56a08e842674202d1ffe509fc319165c"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -4552,7 +4552,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
