@@ -9,6 +9,7 @@ use crate::router::Ruma;
 /// Publish end-to-end encryption keys for the sender device.
 ///
 /// - Adds one time keys, up to the configured per-device limit
+/// - Replaces the device's fallback key for each algorithm uploaded
 /// - If there are no device keys yet: Adds device keys (TODO: merge with
 ///   existing keys?)
 pub(crate) async fn upload_keys_route(
@@ -59,6 +60,17 @@ pub(crate) async fn upload_keys_route(
             .await
         {
             debug_warn!(%sender_user, %sender_device, "Rejected one-time key {key_id}: {e}");
+            return Err(e);
+        }
+    }
+
+    for (key_id, fallback_key) in &body.fallback_keys {
+        if let Err(e) = services
+            .users
+            .set_fallback_key(sender_user, sender_device, key_id, fallback_key)
+            .await
+        {
+            debug_warn!(%sender_user, %sender_device, "Rejected fallback key {key_id}: {e}");
             return Err(e);
         }
     }

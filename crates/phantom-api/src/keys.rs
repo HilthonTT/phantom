@@ -214,11 +214,19 @@ pub(crate) async fn claim_local_one_time_keys(
     for (user_id, requested) in claims {
         let mut device_keys = BTreeMap::new();
         for (device_id, algorithm) in requested {
-            if let Ok((key_id, key)) = services
+            let mut claimed_key = services
                 .users
                 .take_one_time_key(user_id, device_id, algorithm)
-                .await
-            {
+                .await;
+
+            if claimed_key.is_err() {
+                claimed_key = services
+                    .users
+                    .take_fallback_key(user_id, device_id, algorithm)
+                    .await;
+            }
+
+            if let Ok((key_id, key)) = claimed_key {
                 device_keys.insert(device_id.clone(), BTreeMap::from([(key_id, key)]));
             }
         }
