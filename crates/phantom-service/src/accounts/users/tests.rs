@@ -161,28 +161,52 @@ async fn a_fallback_key_is_handed_out_until_replaced() {
         .await
         .unwrap();
 
-    assert!(users.unused_fallback_key_types(&alice, &device).await.is_empty());
-    assert!(users.take_fallback_key(&alice, &device, &algorithm).await.is_err());
+    assert!(
+        users
+            .unused_fallback_key_types(&alice, &device)
+            .await
+            .is_empty()
+    );
+    assert!(
+        users
+            .take_fallback_key(&alice, &device, &algorithm)
+            .await
+            .is_err()
+    );
 
     let (first_id, first) = curve25519_key("signed_curve25519:AAAA", "first");
     users
         .set_fallback_key(&alice, &device, &first_id, &first)
         .await
         .unwrap();
-    assert_eq!(users.unused_fallback_key_types(&alice, &device).await, [algorithm.clone()]);
+    assert_eq!(
+        users.unused_fallback_key_types(&alice, &device).await,
+        [algorithm.clone()]
+    );
 
     for _ in 0..2 {
-        let (key_id, _) = users.take_fallback_key(&alice, &device, &algorithm).await.unwrap();
+        let (key_id, _) = users
+            .take_fallback_key(&alice, &device, &algorithm)
+            .await
+            .unwrap();
         assert_eq!(key_id, first_id, "a used fallback key is not removed");
     }
-    assert!(users.unused_fallback_key_types(&alice, &device).await.is_empty());
+    assert!(
+        users
+            .unused_fallback_key_types(&alice, &device)
+            .await
+            .is_empty()
+    );
 
     users
         .set_fallback_key(&alice, &device, &first_id, &first)
         .await
         .unwrap();
     assert!(
-        users.unused_fallback_key_types(&alice, &device).await.is_empty(),
+        users
+            .unused_fallback_key_types(&alice, &device)
+            .await
+            .is_empty(),
         "uploading the same key again does not make it unused"
     );
 
@@ -191,13 +215,24 @@ async fn a_fallback_key_is_handed_out_until_replaced() {
         .set_fallback_key(&alice, &device, &second_id, &second)
         .await
         .unwrap();
-    assert_eq!(users.unused_fallback_key_types(&alice, &device).await, [algorithm.clone()]);
+    assert_eq!(
+        users.unused_fallback_key_types(&alice, &device).await,
+        [algorithm.clone()]
+    );
 
-    let (key_id, _) = users.take_fallback_key(&alice, &device, &algorithm).await.unwrap();
+    let (key_id, _) = users
+        .take_fallback_key(&alice, &device, &algorithm)
+        .await
+        .unwrap();
     assert_eq!(key_id, second_id);
 
     users.remove_device(&alice, &device).await;
-    assert!(users.take_fallback_key(&alice, &device, &algorithm).await.is_err());
+    assert!(
+        users
+            .take_fallback_key(&alice, &device, &algorithm)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -210,5 +245,10 @@ async fn a_fallback_key_needs_a_device() {
     users.create(&alice, Some("hunter2")).unwrap();
 
     let (key_id, key) = curve25519_key("signed_curve25519:AAAA", "key");
-    assert!(users.set_fallback_key(&alice, &device, &key_id, &key).await.is_err());
+    assert!(
+        users
+            .set_fallback_key(&alice, &device, &key_id, &key)
+            .await
+            .is_err()
+    );
 }

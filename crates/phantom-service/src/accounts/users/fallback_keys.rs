@@ -47,7 +47,9 @@ impl Service {
             .qry(&db_key)
             .await
             .deserialized::<FallbackKey>()
-            .is_ok_and(|stored| stored.key_id == key_id && stored.key.json().get() == key.json().get());
+            .is_ok_and(|stored| {
+                stored.key_id == key_id && stored.key.json().get() == key.json().get()
+            });
 
         if unchanged {
             return Ok(());

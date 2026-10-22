@@ -220,7 +220,10 @@ async fn one_time_key_state(
     services: &Services,
     sender_user: &UserId,
     sender_device: Option<&DeviceId>,
-) -> (BTreeMap<OneTimeKeyAlgorithm, UInt>, Option<Vec<OneTimeKeyAlgorithm>>) {
+) -> (
+    BTreeMap<OneTimeKeyAlgorithm, UInt>,
+    Option<Vec<OneTimeKeyAlgorithm>>,
+) {
     let Some(sender_device) = sender_device else {
         return Default::default();
     };
