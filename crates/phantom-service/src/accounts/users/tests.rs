@@ -181,7 +181,7 @@ async fn a_fallback_key_is_handed_out_until_replaced() {
         .unwrap();
     assert_eq!(
         users.unused_fallback_key_types(&alice, &device).await,
-        [algorithm.clone()]
+        std::slice::from_ref(&algorithm)
     );
 
     for _ in 0..2 {
@@ -217,7 +217,7 @@ async fn a_fallback_key_is_handed_out_until_replaced() {
         .unwrap();
     assert_eq!(
         users.unused_fallback_key_types(&alice, &device).await,
-        [algorithm.clone()]
+        std::slice::from_ref(&algorithm)
     );
 
     let (key_id, _) = users
