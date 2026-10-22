@@ -1,4 +1,5 @@
 mod device;
+mod fallback_keys;
 mod keys;
 #[cfg(test)]
 mod tests;
@@ -78,6 +79,7 @@ struct Services {
 
 struct Data {
     database: Arc<Database>,
+    fallbackkeyid_fallbackkey: Arc<Map>,
     keychangeid_userid: Arc<Map>,
     keyid_key: Arc<Map>,
     oidcdevice_userdeviceid: Arc<Map>,
@@ -116,6 +118,7 @@ impl crate::Service for Service {
             },
             db: Data {
                 database: args.db.clone(),
+                fallbackkeyid_fallbackkey: args.db[table::FALLBACKKEYID_FALLBACKKEY].clone(),
                 keychangeid_userid: args.db[table::KEYCHANGEID_USERID].clone(),
                 keyid_key: args.db[table::KEYID_KEY].clone(),
                 oidcdevice_userdeviceid: args.db[table::OIDCDEVICE_USERDEVICEID].clone(),

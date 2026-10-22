@@ -122,6 +122,10 @@ schema! {
         ..descriptor::RANDOM
     }
 
+    FALLBACKKEYID_FALLBACKKEY = "fallbackkeyid_fallbackkey" {
+        ..descriptor::RANDOM_SMALL
+    }
+
     GLOBAL = "global" {
         ..descriptor::RANDOM_SMALL
     }

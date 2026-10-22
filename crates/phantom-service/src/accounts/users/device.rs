@@ -37,6 +37,8 @@ impl Service {
 
         self.db.onetimekeyid_onetimekeys.del_prefix(&prefix).await;
 
+        self.db.fallbackkeyid_fallbackkey.del_prefix(&prefix).await;
+
         self.db.keyid_key.del(userdeviceid).ok();
 
         // A removed device can no longer resume its sliding sync connections.

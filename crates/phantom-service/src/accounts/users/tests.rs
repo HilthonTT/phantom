@@ -1,5 +1,8 @@
 use futures::StreamExt;
-use ruma::{OwnedUserId, UserId, owned_user_id};
+use ruma::{
+    OneTimeKeyAlgorithm, OwnedDeviceId, OwnedOneTimeKeyId, OwnedUserId, UserId,
+    encryption::OneTimeKey, owned_user_id, serde::Raw,
+};
 
 use crate::runtime::testing;
 
@@ -136,4 +139,76 @@ async fn the_emergency_logout_does_not_deactivate() {
         !users.is_active_local(&server_user).await,
         "without it the server user is no member to notify or auto-join"
     );
+}
+
+fn curve25519_key(key_id: &str, key: &str) -> (OwnedOneTimeKeyId, Raw<OneTimeKey>) {
+    let key = serde_json::json!({ "key": key, "fallback": true }).to_string();
+    let key = serde_json::from_str(&key).unwrap();
+    (key_id.try_into().unwrap(), key)
+}
+
+#[tokio::test]
+async fn a_fallback_key_is_handed_out_until_replaced() {
+    let services = testing::build("");
+    let users = &services.users;
+    let alice = local("alice");
+    let device: OwnedDeviceId = "PHONE".into();
+    let algorithm = OneTimeKeyAlgorithm::SignedCurve25519;
+
+    users.create(&alice, Some("hunter2")).unwrap();
+    users
+        .create_device(&alice, &device, "token", None, None)
+        .await
+        .unwrap();
+
+    assert!(users.unused_fallback_key_types(&alice, &device).await.is_empty());
+    assert!(users.take_fallback_key(&alice, &device, &algorithm).await.is_err());
+
+    let (first_id, first) = curve25519_key("signed_curve25519:AAAA", "first");
+    users
+        .set_fallback_key(&alice, &device, &first_id, &first)
+        .await
+        .unwrap();
+    assert_eq!(users.unused_fallback_key_types(&alice, &device).await, [algorithm.clone()]);
+
+    for _ in 0..2 {
+        let (key_id, _) = users.take_fallback_key(&alice, &device, &algorithm).await.unwrap();
+        assert_eq!(key_id, first_id, "a used fallback key is not removed");
+    }
+    assert!(users.unused_fallback_key_types(&alice, &device).await.is_empty());
+
+    users
+        .set_fallback_key(&alice, &device, &first_id, &first)
+        .await
+        .unwrap();
+    assert!(
+        users.unused_fallback_key_types(&alice, &device).await.is_empty(),
+        "uploading the same key again does not make it unused"
+    );
+
+    let (second_id, second) = curve25519_key("signed_curve25519:BBBB", "second");
+    users
+        .set_fallback_key(&alice, &device, &second_id, &second)
+        .await
+        .unwrap();
+    assert_eq!(users.unused_fallback_key_types(&alice, &device).await, [algorithm.clone()]);
+
+    let (key_id, _) = users.take_fallback_key(&alice, &device, &algorithm).await.unwrap();
+    assert_eq!(key_id, second_id);
+
+    users.remove_device(&alice, &device).await;
+    assert!(users.take_fallback_key(&alice, &device, &algorithm).await.is_err());
+}
+
+#[tokio::test]
+async fn a_fallback_key_needs_a_device() {
+    let services = testing::build("");
+    let users = &services.users;
+    let alice = local("alice");
+    let device: OwnedDeviceId = "GONE".into();
+
+    users.create(&alice, Some("hunter2")).unwrap();
+
+    let (key_id, key) = curve25519_key("signed_curve25519:AAAA", "key");
+    assert!(users.set_fallback_key(&alice, &device, &key_id, &key).await.is_err());
 }
