@@ -153,25 +153,37 @@ These answer only while the Logs section has the keyboard.
 
 ## The command prompt
 
-`:` opens a command line. It lists what will eventually be typeable — nothing
-happens when you press Enter yet; the prompt is there so the shape of the
-interface is complete, and the handlers are the work that follows.
+`:` opens a command line, which lists every command as you type. `join`,
+`leave`, `login` and `logout` are for anyone; the rest need an admin signed in.
+A command that changes something asks for confirmation first (see
+[Confirmation](#confirmation)), and its result arrives as a notification.
 
-| Command | Intent |
+| Command | What it does |
 | :--- | :--- |
-| `room <alias>` | open a room's record |
-| `inspect <room>` | open the room inspector, by ID, name or alias |
 | `user <id>` | open a user's record |
+| `room <id\|#alias>` | open a room's record |
+| `inspect <room>` | open the room inspector, by ID, name or alias |
+| `passwd <user>` | set a user's password |
+| `admin <user>` · `unadmin <user>` | make a user an admin, or revoke it |
+| `deactivate <user> [erase]` | deactivate an account, and with `erase` its data too |
+| `reactivate <user>` | reactivate a deactivated account with a new password |
+| `token [uses] [days] [token]` | create a registration token |
+| `revoke <token>` | revoke a registration token |
+| `ban <room>` · `unban <room>` | stop local users joining a room, or lift it |
+| `shutdown <room>` | evict a room's local members |
 | `purge <room>` | delete a room and purge it |
 | `purgehistory <room> <days>` | purge remote users' messages older than |
+| `rmmedia <mxc>` | delete a stored file |
+| `purgemedia <server>` | delete a server's cached media |
 | `cleanmedia remote\|local <days>` | purge stored media older than |
-| `block <server>` · `unblock <server>` | stop or resume federating with a server |
-| `deactivate <user>` | deactivate an account |
-| `reactivate <user>` | reactivate a deactivated account with a new password |
 | `quarantine <mxc>` · `unquarantine <mxc>` | stop or resume serving a file |
+| `block <server>` · `unblock <server>` | stop or resume federating with a server |
+| `dismiss <report id>` | close an abuse report |
+| `cancel <task id>` | stop a running task |
 | `reload` | re-read the config file |
 | `backup` | start a database backup |
-| `cancel <task id>` | stop a running room shutdown or deletion |
+| `join <#alias\|!id>` · `leave` | join a room and open it, or leave the open one |
+| `login` · `logout` | sign in, or sign out and forget the session |
 
 ## What the admin sections show
 

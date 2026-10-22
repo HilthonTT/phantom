@@ -10,11 +10,13 @@ phantom is early. This page says plainly what works and what doesn't, so you can
 - Rooms: create, join, leave, invite, send, edit, react, redact, state, aliases, the directory.
 - Sync, typing, receipts, presence, account data, push rules.
 - Media upload and download.
+- End-to-end encryption: device and cross-signing keys, one-time and fallback keys, key backups.
 - Room versions 1 through 12; new rooms default to 11.
 - Federation between phantom servers, in room versions 11 and 12, including joins, messages and room upgrades.
 - HTTPS served directly when `[global.tls]` is set.
 - The admin room, the first account becoming admin, and [`!admin` commands](/docs/admin-commands/).
 - Adding and verifying phone numbers by text message, through an [SMS gateway](/docs/configuration/#phone-numbers).
+- Blocking servers, quarantining media and cancelling admin tasks while the server runs.
 - The admin API and every console section.
 
 ## Doesn't, yet
@@ -24,7 +26,5 @@ phantom is early. This page says plainly what works and what doesn't, so you can
 | **Federation only tried phantom to phantom** | it hasn't yet been run against Synapse or another implementation |
 | **No registration by phone** | phone numbers can be added and used for password resets, not to sign up |
 | **No E2EE in the console** | encrypted rooms can't be read there; other clients are fine |
-| **No task cancelling** | a purge or backup runs to the end |
-| **No runtime server blocklist, no media quarantine** | moderation is in the config file |
 
 **Don't deploy phantom where it matters yet.**

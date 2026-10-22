@@ -159,7 +159,7 @@ Currently built, outside the room tree:
 
 | Service | What it owns |
 | :--- | :--- |
-| `users` | accounts, devices, keys, profiles and to-device messages; an account is deactivated by its `userid_deactivated` marker, not by its empty password, which guests and appservice users have too |
+| `users` | accounts, devices, keys (device, cross-signing, one-time and fallback), profiles and to-device messages; an account is deactivated by its `userid_deactivated` marker, not by its empty password, which guests and appservice users have too |
 | `account_data` | the account data a client stores against itself and against a room |
 | `key_backups` | server-side backups of a client's room keys |
 | `presence` | who is online, and when they stop counting as online |
