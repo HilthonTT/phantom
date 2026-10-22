@@ -63,26 +63,35 @@ pub(super) async fn collect(sync_info: SyncInfo<'_>, conn: &Connection) -> Resul
         })
         .collect();
 
-    let device_one_time_keys_count = async {
+    // Only sent when they changed (or on the first sync, so clients learn
+    // fallback keys are supported); a value on every response would keep the
+    // long-poll from ever waiting.
+    let one_time_key_state = async {
         let since = services.users.last_one_time_keys_update(sender_user).await;
 
-        if since > conn.globalsince {
+        if since <= conn.globalsince && conn.globalsince != 0 {
+            return Default::default();
+        }
+
+        let (counts, unused_fallback_key_types) = join(
             services
                 .users
-                .count_one_time_keys(sender_user, sender_device)
-                .await
-        } else {
-            Default::default()
-        }
+                .count_one_time_keys(sender_user, sender_device),
+            services
+                .users
+                .unused_fallback_key_types(sender_user, sender_device),
+        )
+        .await;
+
+        (counts, Some(unused_fallback_key_types))
     };
 
-    let (left, device_one_time_keys_count) = join(left, device_one_time_keys_count).boxed().await;
+    let (left, (device_one_time_keys_count, device_unused_fallback_key_types)) =
+        join(left, one_time_key_state).boxed().await;
 
-    // phantom stores no fallback keys; leaving the unused fallback key types
-    // out tells clients the server lacks the feature, so they don't upload a
-    // new fallback key on every sync.
     let mut e2ee = response::E2EE::default();
     e2ee.device_one_time_keys_count = device_one_time_keys_count;
+    e2ee.device_unused_fallback_key_types = device_unused_fallback_key_types;
     e2ee.device_lists = DeviceLists::new();
     e2ee.device_lists.changed = changed.into_iter().collect();
     e2ee.device_lists.left = left;

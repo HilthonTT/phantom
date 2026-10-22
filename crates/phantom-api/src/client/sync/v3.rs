@@ -10,7 +10,7 @@ use std::{
 use axum::extract::State;
 use futures::{
     FutureExt, StreamExt, TryFutureExt,
-    future::{OptionFuture, join3, join4, join5},
+    future::{OptionFuture, join, join3, join4, join5},
 };
 use phantom_core::{
     Result, error, extract_variant,
@@ -21,7 +21,7 @@ use phantom_core::{
 };
 use phantom_service::{Services, accounts::account_data::AnyRawAccountDataEvent};
 use ruma::{
-    DeviceId, OwnedUserId, UserId,
+    DeviceId, OneTimeKeyAlgorithm, OwnedUserId, UInt, UserId,
     api::client::{
         filter::FilterDefinition,
         sync::sync_events::{
@@ -207,17 +207,35 @@ async fn build_empty_response(
     sender_device: Option<&DeviceId>,
     next_batch: u64,
 ) -> sync_events::v3::Response {
-    let device_one_time_keys_count: OptionFuture<_> = sender_device
-        .map(|sender_device| {
-            services
-                .users
-                .count_one_time_keys(sender_user, sender_device)
-        })
-        .into();
+    let (device_one_time_keys_count, device_unused_fallback_key_types) =
+        one_time_key_state(services, sender_user, sender_device).await;
 
     let mut response = sync_events::v3::Response::new(next_batch.to_string());
-    response.device_one_time_keys_count = device_one_time_keys_count.await.unwrap_or_default();
+    response.device_one_time_keys_count = device_one_time_keys_count;
+    response.device_unused_fallback_key_types = device_unused_fallback_key_types;
     response
+}
+
+async fn one_time_key_state(
+    services: &Services,
+    sender_user: &UserId,
+    sender_device: Option<&DeviceId>,
+) -> (BTreeMap<OneTimeKeyAlgorithm, UInt>, Option<Vec<OneTimeKeyAlgorithm>>) {
+    let Some(sender_device) = sender_device else {
+        return Default::default();
+    };
+
+    let (counts, unused_fallback_key_types) = join(
+        services
+            .users
+            .count_one_time_keys(sender_user, sender_device),
+        services
+            .users
+            .unused_fallback_key_types(sender_user, sender_device),
+    )
+    .await;
+
+    (counts, Some(unused_fallback_key_types))
 }
 
 #[tracing::instrument(
@@ -384,13 +402,7 @@ async fn build_sync_events(
         })
         .into();
 
-    let device_one_time_keys_count: OptionFuture<_> = sender_device
-        .map(|sender_device| {
-            services
-                .users
-                .count_one_time_keys(sender_user, sender_device)
-        })
-        .into();
+    let one_time_key_state = one_time_key_state(services, sender_user, sender_device);
 
     // Remove all to-device events the device received *last time*
     let remove_to_device_events: OptionFuture<_> = sender_device
@@ -404,7 +416,7 @@ async fn build_sync_events(
     let (
         account_data,
         keys_changed,
-        device_one_time_keys_count,
+        (device_one_time_keys_count, device_unused_fallback_key_types),
         (_, to_device_events, presence_updates),
         (
             (joined_rooms, mut device_list_updates, left_encrypted_users),
@@ -415,7 +427,7 @@ async fn build_sync_events(
     ) = join5(
         account_data,
         keys_changed,
-        device_one_time_keys_count,
+        one_time_key_state,
         join3(remove_to_device_events, to_device_events, presence_updates),
         join4(joined_rooms, left_rooms, invited_rooms, knocked_rooms),
     )
@@ -449,9 +461,8 @@ async fn build_sync_events(
     response.device_lists = DeviceLists::new();
     response.device_lists.changed = device_list_updates.into_iter().collect();
     response.device_lists.left = device_list_left.into_iter().collect();
-    response.device_one_time_keys_count = device_one_time_keys_count.unwrap_or_default();
-    // Fallback keys are not yet supported
-    response.device_unused_fallback_key_types = None;
+    response.device_one_time_keys_count = device_one_time_keys_count;
+    response.device_unused_fallback_key_types = device_unused_fallback_key_types;
     response.presence = Presence::new();
     response.presence.events = presence_events;
     response.rooms = Rooms::new();
