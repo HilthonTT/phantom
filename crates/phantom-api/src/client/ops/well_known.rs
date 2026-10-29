@@ -23,7 +23,12 @@ pub(crate) async fn well_known_client(
 
     let homeserver = HomeserverInfo::new(url.to_string());
 
-    Ok(discover_homeserver::Response::new(homeserver))
+    let mut response = discover_homeserver::Response::new(homeserver);
+    // Element Call reads its transports here when the server has no
+    // `/rtc/transports`, as older homeservers do not.
+    response.rtc_foci = super::rtc::rtc_transports(&services.config)?;
+
+    Ok(response)
 }
 
 /// # `GET /.well-known/matrix/support`

@@ -25,15 +25,19 @@ pub(crate) async fn get_supported_versions_route(
     let mut response =
         get_supported_versions::Response::new(VERSIONS.into_iter().map(Into::into).collect());
 
+    let config = &services.config;
+    let rendezvous = config
+        .rendezvous
+        .rendezvous_enabled
+        .then_some(["org.matrix.msc4108", "io.element.msc4388"]);
+
+    // MatrixRTC is advertised only with a transport to hand out.
+    let rtc = (!config.client.rtc_transports.is_empty()).then_some("org.matrix.msc4143");
+
     response.unstable_features = UNSTABLE_FEATURES
         .into_iter()
-        .chain(
-            services
-                .config
-                .rendezvous
-                .rendezvous_enabled
-                .then_some("org.matrix.msc4108"),
-        )
+        .chain(rendezvous.into_iter().flatten())
+        .chain(rtc)
         .map(Into::into)
         .zip(once(true).cycle())
         .collect();
@@ -72,7 +76,7 @@ static VERSIONS: [&str; 26] = [
     "v1.18",  /* policy servers (MSC4284) */
 ];
 
-static UNSTABLE_FEATURES: [&str; 24] = [
+static UNSTABLE_FEATURES: [&str; 23] = [
     "org.matrix.e2e_cross_signing",
     // private read receipts (https://github.com/matrix-org/matrix-spec-proposals/pull/2285)
     "org.matrix.msc2285.stable",
@@ -93,8 +97,6 @@ static UNSTABLE_FEATURES: [&str; 24] = [
     "org.matrix.msc3916.stable",
     // intentional mentions (https://github.com/matrix-org/matrix-spec-proposals/pull/3952)
     "org.matrix.msc3952_intentional_mentions",
-    // MatrixRTC transport discovery (https://github.com/matrix-org/matrix-spec-proposals/pull/4143)
-    "org.matrix.msc4143",
     // stable flag for 3916 (https://github.com/matrix-org/matrix-spec-proposals/pull/4180)
     "org.matrix.msc4180",
     // Simplified Sliding sync (https://github.com/matrix-org/matrix-spec-proposals/pull/4186)

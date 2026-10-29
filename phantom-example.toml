@@ -385,6 +385,19 @@
 #
 #well_known_support_mxid = unset
 
+# MatrixRTC transports (MSC4143) handed to clients for group calls such
+# as Element Call, from `/rtc/transports` and as `rtc_foci` in
+# `/.well-known/matrix/client`. Each is a table with a `type`; a LiveKit
+# transport names the lk-jwt-service that mints its tokens:
+#
+# [[global.rtc_transports]]
+# type = "livekit"
+# livekit_service_url = "https://livekit-jwt.example.com"
+#
+# Empty leaves MatrixRTC unadvertised.
+#
+#rtc_transports = []
+
 # This item is undocumented. Please contribute documentation for it.
 #
 #database_path =
@@ -1073,33 +1086,37 @@
 #
 #typing_federation_timeout_s =
 
-# This item is undocumented. Please contribute documentation for it.
+# Serve the rendezvous API and advertise QR-code login.
 #
 #rendezvous_enabled = true
 
-# This item is undocumented. Please contribute documentation for it.
+# Largest message a session holds, in bytes.
 #
-#rendezvous_session_max_bytes =
+#rendezvous_session_max_bytes = 4096
 
-# This item is undocumented. Please contribute documentation for it.
+# Seconds a session lives after its last write.
 #
-#rendezvous_session_ttl =
+#rendezvous_session_ttl = 600
 
-# This item is undocumented. Please contribute documentation for it.
+# Sessions held at once; creating one more drops the oldest. Sessions
+# live in memory and do not survive a restart.
 #
-#rendezvous_max_sessions =
+#rendezvous_max_sessions = 100
 
-# This item is undocumented. Please contribute documentation for it.
+# Only a signed-in device may create a session, so the QR code is shown
+# by the existing device and scanned by the new one. When false, anyone
+# may create sessions, up to the rate limit below.
 #
 #rendezvous_authenticated_only = true
 
-# This item is undocumented. Please contribute documentation for it.
+# Rendezvous requests one client address may make per second.
 #
-#rendezvous_rc_per_second =
+#rendezvous_rc_per_second = 10
 
-# This item is undocumented. Please contribute documentation for it.
+# Rendezvous requests one client address may make in a burst before
+# `rendezvous_rc_per_second` applies.
 #
-#rendezvous_rc_burst_count =
+#rendezvous_rc_burst_count = 20
 
 # This item is undocumented. Please contribute documentation for it.
 #

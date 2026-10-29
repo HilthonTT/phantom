@@ -1,6 +1,7 @@
 pub(super) mod appservice;
 pub(super) mod capabilities;
 pub(super) mod phantom;
+pub(super) mod rtc;
 pub(super) mod thirdparty;
 pub(super) mod versions;
 pub(super) mod voip;

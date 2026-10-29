@@ -8,7 +8,7 @@ mod routes;
 mod state;
 
 pub use self::{
-    auth::{AdminAuth, AdminWitness, Authenticate, authenticate_uiaa},
+    auth::{AdminAuth, AdminWitness, Authenticate, authenticate_uiaa, optional_user},
     client_ip::{ClientIp, ConfiguredIpSource, TrustedPeerSubnets},
     extractor::{Ruma, RumaAdmin},
     response::RumaResponse,

@@ -15,8 +15,8 @@ use self::{
         account, account_data, backup, device, filter, keys, presence, profile, push, tag,
         to_device, user_directory,
     },
-    auth::{openid, register, session},
-    ops::{appservice, capabilities, phantom, thirdparty, versions, voip, well_known},
+    auth::{openid, register, rendezvous, session},
+    ops::{appservice, capabilities, phantom, rtc, thirdparty, versions, voip, well_known},
     rooms::{
         alias, context, directory, events, membership, message, read_marker, redact, relations,
         report, room, search, send, space, state, threads, typing, unstable,
@@ -82,6 +82,22 @@ pub fn register(router: Routes, config: &Config) -> Routes {
         .ruma_route(&tag::delete_tag_route)
         .ruma_route(&openid::create_openid_token_route)
         .ruma_route(&voip::turn_server_route)
+        .ruma_route(&rtc::get_rtc_transports_route)
+        .ruma_route(&rendezvous::discover_rendezvous_route)
+        .ruma_route(&rendezvous::create_rendezvous_route)
+        .ruma_route(&rendezvous::get_rendezvous_route)
+        .ruma_route(&rendezvous::update_rendezvous_route)
+        .ruma_route(&rendezvous::delete_rendezvous_route)
+        .route(
+            rendezvous::MSC4108_PATH,
+            post(rendezvous::msc4108_create_route),
+        )
+        .route(
+            &format!("{}/{{id}}", rendezvous::MSC4108_PATH),
+            get(rendezvous::msc4108_get_route)
+                .put(rendezvous::msc4108_put_route)
+                .delete(rendezvous::msc4108_delete_route),
+        )
         .ruma_route(&device::get_devices_route)
         .ruma_route(&device::get_device_route)
         .ruma_route(&device::update_device_route)

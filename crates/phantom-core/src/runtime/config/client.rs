@@ -301,4 +301,19 @@ pub struct Client {
     ///
     /// default: unset
     pub well_known_support_mxid: Option<String>,
+
+    /// MatrixRTC transports (MSC4143) handed to clients for group calls such
+    /// as Element Call, from `/rtc/transports` and as `rtc_foci` in
+    /// `/.well-known/matrix/client`. Each is a table with a `type`; a LiveKit
+    /// transport names the lk-jwt-service that mints its tokens:
+    ///
+    /// [[global.rtc_transports]]
+    /// type = "livekit"
+    /// livekit_service_url = "https://livekit-jwt.example.com"
+    ///
+    /// Empty leaves MatrixRTC unadvertised.
+    ///
+    /// default: []
+    #[serde(default)]
+    pub rtc_transports: Vec<serde_json::Map<String, serde_json::Value>>,
 }

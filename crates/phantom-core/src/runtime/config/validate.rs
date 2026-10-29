@@ -48,6 +48,7 @@ pub fn validate(config: &Config) -> Result {
     check_registration(config)?;
     check_tls(config)?;
     check_metrics(config)?;
+    check_rtc(config)?;
 
     warn_url_previews(config);
     warn_insecure(config);
@@ -72,6 +73,24 @@ fn check_metrics(config: &Config) -> Result {
             "serving metrics on the main listeners needs `metrics_token`; set it, or serve \
              them on their own listener with `metrics_address`"
         )));
+    }
+
+    Ok(())
+}
+
+fn check_rtc(config: &Config) -> Result {
+    // A transport is `type` plus whatever that type needs; clients drop one
+    // whose `type` they cannot read.
+    for transport in &config.client.rtc_transports {
+        if !transport
+            .get("type")
+            .is_some_and(serde_json::Value::is_string)
+        {
+            return Err(err!(Config(
+                "rtc_transports",
+                "every transport needs a string `type`, such as \"livekit\""
+            )));
+        }
     }
 
     Ok(())

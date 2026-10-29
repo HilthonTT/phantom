@@ -35,6 +35,7 @@ ruma = { version = "0.17.0", features = [
     "unstable-msc4186",
     "unstable-msc4262",
     "unstable-msc4383",
+    "unstable-msc4388",
     "unstable-msc4406",
 ] }
 serde = "1.0.229"

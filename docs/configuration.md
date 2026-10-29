@@ -154,6 +154,8 @@ is a map of the territory so you know what to look for.
 | Registration and users | `registration_token`, `registration_token_file`, `new_user_displayname_suffix`, `forbidden_usernames`, `forbidden_alias_names` |
 | Rooms and federation | `allow_room_creation`, `allow_public_room_directory_over_federation`, `allow_device_name_federation`, `trusted_servers`, `federation_loopback` |
 | TURN | `turn_username`, `turn_password`, `turn_uris`, `turn_secret`, `turn_secret_file`, `turn_ttl` |
+| Group calls (MatrixRTC) | `rtc_transports`, a list of `[[global.rtc_transports]]` tables, each with a `type`; for Element Call, `type = "livekit"` and `livekit_service_url` naming your lk-jwt-service. Served from `/rtc/transports` (MSC4143) and as `rtc_foci` in `/.well-known/matrix/client`; empty leaves MatrixRTC unadvertised |
+| QR-code login | `rendezvous_enabled`, `rendezvous_authenticated_only` (only a signed-in device may create a session), `rendezvous_session_max_bytes`, `rendezvous_session_ttl`, `rendezvous_max_sessions`, `rendezvous_rc_per_second`, `rendezvous_rc_burst_count`. Serves MSC4388 and the older MSC4108; the login itself is the OIDC server's device authorization grant, so it needs `well_known_client` |
 | URL previews | the `url_preview_*` allowlists and denylists, spider limits, and bound interface |
 | Networking | `proxy`, `ip_range_denylist`, the per-client timeouts (`request_*`, `well_known_*`, `federation_*`, `sender_*`, `appservice_*`, `pusher_*`), and the `gzip`/`brotli`/`zstd` compression switches |
 | DNS | `dns_cache_entries`, `dns_min_ttl`, `dns_min_ttl_nxdomain`, `dns_attempts`, `dns_timeout`, `dns_tcp_fallback`, `query_over_tcp_only`, `query_all_nameservers`, `ip_lookup_strategy` |
