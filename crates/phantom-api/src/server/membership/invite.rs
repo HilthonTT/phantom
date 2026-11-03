@@ -8,6 +8,7 @@ use phantom_core::{
     hash::sha256,
     json::to_canonical_object,
     matrix::pdu::{PduEvent, gen_event_id},
+    warn,
 };
 use phantom_service::{
     Services,
@@ -60,7 +61,7 @@ pub(crate) async fn create_invite_route(
     let sender = invite_sender(&signed_event, body.origin())?;
     check_invite_permitted(&services, &body, &invited_user).await?;
 
-    let pdu = build_pdu(&body)?;
+    let pdu = build_pdu(&body, &signed_event)?;
 
     let invite_state: Vec<_> = without_member(stripped_state, &invited_user)
         .filter_map(|state| into_client_stripped(&body.room_id, state))
@@ -73,9 +74,15 @@ pub(crate) async fn create_invite_route(
         .lock_federation(&body.room_id)
         .await;
 
-    record_invite(&services, &body, &invited_user, &sender, invite_state, &pdu).await?;
+    let recorded =
+        record_invite(&services, &body, &invited_user, &sender, invite_state, &pdu).await?;
 
     drop(federation_lock);
+
+    if recorded {
+        notify_pushers(&services, &invited_user, &pdu).await;
+        notify_appservices(&services, &invited_user, &pdu).await;
+    }
 
     let event = services
         .federation
@@ -266,11 +273,15 @@ async fn check_invite_permitted(
     )))
 }
 
-fn build_pdu(body: &Ruma<create_invite::v2::Request>) -> Result<PduEvent> {
+fn build_pdu(
+    body: &Ruma<create_invite::v2::Request>,
+    signed_event: &CanonicalJsonObject,
+) -> Result<PduEvent> {
     let mut event: JsonObject = serde_json::from_str(body.event.get())
         .map_err(|e| err!(Request(BadJson("Invalid invite event PDU: {e}"))))?;
 
-    event.insert("event_id".into(), "$placeholder".into());
+    let event_id = string_field(signed_event, "event_id")?;
+    event.insert("event_id".into(), event_id.into());
 
     serde_json::from_value(event.into())
         .map_err(|e| err!(Request(BadJson("Invalid invite event PDU: {e}"))))
@@ -283,7 +294,7 @@ async fn record_invite(
     sender: &UserId,
     invite_state: Vec<Raw<AnyStrippedStateEvent>>,
     pdu: &PduEvent,
-) -> Result {
+) -> Result<bool> {
     let state_lock = services.rooms.state.mutex.lock(&*body.room_id).await;
 
     if services
@@ -292,7 +303,7 @@ async fn record_invite(
         .server_in_room(services.server_state.server_name(), &body.room_id)
         .await
     {
-        return Ok(());
+        return Ok(false);
     }
 
     if services
@@ -333,8 +344,7 @@ async fn record_invite(
         .membership
         .auto_accept(&body.room_id, invited_user, sender, is_direct);
 
-    notify_pushers(services, invited_user, pdu).await;
-    notify_appservices(services, invited_user, pdu).await
+    Ok(true)
 }
 
 async fn notify_pushers(services: &Services, invited_user: &UserId, pdu: &PduEvent) {
@@ -358,7 +368,7 @@ async fn notify_pushers(services: &Services, invited_user: &UserId, pdu: &PduEve
         .await;
 }
 
-async fn notify_appservices(services: &Services, invited_user: &UserId, pdu: &PduEvent) -> Result {
+async fn notify_appservices(services: &Services, invited_user: &UserId, pdu: &PduEvent) {
     let registrations: Vec<_> = services
         .appservice
         .read()
@@ -375,18 +385,18 @@ async fn notify_appservices(services: &Services, invited_user: &UserId, pdu: &Pd
         let request =
             push_events::v1::Request::new(txn_id.clone(), vec![pdu.clone().into_any_event()]);
 
-        services
+        let id = registration.id.clone();
+        if let Err(e) = services
             .appservice
             .send_request(registration, request)
             .await
-            .map_err(|_| {
-                err!(BadServerResponse(
-                    "Failed to notify appservice about incoming invite."
-                ))
-            })?;
+        {
+            warn!(
+                "Failed to notify appservice {id} about invite {}: {e}",
+                pdu.event_id
+            );
+        }
     }
-
-    Ok(())
 }
 
 fn string_field<'a>(event: &'a CanonicalJsonObject, key: &str) -> Result<&'a str> {

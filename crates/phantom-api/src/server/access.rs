@@ -1,6 +1,10 @@
 use std::pin::pin;
 
-use futures::{FutureExt, StreamExt, future::OptionFuture, join};
+use futures::{
+    FutureExt, StreamExt,
+    future::{OptionFuture, ready},
+    join,
+};
 use phantom_core::{Err, Result, err};
 use phantom_service::Services;
 use ruma::{EventId, RoomId, ServerName};
@@ -31,7 +35,12 @@ impl AccessCheck<'_> {
                 return true;
             }
 
-            let mut knocked = pin!(rooms.state_cache.room_members_knocked(self.room_id));
+            let mut knocked = pin!(
+                rooms
+                    .state_cache
+                    .room_members_knocked(self.room_id)
+                    .filter(|user_id| ready(user_id.server_name() == self.origin))
+            );
             knocked.next().await.is_some()
         };
 
@@ -70,6 +79,15 @@ pub(super) async fn require_known_room(
 ) -> Result {
     if !services.rooms.metadata.exists(room_id).await {
         return Err!(Request(NotFound("Room is unknown to this server.")));
+    }
+
+    if !services
+        .rooms
+        .state_cache
+        .server_in_room(services.server_state.server_name(), room_id)
+        .await
+    {
+        return Err!(Request(NotFound("Server is not in room.")));
     }
 
     services

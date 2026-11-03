@@ -104,11 +104,9 @@ pub(super) async fn validate_authorising_user(
         )));
     }
 
-    if !requires_authorising_user(services, joining_user, room_id, rules).await? {
-        return Err!(Request(UnableToAuthorizeJoin(
-            "Joining user did not pass restricted room's rules."
-        )));
-    }
-
-    Ok(())
+    // Ok(false) means no authorisation is needed (already invited or joined, or
+    // the join rule is no longer restricted); the auth rules decide the rest.
+    requires_authorising_user(services, joining_user, room_id, rules)
+        .await
+        .map(drop)
 }
