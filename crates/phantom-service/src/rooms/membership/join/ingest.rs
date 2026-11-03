@@ -11,7 +11,7 @@ use phantom_core::{
         state_res::{self, RoomVersion},
     },
 };
-use ruma::{CanonicalJsonValue, RoomId, RoomVersionId, events::StateEventType};
+use ruma::{RoomId, RoomVersionId, events::StateEventType};
 use serde_json::value::RawValue as RawJsonValue;
 
 use super::{StateIds, remote::parse_federation_pdu};
@@ -86,7 +86,6 @@ pub(super) async fn ingest_send_join_state(
 #[implement(Service)]
 pub(super) async fn ingest_send_join_auth_chain(
     &self,
-    room_id: &RoomId,
     room_version_id: &RoomVersionId,
     auth_chain: &[Box<RawJsonValue>],
 ) {
@@ -94,10 +93,6 @@ pub(super) async fn ingest_send_join_auth_chain(
         events = auth_chain.len(),
         "Going through send_join response auth_chain..."
     );
-
-    let requires_room_id = room_version_id
-        .rules()
-        .is_none_or(|rules| rules.event_format.require_room_create_room_id);
 
     let cork = self.services.db.engine.cork_and_flush();
 
@@ -115,15 +110,9 @@ pub(super) async fn ingest_send_join_auth_chain(
             }
         };
 
-        let is_create =
-            value.get("type").and_then(CanonicalJsonValue::as_str) == Some("m.room.create");
-
-        if !requires_room_id && is_create {
-            value.insert(
-                "room_id".into(),
-                CanonicalJsonValue::String(room_id.as_str().into()),
-            );
-        }
+        // As for the state: the room_id a v12 create event implies, not the
+        // joining room's, which a create event of another room would take.
+        insert_derived_room_id(&mut value, &event_id);
 
         self.services.outlier.add_pdu_outlier(&event_id, &value);
     }

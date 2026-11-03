@@ -88,8 +88,6 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 
     let state_lock = self.services.state.mutex.lock(room_id).await;
 
-    let extremities = self.extremities(room_id, &incoming_pdu).await;
-
     if soft_fail {
         debug_info!("Soft failing event {}", incoming_pdu.event_id);
 
@@ -98,7 +96,7 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
             .append_incoming_pdu(
                 &incoming_pdu,
                 value,
-                extremities.iter().map(Borrow::borrow),
+                std::iter::empty(),
                 compressed_state_at_event,
                 true,
                 &state_lock,
@@ -109,6 +107,8 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 
         return Ok(None);
     }
+
+    let extremities = self.extremities(room_id, &incoming_pdu).await;
 
     if incoming_pdu.state_key.is_some() {
         let resolved = self

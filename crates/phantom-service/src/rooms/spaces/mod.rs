@@ -125,6 +125,19 @@ pub async fn summary(
     Some(self.accessibility(room_id, summary, asker).await)
 }
 
+/// The summary of a room this server holds; never asks another server, so
+/// that a federation request cannot make this server query one it names.
+#[implement(Service)]
+async fn held_summary(&self, room_id: &RoomId, asker: Asker<'_>) -> Option<SummaryAccessibility> {
+    if !self.services.metadata.exists(room_id).await {
+        return None;
+    }
+
+    let summary = self.local_summary(room_id).await;
+
+    Some(self.accessibility(room_id, summary, asker).await)
+}
+
 #[implement(Service)]
 async fn local_summary(&self, room_id: &RoomId) -> SpaceHierarchyRoomsChunk {
     let summary = self.services.state_accessor.room_summary(room_id).await;
@@ -317,8 +330,7 @@ pub async fn federation_hierarchy(
 ) -> Result<federation::space::get_hierarchy::v1::Response> {
     let asker = Asker::Server(server);
 
-    let Some(SummaryAccessibility::Accessible(parent)) =
-        self.summary(room_id, asker, &[], suggested_only).await
+    let Some(SummaryAccessibility::Accessible(parent)) = self.held_summary(room_id, asker).await
     else {
         return Err!(Request(NotFound("The room is unknown to this server.")));
     };
@@ -327,7 +339,7 @@ pub async fn federation_hierarchy(
     let mut inaccessible = Vec::new();
 
     for (child, _) in self.children_of(&parent, suggested_only) {
-        match self.summary(&child, asker, &[], suggested_only).await {
+        match self.held_summary(&child, asker).await {
             Some(SummaryAccessibility::Accessible(chunk)) => children.push(chunk.summary),
             Some(SummaryAccessibility::Inaccessible) => inaccessible.push(child),
 

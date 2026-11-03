@@ -87,10 +87,18 @@ where
 
     let pdu_id = self.insert(pdu, &pdu_json, shortroomid).await?;
 
-    self.notify_local_users(pdu, &pdu_id).await?;
-    self.act_on_kind(pdu, &pdu_id, shortroomid).await?;
-    self.record_relations(pdu, pdu_id.pdu_count()).await?;
-    self.notify_appservices(pdu, &pdu_id).await?;
+    // The PDU is committed: failing now would leave it stored but neither
+    // sent nor acknowledged, and the client's retry would duplicate it.
+    self.notify_local_users(pdu, &pdu_id).await.log_err().ok();
+    self.act_on_kind(pdu, &pdu_id, shortroomid)
+        .await
+        .log_err()
+        .ok();
+    self.record_relations(pdu, pdu_id.pdu_count())
+        .await
+        .log_err()
+        .ok();
+    self.notify_appservices(pdu, &pdu_id).await.log_err().ok();
 
     Ok(pdu_id)
 }
@@ -412,7 +420,14 @@ async fn record_relations(&self, pdu: &PduEvent, count: PduCount) -> Result {
     };
 
     if relates_to.rel_type == Some(RelationType::Thread) {
-        self.services.threads.add_to_thread(&related, pdu).await?;
+        // A root this server lacks (or holds only as an outlier) must not
+        // also cost the event its relation.
+        self.services
+            .threads
+            .add_to_thread(&related, pdu)
+            .await
+            .log_err()
+            .ok();
     }
 
     if let Ok(related_count) = self.get_pdu_count(&related).await {
@@ -503,15 +518,13 @@ where
         .set_event_state(&pdu.event_id, &pdu.room_id, state_ids_compressed)
         .await?;
 
+    // A soft-failed event leaves the forward extremities as they are (as in
+    // Synapse): it neither becomes one nor supersedes its prev_events, which
+    // could otherwise leave the room with none to build on.
     if soft_fail {
         self.services
             .pdu_metadata
             .mark_as_referenced(&pdu.room_id, pdu.prev_events.iter().map(AsRef::as_ref));
-
-        self.services
-            .state
-            .set_forward_extremities(&pdu.room_id, new_room_leafs, state_lock)
-            .await;
 
         return Ok(None);
     }

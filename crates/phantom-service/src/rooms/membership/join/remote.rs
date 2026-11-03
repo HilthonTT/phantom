@@ -102,7 +102,7 @@ pub(super) async fn join_remote(
         .ingest_send_join_state(room_id, &room_version_id, &response.state)
         .await;
 
-    self.ingest_send_join_auth_chain(room_id, &room_version_id, &response.auth_chain)
+    self.ingest_send_join_auth_chain(&room_version_id, &response.auth_chain)
         .await;
 
     debug!("Running send_join auth check...");

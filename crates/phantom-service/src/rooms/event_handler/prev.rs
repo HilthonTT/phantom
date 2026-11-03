@@ -27,35 +27,55 @@ pub(super) async fn fill_gap(
 ) {
     let started = Instant::now();
 
-    let missing: Vec<OwnedEventId> = {
-        let mut missing = Vec::new();
+    // A prev held only as an outlier is still a gap in the timeline (pdu_exists
+    // would match it): it needs upgrading, though not fetching again.
+    let mut held: HashMap<OwnedEventId, PduEvent> = HashMap::new();
+    let mut missing: Vec<OwnedEventId> = Vec::new();
 
-        for prev_event_id in &incoming_pdu.prev_events {
-            // A purged event is not missing: fetching it again would put it
-            // back in the timeline.
-            if !self.services.timeline.pdu_exists(prev_event_id).await
-                && !self.services.timeline.is_purged(prev_event_id).await
-            {
-                missing.push(prev_event_id.clone());
-            }
+    for prev_event_id in &incoming_pdu.prev_events {
+        // A purged event is not missing: fetching it again would put it
+        // back in the timeline.
+        if self
+            .services
+            .timeline
+            .get_pdu_id(prev_event_id)
+            .await
+            .is_ok()
+            || self.services.timeline.is_purged(prev_event_id).await
+        {
+            continue;
         }
 
-        missing
-    };
+        match self.services.outlier.get_pdu_outlier(prev_event_id).await {
+            Ok(pdu) => {
+                held.insert(prev_event_id.clone(), pdu);
+            }
+            Err(_) => missing.push(prev_event_id.clone()),
+        }
+    }
 
-    if missing.is_empty() {
+    if missing.is_empty() && held.is_empty() {
         trace!("No gap before {}", incoming_pdu.event_id);
         return;
     }
 
     debug!(
         missing = missing.len(),
-        "Filling the gap before {}", incoming_pdu.event_id
+        outliers = held.len(),
+        "Filling the gap before {}",
+        incoming_pdu.event_id
     );
 
-    let events = self
-        .fetch_missing_events(origin, room_id, room_version_id, incoming_pdu, &missing)
-        .await;
+    let mut events = if missing.is_empty() {
+        HashMap::new()
+    } else {
+        self.fetch_missing_events(origin, room_id, room_version_id, incoming_pdu, &missing)
+            .await
+    };
+
+    for (event_id, pdu) in held {
+        events.entry(event_id).or_insert(pdu);
+    }
 
     for (event_id, pdu) in sorted_oldest_first(events) {
         if started.elapsed() > self.prev_event_budget {
