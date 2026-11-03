@@ -19,7 +19,10 @@ use ruma::{
 };
 
 use super::peer::{Classification, classify_error};
-use crate::{net::resolver::lookup::ResolvedDest, ops::moderation::Restriction};
+use crate::{
+    net::{client::read_response_capped, resolver::lookup::ResolvedDest},
+    ops::moderation::Restriction,
+};
 
 type FixedPath = SinglePath;
 
@@ -190,9 +193,11 @@ where
 
     debug!(?method, ?url, "Sending request");
     match client.execute(request).await {
-        Ok(response) => handle_response::<T>(dest, actual, &method, &url, response)
-            .await
-            .inspect_err(|error| self.evict_misrouted(dest, actual, error)),
+        Ok(response) => {
+            handle_response::<T>(dest, actual, &method, &url, response, self.response_limit())
+                .await
+                .inspect_err(|error| self.evict_misrouted(dest, actual, error))
+        }
         Err(error) => {
             self.evict_route(dest, actual);
 
@@ -200,6 +205,22 @@ where
         }
     }
 }
+
+/// The largest response body read from a remote server. Remote media comes
+/// back through here too, so it is the request limit plus room for the
+/// multipart framing around the file; without it a hostile server could
+/// stream until the total timeout and have the whole body buffered.
+#[implement(super::Service)]
+fn response_limit(&self) -> usize {
+    self.services
+        .server
+        .config
+        .network
+        .max_request_size
+        .saturating_add(RESPONSE_LIMIT_MARGIN)
+}
+
+const RESPONSE_LIMIT_MARGIN: usize = 1024 * 1024;
 
 #[implement(super::Service)]
 fn evict_misrouted(&self, dest: &ServerName, actual: &ResolvedDest, error: &Error) {
@@ -248,11 +269,12 @@ async fn handle_response<T>(
     method: &Method,
     url: &Url,
     response: Response,
+    limit: usize,
 ) -> Result<T::IncomingResponse>
 where
     T: OutgoingRequest + Send,
 {
-    let response = into_http_response(dest, actual, method, url, response).await?;
+    let response = into_http_response(dest, actual, method, url, response, limit).await?;
     let (parts, body) = response.into_parts();
 
     T::IncomingResponse::try_from_http_response(http::Response::from_parts(parts, &body[..]))
@@ -265,6 +287,7 @@ async fn into_http_response(
     method: &Method,
     url: &Url,
     mut response: Response,
+    limit: usize,
 ) -> Result<http::Response<Bytes>> {
     let status = response.status();
     trace!(
@@ -287,11 +310,14 @@ async fn into_http_response(
     );
 
     trace!("Waiting for response body...");
-    let body = response
-        .bytes()
-        .await
-        .inspect_err(inspect_debug_log)
-        .unwrap_or_else(|_| Vec::new().into());
+    let body = match read_response_capped(response, limit).await {
+        Ok(body) => body,
+        Err(error @ Error::BadServerResponse(..)) => return Err(error),
+        Err(error) => {
+            inspect_debug_log(&error);
+            Bytes::new()
+        }
+    };
 
     let http_response = http_response_builder
         .body(body)

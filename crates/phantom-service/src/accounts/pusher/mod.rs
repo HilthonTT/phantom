@@ -391,6 +391,10 @@ pub fn is_permanent_failure(error: &Error) -> bool {
     status.is_client_error() && status != http::StatusCode::TOO_MANY_REQUESTS
 }
 
+/// A gateway answers with a short JSON list of rejected pushkeys; anything
+/// far larger is not worth buffering.
+const GATEWAY_RESPONSE_LIMIT: usize = 64 * 1024;
+
 #[derive(Deserialize)]
 struct GatewayResponse {
     #[serde(default)]
@@ -444,7 +448,7 @@ async fn post_notification(
     }
 
     let status = response.status();
-    let bytes = response.bytes().await?;
+    let bytes = client::read_response_capped(response, GATEWAY_RESPONSE_LIMIT).await?;
 
     if !status.is_success() {
         let message = format!(
