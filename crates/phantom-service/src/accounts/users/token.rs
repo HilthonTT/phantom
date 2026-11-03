@@ -90,6 +90,8 @@ impl Service {
     }
 
     pub async fn find_from_login_token(&self, token: &str) -> Result<OwnedUserId> {
+        let _lock = self.login_token_locks.lock(token).await;
+
         let Ok(value) = self.db.logintoken_expiresatuserid.get(token).await else {
             return Err!(Request(Forbidden("Login token is unrecognised")));
         };
@@ -194,6 +196,8 @@ impl Service {
         expires_in: Option<Duration>,
         refresh_token: Option<&str>,
     ) -> Result {
+        let _lock = self.access_token_locks.lock(user_id).await;
+
         let userdeviceid = (user_id, device_id);
         if self
             .db
@@ -246,6 +250,8 @@ impl Service {
 
     /// Revoke the access token of one device, without deleting the device.
     pub async fn remove_access_token(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
+        let _lock = self.access_token_locks.lock(user_id).await;
+
         let userdeviceid = (user_id, device_id);
         let token = self.db.userdeviceid_token.qry(&userdeviceid).await;
 

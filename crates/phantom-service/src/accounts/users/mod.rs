@@ -53,6 +53,12 @@ pub struct Service {
     cross_signing_replacement_allowed: RwLock<HashMap<OwnedUserId, Instant>>,
     /// Serializes one-time-key claims so a key is handed out at most once.
     one_time_key_locks: MutexMap<OwnedUserId, ()>,
+    /// Serializes rewriting a user's device token pointers. Two writers that
+    /// both read the old token and both insert their own would leave one
+    /// token that no device points to, which logout could then never revoke.
+    access_token_locks: MutexMap<OwnedUserId, ()>,
+    /// Serializes redeeming a login token so it is spent at most once.
+    login_token_locks: MutexMap<String, ()>,
 }
 
 /// How long an approved cross-signing reset stays open.
@@ -143,6 +149,8 @@ impl crate::Service for Service {
             },
             cross_signing_replacement_allowed: RwLock::new(HashMap::new()),
             one_time_key_locks: MutexMap::new(),
+            access_token_locks: MutexMap::new(),
+            login_token_locks: MutexMap::new(),
         }))
     }
 

@@ -13,7 +13,7 @@ use std::{net::IpAddr, sync::Arc};
 use phantom_core::{Result, runtime::server::Server};
 use ruma::{DeviceId, OwnedDeviceId, OwnedUserId, UserId};
 
-use crate::ratelimit::{Limit, Ratelimiter, check, peek, refund};
+use crate::ratelimit::{Limit, Ratelimiter, check, refund};
 
 pub struct Service {
     server: Arc<Server>,
@@ -44,6 +44,47 @@ impl RegistrationToken<'_> {
     /// Keeps the token spent: the account exists.
     pub fn commit(mut self) {
         self.committed = true;
+    }
+}
+
+/// A password attempt's token, taken from the account's (or session's)
+/// wrong-password allowance before the hash is checked. Dropped without
+/// [`failed`](Self::failed) it is given back, so only wrong passwords count.
+/// Taking it before the slow hash is what stops a burst of concurrent
+/// guesses all passing one check before any failure is recorded.
+#[must_use]
+pub struct PasswordAttempt<'a> {
+    service: &'a Service,
+    key: AttemptKey,
+    failed: bool,
+}
+
+enum AttemptKey {
+    Account(OwnedUserId),
+    Session(OwnedUserId, OwnedDeviceId),
+}
+
+impl PasswordAttempt<'_> {
+    /// Keeps the token spent: the password was wrong.
+    pub fn failed(mut self) {
+        self.failed = true;
+    }
+}
+
+impl Drop for PasswordAttempt<'_> {
+    fn drop(&mut self) {
+        if self.failed {
+            return;
+        }
+
+        let limit = self.service.failed_limit();
+        match &self.key {
+            AttemptKey::Account(user_id) => self.service.tables.refund_password(user_id, limit),
+            AttemptKey::Session(user_id, device_id) => self
+                .service
+                .tables
+                .refund_session_password(user_id, device_id, limit),
+        }
     }
 }
 
@@ -83,32 +124,38 @@ impl Service {
         self.tables.check_login(client, limit)
     }
 
-    /// Refuses a password attempt against `user_id` while its wrong-password
-    /// allowance is spent. Spends nothing; [`Self::record_failed`] does.
-    pub fn check_password(&self, user_id: &UserId) -> Result {
-        self.tables.check_password(user_id, self.failed_limit())
-    }
+    /// Takes a token from `user_id`'s wrong-password allowance, refusing once
+    /// it is spent. The token is given back unless the attempt is marked
+    /// [`failed`](PasswordAttempt::failed).
+    pub fn check_password(&self, user_id: &UserId) -> Result<PasswordAttempt<'_>> {
+        self.tables.check_password(user_id, self.failed_limit())?;
 
-    /// Charges a wrong password to `user_id`'s allowance.
-    pub fn record_failed(&self, user_id: &UserId) {
-        self.tables.record_failed(user_id, self.failed_limit());
+        Ok(PasswordAttempt {
+            service: self,
+            key: AttemptKey::Account(user_id.to_owned()),
+            failed: false,
+        })
     }
 
     /// Refuses a password attempt from an authenticated session while the
     /// device's wrong-password allowance is spent. Interactive auth is keyed
     /// by device rather than account: the access token is already proven, so
     /// nobody else can spend the owner's allowance and lock them out of
-    /// changing their own password. Spends nothing;
-    /// [`Self::record_session_failed`] does.
-    pub fn check_session_password(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
+    /// changing their own password. Like [`Self::check_password`], the token
+    /// is given back unless the attempt is marked failed.
+    pub fn check_session_password(
+        &self,
+        user_id: &UserId,
+        device_id: &DeviceId,
+    ) -> Result<PasswordAttempt<'_>> {
         self.tables
-            .check_session_password(user_id, device_id, self.failed_limit())
-    }
+            .check_session_password(user_id, device_id, self.failed_limit())?;
 
-    /// Charges a wrong password to the device's allowance.
-    pub fn record_session_failed(&self, user_id: &UserId, device_id: &DeviceId) {
-        self.tables
-            .record_session_failed(user_id, device_id, self.failed_limit());
+        Ok(PasswordAttempt {
+            service: self,
+            key: AttemptKey::Session(user_id.to_owned(), device_id.to_owned()),
+            failed: false,
+        })
     }
 
     /// Takes a token from `client`'s registration allowance, refusing once it
@@ -164,17 +211,15 @@ impl Tables {
             return Ok(());
         }
 
-        peek(&self.failed, user_id, limit)
+        check(&self.failed, user_id, || user_id.to_owned(), limit)
     }
 
-    fn record_failed(&self, user_id: &UserId, limit: Limit) {
+    fn refund_password(&self, user_id: &UserId, limit: Limit) {
         if limit.is_disabled() {
             return;
         }
 
-        // Refused only when the allowance is already spent, which the check
-        // before the attempt has reported; the failure is still recorded.
-        check(&self.failed, user_id, || user_id.to_owned(), limit).ok();
+        refund(&self.failed, user_id, limit);
     }
 
     fn check_session_password(
@@ -187,20 +232,20 @@ impl Tables {
             return Ok(());
         }
 
-        peek(
-            &self.session_failed,
-            &(user_id.to_owned(), device_id.to_owned()),
-            limit,
-        )
+        let key = (user_id.to_owned(), device_id.to_owned());
+        check(&self.session_failed, &key, || key.clone(), limit)
     }
 
-    fn record_session_failed(&self, user_id: &UserId, device_id: &DeviceId, limit: Limit) {
+    fn refund_session_password(&self, user_id: &UserId, device_id: &DeviceId, limit: Limit) {
         if limit.is_disabled() {
             return;
         }
 
-        let key = (user_id.to_owned(), device_id.to_owned());
-        check(&self.session_failed, &key, || key.clone(), limit).ok();
+        refund(
+            &self.session_failed,
+            &(user_id.to_owned(), device_id.to_owned()),
+            limit,
+        );
     }
 
     fn reserve_registration(&self, client: IpAddr, limit: Limit) -> Result {
@@ -283,13 +328,15 @@ mod tests {
         let tables = Tables::default();
         let alice = user_id!("@alice:example.com");
 
-        // Checking alone, as every successful login does, spends nothing.
+        // A successful login gives its token back, so it spends nothing.
         for _ in 0..10 {
             assert!(tables.check_password(alice, STRICT).is_ok());
+            tables.refund_password(alice, STRICT);
         }
 
-        tables.record_failed(alice, STRICT);
-        tables.record_failed(alice, STRICT);
+        // Two wrong passwords keep their tokens.
+        assert!(tables.check_password(alice, STRICT).is_ok());
+        assert!(tables.check_password(alice, STRICT).is_ok());
 
         assert!(
             tables.check_password(alice, STRICT).is_err(),
@@ -300,6 +347,18 @@ mod tests {
                 .check_password(user_id!("@bob:example.com"), STRICT)
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn concurrent_guesses_each_hold_a_token() {
+        let tables = Tables::default();
+        let alice = user_id!("@alice:example.com");
+
+        // Two guesses in flight take the burst of two; a third is refused
+        // before either hash check has finished.
+        assert!(tables.check_password(alice, STRICT).is_ok());
+        assert!(tables.check_password(alice, STRICT).is_ok());
+        assert!(tables.check_password(alice, STRICT).is_err());
     }
 
     #[test]
@@ -333,8 +392,8 @@ mod tests {
         let alice = user_id!("@alice:example.com");
         let (phone, laptop) = (device_id!("PHONE"), device_id!("LAPTOP"));
 
-        tables.record_session_failed(alice, phone, STRICT);
-        tables.record_session_failed(alice, phone, STRICT);
+        assert!(tables.check_session_password(alice, phone, STRICT).is_ok());
+        assert!(tables.check_session_password(alice, phone, STRICT).is_ok());
 
         assert!(tables.check_session_password(alice, phone, STRICT).is_err());
         assert!(
@@ -354,7 +413,11 @@ mod tests {
 
         for _ in 0..100 {
             assert!(tables.check_login(CLIENT, off).is_ok());
-            tables.record_failed(user_id!("@alice:example.com"), off);
+            assert!(
+                tables
+                    .check_password(user_id!("@alice:example.com"), off)
+                    .is_ok()
+            );
         }
 
         assert!(

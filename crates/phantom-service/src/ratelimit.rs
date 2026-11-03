@@ -104,36 +104,6 @@ where
     debit(bucket, limit, now)
 }
 
-/// Whether `key`'s bucket holds a token, without spending it.
-///
-/// For a limit charged only on failure: the check comes before the attempt,
-/// and [`check`] debits once the attempt is known to have failed. A key with
-/// no bucket has its whole burst, so nothing is inserted.
-pub(crate) fn peek<K, Q>(table: &Ratelimiter<K>, key: &Q, limit: Limit) -> Result
-where
-    K: Borrow<Q> + Eq + Hash,
-    Q: Eq + Hash + ?Sized,
-{
-    peek_at(table, key, limit, Instant::now())
-}
-
-/// [`peek`], with the clock supplied by the caller.
-pub(crate) fn peek_at<K, Q>(table: &Ratelimiter<K>, key: &Q, limit: Limit, now: Instant) -> Result
-where
-    K: Borrow<Q> + Eq + Hash,
-    Q: Eq + Hash + ?Sized,
-{
-    let buckets = table.lock()?;
-
-    match buckets.get(key) {
-        Some(&(last, tokens)) => match refill(last, tokens, limit, now) {
-            tokens if tokens < 1.0 => Err(exceeded(limit, tokens)),
-            _ => Ok(()),
-        },
-        None => Ok(()),
-    }
-}
-
 /// Gives back a token [`check`] took from `key`'s bucket, for an attempt
 /// charged up front that turned out not to count. The bucket never rises
 /// above its burst, and a bucket evicted meanwhile is already full.
@@ -247,7 +217,7 @@ mod tests {
     use phantom_core::Error;
     use ruma::api::error::{ErrorKind, RetryAfter};
 
-    use super::{Instant, Limit, Ratelimiter, check_at, peek_at};
+    use super::{Instant, Limit, Ratelimiter, check_at};
 
     const LIMIT: Limit = Limit {
         rate: 1.0,
@@ -350,29 +320,6 @@ mod tests {
             data.retry_after,
             Some(RetryAfter::Delay(Duration::from_secs(1))),
             "an empty bucket at one token per second has one second to wait"
-        );
-    }
-
-    #[test]
-    fn peeking_spends_nothing() {
-        let table = table();
-        let now = Instant::now();
-
-        assert!(peek_at(&table, &1, LIMIT, now).is_ok());
-        assert!(
-            table.lock().expect("table is not poisoned").is_empty(),
-            "a peek at a missing bucket inserts none"
-        );
-
-        for _ in 0..3 {
-            assert!(check(&table, 1, now, 16));
-        }
-
-        assert!(peek_at(&table, &1, LIMIT, now).is_err());
-        assert!(peek_at(&table, &1, LIMIT, now + Duration::from_secs(1)).is_ok());
-        assert!(
-            peek_at(&table, &1, LIMIT, now + Duration::from_secs(1)).is_ok(),
-            "a second peek still finds the token the first did not spend"
         );
     }
 

@@ -84,7 +84,7 @@ pub(super) async fn password_login(
 
     // Charged to the account the password belongs to, whichever case of the
     // ID found it.
-    services.attempts.check_password(user_id)?;
+    let attempt = services.attempts.check_password(user_id)?;
 
     if services
         .users
@@ -103,7 +103,7 @@ pub(super) async fn password_login(
     verify_password(password, &hash)
         .inspect_err(|e| debug_error!("{e}"))
         .map_err(|_| {
-            services.attempts.record_failed(user_id);
+            attempt.failed();
             wrong()
         })?;
 

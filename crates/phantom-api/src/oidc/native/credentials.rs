@@ -82,10 +82,10 @@ pub(super) async fn verify_credentials(
     // The same per-account allowance `/login` spends, charged to the account
     // the password belongs to: the floor above is keyed by the ID as typed,
     // so every case of a localpart would otherwise get guesses of its own.
-    services.attempts.check_password(&user_id)?;
+    let attempt = services.attempts.check_password(&user_id)?;
 
     verify_password(password, &hash).map_err(|_| {
-        services.attempts.record_failed(&user_id);
+        attempt.failed();
         invalid()
     })?;
 
