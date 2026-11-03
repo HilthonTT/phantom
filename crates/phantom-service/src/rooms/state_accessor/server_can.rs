@@ -10,8 +10,8 @@ pub async fn server_can_see_event(
     room_id: &RoomId,
     event_id: &EventId,
 ) -> bool {
-    let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
-        return true;
+    let Some(shortstatehash) = self.visibility_shortstatehash(room_id, event_id).await else {
+        return false;
     };
 
     let history_visibility = self.history_visibility_at(shortstatehash).await;

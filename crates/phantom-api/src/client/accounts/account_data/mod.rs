@@ -26,7 +26,9 @@ fn assert_account_data_owner(
     appservice_info: Option<&RegistrationInfo>,
     message: &str,
 ) -> Result {
-    if sender_user != user_id && appservice_info.is_none() {
+    let appservice_may_act = appservice_info.is_some_and(|info| info.is_user_match(user_id));
+
+    if sender_user != user_id && !appservice_may_act {
         return Err!(Request(Forbidden("{message}")));
     }
 

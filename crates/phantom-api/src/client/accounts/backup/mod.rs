@@ -1,5 +1,5 @@
 use axum::extract::State;
-use phantom_core::{Err, Result, err};
+use phantom_core::{Error, Result, err};
 use phantom_service::Services;
 use ruma::{
     RoomId, UInt, UserId,
@@ -10,6 +10,7 @@ use ruma::{
         get_backup_keys_for_room, get_backup_keys_for_session, get_latest_backup_info,
         update_backup_version,
     },
+    api::error::{ErrorKind, WrongRoomKeysVersionErrorData},
     serde::Raw,
 };
 
@@ -337,9 +338,10 @@ async fn latest_version_check(services: &Services, user_id: &UserId, version: &s
         .map_err(|_| err!(Request(NotFound("Key backup does not exist."))))?;
 
     if latest != version {
-        return Err!(Request(InvalidParam(
-            "You may only manipulate the most recently created version of the backup."
-        )));
+        return Err(Error::BadRequest(
+            ErrorKind::WrongRoomKeysVersion(WrongRoomKeysVersionErrorData::new(latest)),
+            "You may only manipulate the most recently created version of the backup.",
+        ));
     }
 
     Ok(())

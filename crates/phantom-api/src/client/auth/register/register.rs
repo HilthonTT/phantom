@@ -243,21 +243,31 @@ async fn check_appservice_namespace(
     user_id: &UserId,
     emergency_mode_enabled: bool,
 ) -> Result {
-    if body.body.login_type == Some(LoginType::ApplicationService) {
-        match body.appservice_info {
-            Some(ref info) => {
-                if !info.is_user_match(user_id) && !emergency_mode_enabled {
-                    return Err!(Request(Exclusive(
-                        "Username is not in an appservice namespace."
-                    )));
-                }
-            }
-            _ => {
-                return Err!(Request(MissingToken("Missing appservice token.")));
+    let is_appservice_type = body.body.login_type == Some(LoginType::ApplicationService);
+
+    match body.appservice_info {
+        // Per spec an appservice registers with `m.login.application_service`;
+        // any other type would let its token skip UIAA and the namespace check.
+        Some(_) if !is_appservice_type => {
+            return Err!(Request(BadJson(
+                "An appservice token must be used with type m.login.application_service."
+            )));
+        }
+        Some(ref info) => {
+            if !info.is_user_match(user_id) && !emergency_mode_enabled {
+                return Err!(Request(Exclusive(
+                    "Username is not in an appservice namespace."
+                )));
             }
         }
-    } else if services.appservice.is_exclusive_user_id(user_id).await && !emergency_mode_enabled {
-        return Err!(Request(Exclusive("Username is reserved by an appservice.")));
+        None if is_appservice_type => {
+            return Err!(Request(MissingToken("Missing appservice token.")));
+        }
+        None => {
+            if services.appservice.is_exclusive_user_id(user_id).await && !emergency_mode_enabled {
+                return Err!(Request(Exclusive("Username is reserved by an appservice.")));
+            }
+        }
     }
 
     Ok(())

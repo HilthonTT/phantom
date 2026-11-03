@@ -40,7 +40,10 @@ pub(crate) async fn update_device_route(
         .await
         .map_err(|_| err!(Request(NotFound("Device not found."))))?;
 
-    device.display_name.clone_from(&body.display_name);
+    // An omitted display_name leaves the current name unchanged.
+    if let Some(display_name) = &body.display_name {
+        device.display_name = Some(display_name.clone());
+    }
     device.last_seen_ip = Some(client.to_string());
     device.last_seen_ts = Some(MilliSecondsSinceUnixEpoch::now());
 

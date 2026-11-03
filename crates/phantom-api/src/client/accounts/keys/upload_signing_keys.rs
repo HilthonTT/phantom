@@ -1,6 +1,7 @@
 use axum::extract::State;
 use phantom_core::{Err, Result};
-use ruma::api::client::keys::upload_signing_keys;
+use ruma::{api::client::keys::upload_signing_keys, encryption::CrossSigningKey, serde::Raw};
+use serde_json::Value as JsonValue;
 
 use crate::router::{Ruma, authenticate_uiaa};
 
@@ -22,15 +23,29 @@ pub(crate) async fn upload_signing_keys_route(
         .await
         .ok();
 
-    let unchanged = match (&existing_master, &body.master_key) {
-        (Some(existing), Some(new)) => existing.json().get() == new.json().get(),
-        (Some(_), None) => true,
-        (None, _) => false,
-    };
+    let existing_self_signing = services
+        .users
+        .get_self_signing_key(None, sender_user, &|_| true)
+        .await
+        .ok();
 
-    // A first upload, or a re-upload of the same master key, needs no UIAA.
+    let existing_user_signing = services.users.get_user_signing_key(sender_user).await.ok();
+
+    // Omitted keys are left untouched; any supplied key that differs from the
+    // stored one is a replacement.
+    let replaces_keys = is_replaced(existing_master.as_ref(), body.master_key.as_ref())
+        || is_replaced(
+            existing_self_signing.as_ref(),
+            body.self_signing_key.as_ref(),
+        )
+        || is_replaced(
+            existing_user_signing.as_ref(),
+            body.user_signing_key.as_ref(),
+        );
+
+    // A first upload, or a re-upload of the same keys, needs no UIAA.
     if existing_master.is_some()
-        && !unchanged
+        && replaces_keys
         && !services.users.can_replace_cross_signing_keys(sender_user)
     {
         authenticate_uiaa(&services, &body).await?;
@@ -54,4 +69,21 @@ pub(crate) async fn upload_signing_keys_route(
         .await?;
 
     Ok(upload_signing_keys::v3::Response::new())
+}
+
+fn is_replaced(
+    existing: Option<&Raw<CrossSigningKey>>,
+    new: Option<&Raw<CrossSigningKey>>,
+) -> bool {
+    let Some(new) = new else {
+        return false;
+    };
+
+    let parse =
+        |key: &Raw<CrossSigningKey>| serde_json::from_str::<JsonValue>(key.json().get()).ok();
+
+    existing.is_none_or(|existing| {
+        let existing = parse(existing);
+        existing.is_none() || existing != parse(new)
+    })
 }

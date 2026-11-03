@@ -13,7 +13,7 @@ use ruma::{
     room_version_rules::AuthorizationRules,
 };
 
-use crate::rooms::state::RoomMutexGuard;
+use crate::rooms::{short::ShortStateHash, state::RoomMutexGuard};
 
 #[implement(super::Service)]
 pub async fn user_can_redact(
@@ -104,8 +104,8 @@ pub async fn user_can_see_event(
     room_id: &RoomId,
     event_id: &EventId,
 ) -> bool {
-    let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
-        return true;
+    let Some(shortstatehash) = self.visibility_shortstatehash(room_id, event_id).await else {
+        return false;
     };
 
     let currently_member = self.services.state_cache.is_joined(user_id, room_id).await;
@@ -127,6 +127,28 @@ pub async fn user_can_see_event(
 
             false
         }
+    }
+}
+
+/// The state to judge an event's visibility against.
+///
+/// Outliers, and a room's own create event, have no state snapshot of their
+/// own. They are judged against the room's current state rather than shown to
+/// everyone; with no state at all, nothing is visible.
+#[implement(super::Service)]
+pub(super) async fn visibility_shortstatehash(
+    &self,
+    room_id: &RoomId,
+    event_id: &EventId,
+) -> Option<ShortStateHash> {
+    match self.pdu_shortstatehash(event_id).await {
+        Ok(shortstatehash) => Some(shortstatehash),
+        Err(_) => self
+            .services
+            .state
+            .get_room_shortstatehash(room_id)
+            .await
+            .ok(),
     }
 }
 
