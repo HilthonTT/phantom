@@ -3737,9 +3737,9 @@ dependencies = [
 
 [[package]]
 name = "ruma"
-version = "0.17.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1182bf4b2965b41743a57a290aabad8aa32b4129abe2ad70f38d2f0a29a8da59"
+checksum = "5883cf806b796aba27c7157a438a10df8904bb70511c2fac872c59a7823915f9"
 dependencies = [
  "assign",
  "js_int",
@@ -4515,7 +4515,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
