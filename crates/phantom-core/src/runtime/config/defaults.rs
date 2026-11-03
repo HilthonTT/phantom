@@ -249,6 +249,7 @@ pub(super) fn default_url_preview_cache_ttl() -> u64 {
 
 pub(super) fn default_ip_range_denylist() -> Vec<String> {
     [
+        "0.0.0.0/8",
         "127.0.0.0/8",
         "10.0.0.0/8",
         "172.16.0.0/12",
@@ -262,7 +263,9 @@ pub(super) fn default_ip_range_denylist() -> Vec<String> {
         "198.51.100.0/24",
         "203.0.113.0/24",
         "224.0.0.0/4",
+        "::/128",
         "::1/128",
+        "::ffff:0:0/96",
         "fe80::/10",
         "fc00::/7",
         "2001:db8::/32",

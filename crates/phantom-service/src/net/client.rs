@@ -83,8 +83,8 @@ impl crate::Service for Service {
 
             url_preview: builder_interface(base(config)?, url_preview_bind_iface.as_deref())?
                 .local_address(url_preview_bind_addr)
-                .dns_resolver(resolver.resolver.clone())
-                .redirect(redirect::Policy::limited(3))
+                .dns_resolver(denylisted(&resolver, &cidr_range_denylist))
+                .redirect(denylisted_redirects(3, &cidr_range_denylist))
                 .build()?,
 
             extern_media: base(config)?
@@ -144,17 +144,14 @@ impl crate::Service for Service {
                 .build()?,
 
             pusher: base(config)?
-                .dns_resolver(resolver.resolver.clone())
+                .dns_resolver(denylisted(&resolver, &cidr_range_denylist))
                 .pool_max_idle_per_host(1)
                 .pool_idle_timeout(Duration::from_secs(config.network.pusher_idle_timeout))
-                .redirect(redirect::Policy::limited(2))
+                .redirect(denylisted_redirects(2, &cidr_range_denylist))
                 .build()?,
 
             identity: base(config)?
-                .dns_resolver(Arc::new(Denylisted {
-                    inner: resolver.resolver.clone(),
-                    denylist: cidr_range_denylist.clone(),
-                }))
+                .dns_resolver(denylisted(&resolver, &cidr_range_denylist))
                 .redirect(redirect::Policy::none())
                 .build()?,
 
@@ -173,6 +170,36 @@ impl crate::Service for Service {
 /// client using it cannot be pointed inward by a name that resolves there.
 /// The check sits where the connection is made, so a name answering
 /// differently the second time it is asked changes nothing.
+fn denylisted(resolver: &resolver::Service, denylist: &[IPAddress]) -> Arc<Denylisted> {
+    Arc::new(Denylisted {
+        inner: resolver.resolver.clone(),
+        denylist: denylist.to_vec(),
+    })
+}
+
+/// Follows up to `max` redirects, refusing any hop to an IP literal in
+/// `denylist`. [`Denylisted`] only sees names that need resolving, so a
+/// redirect straight to `http://10.0.0.5/` would otherwise go through.
+fn denylisted_redirects(max: usize, denylist: &[IPAddress]) -> redirect::Policy {
+    let denylist = denylist.to_vec();
+
+    redirect::Policy::custom(move |attempt| {
+        let literal = attempt
+            .url()
+            .host_str()
+            .map(|host| host.trim_start_matches('[').trim_end_matches(']'))
+            .and_then(|host| host.parse::<IpAddr>().ok());
+
+        if literal.is_some_and(|ip| !allowed_by(&denylist, &ipaddress_from_std(ip))) {
+            attempt.error("redirect to an address in ip_range_denylist")
+        } else if attempt.previous().len() > max {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 struct Denylisted {
     inner: Arc<resolver::dns::Resolver>,
     denylist: Vec<IPAddress>,
@@ -186,10 +213,7 @@ impl Resolve for Denylisted {
         Box::pin(async move {
             let allowed: Vec<SocketAddr> = resolving
                 .await?
-                .filter(|addr| {
-                    let ip = ipaddress_from_std(addr.ip());
-                    denylist.iter().all(|cidr| !cidr.includes(&ip))
-                })
+                .filter(|addr| allowed_by(&denylist, &ipaddress_from_std(addr.ip())))
                 .collect();
 
             if allowed.is_empty() {
@@ -261,9 +285,19 @@ fn builder_interface(
 #[must_use]
 #[implement(Service)]
 pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
-    self.cidr_range_denylist
+    allowed_by(&self.cidr_range_denylist, ip)
+}
+
+/// Whether `ip` falls in none of the `denylist` ranges. An IPv4-mapped IPv6
+/// address is also checked as the IPv4 address it carries: `ipaddress` never
+/// matches a v4 range against a v6 address, so `::ffff:127.0.0.1` would pass
+/// every IPv4 rule while a dual-stack socket still connects it to loopback.
+fn allowed_by(denylist: &[IPAddress], ip: &IPAddress) -> bool {
+    let mapped = ip.mapped.as_deref().filter(|_| ip.is_mapped());
+
+    denylist
         .iter()
-        .all(|cidr| !cidr.includes(ip))
+        .all(|cidr| !cidr.includes(ip) && mapped.is_none_or(|v4| !cidr.includes(v4)))
 }
 
 #[inline]
@@ -289,7 +323,7 @@ pub fn proxied(&self, url: &Url) -> bool {
 
 #[must_use]
 fn ipaddress_from_std(ip: IpAddr) -> IPAddress {
-    let (proto, text) = match ip {
+    let (proto, text) = match ip.to_canonical() {
         IpAddr::V4(v4) => ("ipv4", v4.to_string()),
         IpAddr::V6(v6) => ("ipv6", v6.to_string()),
     };
