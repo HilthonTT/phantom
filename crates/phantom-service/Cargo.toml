@@ -33,25 +33,25 @@ arrayvec = { version = "0.7.8", features = ["serde"] }
 async-channel = "2.5.0"
 # The response body a federation request is read into; `reqwest` hands one
 # back and ruma reads the typed response out of it, so it is named here.
-bytes = "1.12.1"
+bytes = "1.12.2"
 # `Service` has async methods and is used behind `dyn`, which the language
 # cannot yet express on its own.
 async-trait = "0.1.92"
-either = "1.18.0"
+either = "1.19.0"
 futures = "0.3.34"
 # The resolver drives hickory directly rather than through reqwest's own
 # integration: resolving a Matrix server name is not a plain A/AAAA lookup,
 # and the SRV and well-known steps need the resolver on their own terms.
-hickory-resolver = { version = "0.26.1", default-features = false, features = [
+hickory-resolver = { version = "0.26.4", default-features = false, features = [
     "system-config",
     "tokio",
 ] }
 # CIDR containment, for `ip_range_denylist`.
-ipaddress = "0.2.11"
+ipaddress = "0.2.13"
 lru-cache = "0.1.2"
 phantom-core.workspace = true
 phantom-database.workspace = true
-regex = "1.13.1"
+regex = "1.13.2"
 # `rustls-tls` for the same reason as phantom-core's copy: no system OpenSSL.
 # The three codecs are what the `*_compression` config options switch on.
 reqwest = { version = "0.12.28", default-features = false, features = [
@@ -78,17 +78,17 @@ ruma = { version = "0.17.0", features = [
 ] }
 sd-notify = { version = "0.5.0", optional = true, default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
+serde_json = "1.0.154"
 # Inline buffers for the EDU JSON a sending transaction carries; most fit in
 # the inline capacity, so a queued EDU costs no heap allocation. `write` so
 # serde_json can serialize straight into one.
-smallvec = { version = "1.15.2", features = ["write"] }
+smallvec = { version = "1.16.6", features = ["write"] }
 # `macros` for `select!` in the manager loop, `rt` for the tasks the workers
 # run in, `sync` for the mutexes the manager's state lives behind, and `time`
 # for the delay before a panicked worker is restarted.
 # `fs` for the media store, whose files are read and written off the tokio
 # worker threads rather than blocking one of them.
-tokio = { version = "1.49.0", default-features = false, features = [
+tokio = { version = "1.54.1", default-features = false, features = [
     "fs",
     "macros",
     "rt",
@@ -134,9 +134,9 @@ image = { version = "0.25.10", default-features = false, features = [
 smallstr = { version = "0.3.1", features = ["serde"] }
 # `Host`, which reqwest's re-export of `Url` does not carry: a preview URL
 # whose host is an IP literal is screened against the CIDR denylist by value.
-url = "2.5.7"
+url = "2.5.9"
 serde_bytes = "0.11.19"
-lettre = { version = "0.11.23", features = ["tokio1", "tokio1-native-tls"] }
+lettre = { version = "0.11.24", features = ["tokio1", "tokio1-native-tls"] }
 loole = "0.6.0"
 http = "1.5.0"
 object_store = { version = "0.14.2", default-features = false, features = [
@@ -158,8 +158,8 @@ libc = { version = "0.2.189", optional = true }
 # Building a `Config` in tests the way the server does, from a TOML string.
 figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
 # A real database is opened under a temporary directory for the storage tests.
-tempfile = "3.15.0"
-tokio = { version = "1.49.0", default-features = false, features = ["macros", "rt"] }
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", default-features = false, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

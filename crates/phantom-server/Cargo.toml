@@ -10,7 +10,7 @@ repository.workspace = true
 # http2 on top of axum's defaults: federation peers and reverse proxies may
 # speak it over the plain listener.
 axum = { version = "0.8.9", features = ["http2"] }
-clap = { version = "4.6.7", features = ["derive", "env"] }
+clap = { version = "4.6.10", features = ["derive", "env"] }
 figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
 futures = "0.3.34"
 opentelemetry = { version = "0.33.0", optional = true }
@@ -21,9 +21,9 @@ phantom-core.workspace = true
 phantom-service.workspace = true
 # Inbound TLS when `[global.tls]` is set. ring is named as the provider
 # explicitly; see `tls::server_config`.
-rustls = { version = "0.23.43", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-serde_json = "1.0.151"
-tokio = { version = "1.49.0", features = [
+rustls = { version = "0.23.46", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", features = [
     "macros",
     "net",
     "rt-multi-thread",
@@ -31,7 +31,7 @@ tokio = { version = "1.49.0", features = [
     "sync",
     "time",
 ] }
-tokio-rustls = { version = "0.26.4", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["logging", "ring", "tls12"] }
 toml = "1.1.4"
 tracing = "0.1.44"
 tracing-flame = { version = "0.2.0", optional = true }
@@ -45,7 +45,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # new crate in. `rustls-tls` because the federation test's servers speak TLS
 # with a self-signed certificate.
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
-tempfile = "3.15.0"
+tempfile = "3.27.0"
 
 [features]
 perf_measurements = [

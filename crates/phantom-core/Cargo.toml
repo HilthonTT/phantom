@@ -32,40 +32,40 @@ argon2 = "0.6.0"
 arrayvec = "0.7.8"
 # axum lands in core because `impl IntoResponse for Error` must live in the
 # crate that defines Error; the orphan rule leaves it no other home.
-axum = { version = "0.8.7", default-features = false }
+axum = { version = "0.8.9", default-features = false }
 axum-extra = { version = "0.12.6", default-features = false, features = ["typed-header"] }
-bytes = "1.10.1"
+bytes = "1.12.2"
 bytesize = { version = "2.7.0", features = ["serde"] }
 cargo_toml = "1.0.1"
 checked = "0.5.0"
-ctor = "1.0.13"
+ctor = "1.0.14"
 checked_ops = "0.1.0"
 chrono = "0.4.45"
 core_affinity = "0.8.3"
 cyborgtime = "2.1.1"
-either = { version = "1.18.0", features = ["serde"] }
+either = { version = "1.19.0", features = ["serde"] }
 figment = { version = "0.10.19", default-features = false, features = ["env", "toml"] }
 futures = "0.3.34"
 hash = "0.3.0"
-http = "1.3.1"
-http-body-util = "0.1.3"
+http = "1.5.0"
+http-body-util = "0.1.5"
 js_int = "0.2.2"
-libc = "0.2.189"
+libc = "0.2.191"
 num-traits = "0.2.19"
 object_store = { version = "0.14.2", default-features = false, features = [
     "aws",
     "fs",
 ] }
 phantom-macros.workspace = true
-rand = "0.10.2"
-regex = "1.13.1"
+rand = "0.10.4"
+regex = "1.13.2"
 # rustls rather than the default native-tls so proxying does not drag in a
 # system OpenSSL; `socks` is what makes `socks5h://` proxy URLs work.
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "socks"] }
 ring = "0.17.14"
 # The `Url` a config option parses to, and the parse error `Error` carries.
 # reqwest re-exports the same type; named here because this crate uses it.
-url = "2.5.7"
+url = "2.5.9"
 # No `state-res`: `matrix::state_res` is this crate's own implementation, so
 # ruma's would only be dead weight.
 ruma = { version = "0.17.0", features = [
@@ -75,13 +75,13 @@ ruma = { version = "0.17.0", features = [
     "signatures",
 ] }
 sanitize-filename = "0.6.0"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.151"
-serde_regex = "1.1.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_regex = "1.2.0"
 smallstr = { version = "0.3.1", features = ["serde"] }
-thiserror = "2.0.20"
-tokio = { version = "1.49.0", default-features = false, features = ["rt"] }
-tokio-metrics = "0.5.1"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", default-features = false, features = ["rt"] }
+tokio-metrics = "0.5.2"
 toml = "1.1.4"
 tracing = "0.1.44"
 tracing-core = "0.1.36"
@@ -95,7 +95,7 @@ maplit = "1.0.2"
 # that need two futures to finish out of order, and `rt-multi-thread` for the
 # ones that hand work to the blocking pool. The library itself only needs the
 # runtime handle.
-tokio = { version = "1.49.0", default-features = false, features = [
+tokio = { version = "1.54.1", default-features = false, features = [
     "macros",
     "rt",
     "rt-multi-thread",
