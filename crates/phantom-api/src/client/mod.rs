@@ -82,6 +82,7 @@ pub fn register(router: Routes, config: &Config) -> Routes {
         .ruma_route(&tag::delete_tag_route)
         .ruma_route(&openid::create_openid_token_route)
         .ruma_route(&voip::turn_server_route)
+        .ruma_route(&rtc::get_rtc_transports_unstable_route)
         .ruma_route(&rtc::get_rtc_transports_route)
         .ruma_route(&rendezvous::discover_rendezvous_route)
         .ruma_route(&rendezvous::create_rendezvous_route)

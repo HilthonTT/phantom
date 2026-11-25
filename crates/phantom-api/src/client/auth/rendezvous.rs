@@ -49,11 +49,11 @@ pub(crate) const MSC4108_PATH: &str = "/_matrix/client/unstable/org.matrix.msc41
 pub(crate) async fn discover_rendezvous_route(
     State(services): State<crate::router::State>,
     ClientIp(client): ClientIp,
-    body: Ruma<discover_rendezvous::unstable::Request>,
-) -> Result<discover_rendezvous::unstable::Response> {
+    body: Ruma<discover_rendezvous::msc4388::Request>,
+) -> Result<discover_rendezvous::msc4388::Response> {
     check(&services, client, None)?;
 
-    Ok(discover_rendezvous::unstable::Response::new(may_create(
+    Ok(discover_rendezvous::msc4388::Response::new(may_create(
         &services,
         body.sender_user.as_deref(),
     )))
@@ -65,8 +65,8 @@ pub(crate) async fn discover_rendezvous_route(
 pub(crate) async fn create_rendezvous_route(
     State(services): State<crate::router::State>,
     ClientIp(client): ClientIp,
-    body: Ruma<create_rendezvous_session::unstable_msc4388::Request>,
-) -> Result<create_rendezvous_session::unstable_msc4388::Response> {
+    body: Ruma<create_rendezvous_session::msc4388::Request>,
+) -> Result<create_rendezvous_session::msc4388::Response> {
     check(&services, client, Some(body.sender_user.as_deref()))?;
     check_size(&services, body.data.len())?;
 
@@ -74,7 +74,7 @@ pub(crate) async fn create_rendezvous_route(
         .rendezvous
         .create(Bytes::copy_from_slice(body.data.as_bytes()));
 
-    Ok(create_rendezvous_session::unstable_msc4388::Response::new(
+    Ok(create_rendezvous_session::msc4388::Response::new(
         id.to_string(),
         meta.sequence_token().to_owned(),
         meta.expires_in(),
@@ -85,38 +85,39 @@ pub(crate) async fn create_rendezvous_route(
 pub(crate) async fn get_rendezvous_route(
     State(services): State<crate::router::State>,
     ClientIp(client): ClientIp,
-    body: Ruma<get_rendezvous_session::unstable::Request>,
-) -> Result<get_rendezvous_session::unstable::Response> {
+    body: Ruma<get_rendezvous_session::msc4388::Request>,
+) -> Result<get_rendezvous_session::msc4388::Response> {
     check(&services, client, None)?;
 
     let Get::Data { data, meta } = services.rendezvous.get(&body.id, None) else {
         return Err!(Request(NotFound("Rendezvous session not found.")));
     };
 
-    Ok(get_rendezvous_session::unstable::Response::new(
+    Ok(get_rendezvous_session::msc4388::Response::new(
         meta.sequence_token().to_owned(),
         String::from_utf8_lossy(&data).into_owned(),
         meta.expires_in(),
     ))
 }
 
-/// # `PUT /_matrix/client/unstable/io.element.msc4388/rendezvous/{id}`
+/// # `PUT /_matrix/client/unstable/io.element.msc4388/rendezvous/{id}/{txn_id}`
 ///
-/// Replaces the session's data if `sequence_token` is still current.
+/// Replaces the session's data if `sequence_token` is still current. A
+/// retried `txn_id` gets the answer its first attempt got.
 pub(crate) async fn update_rendezvous_route(
     State(services): State<crate::router::State>,
     ClientIp(client): ClientIp,
-    body: Ruma<update_rendezvous_session::unstable::Request>,
-) -> Result<update_rendezvous_session::unstable::Response> {
+    body: Ruma<update_rendezvous_session::msc4388::Request>,
+) -> Result<update_rendezvous_session::msc4388::Response> {
     check(&services, client, None)?;
     check_size(&services, body.data.len())?;
 
     let data = Bytes::copy_from_slice(body.data.as_bytes());
     match services
         .rendezvous
-        .put_token(&body.id, &body.sequence_token, data)
+        .put_token(&body.id, body.txn_id.as_str(), &body.sequence_token, data)
     {
-        Put::Accepted(meta) => Ok(update_rendezvous_session::unstable::Response::new(
+        Put::Accepted(meta) => Ok(update_rendezvous_session::msc4388::Response::new(
             meta.sequence_token().to_owned(),
         )),
         Put::PreconditionFailed(_) => Err(Error::Request(
@@ -132,15 +133,15 @@ pub(crate) async fn update_rendezvous_route(
 pub(crate) async fn delete_rendezvous_route(
     State(services): State<crate::router::State>,
     ClientIp(client): ClientIp,
-    body: Ruma<delete_rendezvous_session::unstable::Request>,
-) -> Result<delete_rendezvous_session::unstable::Response> {
+    body: Ruma<delete_rendezvous_session::msc4388::Request>,
+) -> Result<delete_rendezvous_session::msc4388::Response> {
     check(&services, client, None)?;
 
     if !services.rendezvous.delete_if_active(&body.id) {
         return Err!(Request(NotFound("Rendezvous session not found.")));
     }
 
-    Ok(delete_rendezvous_session::unstable::Response::new())
+    Ok(delete_rendezvous_session::msc4388::Response::new())
 }
 
 /// # `POST /_matrix/client/unstable/org.matrix.msc4108/rendezvous`

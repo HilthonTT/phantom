@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use phantom_service::{Services, accounts::sync};
 use ruma::{
     DeviceId, OwnedRoomId, RoomId, UserId,
-    api::client::sync::sync_events::v5::{
+    api::client::sync::sync_events::msc4186::{
         Request, request,
         request::{AccountData, E2EE, Profiles, Receipts, ToDevice, Typing},
     },
@@ -321,7 +321,7 @@ fn update_cache_typing(request: &Typing, cached: &mut Typing) {
 }
 
 fn update_cache_to_device(request: &ToDevice, cached: &mut ToDevice) {
-    some_or_sticky(request.enabled.as_ref(), &mut cached.enabled);
+    sticky_enable(request.enabled, &mut cached.enabled);
     cached.since.clone_from(&request.since);
 }
 
@@ -356,7 +356,16 @@ fn fields_widened(
 }
 
 fn update_cache_e2ee(request: &E2EE, cached: &mut E2EE) {
-    some_or_sticky(request.enabled.as_ref(), &mut cached.enabled);
+    sticky_enable(request.enabled, &mut cached.enabled);
+}
+
+/// The to-device and E2EE extensions carry a plain `enabled` flag, where an
+/// absent field reads as `false`, so a request that leaves it out cannot be
+/// told from one that turns the extension off. Extension settings are sticky,
+/// so only `true` is taken from the request: a client that stops sending the
+/// extension keeps it, and turning it off takes a new connection.
+fn sticky_enable(request: bool, cached: &mut bool) {
+    *cached |= request;
 }
 
 fn some_or_sticky<T: Clone>(target: Option<&T>, cached: &mut Option<T>) {
@@ -368,7 +377,7 @@ fn some_or_sticky<T: Clone>(target: Option<&T>, cached: &mut Option<T>) {
 #[cfg(test)]
 mod tests {
     use ruma::{
-        api::client::sync::sync_events::v5::request::Profiles, owned_room_id,
+        api::client::sync::sync_events::msc4186::request::Profiles, owned_room_id,
         profile::ProfileFieldName,
     };
 

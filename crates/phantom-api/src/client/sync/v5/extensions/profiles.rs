@@ -5,7 +5,7 @@ use phantom_core::{Result, stream::BroadbandExt, stream::IterStream};
 use phantom_service::Services;
 use ruma::{
     OwnedUserId,
-    api::client::sync::sync_events::v5::response::{Profiles, Room as ResponseRoom},
+    api::client::sync::sync_events::msc4186::response::{Profiles, Room as ResponseRoom},
     events::{StateEventType, room::member::MembershipState},
     profile::{ProfileFieldName, UserProfileChanges, UserProfileUpdate},
     serde::Raw,

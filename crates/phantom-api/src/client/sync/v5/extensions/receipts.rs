@@ -1,4 +1,4 @@
-use ruma::api::client::sync::sync_events::v5::response::Receipts;
+use ruma::api::client::sync::sync_events::msc4186::response::Receipts;
 
 use super::{Connection, Results, Window, selector};
 

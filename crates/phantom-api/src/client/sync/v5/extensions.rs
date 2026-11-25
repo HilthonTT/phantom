@@ -11,7 +11,7 @@ use futures::{FutureExt, future::join4};
 use phantom_core::{Result, extract_variant};
 use ruma::{
     OwnedRoomId, RoomId,
-    api::client::sync::sync_events::v5::{
+    api::client::sync::sync_events::msc4186::{
         request::ExtensionRoomConfig,
         response::{Extensions, Room as ResponseRoom},
     },
@@ -75,14 +75,14 @@ pub(super) async fn handle(
     };
 
     let to_device = async {
-        match enabled(extensions.to_device.enabled) {
+        match extensions.to_device.enabled {
             true => to_device::collect(sync_info, conn).await,
             false => Ok(Default::default()),
         }
     };
 
     let e2ee = async {
-        match enabled(extensions.e2ee.enabled) {
+        match extensions.e2ee.enabled {
             true => e2ee::collect(sync_info, conn).await,
             false => Ok(Default::default()),
         }

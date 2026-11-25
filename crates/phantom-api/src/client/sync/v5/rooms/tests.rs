@@ -3,7 +3,7 @@ use std::{collections::HashSet, iter::once};
 use phantom_core::matrix::PduCount;
 use ruma::{
     UInt,
-    api::client::sync::sync_events::v5::response::Room as ResponseRoom,
+    api::client::sync::sync_events::msc4186::response::Room as ResponseRoom,
     events::{StateEventType, room::member::MembershipState},
     uint,
 };

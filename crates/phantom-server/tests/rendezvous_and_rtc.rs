@@ -54,6 +54,7 @@ async fn qr_login_sessions_and_rtc_transports_are_served() {
         "org.matrix.msc4108",
         "io.element.msc4388",
         "org.matrix.msc4143",
+        "org.matrix.msc4143.stable",
     ] {
         assert_eq!(
             versions["unstable_features"][feature], true,
@@ -71,6 +72,12 @@ async fn qr_login_sessions_and_rtc_transports_are_served() {
         .await;
     let livekit = json!([{"type": "livekit", "livekit_service_url": LIVEKIT}]);
     assert_eq!(transports["rtc_transports"], livekit, "{transports}");
+
+    // The stable path serves the same transports, under `transports`.
+    let stable = ada
+        .ok(Method::GET, "/_matrix/client/v1/rtc/transports", None)
+        .await;
+    assert_eq!(stable["transports"], livekit, "{stable}");
 
     let well_known: Value = anonymous
         .get(format!("{}/.well-known/matrix/client", server.url))
@@ -135,14 +142,14 @@ async fn qr_login_sessions_and_rtc_transports_are_served() {
     assert_eq!(read["data"], "hello");
     assert_eq!(read["sequence_token"], first.as_str());
 
-    let put = |token: &str, data: &str| {
+    let put = |txn: &str, token: &str, data: &str| {
         anonymous
-            .put(&session)
+            .put(format!("{session}/{txn}"))
             .header(CONTENT_TYPE, "application/json")
             .body(json!({"sequence_token": token, "data": data}).to_string())
             .send()
     };
-    let answered = put(&first, "hi back").await.expect("put");
+    let answered = put("t1", &first, "hi back").await.expect("put");
     assert_eq!(answered.status(), StatusCode::OK);
     let second = string(
         &answered
@@ -153,8 +160,18 @@ async fn qr_login_sessions_and_rtc_transports_are_served() {
     );
     assert_ne!(first, second);
 
+    // A retried transaction gets its first answer, not a conflict with itself.
+    let retried = put("t1", &first, "hi back").await.expect("put");
+    assert_eq!(retried.status(), StatusCode::OK);
+    let replayed: Value = retried
+        .text()
+        .await
+        .map(|text| parse(&text))
+        .expect("a body");
+    assert_eq!(replayed["sequence_token"], second.as_str());
+
     // A write from a stale token is a conflict, not a lost update.
-    let stale = put(&first, "something else").await.expect("put");
+    let stale = put("t2", &first, "something else").await.expect("put");
     assert_eq!(stale.status(), StatusCode::CONFLICT);
     let error: Value = stale.text().await.map(|text| parse(&text)).expect("a body");
     assert_eq!(

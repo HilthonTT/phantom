@@ -14,7 +14,7 @@ use phantom_core::{debug, debug_warn, implement, stream::TryIgnore, time::now_mi
 use phantom_database::Interfix;
 use ruma::{
     DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, UserId,
-    api::client::sync::sync_events::v5::request::{Extensions, List, RoomSubscription},
+    api::client::sync::sync_events::msc4186::request::{Extensions, List, RoomSubscription},
 };
 use serde::{Deserialize, Serialize};
 

@@ -3,7 +3,9 @@ use std::cmp::Ordering;
 use futures::{FutureExt, StreamExt, future::join};
 use phantom_core::stream::{BroadbandExt, ReadyExt};
 use phantom_service::Services;
-use ruma::{MxcUri, OwnedMxcUri, RoomId, UserId, api::client::sync::sync_events::v5::response};
+use ruma::{
+    MxcUri, OwnedMxcUri, RoomId, UserId, api::client::sync::sync_events::msc4186::response,
+};
 
 const MAX_HEROES: usize = 5;
 

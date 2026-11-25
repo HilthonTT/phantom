@@ -44,7 +44,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # the lockfile through phantom-service and phantom-database, so they bring no
 # new crate in. `rustls-tls` because the federation test's servers speak TLS
 # with a self-signed certificate.
-reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 tempfile = "3.27.0"
 
 [features]

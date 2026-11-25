@@ -17,7 +17,7 @@ use phantom_core::{Err, Result, debug, debug_warn, result::LogErr, trace};
 use phantom_service::Services;
 use ruma::{
     DeviceId, OwnedDeviceId, OwnedRoomId, UserId,
-    api::client::sync::sync_events::v5::{Request, Response, response},
+    api::client::sync::sync_events::msc4186::{Request, Response, response},
     events::{
         GlobalAccountDataEventType, direct::DirectEventContent, room::member::MembershipState,
     },

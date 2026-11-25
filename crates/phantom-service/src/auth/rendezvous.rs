@@ -49,6 +49,10 @@ struct Session {
     created: SystemTime,
     last_modified: SystemTime,
     expires_at: SystemTime,
+    /// The last MSC4388 write's transaction ID and the `ETag` it answered
+    /// with, so a client retrying that write gets the same answer back
+    /// instead of a conflict against its own update.
+    txn: Option<(String, Etag)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -169,6 +173,7 @@ fn create_at(
         created: now,
         last_modified: now,
         expires_at,
+        txn: None,
     };
 
     let meta = session.meta();
@@ -221,26 +226,36 @@ pub fn put(&self, id: &str, if_match: &str, data: Bytes) -> Put {
 
 #[implement(Service)]
 fn put_at(&self, id: &str, if_match: &str, data: Bytes, now: SystemTime, ttl: Duration) -> Put {
-    self.put_with_at(id, Validator::Etag(if_match), data, now, ttl)
+    self.put_with_at(id, Validator::Etag(if_match), None, data, now, ttl)
 }
 
+/// An MSC4388 write. A repeat of the session's last `txn_id` is answered with
+/// the sequence token that write produced, without evaluating it again.
 #[implement(Service)]
-pub fn put_token(&self, id: &str, sequence_token: &str, data: Bytes) -> Put {
+pub fn put_token(&self, id: &str, txn_id: &str, sequence_token: &str, data: Bytes) -> Put {
     let ttl = Duration::from_secs(self.services.config.rendezvous.rendezvous_session_ttl);
 
-    self.put_token_at(id, sequence_token, data, SystemTime::now(), ttl)
+    self.put_token_at(id, txn_id, sequence_token, data, SystemTime::now(), ttl)
 }
 
 #[implement(Service)]
 fn put_token_at(
     &self,
     id: &str,
+    txn_id: &str,
     sequence_token: &str,
     data: Bytes,
     now: SystemTime,
     ttl: Duration,
 ) -> Put {
-    self.put_with_at(id, Validator::SequenceToken(sequence_token), data, now, ttl)
+    self.put_with_at(
+        id,
+        Validator::SequenceToken(sequence_token),
+        Some(txn_id),
+        data,
+        now,
+        ttl,
+    )
 }
 
 #[implement(Service)]
@@ -248,6 +263,7 @@ fn put_with_at(
     &self,
     id: &str,
     validator: Validator<'_>,
+    txn_id: Option<&str>,
     data: Bytes,
     now: SystemTime,
     ttl: Duration,
@@ -267,12 +283,22 @@ fn put_with_at(
         return Put::NotFound;
     };
 
+    if let (Some(txn_id), Some((seen, etag))) = (txn_id, &session.txn)
+        && txn_id == seen
+    {
+        return Put::Accepted(Meta {
+            etag: *etag,
+            ..session.meta()
+        });
+    }
+
     if !validator.matches(&session.etag) {
         if data != session.data {
             return Put::PreconditionFailed(session.meta());
         }
 
         session.expires_at = expires_at(now, ttl);
+        session.txn = txn_id.map(|txn_id| (txn_id.to_owned(), session.etag));
 
         return Put::Accepted(session.meta());
     }
@@ -281,12 +307,14 @@ fn put_with_at(
     let last_modified = next_last_modified(now, session.last_modified);
     let expires_at = expires_at(now, ttl);
 
+    let etag = etag(id, &data, last_modified);
     *session = Session {
-        etag: etag(id, &data, last_modified),
+        etag,
         data,
         created,
         last_modified,
         expires_at,
+        txn: txn_id.map(|txn_id| (txn_id.to_owned(), etag)),
     };
 
     Put::Accepted(session.meta())

@@ -7,6 +7,20 @@ use crate::router::Ruma;
 /// # `GET /_matrix/client/unstable/org.matrix.msc4143/rtc/transports`
 ///
 /// The MatrixRTC transports group calls should use, from `rtc_transports`.
+/// Clients that predate the stable endpoint below still ask here.
+pub(crate) async fn get_rtc_transports_unstable_route(
+    State(services): State<crate::router::State>,
+    _body: Ruma<transports::msc4143::Request>,
+) -> Result<transports::msc4143::Response> {
+    Ok(transports::msc4143::Response::new(rtc_transports(
+        &services.config,
+    )?))
+}
+
+/// # `GET /_matrix/client/v1/rtc/transports`
+///
+/// The same transports at MSC4143's stable path, advertised to clients as
+/// `org.matrix.msc4143.stable`.
 pub(crate) async fn get_rtc_transports_route(
     State(services): State<crate::router::State>,
     _body: Ruma<transports::v1::Request>,

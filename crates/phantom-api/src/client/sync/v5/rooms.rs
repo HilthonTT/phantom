@@ -20,7 +20,7 @@ use phantom_core::{
 use phantom_service::{Services, rooms::short::ShortStateHash};
 use ruma::{
     JsOption, MxcUri, OwnedMxcUri, RoomId, UInt, UserId,
-    api::client::sync::sync_events::{UnreadNotificationsCount, v5::response},
+    api::client::sync::sync_events::{UnreadNotificationsCount, msc4186::response},
     events::{AnySyncStateEvent, StateEventType, TimelineEventType, room::member::MembershipState},
     serde::Raw,
 };

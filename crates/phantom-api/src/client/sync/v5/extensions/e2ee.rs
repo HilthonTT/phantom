@@ -8,7 +8,7 @@ use phantom_core::{
 };
 use ruma::{
     OwnedUserId, RoomId,
-    api::client::sync::sync_events::{DeviceLists, v5::response},
+    api::client::sync::sync_events::{DeviceLists, msc4186::response},
     events::{
         StateEventType, TimelineEventType,
         room::member::{MembershipState, RoomMemberEventContent},

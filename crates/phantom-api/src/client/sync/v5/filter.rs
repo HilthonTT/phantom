@@ -1,7 +1,7 @@
 use futures::future::join3;
 use ruma::{
-    RoomId, api::client::sync::sync_events::v5::request::ListFilters, directory::RoomTypeFilter,
-    events::room::member::MembershipState,
+    RoomId, api::client::sync::sync_events::msc4186::request::ListFilters,
+    directory::RoomTypeFilter, events::room::member::MembershipState,
 };
 
 use super::SyncInfo;

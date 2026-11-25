@@ -8,8 +8,8 @@ use futures::FutureExt;
 use phantom_core::time::now_millis;
 use phantom_database::table;
 use ruma::{
-    DeviceId, UserId, api::client::sync::sync_events::v5::request::List, device_id, room_id, uint,
-    user_id,
+    DeviceId, UserId, api::client::sync::sync_events::msc4186::request::List, device_id, room_id,
+    uint, user_id,
 };
 use tempfile::TempDir;
 
@@ -42,7 +42,7 @@ fn connection(timeline_limit: u32) -> Connection {
         "\0roomsince".to_owned(),
         [(room_id!("!room:phantom.test").to_owned(), 42)].into(),
     );
-    connection.extensions.e2ee.enabled = Some(true);
+    connection.extensions.e2ee.enabled = true;
 
     connection
 }

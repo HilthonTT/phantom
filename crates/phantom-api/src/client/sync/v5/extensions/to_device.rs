@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use phantom_core::Result;
-use ruma::api::client::sync::sync_events::v5::response;
+use ruma::api::client::sync::sync_events::msc4186::response;
 
 use super::{Connection, SyncInfo};
 

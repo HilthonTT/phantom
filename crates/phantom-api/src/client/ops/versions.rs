@@ -32,12 +32,13 @@ pub(crate) async fn get_supported_versions_route(
         .then_some(["org.matrix.msc4108", "io.element.msc4388"]);
 
     // MatrixRTC is advertised only with a transport to hand out.
-    let rtc = (!config.client.rtc_transports.is_empty()).then_some("org.matrix.msc4143");
+    let rtc = (!config.client.rtc_transports.is_empty())
+        .then_some(["org.matrix.msc4143", "org.matrix.msc4143.stable"]);
 
     response.unstable_features = UNSTABLE_FEATURES
         .into_iter()
         .chain(rendezvous.into_iter().flatten())
-        .chain(rtc)
+        .chain(rtc.into_iter().flatten())
         .map(Into::into)
         .zip(once(true).cycle())
         .collect();

@@ -24,7 +24,7 @@ ipnet = "2.12.2"
 itertools = "0.15.0"
 phantom-core.workspace = true
 phantom-service.workspace = true
-ruma = { version = "0.17.0", features = [
+ruma = { version = "0.18.0", features = [
     "api",
     "client-api",
     "compat-upload-signatures",

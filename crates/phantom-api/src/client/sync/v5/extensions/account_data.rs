@@ -4,7 +4,7 @@ use futures::{StreamExt, future::ready};
 use phantom_core::{Result, extract_variant};
 use phantom_service::accounts::account_data::AnyRawAccountDataEvent;
 use ruma::{
-    OwnedRoomId, api::client::sync::sync_events::v5::response::AccountData,
+    OwnedRoomId, api::client::sync::sync_events::msc4186::response::AccountData,
     events::AnyRoomAccountDataEvent, serde::Raw,
 };
 

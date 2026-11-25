@@ -9,7 +9,7 @@ use phantom_service::accounts::account_data::AnyRawAccountDataEvent;
 use phantom_service::rooms::read_receipt::pack_receipts;
 use ruma::{
     OwnedRoomId, OwnedUserId, RoomId,
-    api::client::sync::sync_events::v5::response,
+    api::client::sync::sync_events::msc4186::response,
     events::{
         AnyRoomAccountDataEvent, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType,
         ignored_user_list::IgnoredUserListEventContent, receipt::SyncReceiptEvent,
@@ -327,7 +327,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ruma::{api::client::sync::sync_events::v5::response::Room as ResponseRoom, room_id};
+    use ruma::{api::client::sync::sync_events::msc4186::response::Room as ResponseRoom, room_id};
     use serde_json::{json, value::to_raw_value};
 
     use super::*;

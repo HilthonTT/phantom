@@ -7,7 +7,7 @@ use phantom_core::{
 };
 use ruma::{
     OwnedRoomId,
-    api::client::sync::sync_events::v5::response::{self, Typing},
+    api::client::sync::sync_events::msc4186::response::{self, Typing},
     events::typing::{SyncTypingEvent, TypingEventContent},
     serde::Raw,
 };
@@ -145,8 +145,8 @@ fn eligibility(
 #[cfg(test)]
 mod tests {
     use ruma::{
-        OwnedUserId, RoomId, api::client::sync::sync_events::v5::response::Room as ResponseRoom,
-        room_id, user_id,
+        OwnedUserId, RoomId,
+        api::client::sync::sync_events::msc4186::response::Room as ResponseRoom, room_id, user_id,
     };
 
     use super::*;
